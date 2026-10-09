@@ -139,7 +139,7 @@ impl TileGeometry {
 }
 
 /// Cache counters, for `run.json` and benchmarks.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
 pub struct StoreStats {
     /// Accesses served by a resident tile.
     pub hits: u64,
