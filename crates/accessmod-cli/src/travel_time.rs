@@ -31,19 +31,26 @@ pub struct RunArgs {
     job: Option<PathBuf>,
     #[command(flatten)]
     direct: DirectArgs,
+    #[command(flatten)]
+    exec: ExecArgs,
+}
+
+/// Execution options shared by analyses: they change speed, never results.
+#[derive(Debug, clap::Args)]
+pub struct ExecArgs {
     /// Print a JSON document on stdout.
     #[arg(long)]
-    json: bool,
+    pub json: bool,
     /// Memory budget, e.g. 2G or 512M (default: half the available memory).
     #[arg(long, value_name = "SIZE")]
-    memory: Option<String>,
-    /// Threads for GDAL encoding and compression (default: available CPUs,
-    /// at most 16).
+    pub memory: Option<String>,
+    /// Threads for computation and GDAL compression (default: available
+    /// CPUs, at most 16).
     #[arg(long, value_name = "N")]
-    threads: Option<usize>,
+    pub threads: Option<usize>,
     /// Directory for scratch tiles (default: system temporary directory).
     #[arg(long, value_name = "DIR")]
-    tmp_dir: Option<PathBuf>,
+    pub tmp_dir: Option<PathBuf>,
 }
 
 /// Job given as parameters instead of a file.
@@ -65,6 +72,9 @@ pub struct DirectArgs {
     /// Facility identifier field.
     #[arg(long, value_name = "FIELD")]
     id_field: Option<String>,
+    /// OGR SQL attribute filter selecting facilities, e.g. "type = 'HC'".
+    #[arg(long = "facilities-where", value_name = "SQL")]
+    facilities_where: Option<String>,
     /// Scenario entry CLASS=MODE:SPEED_KMH, e.g. 1=walking:5 (repeat).
     #[arg(long = "class", value_name = "CLASS=MODE:KMH")]
     classes: Vec<String>,
@@ -99,7 +109,7 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             Ok(())
         }
         Command::Validate(args) => {
-            let settings = settings(&args)?;
+            let settings = settings(&args.exec)?;
             let prepared = load_and_prepare(&args, &settings, cancel)?;
             for warning in &prepared.warnings {
                 tracing::warn!("{}", warning.message);
@@ -111,7 +121,7 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
                 prepared.facilities.kept.len(),
                 prepared.summary.passable
             );
-            if args.json {
+            if args.exec.json {
                 print_json(&json!({
                     "status": "valid",
                     "job": prepared.job,
@@ -127,7 +137,7 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             Ok(())
         }
         Command::Run(args) => {
-            let settings = settings(&args)?;
+            let settings = settings(&args.exec)?;
             let prepared = load_and_prepare(&args, &settings, cancel)?;
             for warning in &prepared.warnings {
                 tracing::warn!("{}", warning.message);
@@ -142,14 +152,14 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             );
             let cancelled = || cancel.requested();
             let (output_dir, report) =
-                run_job(prepared, &settings, &cancelled).map_err(|e| fail(&e, args.json))?;
+                run_job(prepared, &settings, &cancelled).map_err(|e| fail(&e, args.exec.json))?;
             tracing::info!(
                 "wrote {}: {} cells reached, max {:.0} s",
                 output_dir.display(),
                 report.run.result.reached_cells,
                 report.run.result.max_travel_time_s
             );
-            if args.json {
+            if args.exec.json {
                 let mut value = serde_json::to_value(&report).unwrap_or_default();
                 value["status"] = json!("ok");
                 value["output_dir"] = json!(output_dir);
@@ -165,12 +175,12 @@ fn load_and_prepare(
     settings: &ExecutionSettings,
     cancel: &Cancel,
 ) -> Result<Prepared, Failure> {
-    let job = job(args).map_err(|e| fail(&e, args.json))?;
+    let job = job(args).map_err(|e| fail(&e, args.exec.json))?;
     let cancelled = || cancel.requested();
-    prepare(job, settings, &cancelled).map_err(|e| fail(&e, args.json))
+    prepare(job, settings, &cancelled).map_err(|e| fail(&e, args.exec.json))
 }
 
-fn settings(args: &RunArgs) -> Result<ExecutionSettings, Failure> {
+pub fn settings(args: &ExecArgs) -> Result<ExecutionSettings, Failure> {
     let mut settings = ExecutionSettings::from_host();
     if let Some(text) = &args.memory {
         settings.memory_bytes = resources::parse_size(text).ok_or_else(|| {
@@ -299,6 +309,7 @@ fn job(args: &RunArgs) -> Result<TravelTimeJob, Error> {
             path: facilities.clone(),
             layer: d.facilities_layer.clone(),
             id_field: id_field.clone(),
+            filter: d.facilities_where.clone(),
         },
         scenario,
         method,

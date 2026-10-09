@@ -215,3 +215,36 @@ fn inspect_describes_rasters_and_layers() {
     let report = stdout_json(&output);
     assert_eq!(report["layers"][0]["features"], 1);
 }
+
+#[test]
+fn referral_runs_from_a_job() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    fixture(tmp.path());
+    let dir = tmp.path().to_string_lossy().into_owned();
+    let job = format!(
+        r#"{{"schema_version": 1, "dem": "{dir}/dem.tif", "land_cover": "{dir}/lc.tif",
+            "origins": {{"path": "{dir}/hf.gpkg", "id_field": "code"}},
+            "destinations": {{"path": "{dir}/hf.gpkg", "id_field": "code"}},
+            "scenario": [{{"class": 1, "mode": "motorized", "speed_kmh": 5}}],
+            "method": "isotropic", "neighbourhood": 8, "self_pairs": true,
+            "output_dir": "{dir}/ref"}}"#
+    );
+    let job_path = format!("{dir}/referral.json");
+    std::fs::write(&job_path, job).expect("write job");
+    let output = accessmod(&["referral", "run", "--json", "--job", &job_path]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = stdout_json(&output);
+    assert_eq!(report["run"]["result"]["pairs"], 1);
+    let csv = std::fs::read_to_string(format!("{dir}/ref/referral.csv")).expect("csv");
+    assert_eq!(
+        csv,
+        "origin_id,destination_id,time_s,distance_m\nHC-1,HC-1,0,0\n"
+    );
+    let schema = stdout_json(&accessmod(&["referral", "schema"]));
+    assert!(schema["properties"]["destinations"].is_object());
+}

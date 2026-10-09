@@ -101,6 +101,7 @@ fn compare(case: &Case, dir: &Path, tmp: &Path) -> Comparison {
             path: input.join("facilities.fgb"),
             layer: None,
             id_field: "cat".into(),
+            filter: None,
         },
         scenario: scenario(dir),
         method: case.method,

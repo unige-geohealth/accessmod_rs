@@ -10,5 +10,6 @@ pub mod grid;
 pub mod inputs;
 pub mod job;
 pub mod output;
+pub mod referral;
 pub mod resources;
 pub mod travel_time;

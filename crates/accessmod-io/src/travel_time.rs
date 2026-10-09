@@ -16,7 +16,7 @@ use crate::error::{Error, Result};
 use crate::facilities::{FacilityIssue, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::{CHUNK_COLS, InputSummary, STRIP_ROWS, load_inputs, open_land_cover};
-use crate::job::{FacilityIssues, MethodName, TravelTimeJob};
+use crate::job::{FacilityIssues, MethodName, ScenarioEntry, TravelTimeJob};
 use crate::output::{self, Staging};
 use crate::resources;
 
@@ -214,7 +214,7 @@ pub struct Prepared {
     pub durations_s: BTreeMap<&'static str, f64>,
 }
 
-fn sha256_file(role: &'static str, path: &Path) -> Result<Fingerprint> {
+pub(crate) fn sha256_file(role: &'static str, path: &Path) -> Result<Fingerprint> {
     let mut file = std::fs::File::open(path).map_err(Error::file(path))?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; 1 << 20];
@@ -246,9 +246,8 @@ fn facility_issue_text(issue: &FacilityIssue) -> String {
         .as_ref()
         .map_or_else(|| "no id".to_owned(), |id| format!("id {id}"));
     format!(
-        "facility #{} ({id}): {}",
-        issue.feature_index + 1,
-        issue.reason
+        "facility FID {} ({id}): {}",
+        issue.feature_index, issue.reason
     )
 }
 
@@ -278,99 +277,24 @@ pub fn prepare(
         return Err(Error::Validation { issues });
     }
 
-    let dem = Dataset::open(&job.dem).map_err(Error::gdal(&job.dem))?;
-    let grid = GridSpec::from_dem(&dem, &job.dem).map_err(|issues| Error::Validation { issues })?;
-    let (land_cover, alignment) = open_land_cover(&job.land_cover, &grid)?;
-    let plan = ResourcePlan::new(grid.rows, grid.cols, settings)?;
-    gdal::config::set_config_option("GDAL_CACHEMAX", &plan.gdal_cache_bytes.to_string())
-        .map_err(Error::gdal(&job.dem))?;
-
-    let geometry = TileGeometry::new(grid.rows, grid.cols, plan.tile)?;
-    let mut inputs = TiledGrid::new(
-        geometry,
-        InputCell::NODATA,
-        plan.resident_tiles,
-        &settings.tmp_dir,
-        "inputs",
-    )?;
     let (slots, scenario) = job.scenario_table();
-    let summary = load_inputs(
-        &dem,
-        &job.dem,
-        &land_cover,
-        &job.land_cover,
-        alignment,
-        &grid,
-        &slots,
-        &mut inputs,
-        cancelled,
-    )?;
+    let Landscape {
+        grid,
+        mut inputs,
+        summary,
+        plan,
+    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, cancelled)?;
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
 
     let facilities = load_facilities(&job.facilities, &grid, &mut inputs)?;
     let mut warnings = Vec::new();
-    if !facilities.issues.is_empty() {
-        let texts: Vec<String> = facilities.issues.iter().map(facility_issue_text).collect();
-        match job.facility_issues {
-            FacilityIssues::Error => {
-                let mut issues = texts;
-                issues.push(
-                    "fix these facilities or set \"facility_issues\": \"skip\" to ignore them"
-                        .to_owned(),
-                );
-                return Err(Error::Validation { issues });
-            }
-            FacilityIssues::Skip => warnings.extend(texts.into_iter().map(|message| Warning {
-                code: "facility_skipped",
-                message,
-            })),
-        }
-    }
-    if facilities.kept.is_empty() {
-        return Err(Error::invalid("no usable facility"));
-    }
-    if facilities.reprojected {
-        warnings.push(Warning {
-            code: "facilities_reprojected",
-            message: format!(
-                "facility points were reprojected from layer {:?} CRS to the DEM CRS",
-                facilities.layer
-            ),
-        });
-    }
-    if !summary.unmapped_classes.is_empty() || summary.unmapped_other_cells > 0 {
-        let listed: Vec<String> = summary
-            .unmapped_classes
-            .iter()
-            .map(|(class, cells)| format!("{class} ({cells} cells)"))
-            .collect();
-        let mut message = format!(
-            "land-cover classes without scenario are barriers: {}",
-            listed.join(", ")
-        );
-        if summary.unmapped_other_cells > 0 {
-            message.push_str(&format!(
-                " and {} cells of further classes",
-                summary.unmapped_other_cells
-            ));
-        }
-        warnings.push(Warning {
-            code: "classes_without_scenario",
-            message,
-        });
-    }
-    let used: std::collections::BTreeSet<i64> = summary.class_cells.keys().copied().collect();
-    for entry in &job.scenario {
-        if !used.contains(&entry.class) {
-            warnings.push(Warning {
-                code: "scenario_class_absent",
-                message: format!(
-                    "scenario class {} does not occur in the land cover",
-                    entry.class
-                ),
-            });
-        }
-    }
+    screen_facilities(
+        &facilities,
+        job.facility_issues,
+        "facilities",
+        &mut warnings,
+    )?;
+    warnings.extend(landscape_warnings(&summary, &job.scenario));
 
     let fingerprint_started = Instant::now();
     let fingerprints = vec![
@@ -392,6 +316,142 @@ pub fn prepare(
         fingerprints,
         durations_s,
     })
+}
+
+/// DEM grid and solver inputs, loaded and validated.
+#[derive(Debug)]
+pub(crate) struct Landscape {
+    pub grid: GridSpec,
+    pub inputs: TiledGrid<InputCell>,
+    pub summary: InputSummary,
+    pub plan: ResourcePlan,
+}
+
+/// Open the DEM and the land cover, check them, plan resources and load the
+/// solver inputs.
+pub(crate) fn load_landscape(
+    dem_path: &Path,
+    land_cover_path: &Path,
+    slots: &BTreeMap<i64, u16>,
+    settings: &ExecutionSettings,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Landscape> {
+    let dem = Dataset::open(dem_path).map_err(Error::gdal(dem_path))?;
+    let grid = GridSpec::from_dem(&dem, dem_path).map_err(|issues| Error::Validation { issues })?;
+    let (land_cover, alignment) = open_land_cover(land_cover_path, &grid)?;
+    let plan = ResourcePlan::new(grid.rows, grid.cols, settings)?;
+    gdal::config::set_config_option("GDAL_CACHEMAX", &plan.gdal_cache_bytes.to_string())
+        .map_err(Error::gdal(dem_path))?;
+    let geometry = TileGeometry::new(grid.rows, grid.cols, plan.tile)?;
+    let mut inputs = TiledGrid::new(
+        geometry,
+        InputCell::NODATA,
+        plan.resident_tiles,
+        &settings.tmp_dir,
+        "inputs",
+    )?;
+    let summary = load_inputs(
+        &dem,
+        dem_path,
+        &land_cover,
+        land_cover_path,
+        alignment,
+        &grid,
+        slots,
+        &mut inputs,
+        cancelled,
+    )?;
+    Ok(Landscape {
+        grid,
+        inputs,
+        summary,
+        plan,
+    })
+}
+
+/// Fail on unusable facilities, or turn them into warnings, per `policy`;
+/// fail when none is usable. `role` names the layer in messages.
+pub(crate) fn screen_facilities(
+    facilities: &LoadedFacilities,
+    policy: FacilityIssues,
+    role: &str,
+    warnings: &mut Vec<Warning>,
+) -> Result<()> {
+    if !facilities.issues.is_empty() {
+        let texts: Vec<String> = facilities
+            .issues
+            .iter()
+            .map(|issue| format!("{role}: {}", facility_issue_text(issue)))
+            .collect();
+        match policy {
+            FacilityIssues::Error => {
+                let mut issues = texts;
+                issues.push(
+                    "fix these facilities or set \"facility_issues\": \"skip\" to ignore them"
+                        .to_owned(),
+                );
+                return Err(Error::Validation { issues });
+            }
+            FacilityIssues::Skip => warnings.extend(texts.into_iter().map(|message| Warning {
+                code: "facility_skipped",
+                message,
+            })),
+        }
+    }
+    if facilities.kept.is_empty() {
+        return Err(Error::invalid(format!("{role}: no usable facility")));
+    }
+    if facilities.reprojected {
+        warnings.push(Warning {
+            code: "facilities_reprojected",
+            message: format!(
+                "{role}: points were reprojected from layer {:?} CRS to the DEM CRS",
+                facilities.layer
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Warnings about land-cover classes and the scenario.
+pub(crate) fn landscape_warnings(
+    summary: &InputSummary,
+    scenario: &[ScenarioEntry],
+) -> Vec<Warning> {
+    let mut warnings = Vec::new();
+    if !summary.unmapped_classes.is_empty() || summary.unmapped_other_cells > 0 {
+        let listed: Vec<String> = summary
+            .unmapped_classes
+            .iter()
+            .map(|(class, cells)| format!("{class} ({cells} cells)"))
+            .collect();
+        let mut message = format!(
+            "land-cover classes without scenario are barriers: {}",
+            listed.join(", ")
+        );
+        if summary.unmapped_other_cells > 0 {
+            message.push_str(&format!(
+                " and {} cells of further classes",
+                summary.unmapped_other_cells
+            ));
+        }
+        warnings.push(Warning {
+            code: "classes_without_scenario",
+            message,
+        });
+    }
+    for entry in scenario {
+        if !summary.class_cells.contains_key(&entry.class) {
+            warnings.push(Warning {
+                code: "scenario_class_absent",
+                message: format!(
+                    "scenario class {} does not occur in the land cover",
+                    entry.class
+                ),
+            });
+        }
+    }
+    warnings
 }
 
 /// Deviations from AccessMod 5 relevant to a job.

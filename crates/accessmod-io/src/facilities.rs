@@ -17,7 +17,7 @@ pub struct FacilityRecord {
     /// 1-based order among the facilities used (value in
     /// `nearest_facility.tif`).
     pub ordinal: u32,
-    /// 0-based position of the feature in the layer.
+    /// Feature id (FID) in the layer.
     pub feature_index: u64,
     /// Identifier from the `id_field`.
     pub id: serde_json::Value,
@@ -34,7 +34,7 @@ pub struct FacilityRecord {
 /// A facility that cannot be used.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct FacilityIssue {
-    /// 0-based position of the feature in the layer.
+    /// Feature id (FID) in the layer.
     pub feature_index: u64,
     /// Identifier, when readable.
     pub id: Option<serde_json::Value>,
@@ -130,6 +130,11 @@ pub fn load_facilities(
             .layer(0)
             .map_err(|_| invalid("has no layer".into()))?,
     };
+    if let Some(filter) = &source.filter {
+        layer
+            .set_attribute_filter(filter)
+            .map_err(|e| invalid(format!("invalid filter {filter:?} ({e})")))?;
+    }
     let layer_name = layer.name();
     let field_index = layer.defn().field_index(&source.id_field).map_err(|_| {
         invalid(format!(
@@ -153,7 +158,8 @@ pub fn load_facilities(
     let mut kept = Vec::new();
     let mut issues = Vec::new();
     for (index, feature) in layer.features().enumerate() {
-        let feature_index = index as u64;
+        // The feature id (FID) identifies a feature whatever the filter.
+        let feature_index = feature.fid().unwrap_or(index as u64);
         let id = json_id(feature.field(field_index).map_err(Error::gdal(path))?);
         let mut issue = |reason: String| {
             issues.push(FacilityIssue {

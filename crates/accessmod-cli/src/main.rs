@@ -6,6 +6,7 @@
 
 mod doctor;
 mod inspect;
+mod referral;
 mod travel_time;
 
 use std::process::ExitCode;
@@ -39,6 +40,11 @@ enum Command {
     TravelTime {
         #[command(subcommand)]
         command: travel_time::Command,
+    },
+    /// Travel time and distance between facilities (many-to-many).
+    Referral {
+        #[command(subcommand)]
+        command: referral::Command,
     },
 }
 
@@ -81,6 +87,7 @@ fn main() -> ExitCode {
         Command::Doctor(args) => doctor::run(&args),
         Command::Dataset { command } => inspect::run(&command),
         Command::TravelTime { command } => travel_time::run(command, &cancel),
+        Command::Referral { command } => referral::run(command, &cancel),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

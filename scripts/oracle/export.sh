@@ -42,6 +42,15 @@ docker run --rm --platform "$PLATFORM" \
     > "$out/travel-time-demo.log" 2>&1 \
     || { echo "error: demo export failed, see $out/travel-time-demo.log" >&2; exit 1; }
 
+# Referral on the demo project (scripts/oracle/referral-demo.R).
+rm -rf "$out/referral/demo"
+docker run --rm --platform "$PLATFORM" -e TZ=UTC \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'echo UTC > /etc/timezone; cd /app && Rscript /scripts/referral-demo.R' \
+    > "$out/referral-demo.log" 2>&1 \
+    || { echo "error: referral export failed, see $out/referral-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {

@@ -65,6 +65,10 @@ pub struct FacilitySource {
     pub layer: Option<String>,
     /// Field holding the facility identifier.
     pub id_field: String,
+    /// Optional OGR SQL attribute filter selecting facilities, e.g.
+    /// `"type = 'hospital'"`; all features when omitted.
+    #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
 }
 
 /// Mobility of one land-cover class.
@@ -160,53 +164,7 @@ impl TravelTimeJob {
 
     /// Problems that make the job invalid regardless of its input data.
     pub fn check(&self) -> Vec<String> {
-        let mut issues = Vec::new();
-        if self.schema_version != SCHEMA_VERSION {
-            issues.push(format!(
-                "schema_version is {}, this engine reads version {SCHEMA_VERSION}",
-                self.schema_version
-            ));
-        }
-        if self.scenario.is_empty() {
-            issues.push("scenario is empty: every cell would be a barrier".into());
-        }
-        let mut seen = BTreeMap::new();
-        for (i, entry) in self.scenario.iter().enumerate() {
-            if let Some(first) = seen.insert(entry.class, i) {
-                issues.push(format!(
-                    "scenario class {} is listed twice (entries {} and {})",
-                    entry.class,
-                    first + 1,
-                    i + 1
-                ));
-            }
-            if CellMobility::new(entry.mode, entry.speed_kmh).is_none() {
-                issues.push(format!(
-                    "scenario class {}: speed_kmh must be finite and > 0, got {} \
-                     (leave a class out of the scenario to make it a barrier)",
-                    entry.class, entry.speed_kmh
-                ));
-            }
-            if entry.mode == TransportMode::Bicycling && entry.speed_kmh > bicycle::SPEED_MAX_KMH {
-                issues.push(format!(
-                    "scenario class {}: bicycling speed must not exceed {} km/h, got {}",
-                    entry.class,
-                    bicycle::SPEED_MAX_KMH,
-                    entry.speed_kmh
-                ));
-            }
-        }
-        if self.scenario.len() >= usize::from(accessmod_core::solver::InputCell::BARRIER) {
-            issues.push(format!(
-                "scenario has {} classes, at most 65534 are supported",
-                self.scenario.len()
-            ));
-        }
-        if let Some(limit) = self.limit_s
-            && !(limit.is_finite() && limit > 0.0)
-        {
-            issues.push(format!("limit_s must be finite and > 0, got {limit}"));
-        }
+        let mut issues = check_common(self.schema_version, &self.scenario, self.limit_s);
         if self.facilities.id_field.trim().is_empty() {
             issues.push("facilities.id_field is empty".into());
         }
@@ -216,20 +174,82 @@ impl TravelTimeJob {
     /// Scenario as solver slots: class value → slot, and slot → mobility.
     /// Call after [`TravelTimeJob::check`] succeeded.
     pub fn scenario_table(&self) -> (BTreeMap<i64, u16>, Vec<CellMobility>) {
-        let mut slots = BTreeMap::new();
-        let mut table = Vec::with_capacity(self.scenario.len());
-        for entry in &self.scenario {
-            if let (Some(mobility), Ok(slot)) = (
-                CellMobility::new(entry.mode, entry.speed_kmh),
-                u16::try_from(table.len()),
-            ) && !slots.contains_key(&entry.class)
-            {
-                slots.insert(entry.class, slot);
-                table.push(mobility);
-            }
-        }
-        (slots, table)
+        scenario_table(&self.scenario)
     }
+}
+
+/// Problems with the fields every analysis job shares: schema version,
+/// scenario and limit.
+pub fn check_common(
+    schema_version: u32,
+    scenario: &[ScenarioEntry],
+    limit_s: Option<f64>,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+    if schema_version != SCHEMA_VERSION {
+        issues.push(format!(
+            "schema_version is {schema_version}, this engine reads version {SCHEMA_VERSION}"
+        ));
+    }
+    if scenario.is_empty() {
+        issues.push("scenario is empty: every cell would be a barrier".into());
+    }
+    let mut seen = BTreeMap::new();
+    for (i, entry) in scenario.iter().enumerate() {
+        if let Some(first) = seen.insert(entry.class, i) {
+            issues.push(format!(
+                "scenario class {} is listed twice (entries {} and {})",
+                entry.class,
+                first + 1,
+                i + 1
+            ));
+        }
+        if CellMobility::new(entry.mode, entry.speed_kmh).is_none() {
+            issues.push(format!(
+                "scenario class {}: speed_kmh must be finite and > 0, got {} \
+                 (leave a class out of the scenario to make it a barrier)",
+                entry.class, entry.speed_kmh
+            ));
+        }
+        if entry.mode == TransportMode::Bicycling && entry.speed_kmh > bicycle::SPEED_MAX_KMH {
+            issues.push(format!(
+                "scenario class {}: bicycling speed must not exceed {} km/h, got {}",
+                entry.class,
+                bicycle::SPEED_MAX_KMH,
+                entry.speed_kmh
+            ));
+        }
+    }
+    if scenario.len() >= usize::from(accessmod_core::solver::InputCell::BARRIER) {
+        issues.push(format!(
+            "scenario has {} classes, at most 65534 are supported",
+            scenario.len()
+        ));
+    }
+    if let Some(limit) = limit_s
+        && !(limit.is_finite() && limit > 0.0)
+    {
+        issues.push(format!("limit_s must be finite and > 0, got {limit}"));
+    }
+    issues
+}
+
+/// Scenario as solver slots: class value → slot, and slot → mobility
+/// (first entry wins for a duplicated class; [`check_common`] reports it).
+pub fn scenario_table(scenario: &[ScenarioEntry]) -> (BTreeMap<i64, u16>, Vec<CellMobility>) {
+    let mut slots = BTreeMap::new();
+    let mut table = Vec::with_capacity(scenario.len());
+    for entry in scenario {
+        if let (Some(mobility), Ok(slot)) = (
+            CellMobility::new(entry.mode, entry.speed_kmh),
+            u16::try_from(table.len()),
+        ) && !slots.contains_key(&entry.class)
+        {
+            slots.insert(entry.class, slot);
+            table.push(mobility);
+        }
+    }
+    (slots, table)
 }
 
 #[cfg(test)]

@@ -2,6 +2,12 @@
 # image: fredmoser/accessmod:5.9.2-beta.6 (linux/arm64)
 # image-id: sha256:01458355a315db8ba60b380dd1af4e973d40aa8e85df76668dec2d34049654d8
 6eb3c606b971a2827e74787ef251aeab8551d368d058bda543684b832823030c  ./bicycle-lut/r.walk.accessmod
+965b7cae88251bbf9a6d7813b95c8c9f1e70cbd5139f2762c2446d6b5719da47  ./referral/demo/oracle/tReferral-16.csv
+54ca58335dde20538c392c011c7cf7ebaca8ad4416b4ee179ac9255fe03f73b8  ./referral/demo/oracle/tReferral-8.csv
+64c7f01004e7f195d0501b3861d0ed33f62f507b5223ec1cba97927cbf891507  ./referral/demo/oracle/tReferralDist-16.csv
+340a994ba3912d13af01b73e30531a98db9f0d5f6b5410fefc7cd6d9dcdb96d4  ./referral/demo/oracle/tReferralDist-8.csv
+0510e4cc7362c88ec9de8a479a52073e300bb2f995020006c8bd1ebdca63f626  ./referral/demo/oracle/tReferralTime-16.csv
+f0ef2910d32f744a6654c4d6b9d631d0b6ba19fbfa6fa4f7aa246fe306fa2d0c  ./referral/demo/oracle/tReferralTime-8.csv
 848319f361c4dfb05ee2a9d54ca05de69ebce4733ec007a8d0b530e2276dfc4d  ./travel-time/demo/demo-scenario.txt
 bd13cf51faf7bf4fc4d84aaebe3a656c3a2459f96f57c88f9433357c170cf2a1  ./travel-time/demo/input/dem.tif
 17857f07e8ee9d4b3a46f7d7506db1e3f7c6b859932098d4ee96c6c1f3575c49  ./travel-time/demo/input/facilities.fgb

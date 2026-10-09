@@ -124,6 +124,7 @@ impl Fixture {
                 path: path.join("hf.gpkg"),
                 layer: None,
                 id_field: "hf_id".into(),
+                filter: None,
             },
             scenario: vec![ScenarioEntry {
                 class: 1,
