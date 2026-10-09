@@ -306,6 +306,13 @@ pub fn solve(
     stats.heap_peak = heap.len();
 
     let steps = config.neighbourhood.steps();
+    // Per-step constants, computed once: code (position in STEPS) and length.
+    let step_codes: Vec<u8> = steps.iter().map(|s| s.code()).collect();
+    let step_lengths: Vec<f64> = steps.iter().map(|s| s.length_m(config.cell)).collect();
+    let reach = match config.neighbourhood {
+        Neighbourhood::Eight => 1,
+        Neighbourhood::Sixteen => 2,
+    };
     while let Some(entry) = heap.pop() {
         stats.pops += 1;
         if stats.pops.is_multiple_of(CANCEL_POLL) && cancelled() {
@@ -323,15 +330,18 @@ pub fn solve(
         state.set(row, col, current)?;
         stats.settled += 1;
 
-        let origin = inputs.get(row, col)?;
+        // Read the inputs around the origin once: every target and crossed
+        // cell of its edges lies within `reach` cells.
+        let window = Window::read(inputs, row, col, reach, rows, cols)?;
+        let origin = window.at(Step { d_row: 0, d_col: 0 });
         let origin_mobility = mobility(scenario, origin).expect(
             "settled cells are passable: facilities are checked, edges need passable targets",
         );
-        for &step in steps {
+        for (k, &step) in steps.iter().enumerate() {
             let Some((t_row, t_col)) = offset(row, col, step, rows, cols) else {
                 continue;
             };
-            let target = inputs.get(t_row, t_col)?;
+            let target = window.at(step);
             if !target.is_passable() {
                 continue;
             }
@@ -339,19 +349,16 @@ pub fn solve(
             if target_state.settled {
                 continue;
             }
-            // Offsets of the target and crossed cells lie between origin and
-            // target, hence inside the grid once the target is.
+            // Crossed cells lie between origin and target, hence inside the
+            // grid and the window once the target is.
             let edge = Edge::build(step, origin_mobility, |offset_step| {
-                let (r, c) = offset(row, col, offset_step, rows, cols)
-                    .expect("edge cells lie inside the grid when the target does");
-                let input = inputs.get(r, c)?;
-                Ok::<_, StoreError>(mobility(scenario, input))
+                Ok::<_, StoreError>(mobility(scenario, window.at(offset_step)))
             })?;
             let Some(edge) = edge else {
                 continue;
             };
             let dz_m = target.dem_m - origin.dem_m;
-            let length_m = step.length_m(config.cell);
+            let length_m = step_lengths[k];
             let Some(cost_s) = edge.cost_s(config.method, config.cell, dz_m, config.direction)
             else {
                 continue;
@@ -369,7 +376,7 @@ pub fn solve(
                 time_s,
                 distance_m,
                 nearest: current.nearest,
-                step: step.code(),
+                step: step_codes[k],
                 settled: false,
             };
             if better(candidate.key(), target_state.key()) {
@@ -385,6 +392,47 @@ pub fn solve(
         }
     }
     Ok(stats)
+}
+
+/// Inputs of the cells within `reach` rows and columns of an origin; cells
+/// outside the grid read as NoData.
+struct Window {
+    reach: isize,
+    cells: [InputCell; 25],
+}
+
+impl Window {
+    fn read(
+        inputs: &mut TiledGrid<InputCell>,
+        row: usize,
+        col: usize,
+        reach: isize,
+        rows: usize,
+        cols: usize,
+    ) -> Result<Self, StoreError> {
+        let mut cells = [InputCell::NODATA; 25];
+        for dr in -reach..=reach {
+            let Some(r) = row.checked_add_signed(dr).filter(|&r| r < rows) else {
+                continue;
+            };
+            for dc in -reach..=reach {
+                if let Some(c) = col.checked_add_signed(dc).filter(|&c| c < cols) {
+                    cells[Self::index(dr, dc)] = inputs.get(r, c)?;
+                }
+            }
+        }
+        Ok(Self { reach, cells })
+    }
+
+    fn index(dr: isize, dc: isize) -> usize {
+        ((dr + 2) * 5 + (dc + 2)) as usize
+    }
+
+    fn at(&self, step: Step) -> InputCell {
+        let (dr, dc) = (isize::from(step.d_row), isize::from(step.d_col));
+        debug_assert!(dr.abs() <= self.reach && dc.abs() <= self.reach);
+        self.cells[Self::index(dr, dc)]
+    }
 }
 
 /// Cell reached by `step` from `(row, col)`, if inside the grid.

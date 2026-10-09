@@ -291,6 +291,10 @@ This repository becomes the **canonical source** of the model, without R:
 3. Optimization and Scaling Up.
 4. New project format; `.am5p` import as a separate converter.
 5. UI (Tauri or other) on top of the stabilised CLI/MCP APIs.
+6. Land-cover merge (land cover, roads with classes, barriers, bridge
+   cleaning) and population correction on barriers, as in the AccessMod 5
+   toolbox; prerequisite of coverage analyses on raw data. See
+   [`coverage.md`](coverage.md).
 
 ## Tests and acceptance criteria
 

@@ -131,7 +131,16 @@ impl TileGeometry {
     }
 
     /// Tile id and offset within the tile of cell `(row, col)`.
+    #[inline]
     fn locate(&self, row: usize, col: usize) -> (usize, usize) {
+        if self.tile.is_power_of_two() {
+            // Hot path for the default tile size: shifts and masks.
+            let shift = self.tile.trailing_zeros();
+            let mask = self.tile - 1;
+            let (tr, r) = (row >> shift, row & mask);
+            let (tc, c) = (col >> shift, col & mask);
+            return (tr * self.tiles_x + tc, (r << shift) + c);
+        }
         let (tr, r) = (row / self.tile, row % self.tile);
         let (tc, c) = (col / self.tile, col % self.tile);
         (tr * self.tiles_x + tc, r * self.tile + c)
@@ -247,6 +256,7 @@ impl<T: CellCodec> TiledGrid<T> {
     /// # Panics
     ///
     /// If the cell is outside the grid (a caller bug, not a data error).
+    #[inline]
     pub fn get(&mut self, row: usize, col: usize) -> Result<T, StoreError> {
         let (slot, offset) = self.cell_slot(row, col)?;
         Ok(self.slots[slot].cells[offset])
@@ -257,6 +267,7 @@ impl<T: CellCodec> TiledGrid<T> {
     /// # Panics
     ///
     /// If the cell is outside the grid.
+    #[inline]
     pub fn set(&mut self, row: usize, col: usize, value: T) -> Result<(), StoreError> {
         let (slot, offset) = self.cell_slot(row, col)?;
         let slot = &mut self.slots[slot];
@@ -287,6 +298,7 @@ impl<T: CellCodec> TiledGrid<T> {
         Ok(())
     }
 
+    #[inline]
     fn cell_slot(&mut self, row: usize, col: usize) -> Result<(usize, usize), StoreError> {
         assert!(
             row < self.geometry.rows && col < self.geometry.cols,
@@ -295,14 +307,16 @@ impl<T: CellCodec> TiledGrid<T> {
             self.geometry.cols
         );
         let (tile, offset) = self.geometry.locate(row, col);
-        self.clock += 1;
+        // Fast path: same tile as the previous access. Its recency was set
+        // when it became current, which is all LRU needs: no other tile
+        // was used since.
         if let Some((last_tile, slot)) = self.last
             && last_tile == tile
         {
             self.stats.hits += 1;
-            self.slots[slot].last_used = self.clock;
             return Ok((slot, offset));
         }
+        self.clock += 1;
         let slot = match self.slot_of[tile] {
             NO_SLOT => {
                 self.stats.misses += 1;
