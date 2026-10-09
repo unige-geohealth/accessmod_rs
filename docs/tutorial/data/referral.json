@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "dem": "dem.tif",
+  "land_cover": "land_cover.tif",
+  "origins": { "path": "facilities.gpkg", "id_field": "code" },
+  "destinations": { "path": "facilities.gpkg", "id_field": "code" },
+  "scenario": [
+    { "class": 1, "mode": "walking", "speed_kmh": 5, "label": "built area" },
+    { "class": 2, "mode": "walking", "speed_kmh": 4, "label": "grassland" },
+    { "class": 3, "mode": "walking", "speed_kmh": 2, "label": "forest" },
+    { "class": 1001, "mode": "motorized", "speed_kmh": 60, "label": "main road" },
+    { "class": 1002, "mode": "bicycling", "speed_kmh": 15, "label": "secondary road" }
+  ],
+  "method": "anisotropic",
+  "neighbourhood": 16,
+  "output_dir": "out-referral"
+}

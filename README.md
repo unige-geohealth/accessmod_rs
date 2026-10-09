@@ -37,6 +37,13 @@ modes) on synthetic grids, single runs on an Apple M1 Pro
 | 64 M | 121.7 s | 92.1 s / 100.2 s | 7.9 → 1.9 GB |
 | 64 M, `--memory 1G` | — | 101.3 s / 117.5 s | 0.85 GB |
 
+Referral (all facilities to all facilities, [details](docs/benchmarks.md)):
+
+| Cells, facilities | AccessMod 5 | accessmod-rs |
+| ---: | ---: | ---: |
+| demo 44 k, 10 | 13.1 s (replay analysis) | 0.3 s |
+| 16 M, 100 (9 900 pairs) | ≥ 72.6 s (engine only, lower bound) | 17.7 s |
+
 - **Same numbers**: travel times agree with AccessMod 5 to 1e-15 (relative),
   with identical reachable areas and nearest facilities; on the AccessMod 5
   demo project as well ([oracle tests](docs/plan.md)).
@@ -49,6 +56,9 @@ modes) on synthetic grids, single runs on an Apple M1 Pro
   AccessMod 5 does in separate import and export steps.
 - **One binary**: no R, Shiny, GRASS or Docker; scriptable with job files,
   JSON output and exit codes.
+- **Referral without the detours**: distances come from the search itself (no
+  `r.path` / `v.net`), searches stop at the last destination and run in
+  parallel; many-to-one runs from the few destinations.
 - **No start-up cost**: an AccessMod 5 replay spends 6 s loading its R code
   before computing; the demo travel time takes 9 s end to end in AccessMod 5
   and 0.5 s with accessmod-rs.

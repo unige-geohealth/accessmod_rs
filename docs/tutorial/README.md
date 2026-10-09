@@ -169,6 +169,44 @@ Results never depend on these settings; only speed does.
   directory).
 - `--threads N`: threads for GeoTIFF compression.
 
+## 8. Referral: time and distance between facilities
+
+[`data/referral.json`](data/referral.json) computes travel time and path
+distance from every facility to every other one (same scenario):
+
+```sh
+accessmod referral run --job docs/tutorial/data/referral.json
+```
+
+`origins` and `destinations` are two facility layers (here the same one);
+each accepts a `where` attribute filter, e.g. `"where": "type = 'hospital'"`.
+Pairs from a facility to itself are dropped (`self_pairs: true` keeps them).
+
+Outputs in `out-referral/`:
+
+| File | Content |
+| --- | --- |
+| `referral.csv` | One row per pair: `origin_id,destination_id,time_s,distance_m` (empty when unreachable). |
+| `nearest_by_time.csv` | For each origin, the destination(s) reached first; ties are all kept. |
+| `nearest_by_distance.csv` | For each origin, the destination(s) with the shortest path (among least-time paths). |
+| `run.json`, `job.resolved.json` | As for travel time. |
+
+```text
+origin_id,destination_id,time_s,distance_m
+HF-01,HF-02,613.8165442942285,10230.27573823714
+HF-01,HF-03,1223.7313993492196,20395.523322487
+HF-02,HF-01,613.8165442942285,10230.27573823714
+…
+```
+
+Each origin needs one search over the grid, stopped as soon as every
+destination is reached; searches run in parallel (`--threads`). When there
+are fewer destinations than origins, searches start from the destinations
+with slopes inverted (`"search_from": "auto"`), which gives the same times
+up to floating-point rounding; `"search_from": "origins"` forces forward
+searches. `"nearest_only": true` stops each search at the nearest
+destination(s), much faster on large grids.
+
 ## Regenerating the data and figures
 
 ```sh
