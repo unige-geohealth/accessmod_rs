@@ -1,0 +1,33 @@
+#
+# Rust
+#
+/target
+**/*.rs.bk
+*.pdb
+
+#
+# Local scratch, oracle exports and large fixtures (never committed)
+#
+_shared/
+_oracle/
+tests/_output/
+*.tif.aux.xml
+
+#
+# Secrets
+#
+.env
+.secret*
+
+#
+# Editors / OS
+#
+.idea/
+.vscode/
+*.swp
+**/.DS_Store
+
+#
+# Agent local state
+#
+.claude/
