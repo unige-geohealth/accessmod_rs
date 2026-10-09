@@ -5,9 +5,15 @@
 //! it touches and is returned in seconds. Mirrors `am_cost_seconds`
 //! (`mobility.h` l.130-176) and the neighbour switch of
 //! `r.walk.accessmod/main.c` (l.1100-1790), AccessMod 5 `5.9.2-beta.6`.
+//!
+//! Edges are only built through [`Edge::build`], which derives the crossed
+//! cells and the length from the [`Step`] and refuses barriers, so callers
+//! cannot pair a step with the wrong cells.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::mobility::{MobilityModel, TransportMode};
 
@@ -22,7 +28,16 @@ pub enum Direction {
     TowardsFacilities,
 }
 
-/// Set of neighbours reachable in one step.
+/// Travel-time method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Method {
+    /// Scenario speed only; slope and transport mode ignored.
+    Isotropic,
+    /// Speed from the mobility model, transport mode and slope.
+    Anisotropic(MobilityModel),
+}
+
+/// Set of neighbours reachable in one step; `8` or `16` in jobs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Neighbourhood {
     /// Cardinal and diagonal neighbours.
@@ -39,15 +54,74 @@ impl Neighbourhood {
             Self::Sixteen => &STEPS,
         }
     }
+
+    /// Number of neighbours: 8 or 16.
+    pub fn count(self) -> u8 {
+        match self {
+            Self::Eight => 8,
+            Self::Sixteen => 16,
+        }
+    }
 }
 
-/// Cell size of a north-up grid, metres.
+impl Serialize for Neighbourhood {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u8(self.count())
+    }
+}
+
+impl<'de> Deserialize<'de> for Neighbourhood {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match u8::deserialize(deserializer)? {
+            8 => Ok(Self::Eight),
+            16 => Ok(Self::Sixteen),
+            other => Err(serde::de::Error::custom(format!(
+                "neighbourhood must be 8 or 16, got {other}"
+            ))),
+        }
+    }
+}
+
+impl JsonSchema for Neighbourhood {
+    fn schema_name() -> Cow<'static, str> {
+        "Neighbourhood".into()
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "description": "Neighbours reachable in one step: 8 (cardinal and diagonal) or 16 (plus knight moves).",
+            "type": "integer",
+            "enum": [8, 16]
+        })
+    }
+}
+
+/// Cell size of a north-up grid, metres; both sides finite and positive.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CellSize {
+    ew_m: f64,
+    ns_m: f64,
+}
+
+impl CellSize {
+    /// `None` unless both sides are finite and positive.
+    pub fn new(ew_m: f64, ns_m: f64) -> Option<Self> {
+        (is_finite_positive(ew_m) && is_finite_positive(ns_m)).then_some(Self { ew_m, ns_m })
+    }
+
     /// East-west resolution (column width), m.
-    pub ew_m: f64,
+    pub fn ew_m(self) -> f64 {
+        self.ew_m
+    }
+
     /// North-south resolution (row height), m.
-    pub ns_m: f64,
+    pub fn ns_m(self) -> f64 {
+        self.ns_m
+    }
+}
+
+fn is_finite_positive(x: f64) -> bool {
+    x.is_finite() && x > 0.0
 }
 
 /// Geometric kind of a step.
@@ -146,17 +220,33 @@ impl Step {
     }
 }
 
-/// Mobility of one passable cell: its scenario transport mode and flat speed.
+/// Mobility of one passable cell: its scenario transport mode and flat
+/// speed, finite and positive.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CellMobility {
-    /// Transport mode of the cell's land-cover class.
-    pub mode: TransportMode,
-    /// Scenario flat speed, km/h, finite and > 0 for a passable cell.
-    pub speed_kmh: f64,
+    mode: TransportMode,
+    speed_kmh: f64,
 }
 
-/// Cells touched by an edge, all passable. A knight step touching a barrier
-/// has no edge: the caller must not build one.
+impl CellMobility {
+    /// `None` unless `speed_kmh` is finite and positive (a zero speed is a
+    /// barrier, not a mobility).
+    pub fn new(mode: TransportMode, speed_kmh: f64) -> Option<Self> {
+        is_finite_positive(speed_kmh).then_some(Self { mode, speed_kmh })
+    }
+
+    /// Transport mode of the cell's land-cover class.
+    pub fn mode(self) -> TransportMode {
+        self.mode
+    }
+
+    /// Scenario flat speed, km/h.
+    pub fn speed_kmh(self) -> f64 {
+        self.speed_kmh
+    }
+}
+
+/// Cells touched by an edge, all passable, in AccessMod 5 summation order.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EdgeCells {
     /// Cardinal or diagonal step.
@@ -179,16 +269,81 @@ pub enum EdgeCells {
     },
 }
 
-/// Anisotropic edge cost, seconds.
-///
-/// - `length_m`: planar step length ([`Step::length_m`]);
-/// - `dz_m`: elevation of the target minus elevation of the origin, finite
-///   (a NoData DEM cell is a barrier and never reaches this function).
-///
-/// The slope `dz_m / length_m` is shared by every cell of the edge and
-/// negated for [`Direction::TowardsFacilities`]. Returns `None` when the cost
-/// is not finite (a cell with zero speed): the edge does not exist.
-pub fn anisotropic_edge_cost_s(
+/// An edge of the graph: a step and the mobility of every cell it touches.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Edge {
+    step: Step,
+    cells: EdgeCells,
+}
+
+impl Edge {
+    /// Edge for `step` from a cell of mobility `origin`.
+    ///
+    /// `sample(offset)` returns the mobility of the cell at `offset` from the
+    /// origin, or `None` for a barrier; it is called for the target and, for
+    /// knight steps, for both crossed cells. Returns `Ok(None)` when any of
+    /// them is a barrier: such a step has no edge.
+    pub fn build<E>(
+        step: Step,
+        origin: CellMobility,
+        mut sample: impl FnMut(Step) -> Result<Option<CellMobility>, E>,
+    ) -> Result<Option<Self>, E> {
+        let Some(target) = sample(step)? else {
+            return Ok(None);
+        };
+        let cells = match step.crossed() {
+            None => EdgeCells::Adjacent { origin, target },
+            Some([straight, diagonal]) => {
+                let (Some(straight), Some(diagonal)) = (sample(straight)?, sample(diagonal)?)
+                else {
+                    return Ok(None);
+                };
+                EdgeCells::Knight {
+                    origin,
+                    straight,
+                    diagonal,
+                    target,
+                }
+            }
+        };
+        Ok(Some(Self { step, cells }))
+    }
+
+    /// Step of this edge.
+    pub fn step(&self) -> Step {
+        self.step
+    }
+
+    /// Cells of this edge.
+    pub fn cells(&self) -> &EdgeCells {
+        &self.cells
+    }
+
+    /// Cost of the edge, seconds, or `None` if it is not finite (a speed
+    /// underflowing to zero, a non-finite `dz_m`): the edge does not exist.
+    ///
+    /// `dz_m` is the elevation of the target minus that of the origin; it is
+    /// ignored by [`Method::Isotropic`].
+    pub fn cost_s(
+        &self,
+        method: Method,
+        cell: CellSize,
+        dz_m: f64,
+        direction: Direction,
+    ) -> Option<f64> {
+        let length_m = self.step.length_m(cell);
+        match method {
+            Method::Isotropic => isotropic_edge_cost_s(&self.cells, length_m),
+            Method::Anisotropic(model) => {
+                anisotropic_edge_cost_s(model, &self.cells, length_m, dz_m, direction)
+            }
+        }
+    }
+}
+
+/// Anisotropic edge cost, seconds. The slope `dz_m / length_m` is shared by
+/// every cell of the edge and negated for [`Direction::TowardsFacilities`].
+fn anisotropic_edge_cost_s(
     model: MobilityModel,
     cells: &EdgeCells,
     length_m: f64,
@@ -205,16 +360,16 @@ pub fn anisotropic_edge_cost_s(
 }
 
 /// Isotropic edge cost, seconds: the scenario speed of each cell, transport
-/// mode and slope ignored. Same pace averaging as
-/// [`anisotropic_edge_cost_s`].
-pub fn isotropic_edge_cost_s(cells: &EdgeCells, length_m: f64) -> Option<f64> {
+/// mode and slope ignored.
+fn isotropic_edge_cost_s(cells: &EdgeCells, length_m: f64) -> Option<f64> {
     edge_cost_s(cells, length_m, |c| c.speed_kmh)
 }
 
 /// `am_cost_seconds`: sum of per-cell paces weighted by `L/2` (adjacent) or
 /// `L/4` (knight), in hours, then seconds. Operation order is kept for bit
-/// parity with the oracle: `((o + t)` for adjacent, `(o + s) + (d + t)` for
-/// knight steps.
+/// parity with the oracle: `o + t` for adjacent, `(o + s) + (d + t)` for
+/// knight steps. Speeds are positive and lengths positive, so a finite cost
+/// is positive.
 fn edge_cost_s(
     cells: &EdgeCells,
     length_m: f64,
@@ -249,7 +404,7 @@ mod tests {
     const MODEL: MobilityModel = MobilityModel::Accessmod5V1;
 
     fn cell(mode: TransportMode, speed_kmh: f64) -> CellMobility {
-        CellMobility { mode, speed_kmh }
+        CellMobility::new(mode, speed_kmh).expect("positive test speed")
     }
 
     fn motorized(speed_kmh: f64) -> CellMobility {
@@ -258,6 +413,10 @@ mod tests {
 
     fn adjacent(origin: CellMobility, target: CellMobility) -> EdgeCells {
         EdgeCells::Adjacent { origin, target }
+    }
+
+    fn size(ew_m: f64, ns_m: f64) -> CellSize {
+        CellSize::new(ew_m, ns_m).expect("positive test cell size")
     }
 
     #[test]
@@ -301,10 +460,7 @@ mod tests {
 
     #[test]
     fn step_lengths() {
-        let cell = CellSize {
-            ew_m: 30.0,
-            ns_m: 40.0,
-        };
+        let cell = size(30.0, 40.0);
         assert_eq!(STEPS[0].length_m(cell), 30.0);
         assert_eq!(STEPS[2].length_m(cell), 40.0);
         assert_eq!(STEPS[4].length_m(cell), 50.0);
@@ -312,6 +468,61 @@ mod tests {
         assert_eq!(STEPS[8].length_m(cell), (6400.0f64 + 900.0).sqrt());
         // WNW: 1 row, 2 columns -> sqrt(40² + 60²).
         assert_eq!(STEPS[12].length_m(cell), (1600.0f64 + 3600.0).sqrt());
+    }
+
+    #[test]
+    fn invalid_values_are_rejected() {
+        for bad in [0.0, -5.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(CellMobility::new(TransportMode::Walking, bad), None);
+            assert_eq!(CellSize::new(bad, 10.0), None);
+            assert_eq!(CellSize::new(10.0, bad), None);
+        }
+    }
+
+    #[test]
+    fn neighbourhood_serialises_as_a_number() {
+        let json = serde_json::to_string(&Neighbourhood::Sixteen).expect("serialise");
+        assert_eq!(json, "16");
+        let back: Neighbourhood = serde_json::from_str("8").expect("deserialise");
+        assert_eq!(back, Neighbourhood::Eight);
+        assert!(serde_json::from_str::<Neighbourhood>("4").is_err());
+        assert!(serde_json::from_str::<Neighbourhood>("\"8\"").is_err());
+    }
+
+    #[test]
+    fn build_refuses_barriers_and_orders_knight_cells() {
+        let origin = motorized(1.0);
+        let speed_of = |s: Step| f64::from(s.d_row * 10 + s.d_col) + 50.0;
+        let open = |s: Step| Ok::<_, ()>(CellMobility::new(TransportMode::Motorized, speed_of(s)));
+        let nnw = STEPS[8];
+        let edge = Edge::build(nnw, origin, open)
+            .expect("no error")
+            .expect("edge");
+        let EdgeCells::Knight {
+            straight,
+            diagonal,
+            target,
+            ..
+        } = *edge.cells()
+        else {
+            panic!("knight step builds a knight edge");
+        };
+        assert_eq!(straight.speed_kmh(), speed_of(Step::new(-1, 0)));
+        assert_eq!(diagonal.speed_kmh(), speed_of(Step::new(-1, -1)));
+        assert_eq!(target.speed_kmh(), speed_of(nnw));
+
+        let blocked = |s: Step| Ok::<_, ()>((s != Step::new(-1, -1)).then(|| motorized(5.0)));
+        assert_eq!(Edge::build(nnw, origin, blocked), Ok(None));
+        assert!(
+            Edge::build(STEPS[4], origin, blocked)
+                .expect("ok")
+                .is_none()
+        );
+        assert!(
+            Edge::build(STEPS[0], origin, blocked)
+                .expect("ok")
+                .is_some()
+        );
     }
 
     #[test]
@@ -332,21 +543,44 @@ mod tests {
             diagonal: motorized(20.0),
             target: motorized(40.0),
         };
-        let length = 200.0;
         // 50 m in each cell: 36 + 18 + 9 + 4.5 s.
-        let cost = isotropic_edge_cost_s(&cells, length).unwrap_or(f64::NAN);
+        let cost = isotropic_edge_cost_s(&cells, 200.0).unwrap_or(f64::NAN);
         assert!((cost - 67.5).abs() < 1e-12, "{cost}");
     }
 
     #[test]
-    fn zero_speed_is_a_barrier() {
-        let cells = adjacent(motorized(5.0), motorized(0.0));
-        assert_eq!(isotropic_edge_cost_s(&cells, 100.0), None);
-        let cells = adjacent(motorized(5.0), cell(TransportMode::Bicycling, 0.0));
-        assert_eq!(
-            anisotropic_edge_cost_s(MODEL, &cells, 100.0, 0.0, Direction::FromFacilities),
-            None
+    fn edge_cost_uses_the_step_length() {
+        let edge = Edge::build(STEPS[4], motorized(5.0), |_| {
+            Ok::<_, ()>(Some(motorized(5.0)))
+        })
+        .expect("ok")
+        .expect("edge");
+        let cost = edge.cost_s(
+            Method::Isotropic,
+            size(30.0, 40.0),
+            0.0,
+            Direction::FromFacilities,
         );
+        // 50 m at 5 km/h = 36 s.
+        assert!((cost.unwrap_or(f64::NAN) - 36.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn non_finite_costs_mean_no_edge() {
+        let walk = cell(TransportMode::Walking, 5.0);
+        // Tobler's speed underflows to zero on an absurd slope.
+        let cells = adjacent(walk, walk);
+        let cost = anisotropic_edge_cost_s(MODEL, &cells, 1.0, 1e6, Direction::FromFacilities);
+        assert_eq!(cost, None);
+        let bike = cell(TransportMode::Bicycling, 18.0);
+        let cost = anisotropic_edge_cost_s(
+            MODEL,
+            &adjacent(bike, bike),
+            100.0,
+            f64::NAN,
+            Direction::FromFacilities,
+        );
+        assert_eq!(cost, None);
     }
 
     #[test]
@@ -395,7 +629,7 @@ mod tests {
     }
 
     fn any_cell() -> impl Strategy<Value = CellMobility> {
-        (any_mode(), 0.5f64..120.0).prop_map(|(mode, speed_kmh)| CellMobility { mode, speed_kmh })
+        (any_mode(), 0.5f64..120.0).prop_map(|(mode, speed_kmh)| cell(mode, speed_kmh))
     }
 
     proptest! {
