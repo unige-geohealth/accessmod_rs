@@ -57,6 +57,26 @@ macro_rules! numeric_codec {
 }
 numeric_codec!(u8, u16, u32, u64, f32, f64);
 
+/// Default tile side, cells. Small tiles keep the band of tiles around the
+/// Dijkstra frontier small: on a 2000² synthetic grid, 64² tiles were each
+/// loaded once with 20 % of them resident, while 256² tiles thrashed at
+/// 12 % (`docs/benchmarks.md`).
+pub const DEFAULT_TILE: usize = 64;
+
+/// Number of resident tiles each grid gets from a memory budget, given the
+/// bytes of one tile of every grid sharing it. The budget is split so that
+/// every grid holds the same number of tiles (the solver touches the same
+/// cells in all of them); at least one tile each.
+pub fn tiles_for_budget(budget_bytes: u64, tile_bytes: &[usize]) -> usize {
+    let per_tile_set: u64 = tile_bytes.iter().map(|&b| b as u64).sum();
+    if per_tile_set == 0 {
+        return 1;
+    }
+    usize::try_from(budget_bytes / per_tile_set)
+        .unwrap_or(usize::MAX)
+        .max(1)
+}
+
 /// Tiling of a `rows × cols` grid into `tile × tile` tiles. Edge tiles are
 /// padded to full size.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -449,6 +469,13 @@ mod tests {
         let dir = std::env::temp_dir().join("accessmod-store-tests");
         std::fs::create_dir_all(&dir).expect("temp dir is writable");
         dir
+    }
+
+    #[test]
+    fn budget_split() {
+        assert_eq!(tiles_for_budget(1000, &[100, 150]), 4);
+        assert_eq!(tiles_for_budget(10, &[100, 150]), 1);
+        assert_eq!(tiles_for_budget(10, &[]), 1);
     }
 
     #[test]
