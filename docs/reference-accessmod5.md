@@ -39,6 +39,7 @@ and recording the reason in `docs/`.
 | Bicycling (LUT, bilinear) | `mobility.h`, `am_bicycle_speed` (l.54-108) |
 | Motorized | `mobility.h`, `am_motorized_speed` (l.110) |
 | Bicycle LUT generator | `docker/alpine_base/modules/accessmod/generate-bicycle-lut.R` → `bicycle-lut.generated.h` + `bicycle-lut.csv`, run by `docker/alpine_base/Dockerfile` l.191 (the `-new.R` variant is not used) |
+| Bicycle LUT (oracle) | Not shipped as a file: compiled into `/usr/local/grass/bin/r.walk.accessmod` of the image; extracted by `scripts/oracle/export.sh` |
 | Bicycle model notes | `docker/alpine_base/modules/accessmod/bicycle-lut.md` |
 | Dijkstra / neighbours | `docker/alpine_base/modules/r.walk.accessmod/main.c` (neighbour switch ~l.1240-1790) |
 | Step lengths | `main.c` l.402-408 (`EW_fac`, `NS_fac`, `DIAG_fac`, `V_DIAG_fac`, `H_DIAG_fac`) |

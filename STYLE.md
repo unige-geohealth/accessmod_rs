@@ -46,7 +46,7 @@ performance. Code is read by people who must trust its numbers.
 - Public structs that cross the CLI/MCP boundary derive `serde` and
   `schemars::JsonSchema`. Schemas are versioned (`schema_version`); a breaking
   change bumps the version, never mutates it.
-- Prefer newtypes and enums over strings and booleans (`Direction::TowardsSources`,
+- Prefer newtypes and enums over strings and booleans (`Direction::TowardsFacilities`,
   not `return_path: bool`).
 - Keep functions small enough to unit-test with hand-computed values.
 

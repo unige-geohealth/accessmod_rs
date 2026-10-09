@@ -75,16 +75,17 @@ sh scripts/fetch-am5.sh
 
 ## Commands
 
-The workspace is not scaffolded yet. Once it is:
-
 ```sh
 cargo build --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
-cargo xtask lut            # regenerate and verify the bicycle LUT
-cargo run -p accessmod-cli -- doctor --json
+cargo xtask lut [--check]  # regenerate (or verify) the bicycle LUT
+sh scripts/oracle/export.sh # export AccessMod 5 oracle artefacts into _oracle/ (Docker)
 ```
+
+Not built yet: `accessmod-io`, `accessmod-cli`
+(`cargo run -p accessmod-cli -- doctor --json`).
 
 Build, test, clippy and fmt must all pass before a commit.
 
@@ -100,7 +101,7 @@ tests/fixtures/         small synthetic fixtures, hand-computable, committed
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
 _am5/accessmod/         pinned AccessMod 5 source, read-only (ignored; `scripts/fetch-am5.sh`)
 _shared/                local scratch, issue reproductions (ignored)
-scripts/                POSIX sh helpers
+scripts/                POSIX sh helpers (`oracle/`: oracle export + committed manifest)
 docs/                   plan, references, design decisions
 ```
 

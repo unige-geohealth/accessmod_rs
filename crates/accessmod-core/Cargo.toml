@@ -1,0 +1,18 @@
+[package]
+name = "accessmod-core"
+description = "AccessMod engine core: grids, mobility models, cost model and solver (no GDAL)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+proptest = "1"
+serde_json = "1"
+
+[lints]
+workspace = true

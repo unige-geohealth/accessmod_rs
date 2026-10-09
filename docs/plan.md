@@ -138,8 +138,8 @@ as tiled, compressed GeoTIFF:
   ordinal → original facility identifier;
 - `path_distance_m.tif`, Float64: planar (2D) length of the least-time path,
   sum of the step lengths L;
-- `direction.tif`, UInt8, optional; encoding documented in `docs/` (codes
-  1–16, fixed order), used by Referral;
+- `direction.tif`, UInt8, optional; codes 1–16 in AccessMod 5 neighbour
+  order, 0 = none (`docs/cost-model.md`), used by Referral;
 - `job.resolved.json`;
 - `run.json`: versions, durations, parameters, execution settings, peak memory,
   scratch disk used, statistics, input fingerprints, warnings, known
@@ -221,9 +221,11 @@ This repository becomes the **canonical source** of the model, without R:
 - `cargo xtask lut` evaluates them to produce the committed `f32` table
   embedded in the binary and an inspection CSV; CI checks the committed table
   is up to date;
-- parity test: the Rust table is compared cell by cell with the
-  `bicycle-lut.csv` exported from the oracle; anchors and interpolation error
-  are checked;
+- parity test: the Rust table is compared cell by cell with the `float`
+  table compiled into the pinned `r.walk.accessmod` binary (extracted by
+  `scripts/oracle/export.sh`; AccessMod 5 does not ship `bicycle-lut.csv`).
+  Status: **bit-identical** on all 88 641 cells. Anchors and interpolation
+  error (max 0.311 km/h, p99 0.032 km/h over 1–40 km/h) are checked;
 - the model is frozen as `accessmod5-v1`; any change (e.g. reviewer feedback)
   creates a new version.
 
