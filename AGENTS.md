@@ -27,8 +27,8 @@ truth for architecture, contracts and milestones. Code style is in
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `perf:`, `test:`,
   `docs:`, `chore:`, `ci:`; optional scope, e.g. `feat(core): …`.
 - **One line only. No body. No `Co-Authored-By` or any other trailer.**
-- Commit only what the change needs; never commit `_oracle/`, `_shared/` or
-  `target/`.
+- Commit only what the change needs; never commit `_oracle/`, `_am5/`,
+  `_shared/` or `target/`.
 
 ## Multiple agents
 
@@ -55,6 +55,24 @@ implementation is kept.
 - A divergence from AccessMod 5 is allowed only when deliberate, documented in
   `docs/`, and reported in `run.json` warnings when user-visible.
 
+### AccessMod 5 source
+
+A read-only shallow clone of the pinned tag lives in `_am5/accessmod/`
+(ignored by git). Create or verify it with:
+
+```sh
+sh scripts/fetch-am5.sh
+```
+
+- Answer behaviour questions (NoData, neighbours, limits, rounding, LUT, …)
+  from this source before asking the user; cite paths relative to
+  `_am5/accessmod/`, never absolute or sibling-checkout paths.
+- Never edit it, copy code from it or build it; the GPL rule above applies.
+- **Vocabulary**: domain names (CLI, job fields, outputs, types, docs) follow
+  the English names in `www/dictionary/classes.json` and `main.json`, e.g.
+  *facility* (French *structure*), *land cover*, *cost allocation*. "Source"
+  is reserved for solver internals.
+
 ## Commands
 
 The workspace is not scaffolded yet. Once it is:
@@ -80,7 +98,9 @@ crates/accessmod-mcp    milestone 2: thin MCP adapter over the public API
 xtask/                  developer tasks (LUT generation, oracle export driver, …)
 tests/fixtures/         small synthetic fixtures, hand-computable, committed
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
+_am5/accessmod/         pinned AccessMod 5 source, read-only (ignored; `scripts/fetch-am5.sh`)
 _shared/                local scratch, issue reproductions (ignored)
+scripts/                POSIX sh helpers
 docs/                   plan, references, design decisions
 ```
 

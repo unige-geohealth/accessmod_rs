@@ -74,8 +74,9 @@ accessmod travel-time run --job <job.json> [--json]
                           [--memory <size>] [--threads <n>] [--tmp-dir <path>]
 ```
 
-- `--job` is mutually exclusive with direct parameters. Direct mode accepts the
-  same inputs as flags and always writes `job.resolved.json`.
+- `--job` is mutually exclusive with direct parameters. Direct mode is part of
+  v1: it accepts the same inputs as flags and always writes
+  `job.resolved.json`.
 - Human messages and progress go to stderr; stdout stays JSON.
 - Exit codes: `0` success, `2` validation, `3` I/O, `4` computation,
   `130` cancelled.
@@ -90,26 +91,42 @@ accessmod travel-time run --job <job.json> [--json]
 Versioned JSON document:
 
 - `schema_version: 1`;
-- land-cover class raster (defines the grid);
-- DEM, required for anisotropic;
+- DEM, always required: it defines the grid (CRS, resolution, origin,
+  extent), as in an AccessMod 5 project;
+- land-cover raster;
 - facility point layer and identifier field;
 - scenario: class → `walking` | `bicycling` | `motorized` + speed > 0 km/h;
 - method `isotropic` | `anisotropic`;
-- direction `from_sources` | `towards_sources`;
+- direction `from_facilities` | `towards_facilities`;
 - neighbourhood `8` | `16`;
 - optional limit in seconds;
 - named mobility model, initially `accessmod5-v1`;
 - output directory.
 
-Other rasters must match the class raster exactly: dimensions, geotransform,
-CRS and NoData. v1 rejects geographic CRS, rotated grids and non-metric units.
-No silent conversion.
+The DEM is the absolute reference. Every other raster must lie on the DEM
+lattice, otherwise validation fails; there is no resampling or reprojection
+on the fly:
+
+- CRS: semantic equivalence (GDAL/PROJ `IsSame`), not WKT string equality;
+- resolution: relative difference ≤ 1e-9;
+- origin: offset from the DEM origin within 1e-6 cell of a whole number of
+  cells, on each axis;
+- extent: any positive overlap with the DEM (it may be larger, e.g.
+  population); the raster is windowed to the DEM extent and uncovered cells
+  are NoData. Each raster keeps its own NoData value.
+
+v1 rejects geographic CRS, rotated grids and non-metric units.
+
+**Validation policy**: anything that makes the result wrong or undefined is a
+blocking error (exit code `2`); anything else is a passive warning in the
+report. Interactive fixes belong to a later TUI, not to the engine.
 
 Facilities may be reprojected from another CRS. Points outside the grid, on a
 barrier or on a class without scenario: detailed error by default, with an
 explicit option to skip them with a warning (AccessMod 5 behaviour must be
-characterised so oracle cases start from the same facilities). Several
-facilities in one cell are resolved by their stable identifier.
+characterised so oracle cases start from the same facilities). When several
+facilities fall in one cell, the first one in the order of the facility layer
+wins; the others are listed in a warning.
 
 ### Canonical outputs
 
@@ -117,15 +134,19 @@ Written atomically (temporary directory, then rename), streamed tile by tile
 as tiled, compressed GeoTIFF:
 
 - `travel_time_seconds.tif`, Float64;
-- `nearest_source.tif`, UInt32, with a JSON table ordinal → original
-  identifier;
-- `path_distance_m.tif`, Float64;
+- `nearest_facility.tif` (cost allocation), UInt32, with a JSON table
+  ordinal → original facility identifier;
+- `path_distance_m.tif`, Float64: planar (2D) length of the least-time path,
+  sum of the step lengths L;
 - `direction.tif`, UInt8, optional; encoding documented in `docs/` (codes
   1–16, fixed order), used by Referral;
 - `job.resolved.json`;
 - `run.json`: versions, durations, parameters, execution settings, peak memory,
   scratch disk used, statistics, input fingerprints, warnings, known
-  deviations from AccessMod 5.
+  deviations from AccessMod 5. Fields are split into a deterministic part
+  (job, inputs, statistics, warnings) and an execution part (durations,
+  memory, threads, host); only the outputs and the deterministic part are
+  covered by the byte-identical requirement.
 
 Rounded minutes are a compatibility export only (`ceil` by default, as in
 `amCleanTravelTime`). The canonical result stays in seconds.
@@ -172,24 +193,26 @@ Specification of `accessmod5-v1`, derived from `mobility.h` and `main.c`
   `√(4ns²+ew²)` or `√(ns²+4ew²)`;
 - **edge cost averages pace (1/v), not speed**: cardinal/diagonal
   `L · (1/v_a + 1/v_b) / 2`; knight `L · (Σ 1/v_i) / 4` over the start cell,
-  end cell and the two crossed cells; v in km/h converted once, result in
+  end cell and the two crossed cells (one step along the long axis, on both
+  columns or rows spanned by the move); v in km/h converted once, result in
   seconds;
 - **one slope per edge**, `Δz / L` (ratio), applied to every cell of the edge;
-  sign inverted for `towards_sources`;
+  sign inverted for `towards_facilities`;
 - isotropic: slope and mode ignored, scenario speed only. Oracle reference is
   `r.cost` on a seconds-per-cell friction, **not** `r.walk.accessmod`;
 - anisotropic: walking (Tobler), motorized, bicycling (LUT);
-- NoData, missing class, zero speed: barriers. A knight step crossing a
-  barrier is forbidden (AccessMod 5 yields an infinite cost replaced by null
-  there: characterise, and document as a deviation if different).
+- NoData (class or DEM), missing class, zero speed: barriers. A knight step
+  crossing a barrier is forbidden, as in AccessMod 5. Deviation: AccessMod 5
+  still assigns a motorized time to a cell with a null DEM (never expanded);
+  here DEM NoData is a full barrier.
 
 ### Bicycle LUT
 
 AccessMod 5 generates its LUT at build time with R
 (`generate-bicycle-lut.R` → `bicycle-lut.generated.h` + `bicycle-lut.csv`) and
-interpolates it bilinearly (flat speed × slope). A variant
-`generate-bicycle-lut-new.R` also exists: identify which one is in production
-at `5.9.2-beta.6` before porting.
+interpolates it bilinearly in `f64` over an `f32` table (flat speed × slope).
+The production generator at `5.9.2-beta.6` is `generate-bicycle-lut.R`; the
+`generate-bicycle-lut-new.R` variant is unused.
 
 This repository becomes the **canonical source** of the model, without R:
 
@@ -207,11 +230,12 @@ This repository becomes the **canonical source** of the model, without R:
 ## Solver
 
 - Deterministic multi-source Dijkstra; tie order: cost, physical distance,
-  source identifier, linear cell index.
-- Produces travel time, nearest source, path distance and optional
+  facility order, linear cell index.
+- Produces travel time, nearest facility, path distance and optional
   predecessor in one pass.
-- The cost limit cuts strictly (no one-step overshoot as in `r.walk`); the
-  oracle comparison neutralises that difference in post-processing.
+- The cost limit is inclusive (`t <= limit`) and exact: no one-step overshoot
+  as in `r.walk`, which AccessMod 5 removes afterwards in `amCleanTravelTime`
+  with the same inclusive rule.
 
 ## Milestones
 
@@ -224,8 +248,8 @@ This repository becomes the **canonical source** of the model, without R:
   neighbours, both directions, with and without limit.
 - Committed manifest (files, SHA-256, oracle version).
 - Characterisation needed before setting tolerances: cell type of the
-  isotropic friction (`r.recode`), facilities on barriers, knight steps
-  crossing barriers.
+  isotropic friction (`r.recode`), facilities on barriers. Behaviour settled
+  from the source is listed in `reference-accessmod5.md`.
 
 ### Milestone 1 — travel-time CLI engine
 
@@ -264,7 +288,7 @@ This repository becomes the **canonical source** of the model, without R:
   preserved, determinism independent of facility order.
 - **Storage invariance**: the same job run with a tiny budget (forcing
   eviction to disk), a large budget and different thread counts produces
-  byte-identical outputs.
+  byte-identical outputs (execution part of `run.json` excepted).
 - Hand-computable synthetic fixtures (committed).
 - Oracle comparison:
   - identical geometry and reachable mask;
@@ -272,7 +296,7 @@ This repository becomes the **canonical source** of the model, without R:
   - **isotropic**: tolerance derived from the effective precision of the
     `r.recode` friction, set in milestone 0, never chosen a priori;
   - `nearest` identical except on mathematically tied cells;
-  - any other deviation (knight across barrier, limit cut, tie-break)
+  - any other deviation (DEM NoData for motorized, limit overshoot, tie-break)
     documented in `docs/` and reported in `run.json`.
 - Integration: isotropic/anisotropic, 8/16 neighbours, multi-source, limit,
   both directions.

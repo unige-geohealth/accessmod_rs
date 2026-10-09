@@ -7,7 +7,8 @@ do not translate them line by line.
 - Repository: <https://github.com/unige-geohealth/accessmod>
 - Pinned oracle: tag **`5.9.2-beta.6`**, commit
   `e845cc96d7ba412665f02833f5d0c75ae305fb87` (branch `staging`)
-- Local checkout used during design: `../accessmod_app`
+- Local read-only clone: `_am5/accessmod/`, created by
+  `scripts/fetch-am5.sh`; all paths below are relative to it
 
 Permalink pattern:
 `https://github.com/unige-geohealth/accessmod/blob/5.9.2-beta.6/<path>#L<a>-L<b>`
@@ -37,7 +38,7 @@ and recording the reason in `docs/`.
 | Walking (Tobler) | `mobility.h`, `am_walking_speed` (l.47) |
 | Bicycling (LUT, bilinear) | `mobility.h`, `am_bicycle_speed` (l.54-108) |
 | Motorized | `mobility.h`, `am_motorized_speed` (l.110) |
-| Bicycle LUT generator | `docker/alpine_base/modules/accessmod/generate-bicycle-lut.R` → `bicycle-lut.generated.h` + `bicycle-lut.csv` (build-time, not committed) |
+| Bicycle LUT generator | `docker/alpine_base/modules/accessmod/generate-bicycle-lut.R` → `bicycle-lut.generated.h` + `bicycle-lut.csv`, run by `docker/alpine_base/Dockerfile` l.191 (the `-new.R` variant is not used) |
 | Bicycle model notes | `docker/alpine_base/modules/accessmod/bicycle-lut.md` |
 | Dijkstra / neighbours | `docker/alpine_base/modules/r.walk.accessmod/main.c` (neighbour switch ~l.1240-1790) |
 | Step lengths | `main.c` l.402-408 (`EW_fac`, `NS_fac`, `DIAG_fac`, `V_DIAG_fac`, `H_DIAG_fac`) |
@@ -49,13 +50,29 @@ Facts established from the code (to be confirmed by oracle runs):
   `(1/v_from + 1/v_to) · L/2`; knight: mean pace of 4 cells (from, to and the
   two cells crossed) `· L/4`, in hours × 3600. Equivalent to a harmonic mean of
   speeds.
+- **Knight crossed cells**: the two cells one step from the origin along the
+  long axis, on both columns (or rows) spanned by the move. For a move of
+  (Δrow, Δcol) = (−2, −1) (NNW) they are N (−1, 0) and NW (−1, −1); for
+  (−1, −2) (WNW) they are W (0, −1) and NW (−1, −1). Other knights by
+  symmetry (`main.c` cases 9–16, from l.1510).
 - **One slope per edge**: `Δz / L` (ratio, not percent), applied to every cell
   of the edge; sign inverted for the return direction (`-k`/towards sources).
-- **Null handling**: only the destination cell is tested for null before the
-  cost call. A knight move across a null intermediate cell yields an infinite
-  cost, replaced by the null value. Behaviour to characterise and decide.
-- **Limit overshoot**: `r.walk` keeps the first value past the limit; the cut
-  happens in `amCleanTravelTime`.
+- **Barriers**: a null speed cell, speed 0, an unknown mode, or a bicycle edge
+  with a non-finite slope gives an infinite pace; the edge cost becomes null
+  (`mobility.h` l.172) and the edge is skipped (`main.c` l.1788). A knight move
+  across a null intermediate cell is therefore **forbidden**, as in our plan:
+  not a deviation.
+- **DEM NoData**: a popped cell with a null DEM is never expanded
+  (`main.c` l.1038). A neighbour with a null DEM gets a null slope: walking and
+  bicycling skip the edge, but **motorized ignores the slope and still assigns
+  a time** to that dead-end cell. Our engine treats DEM NoData as a full
+  barrier; this is a documented deviation for motorized only.
+- **Limit**: `r.walk` stops once the popped cost exceeds `max_cost`
+  (`main.c` l.1023), so it may keep one step past the limit;
+  `amCleanTravelTime` then keeps `t <= limit`. The limit is **inclusive**.
+- **Bicycle LUT**: `float` table of 201 speeds (0–100 km/h, step 0.5) × 441
+  slopes (−1.2–1.0, step 0.005), interpolated bilinearly in `double` after
+  clamping speed and slope (`mobility.h` l.54-108).
 - Speeds come from integer scenario values (`config/config-app.R`).
 
 ## Existing test data

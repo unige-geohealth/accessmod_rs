@@ -6,10 +6,11 @@
 *.pdb
 
 #
-# Local scratch, oracle exports and large fixtures (never committed)
+# Local scratch, oracle exports, AccessMod 5 source and large fixtures (never committed)
 #
 _shared/
 _oracle/
+_am5/
 tests/_output/
 *.tif.aux.xml
 
