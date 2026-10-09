@@ -407,3 +407,18 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn overflowing_times_are_unreached_not_infinite() {
+    // A valid but absurdly small speed: one 100 m step costs 1e308 s
+    // (finite), so the second step overflows to +inf.
+    let case = Case::flat(1, 4, vec![0; 4], vec![motorized(3.6e-306)]);
+    let out = case.run(&[(0, 0)], &ISO8(), 2, 1).expect("solve");
+    assert!(
+        out[1].is_reached() && out[1].time_s.is_finite(),
+        "{:?}",
+        out[1]
+    );
+    assert!(!out[2].is_reached(), "{:?}", out[2]);
+    assert!(out.iter().all(|c| !c.is_reached() || c.time_s.is_finite()));
+}

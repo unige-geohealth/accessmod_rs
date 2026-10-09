@@ -374,3 +374,45 @@ fn cancellation_leaves_nothing_behind() {
         .count();
     assert_eq!(leftovers, 0);
 }
+
+#[test]
+fn wide_grids_cross_read_and_write_chunks() {
+    // Wider than one read chunk (4096 columns) and one output block (256).
+    let cols = accessmod_io::inputs::CHUNK_COLS + 4;
+    let fixture = Fixture::new(cols, 2, &[(0, 0)]);
+    // Land cover on the lattice, shifted 3 columns east: the first 3 DEM
+    // columns are uncovered (barriers) except that the facility needs one.
+    write_raster::<u8>(
+        &fixture.path().join("lc.tif"),
+        cols,
+        2,
+        geo_transform(X0 + 300.0, Y0),
+        vec![1; cols * 2],
+        Some(0.0),
+    );
+    let mut job = fixture.job.clone();
+    job.facility_issues = FacilityIssues::Skip;
+    let err =
+        prepare(job.clone(), &settings(256 << 20, 1), &never).expect_err("facility on barrier");
+    assert_eq!(err.kind(), ErrorKind::Validation, "{err}");
+
+    // Move the facility onto covered land.
+    std::fs::remove_file(fixture.path().join("hf.gpkg")).expect("remove");
+    write_points(
+        &fixture.path().join("hf.gpkg"),
+        EPSG,
+        &[(1, X0 + 350.0, Y0 - 50.0)],
+    );
+    let out = run_job(job, &settings(256 << 20, 2)).expect("run");
+    let time: Vec<f64> = read(&out.join(TRAVEL_TIME_FILE));
+    assert_eq!(time[2], FLOAT_NODATA, "uncovered column is a barrier");
+    assert_eq!(time[3], 0.0);
+    let last = cols - 1;
+    assert!(
+        (time[last] - 72.0 * (last - 3) as f64).abs() < 1e-6,
+        "{}",
+        time[last]
+    );
+    let second_row_last = cols + last;
+    assert!(time[second_row_last] > time[last]);
+}

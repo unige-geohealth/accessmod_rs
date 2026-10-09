@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityIssue, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
-use crate::inputs::{InputSummary, load_inputs, open_land_cover};
+use crate::inputs::{CHUNK_COLS, InputSummary, STRIP_ROWS, load_inputs, open_land_cover};
 use crate::job::{FacilityIssues, MethodName, TravelTimeJob};
 use crate::output::{self, Staging};
 use crate::resources;
@@ -116,19 +116,24 @@ impl ResourcePlan {
         let total_tiles = geometry.n_tiles();
         let budget = settings.memory_bytes;
         let gdal_cache_bytes = (budget / 8).clamp(16 << 20, 512 << 20);
-        let strip_bytes = (256 * cols * (8 + 4 + 8 + 1)
-            + cols * std::mem::size_of::<SolverCell>()
-            + DEFAULT_TILE * cols * (8 + 8)) as u64;
-        let fixed_bytes = gdal_cache_bytes + strip_bytes;
+        // Output blocks (4 rasters) and input read windows (DEM f64, land
+        // cover i64, classes); both bounded whatever the grid width.
+        let buffer_bytes = (256 * 256 * (8 + 4 + 8 + 1)
+            + 256 * std::mem::size_of::<SolverCell>()
+            + STRIP_ROWS * CHUNK_COLS * (8 + 8)
+            + CHUNK_COLS * 16) as u64;
+        let fixed_bytes = gdal_cache_bytes + buffer_bytes;
         let queue_reserve_bytes = budget / 10;
         // The solver needs at least the band of tiles around its frontier;
         // two tile rows and two tile columns across the grid is the floor.
         let tiles_x = cols.div_ceil(DEFAULT_TILE);
         let tiles_y = rows.div_ceil(DEFAULT_TILE);
         let band_tiles = (2 * (tiles_x + tiles_y)).min(total_tiles) as u64;
-        let minimum_bytes = fixed_bytes + band_tiles * per_tile + band_tiles * per_tile / 9;
-        let in_memory_bytes =
-            fixed_bytes + total_tiles as u64 * per_tile + total_tiles as u64 * per_tile / 9;
+        // The queue reserve is 10 % of the budget B, so tiles get
+        // 0.9·B − fixed: B must be at least (fixed + tiles) / 0.9.
+        let with_reserve = |tile_bytes: u64| (fixed_bytes + tile_bytes).div_ceil(9) * 10;
+        let minimum_bytes = with_reserve(band_tiles * per_tile);
+        let in_memory_bytes = with_reserve(total_tiles as u64 * per_tile);
         let tile_budget = budget.saturating_sub(fixed_bytes + queue_reserve_bytes);
         let resident_tiles = tiles_for_budget(tile_budget, &[per_tile as usize]).min(total_tiles);
         let scratch_bytes = if resident_tiles >= total_tiles {
@@ -660,4 +665,44 @@ fn summarise(state: &mut TiledGrid<SolverCell>, grid: &GridSpec) -> Result<Resul
         }
     }
     Ok(summary)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(memory_bytes: u64) -> ExecutionSettings {
+        ExecutionSettings {
+            memory_bytes,
+            threads: 1,
+            tmp_dir: std::env::temp_dir(),
+        }
+    }
+
+    #[test]
+    fn minimum_budget_leaves_the_frontier_band() {
+        let (rows, cols) = (5000, 7000);
+        let probe = ResourcePlan::new(rows, cols, &settings(64 << 30)).expect("roomy plan");
+        assert_eq!(probe.resident_tiles, probe.total_tiles);
+        assert_eq!(probe.scratch_bytes, 0);
+
+        // The GDAL cache scales with the budget, so the minimum does too:
+        // any budget at or above its own minimum keeps the frontier band.
+        let band = 2 * (cols.div_ceil(DEFAULT_TILE) + rows.div_ceil(DEFAULT_TILE));
+        let mut budget = probe.minimum_bytes;
+        for _ in 0..4 {
+            let plan = ResourcePlan::new(rows, cols, &settings(budget)).expect("at minimum");
+            assert!(
+                plan.resident_tiles >= band,
+                "{} < {band}",
+                plan.resident_tiles
+            );
+            assert!(plan.scratch_bytes > 0);
+            budget = plan.minimum_bytes;
+        }
+
+        let err = ResourcePlan::new(rows, cols, &settings(32 << 20)).expect_err("too small");
+        assert_eq!(err.kind(), crate::error::ErrorKind::Validation);
+        assert!(err.to_string().contains("--memory"), "{err}");
+    }
 }

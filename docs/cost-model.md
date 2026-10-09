@@ -7,7 +7,7 @@ Oracle references are listed in `reference-accessmod5.md`.
 
 Rows grow southwards. Codes follow the AccessMod 5 neighbour order
 (`r.walk.accessmod/main.c`, cases 1–16) and are the values written to
-`direction.tif` (0 = no predecessor: facility cell or unreached).
+`direction.tif`.
 
 | Code | Step | (Δrow, Δcol) | Kind | Crossed cells (summation order) |
 | ---: | --- | --- | --- | --- |
@@ -30,6 +30,8 @@ Rows grow southwards. Codes follow the AccessMod 5 neighbour order
 
 The code is the step from the settled (origin) cell to the cell it reached,
 in the solver's expansion direction (always outwards from the facilities).
+In `direction.tif`, 0 marks a facility cell and 255 (NoData) an unreached
+cell.
 
 Step lengths: `ew`, `ns`, `√(ns² + ew²)`, `√(4ns² + ew²)` (two rows),
 `√(ns² + 4ew²)` (two columns).

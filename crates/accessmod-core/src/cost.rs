@@ -393,7 +393,8 @@ fn edge_cost_s(
             cost
         }
     };
-    cost_h.is_finite().then_some(cost_h * 3600.0)
+    let cost_s = cost_h * 3600.0;
+    (cost_s.is_finite() && cost_s > 0.0).then_some(cost_s)
 }
 
 #[cfg(test)]

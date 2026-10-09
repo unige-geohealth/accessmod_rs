@@ -357,12 +357,17 @@ pub fn solve(
                 continue;
             };
             let time_s = current.time_s + cost_s;
+            let distance_m = current.distance_m + length_m;
+            // An overflowing sum is unreachable, never a reached cell at +inf.
+            if !time_s.is_finite() || !distance_m.is_finite() {
+                continue;
+            }
             if config.limit_s.is_some_and(|limit| time_s > limit) {
                 continue;
             }
             let candidate = SolverCell {
                 time_s,
-                distance_m: current.distance_m + length_m,
+                distance_m,
                 nearest: current.nearest,
                 step: step.code(),
                 settled: false,

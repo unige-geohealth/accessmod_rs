@@ -139,7 +139,8 @@ as tiled, compressed GeoTIFF:
 - `path_distance_m.tif`, Float64: planar (2D) length of the least-time path,
   sum of the step lengths L;
 - `direction.tif`, UInt8, optional; codes 1–16 in AccessMod 5 neighbour
-  order, 0 = none (`docs/cost-model.md`), used by Referral;
+  order, 0 = facility cell, 255 = NoData (unreached) (`docs/cost-model.md`),
+  used by Referral;
 - `job.resolved.json`;
 - `run.json`: versions, durations, parameters, execution settings, peak memory,
   scratch disk used, statistics, input fingerprints, warnings, known
@@ -173,7 +174,9 @@ optimisation. RAM-only is too risky for the 2 GB target.
   from disk on a 2 GB machine.
 - **Priority queue**: kept in memory; its size grows with the frontier, not
   the grid. Its peak size is measured; a spilling or bucketed queue is added
-  only if benchmarks show the frontier exceeds the budget.
+  only if benchmarks show the frontier exceeds the budget. Status: the
+  pre-flight reserves 10 % of the budget for it, but the queue is not bounded
+  by that reserve (known gap; `heap_peak` is reported in `run.json`).
 - **Budget**: `--memory` defaults to a conservative fraction of available RAM
   with a floor (values set by benchmark). The budget covers the tile cache, the
   queue and the GDAL block cache (`GDAL_CACHEMAX` set from the budget).

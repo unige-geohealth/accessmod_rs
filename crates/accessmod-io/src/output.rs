@@ -75,10 +75,16 @@ impl Staging {
     /// Move the staging directory to the target.
     pub fn commit(mut self) -> Result<PathBuf> {
         check_output_dir(&self.target)?;
-        if self.target.exists() {
+        // On Unix, rename(2) atomically replaces an empty target directory.
+        // Windows refuses to rename over a directory: remove the empty target
+        // first (not atomic, but it was checked empty just above).
+        if let Err(error) = std::fs::rename(&self.path, &self.target) {
+            if !(cfg!(windows) && self.target.is_dir()) {
+                return Err(Error::file(&self.target)(error));
+            }
             std::fs::remove_dir(&self.target).map_err(Error::file(&self.target))?;
+            std::fs::rename(&self.path, &self.target).map_err(Error::file(&self.target))?;
         }
-        std::fs::rename(&self.path, &self.target).map_err(Error::file(&self.target))?;
         self.committed = true;
         Ok(self.target.clone())
     }
@@ -151,19 +157,22 @@ fn create_geotiff<T: GdalType>(
     Ok(dataset)
 }
 
-fn write_strip<T: GdalType + Copy>(
+/// Write `data` (`width × height`, row-major) at `(col, row)` and give the
+/// emptied vector back for reuse.
+fn write_window<T: GdalType + Copy>(
     dataset: &Dataset,
     path: &Path,
-    start: usize,
-    cols: usize,
-    data: &[T],
+    (col, row): (usize, usize),
+    (width, height): (usize, usize),
+    data: &mut Vec<T>,
 ) -> Result<()> {
-    let height = data.len() / cols;
-    let mut buffer = Buffer::new((cols, height), data.to_vec());
-    dataset
-        .rasterband(1)
-        .and_then(|mut band| band.write((0, start as isize), (cols, height), &mut buffer))
-        .map_err(Error::gdal(path))
+    let mut buffer = Buffer::new((width, height), std::mem::take(data));
+    let result = dataset.rasterband(1).and_then(|mut band| {
+        band.write((col as isize, row as isize), (width, height), &mut buffer)
+    });
+    *data = buffer.into_shape_and_vec().1;
+    data.clear();
+    result.map_err(Error::gdal(path))
 }
 
 /// Write the canonical rasters from the solver state into `dir`.
@@ -196,41 +205,48 @@ pub fn write_rasters(
         None
     };
 
-    let mut row_cells = vec![SolverCell::UNREACHED; cols];
-    for start in (0..rows).step_by(BLOCK) {
+    // One GeoTIFF block at a time, buffers reused: memory does not grow
+    // with the grid width.
+    let mut cells = vec![SolverCell::UNREACHED; BLOCK];
+    let mut time = Vec::with_capacity(BLOCK * BLOCK);
+    let mut nearest = Vec::with_capacity(BLOCK * BLOCK);
+    let mut distance = Vec::with_capacity(BLOCK * BLOCK);
+    let mut direction = Vec::with_capacity(if with_direction { BLOCK * BLOCK } else { 0 });
+    for row0 in (0..rows).step_by(BLOCK) {
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        let height = BLOCK.min(rows - start);
-        let mut time = Vec::with_capacity(height * cols);
-        let mut nearest = Vec::with_capacity(height * cols);
-        let mut distance = Vec::with_capacity(height * cols);
-        let mut direction = Vec::with_capacity(if with_direction { height * cols } else { 0 });
-        for row in start..start + height {
-            state.read_row(row, 0, &mut row_cells)?;
-            for cell in &row_cells {
-                if cell.is_reached() {
-                    time.push(cell.time_s);
-                    nearest.push(cell.nearest);
-                    distance.push(cell.distance_m);
+        let height = BLOCK.min(rows - row0);
+        for col0 in (0..cols).step_by(BLOCK) {
+            let width = BLOCK.min(cols - col0);
+            for row in row0..row0 + height {
+                state.read_row(row, col0, &mut cells[..width])?;
+                for cell in &cells[..width] {
+                    let reached = cell.is_reached();
+                    time.push(if reached { cell.time_s } else { FLOAT_NODATA });
+                    nearest.push(if reached {
+                        cell.nearest
+                    } else {
+                        NEAREST_NODATA
+                    });
+                    distance.push(if reached {
+                        cell.distance_m
+                    } else {
+                        FLOAT_NODATA
+                    });
                     if with_direction {
-                        direction.push(cell.step);
-                    }
-                } else {
-                    time.push(FLOAT_NODATA);
-                    nearest.push(NEAREST_NODATA);
-                    distance.push(FLOAT_NODATA);
-                    if with_direction {
-                        direction.push(DIRECTION_NODATA);
+                        direction.push(if reached { cell.step } else { DIRECTION_NODATA });
                     }
                 }
             }
-        }
-        write_strip(&time_ds, &time_path, start, cols, &time)?;
-        write_strip(&nearest_ds, &nearest_path, start, cols, &nearest)?;
-        write_strip(&distance_ds, &distance_path, start, cols, &distance)?;
-        if let Some(ds) = &direction_ds {
-            write_strip(ds, &direction_path, start, cols, &direction)?;
+            let at = (col0, row0);
+            let size = (width, height);
+            write_window(&time_ds, &time_path, at, size, &mut time)?;
+            write_window(&nearest_ds, &nearest_path, at, size, &mut nearest)?;
+            write_window(&distance_ds, &distance_path, at, size, &mut distance)?;
+            if let Some(ds) = &direction_ds {
+                write_window(ds, &direction_path, at, size, &mut direction)?;
+            }
         }
     }
     for (dataset, path) in [
