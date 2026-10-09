@@ -30,7 +30,7 @@ _Last updated: 2026-10-09._
 | Region cropping by max speed × time | `amSpeedBufferRegion.R` | ➖ not needed: the limit is applied exactly during the search | — |
 | **Geographic coverage**: capacity-based population coverage, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | 🗓 plan: Later 1 | CLI + UI (results review) |
 | **Zonal statistics**: population coverage by zone and time | `amAnalysisZonal.R` | 🗓 plan: Later 1 | CLI + UI (charts) |
-| **Referral**: time and distance between facilities, nearest by time or distance, network | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | 🗓 plan: Later 2 (reuses `direction.tif` and distances) | CLI |
+| **Referral**: time and distance between facilities, nearest by time or distance, network | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | 🗓 next priority, many-to-many design in [`referral.md`](referral.md) | CLI |
 | **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | 🗓 plan: Later 3 | CLI + UI (suitability tables) |
 | **Optimization**: greedy best population coverage | `amAnalysisOptimization.R` | 🗓 plan: Later 3 | CLI |
 | Replay of saved analyses | `amAnalysisReplay.R` | 🟡 `job.json` / `job.resolved.json` replay any run; 🗓 converter from AM5 analysis configs | CLI |

@@ -40,6 +40,24 @@ How to read it:
   Single runs, warm caches; not a substitute for the baselines on both
   target profiles required by the plan.
 
+## End to end: AccessMod 5 replay vs accessmod-rs
+
+What a user waits for, from command to results, on the AccessMod 5 demo
+project (227 × 196 cells, 10 facilities). AccessMod 5 runs a replay
+configuration in its Docker image (`Rscript` sourcing `global.R`, then
+`amAnalysisReplayExec`); accessmod-rs runs the CLI on the same data exported
+as GeoTIFF / FlatGeobuf.
+
+| Analysis | AccessMod 5 container total | of which loading `global.R` | analysis + export | accessmod-rs |
+| --- | ---: | ---: | ---: | ---: |
+| Travel time (`config_demo_motorized.json`) | 9 s | 6.1 s | 2.5 s | 0.5 s |
+| Referral 10 × 10 (`replay/examples/demo_referral`) | 24 s | 6.0 s | 17.2 s | not implemented yet |
+
+On small and medium grids the fixed cost of the AccessMod 5 stack (container
+start, R packages, `global.R`, GRASS sessions) dominates; accessmod-rs has no
+such cost. Replays need `TZ` set in the container (`/etc/timezone` is
+missing from the image).
+
 ## Solver scaling (synthetic example)
 
 Indicative timings; no performance promise before a baseline on both target

@@ -49,6 +49,9 @@ modes) on synthetic grids, single runs on an Apple M1 Pro
   AccessMod 5 does in separate import and export steps.
 - **One binary**: no R, Shiny, GRASS or Docker; scriptable with job files,
   JSON output and exit codes.
+- **No start-up cost**: an AccessMod 5 replay spends 6 s loading its R code
+  before computing; the demo travel time takes 9 s end to end in AccessMod 5
+  and 0.5 s with accessmod-rs.
 
 ## Deliverables (planned)
 

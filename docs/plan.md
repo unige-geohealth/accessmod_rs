@@ -287,7 +287,8 @@ This repository becomes the **canonical source** of the model, without R:
 ### Later
 
 1. Zonal statistics, coverage, catchments.
-2. Referral, reusing predecessors and distances.
+2. **Referral, next priority** after milestone 1: many-to-many with early
+   stop, smaller-side searches and parallel sources ([`referral.md`](referral.md)).
 3. Optimization and Scaling Up.
 4. New project format; `.am5p` import as a separate converter.
 5. UI (Tauri or other) on top of the stabilised CLI/MCP APIs.
