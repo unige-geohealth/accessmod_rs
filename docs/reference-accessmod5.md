@@ -24,7 +24,7 @@ and recording the reason in `docs/`.
 | Isotropic | same file, `amIsotropicTravelTime` (l.199), `r.cost` call l.394 | Uses GRASS `r.cost`, **not** the mobility kernel |
 | Anisotropic | same file, `amAnisotropicTravelTime` (l.431), `r.walk.accessmod` call l.651 | Uses the mobility kernel |
 | Output post-processing | same file, `amCleanTravelTime` (l.692) | Seconds → minutes with `ceil` by default, limit cut, int16/int32 caps. Stored AM5 outputs are **rounded minutes**: the oracle must export raw seconds before this step |
-| Isotropic friction | `tools/R/amFrictionSpeed.R`, `amCreateFrictionMap` (l.85) | Friction = seconds per cell = `resolution / (speed/3.6)`, written with `r.recode`. Output cell type to verify (CELL/FCELL/DCELL) |
+| Isotropic friction | `tools/R/amFrictionSpeed.R`, `amCreateFrictionMap` (l.85) | Friction = seconds per cell = `resolution / (speed/3.6)`, written with `r.recode`, which yields an **FCELL (Float32)** map (checked on the demo export) |
 | Anisotropic speed map | same file, `amCreateSpeedMap` (l.21) | Mode + speed encoded in one value (`amEncodeModeSpeed`) |
 | Facility subset | `tools/R/amAnalysisTravelTime.R`, `amFacilitiesSubset` (l.765) | Which facilities enter the computation |
 | Memory estimate | same file, `amGetRessourceEstimate` (l.810) | Basis for comparison with our RAM budget |

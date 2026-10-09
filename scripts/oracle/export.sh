@@ -33,13 +33,22 @@ cid=$(docker create --platform "$PLATFORM" "$IMAGE")
 trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
 docker cp -q "$cid:/usr/local/grass/bin/r.walk.accessmod" "$out/bicycle-lut/r.walk.accessmod"
 
+# Travel times on the demo project (scripts/oracle/travel-time-demo.sh).
+rm -rf "$out/travel-time/demo"
+docker run --rm --platform "$PLATFORM" \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'grass /data/dbgrass/demo/demo --exec sh /scripts/travel-time-demo.sh' \
+    > "$out/travel-time-demo.log" 2>&1 \
+    || { echo "error: demo export failed, see $out/travel-time-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {
         echo "# AccessMod 5 oracle manifest (sh scripts/oracle/export.sh --update)"
         echo "# image: $IMAGE ($PLATFORM)"
         echo "# image-id: $image_id"
-        find . -type f ! -name '.*' | LC_ALL=C sort | xargs shasum -a 256
+        find . -type f ! -name '.*' ! -name '*.log' | LC_ALL=C sort | xargs shasum -a 256
     } > "$manifest"
     echo "wrote $manifest"
 else

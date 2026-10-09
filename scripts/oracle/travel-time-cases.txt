@@ -1,0 +1,9 @@
+# name method direction neighbourhood limit_s (0 = none)
+aniso-from-8 anisotropic from_facilities 8 0
+aniso-from-16 anisotropic from_facilities 16 0
+aniso-to-8 anisotropic towards_facilities 8 0
+aniso-to-16 anisotropic towards_facilities 16 0
+aniso-from-16-limit anisotropic from_facilities 16 3600
+iso-from-8 isotropic from_facilities 8 0
+iso-from-16 isotropic from_facilities 16 0
+iso-from-16-limit isotropic from_facilities 16 3600

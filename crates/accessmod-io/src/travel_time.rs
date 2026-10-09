@@ -417,9 +417,9 @@ pub fn deviations(job: &TravelTimeJob) -> Vec<Deviation> {
     if job.method == MethodName::Isotropic {
         list.push(Deviation {
             code: "isotropic_pace_average",
-            message: "Isotropic costs use the same pace averaging as the anisotropic model. \
-                      AccessMod 5 uses r.cost on a friction map; its precision is to be \
-                      characterised against the oracle.",
+            message: "Isotropic costs are computed in f64 from the scenario speeds. \
+                      AccessMod 5 runs r.cost on a Float32 friction map, so its times \
+                      differ by up to 2^-24 relative.",
         });
     }
     list

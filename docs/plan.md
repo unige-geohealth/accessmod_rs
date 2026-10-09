@@ -255,6 +255,13 @@ This repository becomes the **canonical source** of the model, without R:
 - Characterisation needed before setting tolerances: cell type of the
   isotropic friction (`r.recode`), facilities on barriers. Behaviour settled
   from the source is listed in `reference-accessmod5.md`.
+- Status (2026-10-09): `scripts/oracle/export.sh` exports the bicycle LUT
+  and 8 travel-time cases on the AccessMod 5 demo project (227 × 196 cells,
+  10 facilities, all three modes, 8/16 neighbours, both directions, limit).
+  Results: LUT bit-identical; anisotropic relative error ≤ 4e-16; isotropic
+  ≤ 3.7e-8 (friction stored as Float32); reachable masks and nearest
+  facility identical on every cell. Not yet characterised: facilities on
+  barriers.
 
 ### Milestone 1 — travel-time CLI engine
 
@@ -298,8 +305,9 @@ This repository becomes the **canonical source** of the model, without R:
 - Oracle comparison:
   - identical geometry and reachable mask;
   - **identical graph (anisotropic, f64)**: relative error ≤ 1e-9;
-  - **isotropic**: tolerance derived from the effective precision of the
-    `r.recode` friction, set in milestone 0, never chosen a priori;
+  - **isotropic**: relative error ≤ 2⁻²⁴: `r.recode` stores the friction as
+    FCELL (Float32), so each friction and every sum of frictions carries a
+    relative rounding error up to 2⁻²⁴;
   - `nearest` identical except on mathematically tied cells;
   - any other deviation (DEM NoData for motorized, limit overshoot, tie-break)
     documented in `docs/` and reported in `run.json`.

@@ -1,0 +1,8 @@
+# AccessMod 5 demo land-cover classes: class mode speed_kmh
+# 13 and 7 km/h give non-integer isotropic frictions on purpose.
+1 walking 5
+2 bicycling 13
+3 walking 4
+1001 motorized 60
+1002 walking 7
+1003 bicycling 20
