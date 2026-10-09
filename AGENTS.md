@@ -82,10 +82,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo xtask lut [--check]  # regenerate (or verify) the bicycle LUT
 sh scripts/oracle/export.sh # export AccessMod 5 oracle artefacts into _oracle/ (Docker)
+cargo run -p accessmod-cli -- doctor --json
+cargo run -p accessmod-cli -- travel-time run --job job.json --json
 ```
 
-Not built yet: `accessmod-io`, `accessmod-cli`
-(`cargo run -p accessmod-cli -- doctor --json`).
+The workspace needs GDAL ≥ 3.5 and PROJ installed (`gdal-config` on `PATH`).
 
 Build, test, clippy and fmt must all pass before a commit.
 
