@@ -246,8 +246,12 @@ fn facility_issue_text(issue: &FacilityIssue) -> String {
         .as_ref()
         .map_or_else(|| "no id".to_owned(), |id| format!("id {id}"));
     format!(
-        "facility FID {} ({id}): {}",
-        issue.feature_index, issue.reason
+        "facility {} ({id}): {}",
+        issue.fid.map_or_else(
+            || format!("#{}", issue.feature_index + 1),
+            |fid| format!("FID {fid}")
+        ),
+        issue.reason
     )
 }
 

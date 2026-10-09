@@ -93,6 +93,7 @@ fn job(neighbourhood: Neighbourhood, out: &Path) -> ReferralJob {
         mobility_model: Default::default(),
         nearest_only: false,
         self_pairs: false,
+        search_from: Default::default(),
         facility_issues: FacilityIssues::Error,
         output_dir: out.to_path_buf(),
     }

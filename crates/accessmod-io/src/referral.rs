@@ -2,13 +2,12 @@
 //! (`docs/referral.md`).
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use accessmod_core::cost::{CellMobility, Method, Neighbourhood};
 use accessmod_core::mobility::MobilityModel;
-use accessmod_core::referral::{Pair, ReferralConfig, WorkerBudget, referral};
+use accessmod_core::referral::{Pair, ReferralConfig, SearchFrom, WorkerBudget, referral};
 use accessmod_core::solver::{InputCell, SolverCell};
 use accessmod_core::store::{TileGeometry, TiledGrid};
 use schemars::JsonSchema;
@@ -57,10 +56,15 @@ pub struct ReferralJob {
     /// Only the nearest destination (by time) of each origin.
     #[serde(default)]
     pub nearest_only: bool,
-    /// Keep pairs from a facility to itself (same feature of the same
-    /// layer); AccessMod 5 drops them.
+    /// Keep pairs from a facility to itself (same FID of the same layer);
+    /// AccessMod 5 drops them.
     #[serde(default)]
     pub self_pairs: bool,
+    /// Which side searches start from: `auto` (the smaller side, equal to
+    /// forward searches up to floating-point rounding) or `origins` (exact
+    /// forward searches).
+    #[serde(default)]
+    pub search_from: SearchFrom,
     /// What to do with facilities outside the grid or on a barrier.
     #[serde(default)]
     pub facility_issues: FacilityIssues,
@@ -200,6 +204,21 @@ pub fn prepare(
         "destinations",
         &mut warnings,
     )?;
+    // The pair matrix is held in memory until written: refuse jobs whose
+    // matrix would take more than half the budget.
+    let matrix_bytes = (origins.kept.len() as u64)
+        .saturating_mul(destinations.kept.len() as u64)
+        .saturating_mul(std::mem::size_of::<Option<Pair>>() as u64);
+    if matrix_bytes > settings.memory_bytes / 2 {
+        return Err(Error::invalid(format!(
+            "{} origins x {} destinations need {} MiB of results, more than half the \
+             memory budget; raise --memory, use nearest_only, or split the origins with \
+             a filter",
+            origins.kept.len(),
+            destinations.kept.len(),
+            matrix_bytes >> 20
+        )));
+    }
     warnings.extend(landscape_warnings(&summary, &job.scenario));
 
     let started = Instant::now();
@@ -226,19 +245,6 @@ pub fn prepare(
         fingerprints,
         durations_s,
     })
-}
-
-/// One output row: an origin → destination pair.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct PairRow {
-    /// Origin identifier.
-    pub origin_id: serde_json::Value,
-    /// Destination identifier.
-    pub destination_id: serde_json::Value,
-    /// Travel time, s; `None` if not reached.
-    pub time_s: Option<f64>,
-    /// Planar length of the least-time path, m; `None` if not reached.
-    pub distance_m: Option<f64>,
 }
 
 /// Result counters.
@@ -342,7 +348,9 @@ fn same_feature(
 ) -> bool {
     job.origins.path == job.destinations.path
         && origins.layer == destinations.layer
-        && o.feature_index == d.feature_index
+        // Only real FIDs identify a feature across two filtered reads.
+        && o.fid.is_some()
+        && o.fid == d.fid
 }
 
 /// Compute the pairs and write every output atomically.
@@ -386,6 +394,17 @@ pub fn run(
         cell: grid.cell,
         limit_s: job.limit_s,
         nearest_only: job.nearest_only,
+        search_from: job.search_from,
+    };
+    let excluded = |o: usize, d: usize| {
+        !job.self_pairs
+            && same_feature(
+                &job,
+                &origins,
+                &destinations,
+                &origins.kept[o],
+                &destinations.kept[d],
+            )
     };
     let result = referral(
         &frozen,
@@ -396,55 +415,62 @@ pub fn run(
         workers,
         budget,
         &settings.tmp_dir,
+        &excluded,
         cancelled,
     )?;
     durations_s.insert("solve", started.elapsed().as_secs_f64());
 
     let started = Instant::now();
-    let mut rows = Vec::new();
-    let mut nearest_time: Vec<PairRow> = Vec::new();
-    let mut nearest_distance: Vec<PairRow> = Vec::new();
+    let dir = staging.path();
+    let mut all = CsvWriter::create(&dir.join("referral.csv"))?;
+    let mut by_time = CsvWriter::create(&dir.join("nearest_by_time.csv"))?;
+    let mut by_distance = if job.nearest_only {
+        None
+    } else {
+        Some(CsvWriter::create(&dir.join("nearest_by_distance.csv"))?)
+    };
+    let (mut pairs, mut reached_pairs) = (0usize, 0usize);
     for (oi, o) in origins.kept.iter().enumerate() {
-        let mut best_time: Option<(f64, &FacilityRecord, Pair)> = None;
-        let mut best_distance: Option<(f64, &FacilityRecord, Pair)> = None;
-        for (di, d) in destinations.kept.iter().enumerate() {
-            if !job.self_pairs && same_feature(&job, &origins, &destinations, o, d) {
-                continue;
-            }
-            let pair = result.pairs[oi][di];
+        let row = &result.pairs[oi];
+        let eligible = |di: &usize| !excluded(oi, *di);
+        for di in (0..destinations.kept.len()).filter(eligible) {
+            let pair = row[di];
             if job.nearest_only && pair.is_none() {
                 continue;
             }
-            rows.push(PairRow {
-                origin_id: o.id.clone(),
-                destination_id: d.id.clone(),
-                time_s: pair.map(|p| p.time_s),
-                distance_m: pair.map(|p| p.distance_m),
-            });
-            if let Some(p) = pair {
-                // Strict comparisons: ties keep the first destination.
-                if best_time.is_none_or(|(t, _, _)| p.time_s < t) {
-                    best_time = Some((p.time_s, d, p));
-                }
-                if best_distance.is_none_or(|(m, _, _)| p.distance_m < m) {
-                    best_distance = Some((p.distance_m, d, p));
-                }
-            }
+            all.write(&o.id, Some(&destinations.kept[di].id), pair)?;
+            pairs += 1;
+            reached_pairs += usize::from(pair.is_some());
         }
-        let row = |best: Option<(f64, &FacilityRecord, Pair)>| PairRow {
-            origin_id: o.id.clone(),
-            destination_id: best.map_or(serde_json::Value::Null, |(_, d, _)| d.id.clone()),
-            time_s: best.map(|(_, _, p)| p.time_s),
-            distance_m: best.map(|(_, _, p)| p.distance_m),
+        // Nearest by time and by distance: every destination at the minimum
+        // (ties kept, in destination order, as AccessMod 5); an origin
+        // reaching none gets one row without destination.
+        let reached: Vec<(usize, Pair)> = (0..destinations.kept.len())
+            .filter(eligible)
+            .filter_map(|di| row[di].map(|p| (di, p)))
+            .collect();
+        let nearest = |key: fn(&Pair) -> f64, out: &mut CsvWriter| -> Result<()> {
+            let best = reached
+                .iter()
+                .map(|(_, p)| key(p))
+                .fold(f64::INFINITY, f64::min);
+            if reached.is_empty() {
+                return out.write(&o.id, None, None);
+            }
+            for (di, p) in reached.iter().filter(|(_, p)| key(p) == best) {
+                out.write(&o.id, Some(&destinations.kept[*di].id), Some(*p))?;
+            }
+            Ok(())
         };
-        nearest_time.push(row(best_time));
-        nearest_distance.push(row(best_distance));
+        nearest(|p| p.time_s, &mut by_time)?;
+        if let Some(out) = by_distance.as_mut() {
+            nearest(|p| p.distance_m, out)?;
+        }
     }
-    let dir = staging.path();
-    write_csv(&dir.join("referral.csv"), &rows)?;
-    write_csv(&dir.join("nearest_by_time.csv"), &nearest_time)?;
-    if !job.nearest_only {
-        write_csv(&dir.join("nearest_by_distance.csv"), &nearest_distance)?;
+    all.finish()?;
+    by_time.finish()?;
+    if let Some(out) = by_distance {
+        out.finish()?;
     }
     output::write_json(&dir.join("job.resolved.json"), &job)?;
     durations_s.insert("write_outputs", started.elapsed().as_secs_f64());
@@ -476,8 +502,8 @@ pub fn run(
             result: ReferralSummary {
                 origins: origins.kept.len(),
                 destinations: destinations.kept.len(),
-                pairs: rows.len(),
-                reached_pairs: rows.iter().filter(|r| r.time_s.is_some()).count(),
+                pairs,
+                reached_pairs,
                 searches: result.searches,
                 reversed: result.reversed,
                 settled_cells: result.settled,
@@ -522,17 +548,20 @@ fn worker_budget(
     let tile_budget = plan
         .memory_budget_bytes
         .saturating_sub(plan.fixed_bytes + plan.queue_reserve_bytes);
+    // Each worker has its own priority queue: reserve room for a frontier
+    // of 16 entries (32 bytes) per boundary cell of the grid.
+    let queue = 16 * 32 * 2 * (geometry.rows() + geometry.cols()) as u64;
     let (per_worker_floor, available) = if inputs_in_memory {
         (
-            band * state_tile,
+            band * state_tile + queue,
             tile_budget.saturating_sub(total * input_tile),
         )
     } else {
-        (band * (state_tile + input_tile), tile_budget)
+        (band * (state_tile + input_tile) + queue, tile_budget)
     };
     let affordable = (available / per_worker_floor.max(1)).max(1) as usize;
     let workers = threads.min(searches.max(1)).min(affordable).max(1);
-    let share = available / workers as u64;
+    let share = (available / workers as u64).saturating_sub(queue);
     let budget = if inputs_in_memory {
         WorkerBudget {
             state_tiles: (share / state_tile).clamp(1, total) as usize,
@@ -563,20 +592,50 @@ fn csv_field(value: &serde_json::Value) -> String {
     }
 }
 
-fn write_csv(path: &Path, rows: &[PairRow]) -> Result<()> {
-    let mut text = String::from("origin_id,destination_id,time_s,distance_m\n");
-    let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
-    for row in rows {
-        let _ = writeln!(
-            text,
-            "{},{},{},{}",
-            csv_field(&row.origin_id),
-            csv_field(&row.destination_id),
-            number(row.time_s),
-            number(row.distance_m)
-        );
+/// Streaming CSV of pairs: `origin_id,destination_id,time_s,distance_m`.
+struct CsvWriter {
+    path: PathBuf,
+    out: std::io::BufWriter<std::fs::File>,
+}
+
+impl CsvWriter {
+    fn create(path: &Path) -> Result<Self> {
+        let file = std::fs::File::create(path).map_err(Error::file(path))?;
+        let mut writer = Self {
+            path: path.to_path_buf(),
+            out: std::io::BufWriter::new(file),
+        };
+        writer.line("origin_id,destination_id,time_s,distance_m")?;
+        Ok(writer)
     }
-    std::fs::write(path, text).map_err(Error::file(path))
+
+    fn line(&mut self, text: &str) -> Result<()> {
+        use std::io::Write as _;
+        writeln!(self.out, "{text}").map_err(Error::file(&self.path))
+    }
+
+    /// One pair; empty fields for a missing destination or an unreached pair.
+    fn write(
+        &mut self,
+        origin: &serde_json::Value,
+        destination: Option<&serde_json::Value>,
+        pair: Option<Pair>,
+    ) -> Result<()> {
+        let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
+        let line = format!(
+            "{},{},{},{}",
+            csv_field(origin),
+            destination.map(csv_field).unwrap_or_default(),
+            number(pair.map(|p| p.time_s)),
+            number(pair.map(|p| p.distance_m))
+        );
+        self.line(&line)
+    }
+
+    fn finish(mut self) -> Result<()> {
+        use std::io::Write as _;
+        self.out.flush().map_err(Error::file(&self.path))
+    }
 }
 
 #[cfg(test)]

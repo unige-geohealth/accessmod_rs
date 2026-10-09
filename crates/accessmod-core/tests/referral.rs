@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use accessmod_core::cost::{CellMobility, CellSize, Direction, Method, Neighbourhood};
 use accessmod_core::mobility::{MobilityModel, TransportMode};
-use accessmod_core::referral::{Pair, ReferralConfig, WorkerBudget, referral};
+use accessmod_core::referral::{Pair, ReferralConfig, SearchFrom, WorkerBudget, referral};
 use accessmod_core::solver::{Facility, InputCell, SolverCell, SolverConfig, solve};
 use accessmod_core::store::{Frozen, TileGeometry, TiledGrid};
 use proptest::prelude::*;
@@ -118,6 +118,7 @@ fn run(
         workers,
         budget,
         &scratch_dir(),
+        &|_, _| false,
         &|| false,
     )
     .expect("referral")
@@ -167,6 +168,7 @@ fn any_config() -> impl Strategy<Value = ReferralConfig> {
             cell: CellSize::new(100.0, 120.0).expect("cell"),
             limit_s,
             nearest_only: false,
+            search_from: SearchFrom::Auto,
         })
 }
 
@@ -244,6 +246,68 @@ proptest! {
                 prop_assert!(kept.iter().all(|p| (p.time_s - best).abs() <= 1e-12 * best.max(1.0)));
             } else {
                 prop_assert!(kept.is_empty());
+            }
+        }
+    }
+}
+
+fn run_excluding(
+    case: &Case,
+    config: &ReferralConfig,
+    excluded: &(dyn Fn(usize, usize) -> bool + Sync),
+) -> Vec<Vec<Option<Pair>>> {
+    let budget = WorkerBudget {
+        state_tiles: 64,
+        input_tiles: 2,
+    };
+    referral(
+        &frozen(case, 4, 64),
+        &scenario(),
+        &case.origins,
+        &case.destinations,
+        config,
+        3,
+        budget,
+        &scratch_dir(),
+        excluded,
+        &|| false,
+    )
+    .expect("referral")
+    .pairs
+}
+
+proptest! {
+    #[test]
+    fn excluded_pairs_do_not_stop_nearest_searches(mut case in any_case(), config in any_config()) {
+        // Same facilities on both sides; a facility to itself is excluded.
+        case.destinations = case.origins.clone();
+        let not_self = |o: usize, d: usize| o == d;
+        let all = run_excluding(&case, &config, &not_self);
+        let nearest_config = ReferralConfig { nearest_only: true, ..config };
+        let nearest = run_excluding(&case, &nearest_config, &not_self);
+        for (o, row) in nearest.iter().enumerate() {
+            prop_assert!(row[o].is_none() && all[o][o].is_none(), "self pair kept");
+            let best = all[o].iter().flatten().map(|p| p.time_s).fold(f64::INFINITY, f64::min);
+            for (d, pair) in all[o].iter().enumerate() {
+                // Every destination at the minimum time is kept, no other.
+                let at_best = pair.is_some_and(|p| p.time_s == best);
+                prop_assert_eq!(row[d].is_some(), at_best, "origin {} destination {}", o, d);
+            }
+        }
+    }
+
+    #[test]
+    fn forced_forward_searches_are_exact(mut case in any_case(), config in any_config()) {
+        if case.destinations.len() >= case.origins.len() {
+            std::mem::swap(&mut case.origins, &mut case.destinations);
+        }
+        let forward = ReferralConfig { search_from: SearchFrom::Origins, ..config };
+        let pairs = run(&case, &forward, 2, &frozen(&case, 4, 64));
+        for (o, origin) in case.origins.iter().enumerate() {
+            let cells = full_search(&case, &config, *origin, Direction::FromFacilities);
+            for (d, destination) in case.destinations.iter().enumerate() {
+                let got = pairs[o][d].map(|p| (p.time_s, p.distance_m));
+                prop_assert_eq!(got, sample(&cells, &case, *destination));
             }
         }
     }

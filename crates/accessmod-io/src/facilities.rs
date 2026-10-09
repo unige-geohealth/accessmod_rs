@@ -17,8 +17,10 @@ pub struct FacilityRecord {
     /// 1-based order among the facilities used (value in
     /// `nearest_facility.tif`).
     pub ordinal: u32,
-    /// Feature id (FID) in the layer.
+    /// 0-based position among the features read (after the filter).
     pub feature_index: u64,
+    /// Feature id (FID) reported by the driver, if any.
+    pub fid: Option<u64>,
     /// Identifier from the `id_field`.
     pub id: serde_json::Value,
     /// Point in the grid CRS.
@@ -34,8 +36,10 @@ pub struct FacilityRecord {
 /// A facility that cannot be used.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct FacilityIssue {
-    /// Feature id (FID) in the layer.
+    /// 0-based position among the features read (after the filter).
     pub feature_index: u64,
+    /// Feature id (FID) reported by the driver, if any.
+    pub fid: Option<u64>,
     /// Identifier, when readable.
     pub id: Option<serde_json::Value>,
     /// What is wrong.
@@ -158,12 +162,13 @@ pub fn load_facilities(
     let mut kept = Vec::new();
     let mut issues = Vec::new();
     for (index, feature) in layer.features().enumerate() {
-        // The feature id (FID) identifies a feature whatever the filter.
-        let feature_index = feature.fid().unwrap_or(index as u64);
+        let feature_index = index as u64;
+        let fid = feature.fid();
         let id = json_id(feature.field(field_index).map_err(Error::gdal(path))?);
         let mut issue = |reason: String| {
             issues.push(FacilityIssue {
                 feature_index,
+                fid,
                 id: id.clone(),
                 reason,
             })
@@ -213,6 +218,7 @@ pub fn load_facilities(
         kept.push(FacilityRecord {
             ordinal,
             feature_index,
+            fid,
             id: id.expect("checked above"),
             x,
             y,

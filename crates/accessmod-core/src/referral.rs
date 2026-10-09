@@ -4,13 +4,17 @@
 //! needs, sources spread over worker threads (`docs/referral.md`):
 //!
 //! - travel always goes from an origin to a destination;
-//! - searches start from the smaller side: `time(o → d)` equals the search
-//!   from `d` with inverted slopes ([`Direction::TowardsFacilities`]), so
-//!   `N × M` pairs cost `min(N, M)` searches (the last bits of knight-step
-//!   sums may differ between the two sides: the summation order of the four
-//!   cells changes);
-//! - with `nearest_only`, searches start from the origins and stop at the
-//!   first destination settled;
+//! - with [`SearchFrom::Auto`], searches start from the smaller side:
+//!   `time(o → d)` equals the search from `d` with inverted slopes
+//!   ([`Direction::TowardsFacilities`]), so `N × M` pairs cost `min(N, M)`
+//!   searches. Equal mathematically, not bit for bit: edge costs are summed
+//!   in the reverse order (relative differences around 1e-15, which can flip
+//!   a tie or a time lying exactly on the limit). [`SearchFrom::Origins`]
+//!   forces exact forward searches;
+//! - pairs the caller excludes (a facility to itself) are neither recorded
+//!   nor waited for;
+//! - with `nearest_only`, searches start from the origins and stop once the
+//!   minimum time is passed, keeping every destination at that time;
 //! - results never depend on the number of workers or their scheduling.
 
 use std::collections::BTreeMap;
@@ -35,8 +39,34 @@ pub struct ReferralConfig {
     pub cell: CellSize,
     /// Inclusive travel-time limit, s.
     pub limit_s: Option<f64>,
-    /// Only the nearest destination (by time) of each origin.
+    /// Only the nearest destinations (by time) of each origin: every
+    /// destination at the minimum time is kept (ties, as AccessMod 5).
     pub nearest_only: bool,
+    /// Which side searches start from.
+    pub search_from: SearchFrom,
+}
+
+/// Which side referral searches start from.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchFrom {
+    /// The smaller side; from the destinations (slopes inverted) when there
+    /// are fewer of them. Times then equal forward searches up to
+    /// floating-point summation order (relative 1e-15).
+    #[default]
+    Auto,
+    /// Always the origins: exact forward searches.
+    Origins,
 }
 
 /// Time and path length of one origin → destination pair.
@@ -100,9 +130,12 @@ pub fn referral(
     workers: usize,
     budget: WorkerBudget,
     scratch_dir: &Path,
+    excluded: &(dyn Fn(usize, usize) -> bool + Sync),
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<ReferralResult, SolveError> {
-    let reversed = !config.nearest_only && destinations.len() < origins.len();
+    let reversed = config.search_from == SearchFrom::Auto
+        && !config.nearest_only
+        && destinations.len() < origins.len();
     let (sources, targets, direction) = if reversed {
         (destinations, origins, Direction::TowardsFacilities)
     } else {
@@ -141,12 +174,22 @@ pub fn referral(
             if s >= sources.len() || stop() {
                 return Ok(());
             }
+            // Pairs excluded by the caller (e.g. a facility to itself) are
+            // neither recorded nor waited for.
+            let eligible = |t: usize| {
+                if reversed {
+                    !excluded(t, s)
+                } else {
+                    !excluded(s, t)
+                }
+            };
             let row = search(
                 &mut reader,
                 scenario,
                 sources[s],
                 targets.len(),
                 &target_cells,
+                &eligible,
                 &solver_config,
                 config.nearest_only,
                 geometry,
@@ -211,8 +254,8 @@ pub fn referral(
     })
 }
 
-/// One search from `source`: time and distance to every target, or to the
-/// first one settled when `first_only`.
+/// One search from `source`: time and distance to every eligible target, or,
+/// when `nearest_only`, to the eligible targets at the minimum time.
 #[allow(clippy::too_many_arguments)] // reason: private helper of `referral`
 fn search(
     reader: &mut FrozenReader<'_, InputCell>,
@@ -220,8 +263,9 @@ fn search(
     source: Facility,
     n_targets: usize,
     target_cells: &BTreeMap<usize, Vec<usize>>,
+    eligible: &dyn Fn(usize) -> bool,
     config: &SolverConfig,
-    first_only: bool,
+    nearest_only: bool,
     geometry: TileGeometry,
     state_tiles: usize,
     scratch_dir: &Path,
@@ -236,7 +280,14 @@ fn search(
         "referral",
     )?;
     let mut row = vec![None; n_targets];
-    let mut remaining = target_cells.len();
+    let mut remaining = target_cells
+        .values()
+        .filter(|targets| targets.iter().any(|&t| eligible(t)))
+        .count();
+    if remaining == 0 {
+        return Ok((row, 0));
+    }
+    let mut nearest_time: Option<f64> = None;
     let stats = solve_until(
         reader,
         scenario,
@@ -245,15 +296,26 @@ fn search(
         &mut state,
         stop,
         &mut |r, c, cell| {
-            if let Some(targets) = target_cells.get(&(r * cols + c)) {
-                for &t in targets {
-                    row[t] = Some(Pair {
-                        time_s: cell.time_s,
-                        distance_m: cell.distance_m,
-                    });
-                }
+            // Cells settle in non-decreasing time: past the nearest time, no
+            // further tie can come.
+            if nearest_only && nearest_time.is_some_and(|t| cell.time_s > t) {
+                return Flow::Stop;
+            }
+            let Some(targets) = target_cells.get(&(r * cols + c)) else {
+                return Flow::Continue;
+            };
+            let mut any = false;
+            for &t in targets.iter().filter(|&&t| eligible(t)) {
+                row[t] = Some(Pair {
+                    time_s: cell.time_s,
+                    distance_m: cell.distance_m,
+                });
+                any = true;
+            }
+            if any {
                 remaining -= 1;
-                if remaining == 0 || first_only {
+                nearest_time.get_or_insert(cell.time_s);
+                if remaining == 0 {
                     return Flow::Stop;
                 }
             }
