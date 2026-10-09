@@ -84,26 +84,28 @@ cargo xtask lut [--check]  # regenerate (or verify) the bicycle LUT
 sh scripts/oracle/export.sh # export AccessMod 5 oracle artefacts into _oracle/ (Docker)
 cargo run -p accessmod-cli -- doctor --json
 cargo run -p accessmod-cli -- travel-time run --job job.json --json
+cargo run -p accessmod-cli -- referral run --job referral.json --json
+sh scripts/bench/am5-vs-rs.sh 1000 2000      # travel-time benchmark vs AccessMod 5 (Docker)
+sh scripts/bench/referral-vs-am5.sh 1000 20  # referral benchmark vs AccessMod 5 (Docker)
 ```
 
 The workspace needs GDAL ≥ 3.5 and PROJ installed (`gdal-config` on `PATH`).
 
 Build, test, clippy and fmt must all pass before a commit.
 
-## Layout (target)
+## Layout
 
 ```
-crates/accessmod-core   grids, tiled storage, mobility models, Dijkstra, domain types (no GDAL)
-crates/accessmod-io     GDAL/PROJ boundary, job validation, reports
-crates/accessmod-cli    `accessmod` binary (clap)
-crates/accessmod-mcp    milestone 2: thin MCP adapter over the public API
-xtask/                  developer tasks (LUT generation, oracle export driver, …)
-tests/fixtures/         small synthetic fixtures, hand-computable, committed
+crates/accessmod-core   tiled storage, mobility models, cost model, solver, referral (no GDAL)
+crates/accessmod-io     GDAL/PROJ boundary, jobs, validation, outputs, reports; examples/ (synthetic data, raster compare)
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral
+crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
+xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
 _am5/accessmod/         pinned AccessMod 5 source, read-only (ignored; `scripts/fetch-am5.sh`)
 _shared/                local scratch, issue reproductions (ignored)
-scripts/                POSIX sh helpers (`oracle/`: oracle export + committed manifest)
-docs/                   plan, references, design decisions
+scripts/                POSIX sh helpers: `oracle/` (export + committed manifest), `bench/`
+docs/                   plan, references, design decisions, tutorial (with data and figures)
 ```
 
 `accessmod-core` never depends on GDAL, PROJ, a project layout or an external
@@ -122,6 +124,59 @@ by a committed script run against the pinned AccessMod 5 Docker image and
 described by a committed manifest (files, SHA-256, oracle version). Tests that
 need `_oracle/` skip with an explicit message when it is absent; they never
 pass vacuously.
+
+## Findings and pitfalls
+
+Things learned the hard way; check here before re-investigating.
+
+### AccessMod 5 oracle
+
+- Run the image with `--platform linux/arm64`: binaries and image IDs differ
+  per platform, and the manifest records the arm64 image ID.
+- Replays (`Rscript` + `amAnalysisReplayExec`) fail unless `TZ` is set and
+  `/etc/timezone` exists (`echo UTC > /etc/timezone`). The export directory
+  must exist beforehand, and the example configs have no `output` list, so
+  nothing is exported: read result tables from the project's
+  `sqlite.db` instead (see `scripts/oracle/referral-demo.R`).
+- Loading `global.R` alone takes about 6 s; it dominates small replays.
+- Byte-stable exports: a GeoPackage embeds timestamps (manifest breaks),
+  GeoJSON cannot carry a CRS without an EPSG code (the demo's UTM 36 has
+  none). Use FlatGeobuf for vectors; note it reorders features (spatial
+  index), so compare by identifier, never by row order.
+- The bicycle LUT is not shipped as a file: it is extracted from the
+  compiled `r.walk.accessmod`; our table is bit-identical.
+- Isotropic friction from `r.recode` is FCELL (Float32): isotropic times
+  differ by up to 2⁻²⁴ relative, by construction.
+- Referral: AM5 rounds times up in the requested unit (use seconds for
+  comparisons), drops self pairs, keeps closest-time ties, and measures
+  distances with `r.path` from the facility points (ours: cell centres;
+  up to one cell diagonal apart).
+
+### Engine
+
+- Outputs must be byte-identical whatever `--memory` and `--threads`; the
+  tests enforce it. Any new output must keep that property.
+- Tile size 64 is the default: 256² tiles thrash once the Dijkstra frontier
+  band no longer fits (`docs/benchmarks.md`).
+- Referral `search_from: auto` (reversed searches) equals forward searches
+  only up to floating-point summation order (~1e-15 relative); compare with
+  a tolerance, or use `search_from: origins` for exact equality.
+- Every budget split must count per-worker state (queue, state tiles) and
+  results held in memory; Codex reviews caught these twice.
+
+### Tooling
+
+- The toolchain is pinned to Rust 1.92: `sysinfo` is held at 0.38 (0.39
+  needs 1.95). Raising the toolchain is a user decision.
+- `gdal` 0.19 is needed for GDAL 3.12 (0.18 has no matching bindings); it
+  ships prebuilt bindings, no libclang required.
+- Benchmark scripts are POSIX `sh` (zsh has no `time -p`); on macOS,
+  `/usr/bin/time -l` reports peak RSS.
+- Run the checks and stop on failure before committing: a command chain
+  that pipes clippy through `grep` does not stop on errors.
+- Reviews by Codex: `codex exec -s read-only "<precise brief>"`, output kept
+  in `_shared/reviews/`. Give it the commits, the contracts to check and
+  where the oracle source is.
 
 ## Branches and releases
 

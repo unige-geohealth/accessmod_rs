@@ -9,9 +9,9 @@ replace the AccessMod 5 stack (R/Shiny + GRASS + Docker). Until it reaches
 feature parity, AccessMod 5 is used **only as a numerical oracle**: its fixtures
 and outputs validate this engine; its code is not copied.
 
-> Status: pre-alpha. The travel-time analysis works end to end from the
-> command line and matches AccessMod 5; other analyses are not ported yet
-> ([coverage](docs/coverage.md)). Contracts may still change.
+> Status: pre-alpha. Travel time and referral work end to end from the
+> command line and match AccessMod 5 on its demo project; other analyses are
+> not ported yet ([coverage](docs/coverage.md)). Contracts may still change.
 
 ## Quick start
 
@@ -19,10 +19,11 @@ and outputs validate this engine; its code is not copied.
 cargo build --release -p accessmod-cli     # needs GDAL ≥ 3.5 and PROJ
 ./target/release/accessmod doctor
 ./target/release/accessmod travel-time run --job docs/tutorial/data/job.json
+./target/release/accessmod referral run --job docs/tutorial/data/referral.json
 ```
 
-The [tutorial](docs/tutorial/README.md) walks through inputs, job, outputs
-and figures on a small synthetic landscape.
+The [tutorial](docs/tutorial/README.md) walks through inputs, jobs, outputs
+and figures on a small synthetic landscape (travel time, then referral).
 
 ## AccessMod 5 vs accessmod-rs
 
@@ -46,7 +47,9 @@ Referral (all facilities to all facilities, [details](docs/benchmarks.md)):
 
 - **Same numbers**: travel times agree with AccessMod 5 to 1e-15 (relative),
   with identical reachable areas and nearest facilities; on the AccessMod 5
-  demo project as well ([oracle tests](docs/plan.md)).
+  demo project as well ([oracle tests](docs/plan.md)). Referral times match
+  AccessMod 5 on its demo after its rounding up to whole seconds; distances
+  differ by less than one cell ([why](docs/referral.md)).
 - **Less memory, bounded memory**: 1.6 × (1 M cells) to 4 × (64 M) less than
   AccessMod 5, and a hard
   budget (`--memory`) with disk-backed tiles: results are byte-identical
@@ -63,21 +66,22 @@ Referral (all facilities to all facilities, [details](docs/benchmarks.md)):
   before computing; the demo travel time takes 9 s end to end in AccessMod 5
   and 0.5 s with accessmod-rs.
 
-## Deliverables (planned)
+## Deliverables
 
-| Milestone | Deliverable |
-| --- | --- |
-| 1 | `accessmod` CLI: complete travel-time engine on disk-backed tiled rasters (isotropic/anisotropic, nearest, path distance) |
-| 2 | MCP stdio server + agent skill over the same public API |
-| 3+ | Zonal stats, coverage, referral, optimization, project import |
-| last | Graphical UI on top of the stabilised CLI/MCP contracts |
+| Milestone | Deliverable | Status |
+| --- | --- | --- |
+| 1 | `accessmod` CLI: travel-time engine on disk-backed tiled rasters (isotropic/anisotropic, nearest, path distance) | working; distribution and CI to do |
+| 2 | MCP stdio server + agent skill over the same public API | not started |
+| 3+ | Referral, zonal stats, coverage, optimization, land-cover merge, project import | referral done (network output to do); others planned |
+| last | Graphical UI on top of the stabilised CLI/MCP contracts | not started |
 
 ## Documentation
 
-- [`docs/tutorial/`](docs/tutorial/README.md) — step-by-step travel-time analysis
+- [`docs/tutorial/`](docs/tutorial/README.md) — step-by-step travel time and referral
 - [`docs/coverage.md`](docs/coverage.md) — AccessMod 5 features: covered, planned, needing a UI
 - [`docs/benchmarks.md`](docs/benchmarks.md) — performance against AccessMod 5
 - [`docs/cost-model.md`](docs/cost-model.md) — cost model, neighbours and direction codes
+- [`docs/referral.md`](docs/referral.md) — referral design, decisions and differences from AccessMod 5
 - [`docs/plan.md`](docs/plan.md) — architecture, contracts and milestones
 - [`docs/reference-accessmod5.md`](docs/reference-accessmod5.md) — where the
   oracle behaviour lives in the AccessMod 5 repository
