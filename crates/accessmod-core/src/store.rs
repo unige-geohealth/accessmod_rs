@@ -197,6 +197,9 @@ pub struct TiledGrid<T: CellCodec> {
     last: Option<(usize, usize)>,
     stats: StoreStats,
     buffer: Vec<u8>,
+    /// Whether dropping this grid removes the scratch file (false for
+    /// readers of a [`Frozen`] grid, which owns it).
+    owns_scratch: bool,
 }
 
 impl<T: CellCodec> TiledGrid<T> {
@@ -233,6 +236,7 @@ impl<T: CellCodec> TiledGrid<T> {
             last: None,
             stats: StoreStats::default(),
             buffer: Vec::new(),
+            owns_scratch: true,
         })
     }
 
@@ -463,9 +467,189 @@ impl<T: CellCodec> TiledGrid<T> {
     }
 }
 
+/// Read-only snapshot of a [`TiledGrid`], shared by several threads, each
+/// reading through its own [`FrozenReader`]. Tiles stay in memory when the
+/// grid never spilled, otherwise they are read from the grid's scratch file,
+/// removed when the snapshot is dropped.
+#[derive(Debug)]
+pub struct Frozen<T: CellCodec> {
+    geometry: TileGeometry,
+    fill: T,
+    scratch_dir: PathBuf,
+    backend: FrozenBackend<T>,
+}
+
+#[derive(Debug)]
+enum FrozenBackend<T> {
+    /// Every touched tile, by tile id; `None` tiles read as the fill value.
+    Memory(Vec<Option<Box<[T]>>>),
+    /// Tiles in a scratch file; `on_disk[tile]` false reads as the fill value.
+    File { path: PathBuf, on_disk: Vec<bool> },
+}
+
+impl<T: CellCodec> TiledGrid<T> {
+    /// Freeze this grid for shared reading. Writes dirty tiles back first
+    /// when the grid already uses its scratch file.
+    pub fn freeze(mut self) -> Result<Frozen<T>, StoreError> {
+        let backend = if self.scratch.is_none() {
+            let mut tiles: Vec<Option<Box<[T]>>> = Vec::new();
+            tiles.resize_with(self.geometry.n_tiles(), || None);
+            for slot in std::mem::take(&mut self.slots) {
+                tiles[slot.tile] = Some(slot.cells.into_boxed_slice());
+            }
+            FrozenBackend::Memory(tiles)
+        } else {
+            for slot in 0..self.slots.len() {
+                if self.slots[slot].dirty {
+                    self.write_tile(slot)?;
+                    self.slots[slot].dirty = false;
+                }
+            }
+            if let Some(scratch) = &mut self.scratch {
+                scratch.file.flush().map_err(|source| StoreError::Io {
+                    path: scratch.path.clone(),
+                    source,
+                })?;
+            }
+            self.owns_scratch = false;
+            let path = self
+                .scratch
+                .as_ref()
+                .map(|s| s.path.clone())
+                .expect("checked: the grid has a scratch file");
+            FrozenBackend::File {
+                path,
+                on_disk: std::mem::take(&mut self.on_disk),
+            }
+        };
+        Ok(Frozen {
+            geometry: self.geometry,
+            fill: self.fill,
+            scratch_dir: self.scratch_dir.clone(),
+            backend,
+        })
+    }
+}
+
+impl<T: CellCodec> Frozen<T> {
+    /// Tiling of the grid.
+    pub fn geometry(&self) -> TileGeometry {
+        self.geometry
+    }
+
+    /// Whether tiles are shared in memory (no per-reader cache needed).
+    pub fn in_memory(&self) -> bool {
+        matches!(self.backend, FrozenBackend::Memory(_))
+    }
+
+    /// A reader with its own cache of `capacity` tiles (file backend only).
+    pub fn reader(&self, capacity: usize) -> Result<FrozenReader<'_, T>, StoreError> {
+        match &self.backend {
+            FrozenBackend::Memory(tiles) => Ok(FrozenReader::Memory {
+                geometry: self.geometry,
+                fill: self.fill,
+                tiles,
+            }),
+            FrozenBackend::File { path, on_disk } => {
+                let mut grid = TiledGrid::new(
+                    self.geometry,
+                    self.fill,
+                    capacity,
+                    &self.scratch_dir,
+                    "reader",
+                )?;
+                let file =
+                    OpenOptions::new()
+                        .read(true)
+                        .open(path)
+                        .map_err(|source| StoreError::Io {
+                            path: path.clone(),
+                            source,
+                        })?;
+                grid.scratch = Some(Scratch {
+                    path: path.clone(),
+                    file,
+                });
+                grid.on_disk = on_disk.clone();
+                grid.owns_scratch = false;
+                Ok(FrozenReader::File(Box::new(grid)))
+            }
+        }
+    }
+}
+
+impl<T: CellCodec> Drop for Frozen<T> {
+    fn drop(&mut self) {
+        if let FrozenBackend::File { path, .. } = &self.backend {
+            // Best effort, as for TiledGrid.
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// Reader of a [`Frozen`] grid; not shared between threads.
+#[derive(Debug)]
+pub enum FrozenReader<'a, T: CellCodec> {
+    /// Tiles shared in memory.
+    Memory {
+        /// Tiling.
+        geometry: TileGeometry,
+        /// Value of tiles never touched.
+        fill: T,
+        /// Tiles by id.
+        tiles: &'a [Option<Box<[T]>>],
+    },
+    /// Private tile cache over the shared scratch file.
+    File(Box<TiledGrid<T>>),
+}
+
+impl<T: CellCodec> FrozenReader<'_, T> {
+    /// Tiling of the grid.
+    pub fn geometry(&self) -> TileGeometry {
+        match self {
+            Self::Memory { geometry, .. } => *geometry,
+            Self::File(grid) => grid.geometry(),
+        }
+    }
+
+    /// Value of cell `(row, col)`.
+    ///
+    /// # Panics
+    ///
+    /// If the cell is outside the grid.
+    #[inline]
+    pub fn get(&mut self, row: usize, col: usize) -> Result<T, StoreError> {
+        match self {
+            Self::Memory {
+                geometry,
+                fill,
+                tiles,
+            } => {
+                assert!(
+                    row < geometry.rows && col < geometry.cols,
+                    "cell outside the grid"
+                );
+                let (tile, offset) = geometry.locate(row, col);
+                Ok(tiles[tile].as_ref().map_or(*fill, |cells| cells[offset]))
+            }
+            Self::File(grid) => grid.get(row, col),
+        }
+    }
+
+    /// Cache counters (zero for the memory backend).
+    pub fn stats(&self) -> StoreStats {
+        match self {
+            Self::Memory { .. } => StoreStats::default(),
+            Self::File(grid) => grid.stats(),
+        }
+    }
+}
+
 impl<T: CellCodec> Drop for TiledGrid<T> {
     fn drop(&mut self) {
-        if let Some(scratch) = self.scratch.take() {
+        if let Some(scratch) = self.scratch.take()
+            && self.owns_scratch
+        {
             drop(scratch.file);
             // Best effort: a leftover scratch file is harmless and lives in
             // the user's temporary directory.

@@ -10,5 +10,6 @@
 
 pub mod cost;
 pub mod mobility;
+pub mod referral;
 pub mod solver;
 pub mod store;

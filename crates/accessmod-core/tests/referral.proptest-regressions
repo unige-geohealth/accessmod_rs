@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a040c3f3c2c180675ce76aae158e95784fa1e9a8eaedaf3f04ce3ecdb3886865 # shrinks to case = Case { rows: 3, cols: 3, slots: [0, 0, 0, 2, 1, 0, 1, 0, 0], dem: [0.0, 0.0, 0.0, 0.0, 0.0, 50.17625164798302, 10.160134670691962, 40.39689648307729, 0.0], origins: [Facility { row: 2, col: 0 }, Facility { row: 0, col: 0 }], destinations: [Facility { row: 1, col: 2 }] }, config = ReferralConfig { method: Anisotropic(Accessmod5V1), neighbourhood: Eight, cell: CellSize { ew_m: 100.0, ns_m: 120.0 }, limit_s: None, nearest_only: false }

@@ -15,7 +15,7 @@ use std::collections::BinaryHeap;
 
 pub use crate::cost::Method;
 use crate::cost::{CellMobility, CellSize, Direction, Edge, Neighbourhood, Step};
-use crate::store::{CellCodec, StoreError, TiledGrid};
+use crate::store::{CellCodec, StoreError, TileGeometry, TiledGrid};
 
 /// Solver input for one cell.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -233,7 +233,36 @@ fn better(candidate: (f64, f64, u32), current: (f64, f64, u32)) -> bool {
 /// How often the cancellation callback is polled, in heap pops.
 const CANCEL_POLL: u64 = 4096;
 
-/// Run the solver.
+/// Read access to solver inputs, implemented by the tiled store and by
+/// shared, frozen input grids ([`crate::store::Frozen`]).
+pub trait InputReader {
+    /// Tiling of the input grid.
+    fn geometry(&self) -> TileGeometry;
+    /// Input of cell `(row, col)`, inside the grid.
+    fn input(&mut self, row: usize, col: usize) -> Result<InputCell, StoreError>;
+}
+
+impl InputReader for TiledGrid<InputCell> {
+    fn geometry(&self) -> TileGeometry {
+        TiledGrid::geometry(self)
+    }
+
+    #[inline]
+    fn input(&mut self, row: usize, col: usize) -> Result<InputCell, StoreError> {
+        self.get(row, col)
+    }
+}
+
+/// Whether a search goes on after a cell is settled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flow {
+    /// Keep expanding.
+    Continue,
+    /// Stop now; cells not yet settled keep their tentative state.
+    Stop,
+}
+
+/// Run the solver over the whole reachable area.
 ///
 /// - `inputs`: one [`InputCell`] per cell;
 /// - `scenario`: mobility of each slot used in `inputs`;
@@ -243,12 +272,35 @@ const CANCEL_POLL: u64 = 4096;
 /// - `cancelled`: polled regularly; returning `true` aborts with
 ///   [`SolveError::Cancelled`].
 pub fn solve(
-    inputs: &mut TiledGrid<InputCell>,
+    inputs: &mut impl InputReader,
     scenario: &[CellMobility],
     facilities: &[Facility],
     config: &SolverConfig,
     state: &mut TiledGrid<SolverCell>,
     cancelled: &dyn Fn() -> bool,
+) -> Result<SolveStats, SolveError> {
+    solve_until(
+        inputs,
+        scenario,
+        facilities,
+        config,
+        state,
+        cancelled,
+        &mut |_, _, _| Flow::Continue,
+    )
+}
+
+/// Run the solver, calling `on_settle` with every cell as its time becomes
+/// final (in settling order); the search stops when it returns
+/// [`Flow::Stop`]. Arguments as for [`solve`].
+pub fn solve_until(
+    inputs: &mut impl InputReader,
+    scenario: &[CellMobility],
+    facilities: &[Facility],
+    config: &SolverConfig,
+    state: &mut TiledGrid<SolverCell>,
+    cancelled: &dyn Fn() -> bool,
+    on_settle: &mut dyn FnMut(usize, usize, &SolverCell) -> Flow,
 ) -> Result<SolveStats, SolveError> {
     let geometry = inputs.geometry();
     if state.geometry() != geometry {
@@ -276,7 +328,7 @@ pub fn solve(
         if row >= rows || col >= cols {
             return Err(error("outside the grid"));
         }
-        let input = inputs.get(row, col)?;
+        let input = inputs.input(row, col)?;
         if !input.is_passable() || scenario.get(usize::from(input.slot)).is_none() {
             return Err(error("on a barrier"));
         }
@@ -329,6 +381,9 @@ pub fn solve(
         current.settled = true;
         state.set(row, col, current)?;
         stats.settled += 1;
+        if on_settle(row, col, &current) == Flow::Stop {
+            break;
+        }
 
         // Read the inputs around the origin once: every target and crossed
         // cell of its edges lies within `reach` cells.
@@ -403,7 +458,7 @@ struct Window {
 
 impl Window {
     fn read(
-        inputs: &mut TiledGrid<InputCell>,
+        inputs: &mut impl InputReader,
         row: usize,
         col: usize,
         reach: isize,
@@ -417,7 +472,7 @@ impl Window {
             };
             for dc in -reach..=reach {
                 if let Some(c) = col.checked_add_signed(dc).filter(|&c| c < cols) {
-                    cells[Self::index(dr, dc)] = inputs.get(r, c)?;
+                    cells[Self::index(dr, dc)] = inputs.input(r, c)?;
                 }
             }
         }
