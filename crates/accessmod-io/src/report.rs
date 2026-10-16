@@ -135,13 +135,20 @@ impl GridReport {
     }
 }
 
-/// Fingerprint of one file.
-pub fn sha256_file(role: &'static str, path: &Path) -> Result<Fingerprint> {
+/// Fingerprint of one file; cancellation is checked between blocks.
+fn sha256_file(
+    role: &'static str,
+    path: &Path,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Fingerprint> {
     let mut file = std::fs::File::open(path).map_err(Error::file(path))?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; 1 << 20];
     let mut bytes = 0u64;
     loop {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
         let n = file.read(&mut buffer).map_err(Error::file(path))?;
         if n == 0 {
             break;
@@ -169,12 +176,7 @@ pub fn fingerprints(
 ) -> Result<Vec<Fingerprint>> {
     files
         .iter()
-        .map(|&(role, path)| {
-            if cancelled() {
-                return Err(Error::Cancelled);
-            }
-            sha256_file(role, path)
-        })
+        .map(|&(role, path)| sha256_file(role, path, cancelled))
         .collect()
 }
 

@@ -270,8 +270,14 @@ impl GridSpec {
 
     /// Centre of cell `(row, col)` in grid CRS coordinates.
     pub fn cell_centre(&self, row: usize, col: usize) -> (f64, f64) {
+        self.to_map(col as f64 + 0.5, row as f64 + 0.5)
+    }
+
+    /// Grid CRS coordinates of pixel coordinates `(column, row)`, the
+    /// inverse of [`GridSpec::to_pixel`].
+    pub fn to_map(&self, col: f64, row: f64) -> (f64, f64) {
         let [x0, ew, _, y0, _, ns] = self.geo_transform;
-        (x0 + (col as f64 + 0.5) * ew, y0 + (row as f64 + 0.5) * ns)
+        (x0 + col * ew, y0 + row * ns)
     }
 }
 

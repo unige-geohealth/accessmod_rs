@@ -238,14 +238,19 @@ pub fn check_common(
     if scenario.is_empty() {
         issues.push("scenario is empty: every cell would be a barrier".into());
     }
-    for (class, first, i) in repeated(scenario.iter().map(|e| e.class)) {
-        issues.push(format!(
-            "scenario class {class} is listed twice (entries {} and {})",
-            first + 1,
-            i + 1
-        ));
-    }
-    for entry in scenario {
+    let repeats: BTreeMap<usize, usize> = repeated(scenario.iter().map(|e| e.class))
+        .into_iter()
+        .map(|(_, previous, i)| (i, previous))
+        .collect();
+    for (i, entry) in scenario.iter().enumerate() {
+        if let Some(previous) = repeats.get(&i) {
+            issues.push(format!(
+                "scenario class {} is listed twice (entries {} and {})",
+                entry.class,
+                previous + 1,
+                i + 1
+            ));
+        }
         if CellMobility::new(entry.mode, entry.speed_kmh).is_none() {
             issues.push(format!(
                 "scenario class {}: speed_kmh must be finite and > 0, got {} \

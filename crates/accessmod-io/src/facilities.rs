@@ -112,6 +112,7 @@ pub fn load_facilities(
     source: &FacilitySource,
     grid: &GridSpec,
     inputs: &mut TiledGrid<InputCell>,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<LoadedFacilities> {
     let vector = VectorLayer::open(
         &source.path,
@@ -129,6 +130,9 @@ pub fn load_facilities(
     let mut kept = Vec::new();
     let mut issues = Vec::new();
     for (index, feature) in layer.features().enumerate() {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
         let feature_index = index as u64;
         let fid = feature.fid();
         let id = json_id(feature.field(field_index).map_err(Error::gdal(path))?);

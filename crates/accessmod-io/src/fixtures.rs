@@ -4,6 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
+use accessmod_core::cost::CellSize;
 use gdal::raster::{Buffer, GdalType};
 use gdal::spatial_ref::SpatialRef;
 use gdal::vector::{Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRwkbGeometryType};
@@ -11,6 +12,8 @@ use gdal::{Dataset, DriverManager};
 
 use crate::analysis::Analysis;
 use crate::error::Result;
+use crate::grid::GridSpec;
+use crate::raster::valid_value;
 use crate::resources::ExecutionSettings;
 
 /// CRS of the fixtures (WGS 84 / UTM 32N).
@@ -21,6 +24,18 @@ pub const X0: f64 = 500_000.0;
 pub const Y0: f64 = 5_000_000.0;
 /// Cell size of the fixture grids, m.
 pub const RES: f64 = 100.0;
+
+/// The fixture grid: `cols × rows` cells of [`RES`] from `(X0, Y0)` in
+/// [`EPSG`].
+pub fn grid(cols: usize, rows: usize) -> GridSpec {
+    GridSpec {
+        cols,
+        rows,
+        geo_transform: geo_transform(X0, Y0),
+        srs: SpatialRef::from_epsg(EPSG).expect("srs"),
+        cell: CellSize::new(RES, RES).expect("positive cell size"),
+    }
+}
 
 /// North-up geotransform at `(x0, y0)` with [`RES`] cells.
 pub fn geo_transform(x0: f64, y0: f64) -> [f64; 6] {
@@ -117,10 +132,7 @@ pub fn read_with_nodata<T: GdalType + Copy>(path: &Path) -> (Vec<T>, Option<f64>
 /// Band 1 of a raster as `f64`, `None` for NoData and NaN.
 pub fn read_valid(path: &Path) -> Vec<Option<f64>> {
     let (values, nodata) = read_with_nodata::<f64>(path);
-    values
-        .into_iter()
-        .map(|v| (Some(v) != nodata && !v.is_nan()).then_some(v))
-        .collect()
+    values.into_iter().map(|v| valid_value(v, nodata)).collect()
 }
 
 /// Band 1 of a raster, row-major.

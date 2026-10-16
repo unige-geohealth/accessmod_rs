@@ -173,9 +173,9 @@ pub fn prepare(
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
 
     let mut warnings = Vec::new();
-    let origins = load_facilities(&job.origins, &grid, &mut inputs)?;
+    let origins = load_facilities(&job.origins, &grid, &mut inputs, cancelled)?;
     screen_facilities(&origins, job.facility_issues, "origins", &mut warnings)?;
-    let destinations = load_facilities(&job.destinations, &grid, &mut inputs)?;
+    let destinations = load_facilities(&job.destinations, &grid, &mut inputs, cancelled)?;
     screen_facilities(
         &destinations,
         job.facility_issues,

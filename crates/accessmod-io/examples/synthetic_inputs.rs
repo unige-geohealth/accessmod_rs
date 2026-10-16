@@ -61,14 +61,19 @@ fn cell(row: usize, col: usize, rows: usize, cols: usize) -> (u16, f32) {
     (class, dem as f32)
 }
 
-fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
-    let grid = GridSpec {
+/// The synthetic grid: `cols × rows` cells of [`RES`] from `(X0, Y0)`.
+fn grid(cols: usize, rows: usize) -> Result<GridSpec, Error> {
+    Ok(GridSpec {
         cols,
         rows,
         geo_transform: [X0, RES, 0.0, Y0, 0.0, -RES],
         srs: SpatialRef::from_epsg(EPSG)?,
         cell: CellSize::new(RES, RES).ok_or("invalid cell size")?,
-    };
+    })
+}
+
+fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
+    let grid = grid(cols, rows)?;
     let dem_tif = GeoTiff::create::<f32>(&dir.join("dem.tif"), &grid, 3, 1, -9999.0)?;
     let lc_tif = GeoTiff::create::<u16>(&dir.join("land_cover.tif"), &grid, 2, 1, 0.0)?;
     let mut dem = Vec::with_capacity(STRIP * cols);
@@ -111,12 +116,12 @@ fn write_facilities(dir: &Path, cols: usize, rows: usize, count: usize) -> Resul
     if path.exists() {
         std::fs::remove_file(&path)?;
     }
+    let grid = grid(cols, rows)?;
     let features: Vec<(String, Vec<Option<FieldValue>>)> = facility_cells(cols, rows, count)
         .into_iter()
         .enumerate()
         .map(|(k, (row, col))| {
-            let x = X0 + (col as f64 + 0.5) * RES;
-            let y = Y0 - (row as f64 + 0.5) * RES;
+            let (x, y) = grid.cell_centre(row, col);
             (
                 format!("POINT ({x} {y})"),
                 vec![

@@ -302,6 +302,27 @@ impl<T: CellCodec> TiledGrid<T> {
         Ok(())
     }
 
+    /// Visit the grid row by row, in pieces of at most `width` columns:
+    /// `visit(row, first_col, cells)`. Memory stays bounded by `width`
+    /// whatever the grid width; `visit` may stop the scan with an error
+    /// (cancellation).
+    pub fn for_each_row_piece<E: From<StoreError>>(
+        &mut self,
+        width: usize,
+        mut visit: impl FnMut(usize, usize, &[T]) -> Result<(), E>,
+    ) -> Result<(), E> {
+        let (rows, cols) = (self.geometry.rows, self.geometry.cols);
+        let mut piece = vec![self.fill; width.clamp(1, cols.max(1))];
+        for row in 0..rows {
+            for col in (0..cols).step_by(piece.len()) {
+                let n = piece.len().min(cols - col);
+                self.read_row(row, col, &mut piece[..n])?;
+                visit(row, col, &piece[..n])?;
+            }
+        }
+        Ok(())
+    }
+
     #[inline]
     fn cell_slot(&mut self, row: usize, col: usize) -> Result<(usize, usize), StoreError> {
         assert!(

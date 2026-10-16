@@ -7,7 +7,7 @@ use accessmod_core::cost::{Direction, Neighbourhood};
 use accessmod_core::mobility::{MobilityModel, TransportMode};
 use accessmod_io::error::ErrorKind;
 use accessmod_io::fixtures::{
-    EPSG, RES, X0, Y0, geo_transform, never, read, run_job, settings, to_wgs84, write_layer,
+    EPSG, X0, Y0, geo_transform, grid, never, read, run_job, settings, to_wgs84, write_layer,
     write_raster,
 };
 use accessmod_io::job::{
@@ -69,11 +69,8 @@ impl Fixture {
             .iter()
             .enumerate()
             .map(|(i, &(r, c))| {
-                (
-                    100 + i as i64,
-                    X0 + (c as f64 + 0.5) * RES,
-                    Y0 - (r as f64 + 0.5) * RES,
-                )
+                let (x, y) = grid(cols, rows).cell_centre(r, c);
+                (100 + i as i64, x, y)
             })
             .collect();
         write_points(&path.join("hf.gpkg"), EPSG, &points);

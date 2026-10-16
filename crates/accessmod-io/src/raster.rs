@@ -57,6 +57,11 @@ pub fn integer_nodata(value: Option<f64>) -> Option<i64> {
         .map(|v| v as i64)
 }
 
+/// `value`, or `None` when it is the band's NoData or NaN.
+pub fn valid_value(value: f64, nodata: Option<f64>) -> Option<f64> {
+    (Some(value) != nodata && !value.is_nan()).then_some(value)
+}
+
 /// Call `visit(rows, cols)` over `rows × cols` in chunks of at most
 /// [`STRIP_ROWS`] × [`CHUNK_COLS`] cells, strip by strip; cancellation is
 /// checked before each strip.

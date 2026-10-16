@@ -1136,21 +1136,20 @@ fn write_outputs(
             }
         }
     }
-    // Barrier and uncovered cells, counted on whole rows.
-    let mut row_cells = vec![MergeCell::EMPTY; BLOCK.min(cols)];
-    for row in 0..rows {
-        for col0 in (0..cols).step_by(row_cells.len()) {
-            let width = row_cells.len().min(cols - col0);
-            cells.read_row(row, col0, &mut row_cells[..width])?;
-            for cell in &row_cells[..width] {
-                if cell.is_barrier() {
-                    summary.barrier_cells += 1;
-                } else if cell.rank == MergeCell::NO_RANK {
-                    summary.uncovered_cells += 1;
-                }
+    // Barrier and uncovered cells.
+    cells.for_each_row_piece(BLOCK, |_, col, piece| {
+        if col == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
+        for cell in piece {
+            if cell.is_barrier() {
+                summary.barrier_cells += 1;
+            } else if cell.rank == MergeCell::NO_RANK {
+                summary.uncovered_cells += 1;
             }
         }
-    }
+        Ok(())
+    })?;
     merged_tif.close()?;
     if let Some(tif) = bridges_tif {
         tif.close()?;

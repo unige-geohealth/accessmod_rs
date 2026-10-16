@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use accessmod_io::error::{Error, ErrorKind};
 use accessmod_io::fixtures::{
-    EPSG, RES, X0, Y0, geo_transform, never, read, run_job, settings, to_wgs84, write_layer,
+    EPSG, X0, Y0, geo_transform, grid, never, read, run_job, settings, to_wgs84, write_layer,
     write_raster,
 };
 use accessmod_io::job::SCHEMA_VERSION;
@@ -17,7 +17,7 @@ use gdal::vector::{FieldValue, OGRFieldType};
 
 /// Map x, y of a point given in cell units (column, row from the top left).
 fn map(col: f64, row: f64) -> (f64, f64) {
-    (X0 + col * RES, Y0 - row * RES)
+    grid(1, 1).to_map(col, row)
 }
 
 /// Replace every "col row" pair of a WKT in cell units by map coordinates.

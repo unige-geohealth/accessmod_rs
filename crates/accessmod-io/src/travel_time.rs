@@ -106,7 +106,7 @@ pub fn prepare(
     } = load_landscape(&job.dem, &job.land_cover, &slots, settings, cancelled)?;
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
 
-    let facilities = load_facilities(&job.facilities, &grid, &mut inputs)?;
+    let facilities = load_facilities(&job.facilities, &grid, &mut inputs, cancelled)?;
     let mut warnings = Vec::new();
     screen_facilities(
         &facilities,
@@ -425,7 +425,7 @@ pub fn run(
         settings.threads,
         cancelled,
     )?;
-    let result = summarise(&mut state, &prepared.grid)?;
+    let result = summarise(&mut state, cancelled)?;
     prepared
         .durations_s
         .insert("write_outputs", started.elapsed().as_secs_f64());
@@ -480,17 +480,22 @@ pub fn run(
     Ok((output_dir, report))
 }
 
-fn summarise(state: &mut TiledGrid<SolverCell>, grid: &GridSpec) -> Result<ResultSummary> {
+fn summarise(
+    state: &mut TiledGrid<SolverCell>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<ResultSummary> {
     let mut summary = ResultSummary::default();
-    let mut row = vec![SolverCell::UNREACHED; grid.cols];
-    for r in 0..grid.rows {
-        state.read_row(r, 0, &mut row)?;
-        for cell in row.iter().filter(|c| c.is_reached()) {
+    state.for_each_row_piece(output::BLOCK, |_, col, cells| {
+        if col == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
+        for cell in cells.iter().filter(|c| c.is_reached()) {
             summary.reached_cells += 1;
             summary.max_travel_time_s = summary.max_travel_time_s.max(cell.time_s);
             summary.max_path_distance_m = summary.max_path_distance_m.max(cell.distance_m);
         }
-    }
+        Ok(())
+    })?;
     Ok(summary)
 }
 
