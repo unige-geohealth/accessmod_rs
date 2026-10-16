@@ -5,6 +5,7 @@
 //! `accessmod-core`.
 
 pub mod analysis;
+pub(crate) mod catchment;
 pub mod coverage;
 pub mod error;
 pub mod facilities;

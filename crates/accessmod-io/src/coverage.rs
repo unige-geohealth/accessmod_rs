@@ -13,20 +13,22 @@
 //! reach) and, with zone polygons, the population covered per zone.
 
 use std::collections::BTreeMap;
-use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use accessmod_core::capacity::{Band, Catchment, catchment};
+use accessmod_core::capacity::{Catchment, catchment};
 use accessmod_core::cost::{CellMobility, Direction, Method, Neighbourhood};
 use accessmod_core::mobility::MobilityModel;
-use accessmod_core::solver::{Facility, Flow, InputCell, SolverCell, SolverConfig, solve_until};
+use accessmod_core::solver::{Facility, InputCell, SolverConfig};
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
-use gdal::vector::{FieldValue, Geometry, LayerAccess, OGRFieldType, OGRwkbGeometryType};
+use gdal::vector::{FieldValue, LayerAccess, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::analysis::{Analysis, Cancelled};
+use crate::catchment::{
+    CellSpool, PopulationTotals, catchment_polygon, init_residual, remove_covered, search_bands,
+};
 use crate::error::{Error, Result};
 use crate::facilities::{LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
@@ -35,16 +37,12 @@ use crate::job::{
     FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, absolutize, check_common,
     check_files, scenario_table,
 };
-use crate::output::{
-    self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, ScratchFile, Staging, csv_field,
-};
+use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_field};
 use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
 use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
-use crate::vector::{
-    FeatureWriter, VectorLayer, burn_zones, compare_values, number_attribute, polygonize,
-};
+use crate::vector::{FeatureWriter, VectorLayer, burn_zones, compare_values, number_attribute};
 use crate::zonal::{MAX_ZONES, Zone, ZoneLayer, open_zones, read_zones};
 
 /// Capacity table file name.
@@ -453,198 +451,6 @@ fn read_facilities(
     Ok(facilities)
 }
 
-/// Reached cells of one search, spooled to a scratch file so that memory
-/// does not grow with the catchment: cell index and band.
-struct CellSpool {
-    file: ScratchFile,
-    writer: Option<BufWriter<std::fs::File>>,
-    count: u64,
-}
-
-impl CellSpool {
-    fn new(dir: &Path) -> Result<Self> {
-        let mut spool = Self {
-            file: ScratchFile::new(dir, "coverage", "cells"),
-            writer: None,
-            count: 0,
-        };
-        spool.clear()?;
-        Ok(spool)
-    }
-
-    fn path(&self) -> &Path {
-        self.file.path()
-    }
-
-    fn clear(&mut self) -> Result<()> {
-        let file = std::fs::File::create(self.path()).map_err(Error::file(self.path()))?;
-        self.writer = Some(BufWriter::new(file));
-        self.count = 0;
-        Ok(())
-    }
-
-    fn push(&mut self, cell: u64, band: u32) -> std::io::Result<()> {
-        let writer = self.writer.as_mut().expect("spool open for writing");
-        writer.write_all(&cell.to_le_bytes())?;
-        writer.write_all(&band.to_le_bytes())?;
-        self.count += 1;
-        Ok(())
-    }
-
-    /// Visit the spooled cells in the order they were pushed; cancellation
-    /// is checked every 65 536 cells.
-    fn for_each(
-        &mut self,
-        cancelled: &dyn Fn() -> bool,
-        mut visit: impl FnMut(u64, u32) -> Result<()>,
-    ) -> Result<()> {
-        if let Some(mut writer) = self.writer.take() {
-            writer.flush().map_err(Error::file(self.path()))?;
-        }
-        let file = std::fs::File::open(self.path()).map_err(Error::file(self.path()))?;
-        let mut reader = BufReader::new(file);
-        let mut entry = [0u8; 12];
-        for k in 0..self.count {
-            if k % 65_536 == 0 && cancelled() {
-                return Err(Error::Cancelled);
-            }
-            reader
-                .read_exact(&mut entry)
-                .map_err(Error::file(self.path()))?;
-            let cell = u64::from_le_bytes(entry[..8].try_into().expect("8 bytes"));
-            let band = u32::from_le_bytes(entry[8..].try_into().expect("4 bytes"));
-            visit(cell, band)?;
-        }
-        Ok(())
-    }
-}
-
-/// Residual population per band of one search from `facility`, the
-/// reached cells spooled. Cells without population are reached but hold no
-/// residual: bands where no cell holds a value are left out (AccessMod 5).
-#[allow(clippy::too_many_arguments)] // reason: one private helper, explicit inputs
-fn search_bands(
-    inputs: &mut TiledGrid<InputCell>,
-    scenario: &[CellMobility],
-    facility: Facility,
-    config: &SolverConfig,
-    band_s: f64,
-    residual: &mut TiledGrid<f64>,
-    spool: &mut CellSpool,
-    state_tiles: usize,
-    tmp_dir: &Path,
-    cancelled: &dyn Fn() -> bool,
-) -> Result<Vec<Band>> {
-    let geometry = inputs.geometry();
-    let cols = geometry.cols();
-    let mut state = TiledGrid::new(
-        geometry,
-        SolverCell::UNREACHED,
-        state_tiles.max(1),
-        tmp_dir,
-        "coverage",
-    )?;
-    spool.clear()?;
-    let mut sums: BTreeMap<u32, f64> = BTreeMap::new();
-    let mut failure: Option<Error> = None;
-    solve_until(
-        inputs,
-        scenario,
-        &[facility],
-        config,
-        &mut state,
-        cancelled,
-        &mut |r, c, cell| {
-            let band = (cell.time_s / band_s).ceil() as u32;
-            let result = spool
-                .push((r * cols + c) as u64, band)
-                .map_err(Error::file(spool.path()))
-                .and_then(|()| residual.get(r, c).map_err(Error::from));
-            match result {
-                Ok(value) if !value.is_nan() => *sums.entry(band).or_default() += value,
-                Ok(_) => {}
-                Err(error) => {
-                    failure = Some(error);
-                    return Flow::Stop;
-                }
-            }
-            Flow::Continue
-        },
-    )?;
-    if let Some(error) = failure {
-        return Err(error);
-    }
-    Ok(sums
-        .into_iter()
-        .map(|(band, population)| Band { band, population })
-        .collect())
-}
-
-/// Polygon of the spooled cells within band `limit`: their bounding box is
-/// burnt into a disk-backed mask, written to a scratch GeoTIFF and
-/// polygonised. Memory stays bounded by the tile cache and one polygon.
-fn catchment_polygon(
-    spool: &mut CellSpool,
-    limit: u32,
-    grid: &GridSpec,
-    tmp_dir: &Path,
-    cancelled: &dyn Fn() -> bool,
-) -> Result<Option<Geometry>> {
-    let cols = grid.cols as u64;
-    let mut bbox: Option<(usize, usize, usize, usize)> = None;
-    spool.for_each(cancelled, |cell, band| {
-        if band <= limit {
-            let (r, c) = ((cell / cols) as usize, (cell % cols) as usize);
-            bbox = Some(bbox.map_or((r, r, c, c), |(r0, r1, c0, c1)| {
-                (r0.min(r), r1.max(r), c0.min(c), c1.max(c))
-            }));
-        }
-        Ok(())
-    })?;
-    let Some((r0, r1, c0, c1)) = bbox else {
-        return Ok(None);
-    };
-    let window = grid.window(r0..r1 + 1, c0..c1 + 1);
-    let geometry = TileGeometry::new(
-        window.rows,
-        window.cols,
-        accessmod_core::store::DEFAULT_TILE,
-    )?;
-    // A small cache: the mask is written once in spool order, then read
-    // block by block.
-    let mut mask = TiledGrid::new(geometry, 0u8, 64, tmp_dir, "catchment")?;
-    spool.for_each(cancelled, |cell, band| {
-        if band <= limit {
-            let (r, c) = ((cell / cols) as usize, (cell % cols) as usize);
-            mask.set(r - r0, c - c0, 1)?;
-        }
-        Ok(())
-    })?;
-    let scratch = ScratchFile::new(tmp_dir, "catchment", "tif");
-    let path = scratch.path().to_path_buf();
-    let tif = GeoTiff::create::<u8>(&path, &window, 2, 1, 0.0)?;
-    let mut cells = vec![0u8; BLOCK];
-    let mut block = Vec::with_capacity(BLOCK * BLOCK);
-    for_each_window(
-        0..window.rows,
-        0..window.cols,
-        (BLOCK, BLOCK),
-        cancelled,
-        |r, c| {
-            for row in r.clone() {
-                mask.read_row(row, c.start, &mut cells[..c.len()])?;
-                block.extend_from_slice(&cells[..c.len()]);
-            }
-            tif.write(r, c, &mut block)
-        },
-    )?;
-    tif.close()?;
-    let dataset = gdal::Dataset::open(&path).map_err(Error::gdal(&path))?;
-    let polygon = polygonize(&dataset, &path);
-    drop(dataset);
-    polygon
-}
-
 /// One row of the capacity table.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CoverageRow {
@@ -777,11 +583,7 @@ pub fn run(
         "residual",
     )?;
 
-    // Residual population (AccessMod 5 amInitPopResidual, `pop > 0 &&& speed
-    // > 0 ? pop : 0` with the null-aware `&&&`): no value without
-    // population, 0 for people <= 0 (barriers included), the people off
-    // barriers, no value for people on barriers. The population on barriers
-    // (amMapPopOnBarrier) is every value where the cell cannot be entered.
+    // Residual population and population on barriers.
     let started = Instant::now();
     let (population_ds, alignment) = open_aligned_raster(&job.population, &grid, "population")?;
     let population = AlignedBand::new(&population_ds, &job.population, alignment, &grid)?;
@@ -796,48 +598,17 @@ pub fn run(
     } else {
         None
     };
-    let mut barriers_block = Vec::with_capacity(BLOCK * BLOCK);
-    let (mut total, mut population_total, mut on_barriers) = (0.0, 0.0, 0.0);
-    for_each_block(
+    let PopulationTotals {
+        total: population_total,
+        on_barriers,
+        off_barriers: total,
+    } = init_residual(
         &grid,
-        (BLOCK, BLOCK),
-        &[&population],
-        None,
+        &population,
+        &mut inputs,
+        &mut residual,
+        barriers_tif.as_ref(),
         cancelled,
-        |block| {
-            let width = block.cols.len();
-            for i in 0..block.len() {
-                let (row, col) = (block.rows.start + i / width, block.cols.start + i % width);
-                let Some(people) = block.value(0, i) else {
-                    barriers_block.push(FLOAT_NODATA);
-                    continue;
-                };
-                population_total += people;
-                let passable = inputs.get(row, col)?.is_passable();
-                if passable {
-                    barriers_block.push(FLOAT_NODATA);
-                } else {
-                    on_barriers += people;
-                    barriers_block.push(people);
-                }
-                let value = if people <= 0.0 {
-                    0.0
-                } else if passable {
-                    people
-                } else {
-                    continue;
-                };
-                total += value;
-                residual.set(row, col, value)?;
-            }
-            match &barriers_tif {
-                Some(tif) => tif.write(block.rows.clone(), block.cols.clone(), &mut barriers_block),
-                None => {
-                    barriers_block.clear();
-                    Ok(())
-                }
-            }
-        },
     )?;
     if let Some(tif) = barriers_tif {
         tif.close()?;
@@ -958,27 +729,7 @@ pub fn run(
             )?;
         }
         if job.remove_covered {
-            let (inner, outer) = (result.inner, result.outer);
-            spool.for_each(cancelled, |cell, band| {
-                let (row, col) = (
-                    (cell / geometry.cols() as u64) as usize,
-                    (cell % geometry.cols() as u64) as usize,
-                );
-                let value = residual.get(row, col)?;
-                let new = if inner.is_some_and(|i| band <= i) {
-                    // AccessMod 5 sets 0 even where there is no population.
-                    0.0
-                } else if let Some((_, fraction)) = outer.filter(|(b, _)| *b == band) {
-                    value - value * fraction
-                } else {
-                    return Ok(());
-                };
-                if !value.is_nan() {
-                    remaining -= value - new;
-                }
-                residual.set(row, col, new)?;
-                Ok(())
-            })?;
+            remaining -= remove_covered(&mut spool, &mut residual, &result, cancelled)?;
         }
         let percent = if total > 0.0 {
             (total - remaining) / total * 100.0
