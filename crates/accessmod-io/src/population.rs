@@ -9,11 +9,10 @@
 //! first one in layer order.
 
 use std::cell::Cell;
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use accessmod_core::population::ZoneTotals;
+use accessmod_core::population::{Target, ZoneTotals};
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
 use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
@@ -39,8 +38,6 @@ pub const ZONES_FILE: &str = "zones.csv";
 
 /// Zones a job may hold (zone indices are 32-bit, 0 is "no zone").
 const MAX_ZONES: usize = u32::MAX as usize - 1;
-/// Bytes held per zone: identifier, known population, totals (generous).
-const BYTES_PER_ZONE: usize = 256;
 
 /// Adjust population distribution job (schema version 1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -69,7 +66,7 @@ pub struct ZoneSource {
     /// Layer name; the first layer when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
-    /// Field holding a unique zone identifier.
+    /// Field holding the zone identifier, written to `zones.csv`.
     pub id_field: String,
     /// Optional OGR SQL attribute filter.
     #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
@@ -116,15 +113,6 @@ impl AdjustPopulationJob {
     }
 }
 
-/// A zone read from the layer.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Zone {
-    /// Identifier.
-    pub id: serde_json::Value,
-    /// Known population, when `population_field` is set.
-    pub known: Option<f64>,
-}
-
 /// Inputs validated, ready to adjust.
 #[derive(Debug)]
 pub struct PreparedPopulation {
@@ -132,8 +120,10 @@ pub struct PreparedPopulation {
     pub job: AdjustPopulationJob,
     /// DEM grid.
     pub grid: GridSpec,
-    /// Zones in layer order (zone index = position + 1).
-    pub zones: Vec<Zone>,
+    /// Target of each zone, in layer order (zone index = position + 1).
+    /// Identifiers are read again when writing `zones.csv`, so that memory
+    /// does not grow with their length.
+    pub targets: Vec<Target>,
     /// Layer read.
     pub zones_layer: String,
     /// Non-blocking problems.
@@ -146,7 +136,7 @@ pub struct PreparedPopulation {
     pub durations_s: std::collections::BTreeMap<&'static str, f64>,
 }
 
-/// Validate the job against its inputs and read the zones.
+/// Validate the job against its inputs and read the zone targets.
 pub fn prepare(
     job: AdjustPopulationJob,
     settings: &ExecutionSettings,
@@ -167,8 +157,7 @@ pub fn prepare(
         return Err(Error::Validation { issues });
     }
     let (_, grid) = GridSpec::open_dem(&job.dem)?;
-    let plan = population_plan(&grid, settings, 0)?;
-    plan.configure_gdal()?;
+    population_plan(&grid, settings, 0)?.configure_gdal()?;
     for result in [
         open_aligned_raster(&job.population, &grid, "population").map(drop),
         open_class_raster(&job.land_cover, &grid, "land cover").map(drop),
@@ -179,25 +168,36 @@ pub fn prepare(
             result?;
         }
     }
-    let (zones_layer, zones) = match read_zones(&job.zones, &grid, cancelled) {
-        Ok(read) => read,
-        Err(Error::Validation { issues: more }) => {
-            issues.extend(more);
-            (String::new(), Vec::new())
-        }
-        Err(other) => return Err(other),
+    let vector = open_zones(&job.zones, &grid)?;
+    let count = {
+        let dataset = vector.dataset()?;
+        vector.layer(&dataset)?.feature_count() as usize
     };
+    if count > MAX_ZONES {
+        issues.push(format!("zones: more than {MAX_ZONES} features"));
+    }
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
+    // Plan with the zone count before reading the zones.
+    let plan = population_plan(&grid, settings, count)?;
+    let (targets, missing) = read_targets(&vector, &job.zones, cancelled)?;
     let mut warnings = Vec::new();
-    if zones.is_empty() {
+    if targets.is_empty() {
         warnings.push(Warning {
             code: "no_zone",
             message: "the zone layer has no feature: every cell is outside the zones".into(),
         });
     }
-    let plan = population_plan(&grid, settings, zones.len())?;
+    if missing > 0 {
+        warnings.push(Warning {
+            code: "known_population_missing",
+            message: format!(
+                "{missing} zones have no value in {:?}: their population is left out",
+                job.zones.population_field.as_deref().unwrap_or_default()
+            ),
+        });
+    }
     let mut durations_s = std::collections::BTreeMap::new();
     durations_s.insert("validate", started.elapsed().as_secs_f64());
     let started = Instant::now();
@@ -214,8 +214,8 @@ pub fn prepare(
     Ok(PreparedPopulation {
         job,
         grid,
-        zones,
-        zones_layer,
+        targets,
+        zones_layer: vector.name,
         warnings,
         plan,
         fingerprints,
@@ -224,7 +224,9 @@ pub fn prepare(
 }
 
 /// Memory plan: the zone index grid (4 bytes per cell), population, land
-/// cover and output blocks, and `zones` zone entries.
+/// cover and output blocks, and `zones` zone entries (target, totals,
+/// ratio, adjusted sum). A polygon's vertices are not counted (see
+/// `vector::for_each_part`).
 fn population_plan(
     grid: &GridSpec,
     settings: &ExecutionSettings,
@@ -232,25 +234,33 @@ fn population_plan(
 ) -> Result<ResourcePlan> {
     let geometry = TileGeometry::new(grid.rows, grid.cols, accessmod_core::store::DEFAULT_TILE)?;
     let per_tile = TiledGrid::<u32>::tile_bytes(geometry) as u64;
+    let per_zone = std::mem::size_of::<Target>()
+        + std::mem::size_of::<ZoneTotals>()
+        + std::mem::size_of::<Option<f64>>()
+        + std::mem::size_of::<f64>();
     // Per block: population (f64), land cover (i64), zone row and output.
-    let buffer_bytes = (BLOCK * BLOCK * (8 + 8 + 8) + BLOCK * 4 + zones * BYTES_PER_ZONE) as u64;
+    let buffer_bytes = (BLOCK * BLOCK * (8 + 8 + 8) + BLOCK * 4 + zones * per_zone) as u64;
     ResourcePlan::for_tiles(grid.rows, grid.cols, settings, per_tile, buffer_bytes, 0)
 }
 
-/// Zones in layer order, with unique identifiers and, when asked, a known
-/// population.
-fn read_zones(
-    source: &ZoneSource,
-    grid: &GridSpec,
-    cancelled: &dyn Fn() -> bool,
-) -> Result<(String, Vec<Zone>)> {
-    let vector = VectorLayer::open(
+fn open_zones(source: &ZoneSource, grid: &GridSpec) -> Result<VectorLayer> {
+    VectorLayer::open(
         &source.path,
         source.layer.as_deref(),
         source.filter.as_deref(),
         grid,
         "zones",
-    )?;
+    )
+}
+
+/// Target of each zone, in layer order, and the number of zones whose
+/// known population is missing. Identifiers must be set; known populations,
+/// when present, must be numbers >= 0.
+fn read_targets(
+    vector: &VectorLayer,
+    source: &ZoneSource,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(Vec<Target>, usize)> {
     let dataset = vector.dataset()?;
     let mut layer = vector.layer(&dataset)?;
     let id_index = vector.field_index(&layer, &source.id_field)?;
@@ -258,9 +268,9 @@ fn read_zones(
         Some(field) => Some(vector.field_index(&layer, field)?),
         None => None,
     };
-    let mut zones = Vec::new();
+    let mut targets = Vec::new();
+    let mut missing = 0;
     let mut issues = Vec::new();
-    let mut seen = BTreeSet::new();
     for (index, feature) in layer.features().enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
@@ -268,67 +278,41 @@ fn read_zones(
         let which = feature
             .fid()
             .map_or_else(|| format!("#{index}"), |fid| format!("FID {fid}"));
-        let id = json_attribute(feature.field(id_index).map_err(Error::gdal(&source.path))?);
-        let Some(id) = id else {
+        if feature
+            .field(id_index)
+            .map_err(Error::gdal(&source.path))?
+            .is_none()
+        {
             issues.push(format!(
                 "zones feature {which}: empty {:?}",
                 source.id_field
             ));
-            continue;
-        };
-        if !seen.insert(id.to_string()) {
-            issues.push(format!(
-                "zones feature {which}: identifier {id} is not unique"
-            ));
         }
-        let known = match known_index {
-            Some(i) => {
-                let value = feature
-                    .field(i)
-                    .map_err(Error::gdal(&source.path))?
-                    .and_then(number_attribute);
-                match value {
-                    Some(v) if v.is_finite() && v >= 0.0 => Some(v),
+        let target = match known_index {
+            None => Target::Zone,
+            Some(i) => match feature.field(i).map_err(Error::gdal(&source.path))? {
+                None => {
+                    missing += 1;
+                    Target::Missing
+                }
+                Some(value) => match number_attribute(value) {
+                    Some(v) if v.is_finite() && v >= 0.0 => Target::Known(v),
                     _ => {
                         issues.push(format!(
-                            "zones feature {which} ({id}): {:?} must be a number >= 0",
+                            "zones feature {which}: {:?} must be a number >= 0",
                             source.population_field.as_deref().unwrap_or_default()
                         ));
-                        None
+                        Target::Missing
                     }
-                }
-            }
-            None => None,
+                },
+            },
         };
-        zones.push(Zone { id, known });
-    }
-    if zones.len() > MAX_ZONES {
-        issues.push(format!("more than {MAX_ZONES} zones"));
+        targets.push(target);
     }
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
-    Ok((vector.name, zones))
-}
-
-/// One row of `zones.csv`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ZoneResult {
-    /// Identifier.
-    pub id: serde_json::Value,
-    /// Cells of the zone holding population.
-    pub cells: u64,
-    /// Population before adjustment.
-    pub population: f64,
-    /// Population on barriers before adjustment.
-    pub population_on_barrier: f64,
-    /// Known population, if given.
-    pub population_known: Option<f64>,
-    /// Scale factor of the cells off barriers; `None` when the zone has no
-    /// population off barriers (its population cannot be placed).
-    pub ratio: Option<f64>,
-    /// Population after adjustment.
-    pub population_adjusted: f64,
+    Ok((targets, missing))
 }
 
 /// Totals of the adjustment.
@@ -386,6 +370,13 @@ pub fn deviations() -> Vec<Deviation> {
             code: "population_on_lattice",
             message: "The population raster must lie on the DEM lattice. AccessMod 5 \
                       resamples rasters when importing them.",
+        },
+        Deviation {
+            code: "population_summary",
+            message: "Totals count population outside every zone, on barriers (land cover \
+                      NoData) and unplaced (zones without a ratio) separately. AccessMod 5 \
+                      counts zones without a ratio as outside, and derives the barrier total \
+                      from the other two.",
         },
         Deviation {
             code: "overlapping_zones",
@@ -457,13 +448,7 @@ pub fn run(
 
     // Zones on the grid, by cell centre; the first zone keeps a shared cell.
     let started = Instant::now();
-    let vector = VectorLayer::open(
-        &job.zones.path,
-        job.zones.layer.as_deref(),
-        job.zones.filter.as_deref(),
-        grid,
-        "zones",
-    )?;
+    let vector = open_zones(&job.zones, grid)?;
     let overlaps = Cell::new(0u64);
     let mut next = 0u32;
     burn_layer(&vector, grid, &mut zones, Burn::Polygons, cancelled, |_| {
@@ -499,11 +484,11 @@ pub fn run(
     // Pass 1: totals per zone.
     let started = Instant::now();
     let mut summary = PopulationSummary {
-        zones: prepared.zones.len(),
+        zones: prepared.targets.len(),
         overlapping_cells: overlaps.get(),
         ..PopulationSummary::default()
     };
-    let mut totals = vec![ZoneTotals::default(); prepared.zones.len() + 1];
+    let mut totals = vec![ZoneTotals::default(); prepared.targets.len() + 1];
     for_each_window(
         0..grid.rows,
         0..grid.cols,
@@ -536,10 +521,10 @@ pub fn run(
     let ratios: Vec<Option<f64>> = std::iter::once(None)
         .chain(
             prepared
-                .zones
+                .targets
                 .iter()
                 .zip(&totals[1..])
-                .map(|(zone, total)| total.ratio(zone.known)),
+                .map(|(target, total)| total.ratio(*target)),
         )
         .collect();
     prepared
@@ -555,7 +540,7 @@ pub fn run(
         settings.threads,
         FLOAT_NODATA,
     )?;
-    let mut adjusted = vec![0.0f64; prepared.zones.len() + 1];
+    let mut adjusted = vec![0.0f64; prepared.targets.len() + 1];
     let mut block = Vec::with_capacity(BLOCK * BLOCK);
     for_each_window(
         0..grid.rows,
@@ -592,34 +577,47 @@ pub fn run(
          population_adjusted",
     )?;
     let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
-    for (k, zone) in prepared.zones.iter().enumerate() {
-        let total = &totals[k + 1];
-        let ratio = ratios[k + 1];
-        summary.population_adjusted += adjusted[k + 1];
-        if total.cells == 0 {
+    // Identifiers are read again, in the same order as the targets.
+    let dataset = vector.dataset()?;
+    let mut layer = vector.layer(&dataset)?;
+    let id_index = vector.field_index(&layer, &job.zones.id_field)?;
+    let mut zone = 0usize;
+    for feature in layer.features() {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
+        zone += 1;
+        let (Some(target), Some(total)) = (prepared.targets.get(zone - 1), totals.get(zone)) else {
+            return Err(vector.invalid("the zone layer changed during the run".into()));
+        };
+        let id = json_attribute(
+            feature
+                .field(id_index)
+                .map_err(Error::gdal(&job.zones.path))?,
+        )
+        .unwrap_or_default();
+        summary.population_adjusted += adjusted[zone];
+        summary.population_unplaced += total.unplaced(*target);
+        // As v.rast.stats: a zone without population cells has no sums.
+        let sums = (total.cells > 0).then_some(total);
+        if sums.is_none() {
             summary.zones_without_population += 1;
         }
-        if ratio.is_none() {
-            summary.population_unplaced += zone.known.unwrap_or(total.population);
-        }
-        let row = ZoneResult {
-            id: zone.id.clone(),
-            cells: total.cells,
-            population: total.population,
-            population_on_barrier: total.on_barrier(),
-            population_known: zone.known,
-            ratio,
-            population_adjusted: adjusted[k + 1],
-        };
         csv.record(&[
-            csv_field(&row.id),
-            row.cells.to_string(),
-            number(Some(row.population)),
-            number(Some(row.population_on_barrier)),
-            number(row.population_known),
-            number(row.ratio),
-            number(Some(row.population_adjusted)),
+            csv_field(&id),
+            total.cells.to_string(),
+            number(sums.map(|t| t.population)),
+            number(sums.map(ZoneTotals::on_barrier)),
+            number(match target {
+                Target::Known(population) => Some(*population),
+                Target::Zone | Target::Missing => None,
+            }),
+            number(ratios[zone]),
+            number(sums.map(|_| adjusted[zone])),
         ])?;
+    }
+    if zone != prepared.targets.len() {
+        return Err(vector.invalid("the zone layer changed during the run".into()));
     }
     csv.finish()?;
     prepared
@@ -711,7 +709,7 @@ impl Analysis for AdjustPopulation {
     fn describe(prepared: &PreparedPopulation) -> String {
         format!(
             "adjust population: {} zones on a {} x {} grid{}",
-            prepared.zones.len(),
+            prepared.targets.len(),
             prepared.grid.cols,
             prepared.grid.rows,
             if prepared.job.zones.population_field.is_some() {
@@ -726,7 +724,7 @@ impl Analysis for AdjustPopulation {
         serde_json::json!({
             "job": prepared.job,
             "zones_layer": prepared.zones_layer,
-            "zones": prepared.zones,
+            "zones": prepared.targets.len(),
             "warnings": prepared.warnings,
             "plan": prepared.plan,
         })

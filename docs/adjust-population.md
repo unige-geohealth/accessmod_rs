@@ -35,7 +35,8 @@ Composed from the GIS toolkit (`AGENTS.md`):
   `accessmod_core::population::ZoneTotals`.
 
 Memory: 4 bytes per cell (zone index, tiled under `--memory`), block
-buffers, and a few hundred bytes per zone. Outputs are byte-identical at any
+buffers, and about 70 bytes per zone (identifiers are read again when
+writing `zones.csv`, not held). Outputs are byte-identical at any
 budget (`tests/population.rs`).
 
 ## Contract
@@ -56,15 +57,17 @@ Job (`accessmod adjust-population-distribution schema` prints it):
 
 - `population`: any numeric raster on the DEM lattice (people per cell).
 - `land_cover`: NoData cells are barriers (use the merged land cover).
-- `zones.id_field`: unique identifier; `population_field` (optional): known
-  population of each zone, a number ≥ 0.
+- `zones.id_field`: identifier written to `zones.csv` (required, not
+  necessarily unique). `population_field` (optional): known population of
+  each zone, a number ≥ 0; a zone without a value is left out (no ratio),
+  as in AccessMod 5, with a warning.
 
 Outputs:
 
 | File | Content |
 | --- | --- |
 | `population_adjusted.tif` | Float64 people per cell; NoData −9999 on barriers, outside zones and in zones that cannot be placed |
-| `zones.csv` | `zone_id,cells,population,population_on_barrier,population_known,ratio,population_adjusted` |
+| `zones.csv` | `zone_id,cells,population,population_on_barrier,population_known,ratio,population_adjusted`; sums are empty for a zone without population cells, as `v.rast.stats` |
 | `job.resolved.json`, `run.json` | Totals: population before and after, on barriers, outside zones, unplaced; overlapping cells; warnings |
 
 ## Comparison with AccessMod 5
@@ -89,3 +92,7 @@ Listed in `run.json` (`deviations`):
   lattice; AccessMod 5 resamples rasters when importing them.
 - `overlapping_zones`: a cell in several zones belongs to the first zone in
   layer order; AccessMod 5 builds a GRASS topology, which splits overlaps.
+- `population_summary`: totals count population outside every zone, on
+  barriers and unplaced (zones without a ratio) separately; AccessMod 5
+  counts zones without a ratio as outside and derives its barrier total
+  from the other two.

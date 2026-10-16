@@ -126,7 +126,8 @@ fn barrier_population_moves_within_its_zone() {
     let csv = std::fs::read_to_string(out.join(ZONES_FILE)).expect("zones.csv");
     let lines: Vec<&str> = csv.lines().collect();
     assert_eq!(lines[2], "B,2,20,0,,1,20");
-    assert!(lines[3].starts_with("C,0,0,0,,,0"), "{}", lines[3]);
+    // Zone C holds no cell: no sums, as v.rast.stats.
+    assert_eq!(lines[3], "C,0,,,,,");
 }
 
 #[test]
@@ -228,4 +229,51 @@ fn outputs_do_not_depend_on_memory() {
         assert!(a == b, "{name} differs between budgets");
     }
     assert!(report_a.run.result.overlapping_cells > 0);
+}
+
+#[test]
+fn missing_known_populations_leave_the_zone_out() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = fixture(dir.path(), true);
+    let zones = [
+        (cells(0.0, 0.0, 2.0, 2.0), None),
+        (cells(2.0, 0.0, 4.0, 1.0), Some(FieldValue::RealValue(40.0))),
+    ];
+    let features: Vec<(&str, Vec<Option<FieldValue>>)> = zones
+        .iter()
+        .enumerate()
+        .map(|(k, (wkt, pop))| {
+            (
+                wkt.as_str(),
+                vec![Some(FieldValue::StringValue(format!("Z{k}"))), pop.clone()],
+            )
+        })
+        .collect();
+    let path = dir.path().join("missing.gpkg");
+    accessmod_io::fixtures::write_features(
+        &path,
+        "zones",
+        EPSG,
+        &[
+            ("name", OGRFieldType::OFTString),
+            ("pop", OGRFieldType::OFTReal),
+        ],
+        &features,
+    );
+    job.zones.path = path;
+    let prepared = prepare(job, &settings(256 << 20, 1), &never).expect("prepare");
+    assert!(
+        prepared
+            .warnings
+            .iter()
+            .any(|w| w.code == "known_population_missing")
+    );
+    let (out, report) = run(prepared, &settings(256 << 20, 1), &never).expect("run");
+    let n = FLOAT_NODATA;
+    assert_eq!(
+        read::<f64>(&out.join(POPULATION_FILE)),
+        vec![n, n, 20.0, 20.0, n, n, n, n]
+    );
+    // Zone Z0 (40 people in the raster) cannot be adjusted.
+    assert_eq!(report.run.result.population_unplaced, 40.0);
 }
