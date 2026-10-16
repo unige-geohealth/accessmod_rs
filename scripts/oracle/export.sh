@@ -88,6 +88,15 @@ docker run --rm --platform "$PLATFORM" -e TZ=UTC \
     > "$out/capacity-demo.log" 2>&1 \
     || { echo "error: capacity export failed, see $out/capacity-demo.log" >&2; exit 1; }
 
+# Scaling up on the demo project (scripts/oracle/scaling-up-demo.R).
+rm -rf "$out/scaling-up/demo"
+docker run --rm --platform "$PLATFORM" -e TZ=UTC \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'echo UTC > /etc/timezone; cd /app && Rscript /scripts/scaling-up-demo.R' \
+    > "$out/scaling-up-demo.log" 2>&1 \
+    || { echo "error: scaling-up export failed, see $out/scaling-up-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {

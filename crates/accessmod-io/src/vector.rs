@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-use accessmod_core::raster::{line_spans, polygon_spans};
+use accessmod_core::raster::{line_spans, polygon_spans, thin_line_cells};
 use accessmod_core::store::{CellCodec, TiledGrid};
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::vector::{
@@ -42,6 +42,8 @@ pub enum Part {
     Line(Vec<(f64, f64)>),
     /// Exterior ring then holes.
     Polygon(Vec<Vec<(f64, f64)>>),
+    /// Point.
+    Point((f64, f64)),
 }
 
 fn open_dataset(path: &Path) -> Result<Dataset> {
@@ -211,9 +213,9 @@ impl VectorLayer {
         }
     }
 
-    /// Visit the line and polygon parts of `geometry` one at a time, so
-    /// that only one part's coordinates are held. Multi-geometries and
-    /// collections are split; other parts (points, curves) are counted in
+    /// Visit the point, line and polygon parts of `geometry` one at a time,
+    /// so that only one part's coordinates are held. Multi-geometries and
+    /// collections are split; other parts (curves) are counted in
     /// `unsupported`. A part that cannot be reprojected, or has non-finite
     /// coordinates, is an error built by `problem`.
     pub fn for_each_part(
@@ -230,6 +232,12 @@ impl VectorLayer {
             out
         };
         match geometry_type_flatten(geometry.geometry_type()) {
+            OGRwkbGeometryType::wkbPoint => {
+                let point = self.to_pixels(points(geometry), grid).map_err(problem)?;
+                if let Some(&p) = point.first() {
+                    visit(Part::Point(p))?;
+                }
+            }
             OGRwkbGeometryType::wkbLineString | OGRwkbGeometryType::wkbLinearRing => {
                 let line = self.to_pixels(points(geometry), grid).map_err(problem)?;
                 if !line.is_empty() {
@@ -248,7 +256,8 @@ impl VectorLayer {
                     visit(Part::Polygon(rings))?;
                 }
             }
-            OGRwkbGeometryType::wkbMultiLineString
+            OGRwkbGeometryType::wkbMultiPoint
+            | OGRwkbGeometryType::wkbMultiLineString
             | OGRwkbGeometryType::wkbMultiPolygon
             | OGRwkbGeometryType::wkbGeometryCollection => {
                 for i in 0..geometry.geometry_count() {
@@ -332,6 +341,9 @@ pub enum Burn {
     Polygons,
     /// Lines (every cell touched) and polygons (cell centre inside).
     LinesAndPolygons,
+    /// Every feature type as `v.to.rast` without `-d`: points (their cell),
+    /// thin 8-connected lines and polygons (cell centre inside).
+    Thin,
 }
 
 /// Feature counts of a burnt layer.
@@ -354,14 +366,22 @@ pub struct FeatureCounts {
     pub lines: u64,
     /// Polygon parts burnt.
     pub polygons: u64,
+    /// Points burnt (`Burn::Thin` only).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub points: u64,
+}
+
+fn is_zero(n: &u64) -> bool {
+    *n == 0
 }
 
 impl FeatureCounts {
     /// Count one feature with `lines` and `polygons` parts.
-    fn tally(&mut self, lines: u64, polygons: u64, burnt: bool) {
+    fn tally(&mut self, lines: u64, polygons: u64, points: u64, burnt: bool) {
         self.lines += lines;
         self.polygons += polygons;
-        if lines + polygons == 0 {
+        self.points += points;
+        if lines + polygons + points == 0 {
             self.unsupported_geometry += 1;
         } else if burnt {
             self.used += 1;
@@ -371,10 +391,12 @@ impl FeatureCounts {
     }
 }
 
-/// Apply `update` to every cell `part` burns (see `accessmod_core::raster`);
+/// Apply `update` to every cell `part` burns (see `accessmod_core::raster`;
+/// `thin`: lines as thin traces);
 /// `true` when it burns at least one cell of the grid.
 pub fn burn_part<T: CellCodec>(
     part: &Part,
+    thin: bool,
     grid: &GridSpec,
     cells: &mut TiledGrid<T>,
     update: &dyn Fn(&mut T),
@@ -403,8 +425,10 @@ pub fn burn_part<T: CellCodec>(
         }
     };
     match part {
+        Part::Line(points) if thin => thin_line_cells(points, grid.rows, grid.cols, &mut visit),
         Part::Line(points) => line_spans(points, grid.rows, grid.cols, &mut visit),
         Part::Polygon(rings) => polygon_spans(rings, grid.rows, grid.cols, &mut visit),
+        Part::Point(point) => thin_line_cells(&[*point], grid.rows, grid.cols, &mut visit),
     }
     match failure {
         Some(error) => Err(error),
@@ -438,20 +462,23 @@ pub fn burn_layer<T: CellCodec, U: Fn(&mut T)>(
             continue;
         };
         let problem = layer.feature_problem(feature.fid(), index as u64);
-        let (mut lines, mut polygons, mut burnt, mut unsupported) = (0u64, 0u64, false, 0u64);
+        let (mut lines, mut polygons, mut points, mut burnt, mut unsupported) =
+            (0u64, 0u64, 0u64, false, 0u64);
         if let Some(geometry) = feature.geometry() {
             layer.for_each_part(geometry, grid, &problem, &mut unsupported, &mut |part| {
                 match part {
                     Part::Polygon(_) if burn == Burn::Lines => return Ok(()),
                     Part::Line(_) if burn == Burn::Polygons => return Ok(()),
+                    Part::Point(_) if burn != Burn::Thin => return Ok(()),
                     Part::Polygon(_) => polygons += 1,
                     Part::Line(_) => lines += 1,
+                    Part::Point(_) => points += 1,
                 }
-                burnt |= burn_part(&part, grid, cells, &update, cancelled)?;
+                burnt |= burn_part(&part, burn == Burn::Thin, grid, cells, &update, cancelled)?;
                 Ok(())
             })?;
         }
-        counts.tally(lines, polygons, burnt);
+        counts.tally(lines, polygons, points, burnt);
     }
     Ok(counts)
 }

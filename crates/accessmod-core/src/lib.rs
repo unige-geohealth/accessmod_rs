@@ -10,6 +10,7 @@
 
 pub mod capacity;
 pub mod cost;
+pub mod focal;
 pub mod merge;
 pub mod mobility;
 pub mod population;

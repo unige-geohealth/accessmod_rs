@@ -110,6 +110,63 @@ pub fn line_spans(
     }
 }
 
+/// Visit a thin (8-connected) trace of a polyline, as one-cell spans
+/// `visit(row, col, col)`, as `v.to.rast` without `-d` ([`line_spans`] gives
+/// every touched cell, as `-d`). Each segment steps along its major axis
+/// (x on ties) through every cell between those of its end points, and
+/// takes the cell of the line (extended) at that cell's centre line;
+/// checked cell for cell against GRASS on the AccessMod 5 demo roads.
+/// Cells outside the grid are skipped; a trace never depends on how the
+/// grid is split.
+pub fn thin_line_cells(
+    points: &[(f64, f64)],
+    rows: usize,
+    cols: usize,
+    visit: &mut impl FnMut(usize, usize, usize),
+) {
+    let cell = |(x, y): (f64, f64)| (x.floor() as i64, y.floor() as i64);
+    let mut emit = |c: i64, r: i64| {
+        if r >= 0 && c >= 0 && (r as usize) < rows && (c as usize) < cols {
+            visit(r as usize, c as usize, c as usize);
+        }
+    };
+    if points.iter().any(|(x, y)| !x.is_finite() || !y.is_finite()) {
+        return;
+    }
+    match points {
+        [] => {}
+        [single] => {
+            let (c, r) = cell(*single);
+            emit(c, r);
+        }
+        _ => {
+            for pair in points.windows(2) {
+                let ((x0, y0), (x1, y1)) = (pair[0], pair[1]);
+                if x0 == x1 && y0 == y1 {
+                    let (c, r) = cell(pair[0]);
+                    emit(c, r);
+                } else if (x1 - x0).abs() >= (y1 - y0).abs() {
+                    let mut k = x0.min(x1).floor();
+                    while k <= x0.max(x1).floor() {
+                        let x = k + 0.5;
+                        let y = y0 + (x - x0) * (y1 - y0) / (x1 - x0);
+                        emit(k as i64, y.floor() as i64);
+                        k += 1.0;
+                    }
+                } else {
+                    let mut k = y0.min(y1).floor();
+                    while k <= y0.max(y1).floor() {
+                        let y = k + 0.5;
+                        let x = x0 + (y - y0) * (x1 - x0) / (y1 - y0);
+                        emit(x.floor() as i64, k as i64);
+                        k += 1.0;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Visit the cells whose centre is inside a polygon, as column spans
 /// `visit(row, first_col, last_col)` (inclusive).
 ///
@@ -229,6 +286,18 @@ mod tests {
         });
         cells.sort_unstable();
         cells
+    }
+
+    #[test]
+    fn thin_lines_step_along_the_major_axis() {
+        let mut cells = Vec::new();
+        thin_line_cells(
+            &[(0.5, 0.5), (3.5, 2.5), (3.5, 2.5)],
+            4,
+            5,
+            &mut |r, c, _| cells.push((r, c)),
+        );
+        assert_eq!(cells, vec![(0, 0), (1, 1), (1, 2), (2, 3), (2, 3)]);
     }
 
     #[test]

@@ -302,6 +302,30 @@ impl<T: CellCodec> TiledGrid<T> {
         Ok(())
     }
 
+    /// Copy `values` into row `row` from column `col`.
+    ///
+    /// # Panics
+    ///
+    /// If the span leaves the grid.
+    pub fn write_row(&mut self, row: usize, col: usize, values: &[T]) -> Result<(), StoreError> {
+        assert!(
+            col + values.len() <= self.geometry.cols,
+            "row span outside the grid"
+        );
+        let tile = self.geometry.tile;
+        let mut done = 0;
+        while done < values.len() {
+            let c = col + done;
+            let run = (tile - c % tile).min(values.len() - done);
+            let (slot, offset) = self.cell_slot(row, c)?;
+            let slot = &mut self.slots[slot];
+            slot.cells[offset..offset + run].copy_from_slice(&values[done..done + run]);
+            slot.dirty = true;
+            done += run;
+        }
+        Ok(())
+    }
+
     /// Visit the grid row by row, in pieces of at most `width` columns:
     /// `visit(row, first_col, cells)`. Memory stays bounded by `width`
     /// whatever the grid width; `visit` may stop the scan with an error
