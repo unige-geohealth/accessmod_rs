@@ -9,6 +9,7 @@ pub mod facilities;
 pub mod grid;
 pub mod inputs;
 pub mod job;
+pub mod merge;
 pub mod output;
 pub mod referral;
 pub mod resources;

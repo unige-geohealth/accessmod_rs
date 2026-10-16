@@ -2,6 +2,22 @@
 # image: fredmoser/accessmod:5.9.2-beta.6 (linux/arm64)
 # image-id: sha256:01458355a315db8ba60b380dd1af4e973d40aa8e85df76668dec2d34049654d8
 6eb3c606b971a2827e74787ef251aeab8551d368d058bda543684b832823030c  ./bicycle-lut/r.walk.accessmod
+bd13cf51faf7bf4fc4d84aaebe3a656c3a2459f96f57c88f9433357c170cf2a1  ./merge-land-cover/demo/input/dem.tif
+4519a4510496ce76b6fa1f6b37901210dc0f3bba148ef1f63bb305a8c1a83f80  ./merge-land-cover/demo/input/land_cover.tif
+6f912f972b8a25c8599b48c1779bda94d736db2a7c477504143f864417fc9a9f  ./merge-land-cover/demo/input/river.fgb
+efd8d0e14e9cd6752f4023acdc950b11e7f416961ac1b6222c7a04b999ecb896  ./merge-land-cover/demo/input/roads.fgb
+29e1302f49b2816465cd0bfc7031236e668f95476f7fc5836c3d5c777f3996e6  ./merge-land-cover/demo/input/wetland.fgb
+ba2823e98e431bfa881a999e05680bec253218e8f9f685e8859c29970dfdef1e  ./merge-land-cover/demo/oracle/bridges-roads_first.tif
+ba2823e98e431bfa881a999e05680bec253218e8f9f685e8859c29970dfdef1e  ./merge-land-cover/demo/oracle/bridges-roads_reversed.tif
+52d4a91e33e4a4f827067bd44268e1d388c7b1ca2a0cebf41c5c17d36df1dfde  ./merge-land-cover/demo/oracle/merged-cleaned-roads_first.tif
+8b2a2f230be466c13d873d68c1412da30e031177560088afca7d4fb2081b0167  ./merge-land-cover/demo/oracle/merged-cleaned-roads_reversed.tif
+9f6007182548226c94aba808ab3b78196197a03d08f36f63589a1c1bd1630579  ./merge-land-cover/demo/oracle/merged-roads_first.tif
+14681b8f05a6525f75e38f333f0bf8a1e2cec0566f53cbf5a1c7fce3ab73c852  ./merge-land-cover/demo/oracle/merged-roads_reversed.tif
+c2901d3024150bb0b4645aa503ea357b7a92feb8bd203321e0a2974acf3ca78e  ./merge-land-cover/demo/oracle/stack-barrier-river.tif
+32df2c7dc1335bc7ef7b58cf0b736f25c68e89fe81a477d968147a06862b47f5  ./merge-land-cover/demo/oracle/stack-barrier-wetland.tif
+c1a98e64b2cb175c0be62b7e6ac3ca5436f24c7540c970712d51d8dbebacab49  ./merge-land-cover/demo/oracle/stack-road-1.tif
+847e536ded214710b8d38ab4d9e5a05c75e370747526aaf6b13d73f9f66092ff  ./merge-land-cover/demo/oracle/stack-road-2.tif
+2d358f5269aae2c0f1e2f082c3066f5985608e848431c6dd90788b7b473d4354  ./merge-land-cover/demo/oracle/stack-road-3.tif
 965b7cae88251bbf9a6d7813b95c8c9f1e70cbd5139f2762c2446d6b5719da47  ./referral/demo/oracle/tReferral-16.csv
 54ca58335dde20538c392c011c7cf7ebaca8ad4416b4ee179ac9255fe03f73b8  ./referral/demo/oracle/tReferral-8.csv
 64c7f01004e7f195d0501b3861d0ed33f62f507b5223ec1cba97927cbf891507  ./referral/demo/oracle/tReferralDist-16.csv

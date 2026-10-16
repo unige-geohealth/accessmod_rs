@@ -248,3 +248,46 @@ fn referral_runs_from_a_job() {
     let schema = stdout_json(&accessmod(&["referral", "schema"]));
     assert!(schema["properties"]["destinations"].is_object());
 }
+
+#[test]
+fn merge_land_cover_runs_from_a_job() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    fixture(tmp.path());
+    let dir = tmp.path().to_string_lossy().into_owned();
+    // The facility layer has no class field: stack the land cover alone,
+    // then as a conflicting pair.
+    let job = |stack: &str, out: &str| {
+        format!(
+            r#"{{"schema_version": 1, "dem": "{dir}/dem.tif", "stack": [{stack}],
+                "output_dir": "{dir}/{out}"}}"#
+        )
+    };
+    let lc = format!(r#"{{"type": "land_cover", "path": "{dir}/lc.tif"}}"#);
+    let job_path = format!("{dir}/merge.json");
+    std::fs::write(&job_path, job(&lc, "merged")).expect("write job");
+    let output = accessmod(&["merge-land-cover", "run", "--json", "--job", &job_path]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = stdout_json(&output);
+    assert_eq!(report["run"]["result"]["classified_cells"], 12);
+    let csv = std::fs::read_to_string(format!("{dir}/merged/classes.csv")).expect("csv");
+    assert_eq!(csv, "class,label,stack_item,cells\n1,,1,12\n");
+
+    std::fs::write(&job_path, job(&format!("{lc}, {lc}"), "conflict")).expect("write job");
+    let output = accessmod(&["merge-land-cover", "validate", "--json", "--job", &job_path]);
+    assert_eq!(output.status.code(), Some(2));
+    let error = stdout_json(&output);
+    assert!(
+        error
+            .to_string()
+            .contains("class 1 comes from stack items 1"),
+        "{error}"
+    );
+
+    let schema = stdout_json(&accessmod(&["merge-land-cover", "schema"]));
+    assert!(schema["properties"]["stack"].is_object());
+}

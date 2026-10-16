@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 pub mod cost;
+pub mod merge;
 pub mod mobility;
 pub mod referral;
 pub mod solver;

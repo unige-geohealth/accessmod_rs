@@ -6,6 +6,7 @@
 
 mod doctor;
 mod inspect;
+mod merge;
 mod referral;
 mod travel_time;
 
@@ -45,6 +46,11 @@ enum Command {
     Referral {
         #[command(subcommand)]
         command: referral::Command,
+    },
+    /// Merge land cover, roads and barriers into one land-cover raster.
+    MergeLandCover {
+        #[command(subcommand)]
+        command: merge::Command,
     },
 }
 
@@ -88,6 +94,7 @@ fn main() -> ExitCode {
         Command::Dataset { command } => inspect::run(&command),
         Command::TravelTime { command } => travel_time::run(command, &cancel),
         Command::Referral { command } => referral::run(command, &cancel),
+        Command::MergeLandCover { command } => merge::run(command, &cancel),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

@@ -1,0 +1,135 @@
+# Merge land cover
+
+A stack of land-cover rasters, road layers and barrier layers merged into one
+land-cover raster on the DEM lattice, ready for travel-time analyses. This is
+the AccessMod 5 toolbox "Merge land cover". Status (2026-10-16): implemented
+(`accessmod merge-land-cover`) and checked against the AccessMod 5 demo
+project. Polygon skeletons for barriers are not implemented.
+
+## AccessMod 5 today
+
+`modules/amAnalysisMergeLandCover/amServer.R`, `tools/R/amStackBarrier.R`,
+`tools/R/amBridgeTools.R`:
+
+1. **Stack items** are GRASS rasters made one by one in the UI:
+   - *stack land cover*: a copy of the land-cover raster with its class
+     labels;
+   - *stack road*: one raster per road class, rasterised from the road
+     lines with `v.to.rast -d` (densified lines). Each class becomes
+     class + 1000 when it is below 1000, unless the user opts out;
+   - *stack barrier*: lines (`v.to.rast -d`) or areas (`v.to.rast
+     type=area`), value 1. Areas can also be reduced to a skeleton line
+     (`r.grow.distance`, `r.buffer`, `r.thin`).
+2. **Conflicts**: the classes of all non-barrier items are listed, and a
+   class that appears in more than one item blocks the merge. An advanced
+   "quick correction" reclassifies an item.
+3. **Merge**: barrier cells are masked out of every other item. `r.patch`
+   then keeps, for each cell, the first non-null item in stack order. The
+   position of a barrier in the stack does not matter.
+4. **Bridges** (option on by default): a road cell is set to null when one
+   of its diagonal neighbours is non-null in the merged raster while the two
+   cells sharing that corner are null. Such a cell would otherwise let
+   travel cross a barrier diagonally. The bridge cells form a separate
+   raster.
+
+## accessmod-rs approach
+
+- **One job, one pass.** The stack is a list in the job, so there are no
+  intermediate rasters. A road item covers all classes of a layer; the
+  order of `classes` sets their priority (one AccessMod 5 stack item per
+  class).
+- **Rank painting.** Every class has a rank from its position in the stack.
+  A cell keeps the class with the lowest rank and records whether a road or
+  a barrier touches it (`accessmod_core::merge::MergeCell`). The result does
+  not depend on the order the items are painted in.
+- **Rasterisation in pixel coordinates of the whole grid**, in
+  `accessmod-core` (no GDAL):
+  - lines burn every cell they touch. Each row's span is computed from the
+    segment's own end points, so a line burns the same cells whatever the
+    tile or strip boundaries;
+  - polygons burn the cells whose centre is inside (even-odd rule, holes
+    excluded, half-open edges).
+- **Bounded memory.** The merge state lives in the tiled store
+  (12 bytes/cell, disk-backed under `--memory`). Rasters are read in
+  strips, vectors one feature at a time, and outputs are written in
+  256 × 256 blocks with a one-cell halo for the bridge test. Outputs are
+  byte-identical at any budget (`tests/merge.rs`).
+- **Explicit reprojection.** Vector layers in another CRS are reprojected
+  to the DEM CRS, with a warning in `run.json`. Rasters must already lie on
+  the DEM lattice, in its CRS.
+
+## Contract
+
+Job (`accessmod merge-land-cover schema` prints it):
+
+```json
+{
+  "schema_version": 1,
+  "dem": "dem.tif",
+  "stack": [
+    {"type": "road", "path": "roads.gpkg", "class_field": "class",
+     "label_field": "label", "classes": [1, 2, 3]},
+    {"type": "land_cover", "path": "land_cover.tif",
+     "labels": [{"class": 1, "label": "forest"}],
+     "reclass": [{"from": 7, "to": 70}]},
+    {"type": "barrier", "path": "rivers.gpkg"},
+    {"type": "barrier", "path": "lakes.gpkg", "where": "area_km2 > 1"}
+  ],
+  "clean_bridges": true,
+  "output_dir": "merged"
+}
+```
+
+- `road`: `class_field` holds integer classes (integer fields, whole reals
+  or integer text). `classes` selects classes and orders them, highest
+  priority first; when it is omitted, all classes are used in ascending
+  order. `add_1000` (default true) adds 1000 to classes below 1000.
+  Features without a class are left out, with a warning.
+- `land_cover`: any raster of integer classes on the DEM lattice; there may
+  be several. `labels` refer to the raster's classes; `reclass` changes
+  classes while merging.
+- `barrier`: lines and polygons; multi-geometries and collections are
+  split. Points and curves are left out, with a warning.
+- Validation fails when a class comes from more than one item. The message
+  names the items, as AccessMod 5 does.
+
+Outputs:
+
+| File | Content |
+| --- | --- |
+| `land_cover_merged.tif` | Int32 classes; NoData −2147483648 (barriers, bridges, cells no item covers) |
+| `bridges.tif` | Byte, 1 on bridge cells, NoData 0 (only with `clean_bridges`) |
+| `classes.csv` | `class,label,stack_item,cells` of the merged raster, for building scenarios |
+| `job.resolved.json`, `run.json` | Job with defaults, inputs with SHA-256, per-item classes and feature counts, cell counts, warnings, deviations |
+
+## Comparison with AccessMod 5
+
+`scripts/oracle/merge-land-cover-demo.sh` runs the GRASS commands of the
+toolbox on the demo project. The stack is roads (classes 1, 2, 3), the land
+cover, then the river (lines) and wetland (areas) barriers. The road order
+is tested both ways, with and without bridge cleaning
+(`tests/oracle_merge.rs`):
+
+| Case | Cells differing (of 44 492) | Bridge map |
+| --- | --- | --- |
+| roads 1, 2, 3, no cleaning | 2 | — |
+| roads 1, 2, 3, cleaned | 2 | identical |
+| roads 3, 2, 1, cleaned | 2 | identical |
+
+The two cells come from line rasterisation. Against the GRASS stack items,
+our lines differ on 1 of about 1 320 road cells and 1 of about 1 680 river
+cells, where a line passes close to a cell corner. Areas are identical. For
+reference, `gdal_rasterize -at` differs on 6 road cells and 1 river cell.
+
+## Deviations
+
+Listed in `run.json` (`deviations`):
+
+- `line_rasterisation`: "all touched" lines computed on the DEM lattice;
+  `v.to.rast -d` differs on a few cells near cell corners.
+- `stack_rules`: any number of `land_cover` items, no output tag.
+- `labels_verbatim`: labels are kept as given; AccessMod 5 lowercases them
+  and replaces punctuation with underscores.
+
+Not implemented: the skeleton option for polygon barriers
+(`polyAsSkeleton` in `amAddStackBarrier`).

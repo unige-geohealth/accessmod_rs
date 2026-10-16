@@ -579,7 +579,7 @@ fn worker_budget(
 
 /// CSV field: identifiers as text, quoted when needed; floats in shortest
 /// round-trip form.
-fn csv_field(value: &serde_json::Value) -> String {
+pub(crate) fn csv_field(value: &serde_json::Value) -> String {
     let text = match value {
         serde_json::Value::Null => String::new(),
         serde_json::Value::String(s) => s.clone(),

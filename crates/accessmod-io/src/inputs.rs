@@ -46,11 +46,17 @@ pub struct InputSummary {
 /// Open the land cover and check it lies on the DEM lattice with the DEM's
 /// CRS and has integer classes.
 pub fn open_land_cover(path: &Path, grid: &GridSpec) -> Result<(Dataset, Alignment)> {
+    open_class_raster(path, grid, "land cover")
+}
+
+/// Open a raster of integer classes and check it lies on the DEM lattice
+/// with the DEM's CRS. `role` names the raster in messages.
+pub fn open_class_raster(path: &Path, grid: &GridSpec, role: &str) -> Result<(Dataset, Alignment)> {
     let dataset = Dataset::open(path).map_err(Error::gdal(path))?;
     let prefix = |issues: Vec<String>| Error::Validation {
         issues: issues
             .into_iter()
-            .map(|i| format!("land cover {}: {i}", path.display()))
+            .map(|i| format!("{role} {}: {i}", path.display()))
             .collect(),
     };
     let frame = RasterFrame::of(&dataset).map_err(|e| prefix(vec![e]))?;
@@ -76,7 +82,7 @@ pub fn open_land_cover(path: &Path, grid: &GridSpec) -> Result<(Dataset, Alignme
 }
 
 /// NoData value of an integer band as an integer, if it has one that is.
-fn integer_nodata(value: Option<f64>) -> Option<i64> {
+pub(crate) fn integer_nodata(value: Option<f64>) -> Option<i64> {
     value
         .filter(|v| v.fract() == 0.0 && v.abs() < 9.2e18)
         .map(|v| v as i64)

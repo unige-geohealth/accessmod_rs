@@ -76,6 +76,20 @@ Facts established from the code (to be confirmed by oracle runs):
   clamping speed and slope (`mobility.h` l.54-108).
 - Speeds come from integer scenario values (`config/config-app.R`).
 
+## Merge land cover
+
+| Concern | Path | Notes |
+| --- | --- | --- |
+| Stack road | `modules/amAnalysisMergeLandCover/amServer.R`, `btnAddStackRoad` (l.1129) | `v.extract` per class, `v.to.rast -d type=line`, class + 1000 below 1000 unless `checkDontAdd1000` |
+| Stack barrier | `tools/R/amStackBarrier.R`, `amAddStackBarrier` | Value 1; lines with `-d`, areas with `type=area`; optional polygon skeleton |
+| Stack land cover | `amServer.R`, `landCoverRasterSave` (l.829) | Copy with the class table as categories |
+| Conflicts | `amServer.R`, `stackConflictTable` (l.211) | Classes in more than one non-barrier item block the merge; quick correction via `r.reclass` (l.429) |
+| Merge | `amServer.R`, `btnMerge` (l.520) | Barriers build a mask (`amGrassMaskNS`), `r.patch` keeps the first item in stack order |
+| Bridges | `tools/R/amBridgeTools.R`, `amBridgeFinder`, `amBridgeRemover` | Road cell with a non-null diagonal and both corner cells null is set to null |
+
+Oracle: `scripts/oracle/merge-land-cover-demo.sh`; results in
+[`merge-land-cover.md`](merge-land-cover.md).
+
 ## Existing test data
 
 | Path | Content |

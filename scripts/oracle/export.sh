@@ -51,6 +51,15 @@ docker run --rm --platform "$PLATFORM" -e TZ=UTC \
     > "$out/referral-demo.log" 2>&1 \
     || { echo "error: referral export failed, see $out/referral-demo.log" >&2; exit 1; }
 
+# Merge land cover on the demo project (scripts/oracle/merge-land-cover-demo.sh).
+rm -rf "$out/merge-land-cover/demo"
+docker run --rm --platform "$PLATFORM" \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'grass /data/dbgrass/demo/demo --exec sh /scripts/merge-land-cover-demo.sh' \
+    > "$out/merge-land-cover-demo.log" 2>&1 \
+    || { echo "error: merge export failed, see $out/merge-land-cover-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {

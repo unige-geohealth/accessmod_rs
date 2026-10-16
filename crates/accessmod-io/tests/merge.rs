@@ -1,0 +1,410 @@
+//! End-to-end land-cover merges on small GeoTIFF / GeoPackage fixtures built
+//! with GDAL in a temporary directory.
+
+use std::path::{Path, PathBuf};
+
+use accessmod_io::error::{Error, ErrorKind};
+use accessmod_io::job::SCHEMA_VERSION;
+use accessmod_io::merge::{
+    BRIDGES_FILE, BarrierItem, CLASSES_FILE, LandCoverItem, MERGED_FILE, MERGED_NODATA,
+    MergeLandCoverJob, Reclass, RoadItem, StackItem, prepare, run,
+};
+use accessmod_io::travel_time::ExecutionSettings;
+use gdal::raster::{Buffer, GdalType};
+use gdal::spatial_ref::SpatialRef;
+use gdal::vector::{
+    Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType,
+};
+use gdal::{Dataset, DriverManager};
+
+const EPSG: u32 = 32632;
+const X0: f64 = 500_000.0;
+const Y0: f64 = 5_000_000.0;
+const RES: f64 = 100.0;
+
+fn write_raster<T: GdalType + Copy>(
+    path: &Path,
+    cols: usize,
+    rows: usize,
+    data: Vec<T>,
+    nodata: f64,
+) {
+    let driver = DriverManager::get_driver_by_name("GTiff").expect("GTiff driver");
+    let mut ds = driver
+        .create_with_band_type::<T, _>(path, cols, rows, 1)
+        .expect("create raster");
+    ds.set_geo_transform(&[X0, RES, 0.0, Y0, 0.0, -RES])
+        .expect("geotransform");
+    ds.set_spatial_ref(&SpatialRef::from_epsg(EPSG).expect("srs"))
+        .expect("srs");
+    let mut band = ds.rasterband(1).expect("band");
+    band.set_no_data_value(Some(nodata)).expect("nodata");
+    let mut buffer = Buffer::new((cols, rows), data);
+    band.write((0, 0), (cols, rows), &mut buffer)
+        .expect("write");
+}
+
+/// Map x, y of a point given in cell units (column, row from the top left).
+fn map(col: f64, row: f64) -> (f64, f64) {
+    (X0 + col * RES, Y0 - row * RES)
+}
+
+/// Write a GeoPackage layer of WKT geometries (in cell units, see [`map`])
+/// with an integer `class` field.
+fn write_layer(path: &Path, features: &[(Option<i64>, &str)]) {
+    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG driver");
+    let mut ds = driver.create_vector_only(path).expect("create gpkg");
+    let srs = SpatialRef::from_epsg(EPSG).expect("srs");
+    let layer = ds
+        .create_layer(LayerOptions {
+            name: "items",
+            srs: Some(&srs),
+            ty: OGRwkbGeometryType::wkbUnknown,
+            options: None,
+        })
+        .expect("layer");
+    layer
+        .create_defn_fields(&[("class", OGRFieldType::OFTInteger64)])
+        .expect("fields");
+    let field = layer.defn().field_index("class").expect("field");
+    for (class, wkt) in features {
+        // Coordinates in cell units, converted to map units.
+        let converted = convert_wkt(wkt);
+        let geometry = Geometry::from_wkt(&converted).expect("wkt");
+        let mut feature = Feature::new(layer.defn()).expect("feature");
+        feature.set_geometry(geometry).expect("geometry");
+        if let Some(class) = class {
+            feature
+                .set_field(field, &FieldValue::Integer64Value(*class))
+                .expect("class");
+        }
+        feature.create(&layer).expect("create feature");
+    }
+}
+
+/// Replace every "col row" pair of a WKT in cell units by map coordinates.
+fn convert_wkt(wkt: &str) -> String {
+    let mut out = String::new();
+    let mut number = String::new();
+    let mut pending: Option<f64> = None;
+    let flush = |number: &mut String, pending: &mut Option<f64>, out: &mut String| {
+        if number.is_empty() {
+            return;
+        }
+        let value: f64 = number.parse().expect("number");
+        number.clear();
+        match pending.take() {
+            None => *pending = Some(value),
+            Some(col) => {
+                let (x, y) = map(col, value);
+                out.push_str(&format!("{x} {y}"));
+            }
+        }
+    };
+    for c in wkt.chars() {
+        if c.is_ascii_digit() || c == '.' || c == '-' {
+            number.push(c);
+        } else {
+            flush(&mut number, &mut pending, &mut out);
+            if pending.is_none() || c != ' ' {
+                out.push(c);
+            }
+        }
+    }
+    flush(&mut number, &mut pending, &mut out);
+    out
+}
+
+fn settings(memory_bytes: u64) -> ExecutionSettings {
+    ExecutionSettings {
+        memory_bytes,
+        threads: 2,
+        tmp_dir: std::env::temp_dir(),
+    }
+}
+
+fn never() -> bool {
+    false
+}
+
+fn run_job(job: MergeLandCoverJob, settings: &ExecutionSettings) -> Result<PathBuf, Error> {
+    let prepared = prepare(job, settings, &never)?;
+    run(prepared, settings, &never).map(|(dir, _)| dir)
+}
+
+fn read<T: GdalType + Copy>(path: &Path) -> Vec<T> {
+    let ds = Dataset::open(path).expect("open output");
+    let band = ds.rasterband(1).expect("band");
+    let (cols, rows) = ds.raster_size();
+    band.read_as::<T>((0, 0), (cols, rows), (cols, rows), None)
+        .expect("read")
+        .data()
+        .to_vec()
+}
+
+fn road(path: PathBuf) -> StackItem {
+    StackItem::Road(RoadItem {
+        path,
+        layer: None,
+        class_field: "class".into(),
+        label_field: None,
+        filter: None,
+        classes: None,
+        add_1000: true,
+    })
+}
+
+fn land_cover(path: PathBuf) -> StackItem {
+    StackItem::LandCover(LandCoverItem {
+        path,
+        labels: Vec::new(),
+        reclass: Vec::new(),
+    })
+}
+
+fn barrier(path: PathBuf) -> StackItem {
+    StackItem::Barrier(BarrierItem {
+        path,
+        layer: None,
+        filter: None,
+    })
+}
+
+/// 6 × 5 grid. Land cover: class 1, class 2 in column 5, NoData at (1, 2)
+/// and (2, 3) so that the road cell (2, 2) only touches (1, 3) by a corner.
+fn by_hand_fixture(dir: &Path) -> MergeLandCoverJob {
+    let (cols, rows) = (6, 5);
+    write_raster::<f32>(
+        &dir.join("dem.tif"),
+        cols,
+        rows,
+        vec![0.0; cols * rows],
+        -9999.0,
+    );
+    let mut lc = vec![1u8; cols * rows];
+    for r in 0..rows {
+        lc[r * cols + 5] = 2;
+    }
+    lc[cols + 2] = 0;
+    lc[2 * cols + 3] = 0;
+    write_raster::<u8>(&dir.join("lc.tif"), cols, rows, lc, 0.0);
+    // Road class 3 along row 4 (cells (4, 0) .. (4, 2)), class 7 inside
+    // cell (2, 2) only, and a feature without class.
+    write_layer(
+        &dir.join("roads.gpkg"),
+        &[
+            (Some(3), "LINESTRING (0.5 4.5, 2.5 4.5)"),
+            (Some(7), "LINESTRING (2.2 2.5, 2.8 2.5)"),
+            (None, "LINESTRING (0.5 0.5, 5.5 0.5)"),
+        ],
+    );
+    // Barrier polygon over column 4 (centres x = 4.5), rows 0..=1.
+    write_layer(
+        &dir.join("barrier.gpkg"),
+        &[(
+            None,
+            "POLYGON ((4.1 0.1, 4.9 0.1, 4.9 1.9, 4.1 1.9, 4.1 0.1))",
+        )],
+    );
+    MergeLandCoverJob {
+        schema_version: SCHEMA_VERSION,
+        dem: dir.join("dem.tif"),
+        stack: vec![
+            road(dir.join("roads.gpkg")),
+            land_cover(dir.join("lc.tif")),
+            barrier(dir.join("barrier.gpkg")),
+        ],
+        clean_bridges: true,
+        output_dir: dir.join("out"),
+    }
+}
+
+#[test]
+fn stack_priority_barriers_and_bridges_by_hand() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let job = by_hand_fixture(dir.path());
+    let out = run_job(job, &settings(256 << 20)).expect("merge");
+    let merged = read::<i32>(&out.join(MERGED_FILE));
+    let bridges = read::<u8>(&out.join(BRIDGES_FILE));
+    let n = MERGED_NODATA;
+    #[rustfmt::skip]
+    let expected = vec![
+        1, 1, 1, 1, n, 2,
+        1, 1, n, 1, n, 2,
+        1, 1, n, n, 1, 2,
+        1, 1, 1, 1, 1, 2,
+        1003, 1003, 1003, 1, 1, 2,
+    ];
+    assert_eq!(merged, expected);
+    let mut expected_bridges = vec![0u8; 30];
+    expected_bridges[2 * 6 + 2] = 1;
+    assert_eq!(bridges, expected_bridges);
+
+    let report: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out.join("run.json")).expect("run.json"))
+            .expect("json");
+    let result = &report["run"]["result"];
+    assert_eq!(result["barrier_cells"], 2);
+    assert_eq!(result["bridges_removed"], 1);
+    assert_eq!(result["uncovered_cells"], 2);
+    let road = &report["run"]["stack"][0];
+    assert_eq!(road["features"]["read"], 3);
+    assert_eq!(road["features"]["without_class"], 1);
+    assert_eq!(road["classes"][1]["class"], 1007);
+    let csv = std::fs::read_to_string(out.join(CLASSES_FILE)).expect("classes.csv");
+    assert_eq!(
+        csv,
+        "class,label,stack_item,cells\n1,,2,17\n2,,2,5\n1003,,1,3\n"
+    );
+}
+
+#[test]
+fn without_cleaning_the_bridge_stays() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = by_hand_fixture(dir.path());
+    job.clean_bridges = false;
+    let out = run_job(job, &settings(256 << 20)).expect("merge");
+    assert_eq!(read::<i32>(&out.join(MERGED_FILE))[2 * 6 + 2], 1007);
+    assert!(!out.join(BRIDGES_FILE).exists());
+}
+
+#[test]
+fn class_conflicts_are_rejected_and_reclass_resolves_them() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = by_hand_fixture(dir.path());
+    if let StackItem::Road(road) = &mut job.stack[0] {
+        road.add_1000 = false;
+        road.classes = Some(vec![7, 3]);
+    }
+    // Road class 3 and 7 do not collide with land-cover classes 1 and 2:
+    // make the land cover produce 3 to collide.
+    if let StackItem::LandCover(lc) = &mut job.stack[1] {
+        lc.reclass = vec![Reclass { from: 2, to: 3 }];
+    }
+    let err = prepare(job.clone(), &settings(256 << 20), &never).expect_err("conflict");
+    assert_eq!(err.kind(), ErrorKind::Validation);
+    let text = err.to_string();
+    assert!(
+        text.contains("class 3 comes from stack items 1 (road) and 2 (land_cover)"),
+        "{text}"
+    );
+
+    if let StackItem::LandCover(lc) = &mut job.stack[1] {
+        lc.reclass = vec![Reclass { from: 2, to: 20 }];
+    }
+    let out = run_job(job, &settings(256 << 20)).expect("merge");
+    let merged = read::<i32>(&out.join(MERGED_FILE));
+    assert_eq!(merged[5], 20);
+    // Class 7 is listed first: it keeps its cell, which is a bridge.
+    assert_eq!(merged[4 * 6], 3);
+}
+
+#[test]
+fn missing_fields_and_bad_filters_are_validation_errors() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = by_hand_fixture(dir.path());
+    if let StackItem::Road(road) = &mut job.stack[0] {
+        road.class_field = "kind".into();
+    }
+    job.stack.push(StackItem::Barrier(BarrierItem {
+        path: dir.path().join("barrier.gpkg"),
+        layer: None,
+        filter: Some("no_such_field = 1".into()),
+    }));
+    let err = prepare(job, &settings(256 << 20), &never).expect_err("invalid");
+    let Error::Validation { issues } = err else {
+        panic!("validation error expected");
+    };
+    assert_eq!(issues.len(), 2, "{issues:#?}");
+    assert!(issues[0].contains("no field \"kind\""));
+    assert!(issues[1].contains("invalid filter"));
+}
+
+#[test]
+fn outputs_do_not_depend_on_memory() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let path = dir.path();
+    let (cols, rows) = (900, 700);
+    write_raster::<f32>(
+        &path.join("dem.tif"),
+        cols,
+        rows,
+        vec![0.0; cols * rows],
+        -9999.0,
+    );
+    let lc: Vec<u16> = (0..cols * rows)
+        .map(|i| [1, 2, 3, 0][(i / cols / 37 + i % cols / 53) % 4])
+        .collect();
+    write_raster::<u16>(&path.join("lc.tif"), cols, rows, lc, 0.0);
+    let mut roads = Vec::new();
+    let mut rivers = Vec::new();
+    for k in 0..40 {
+        let a = (k * 37 % 900) as f64 + 0.3;
+        let b = (k * 53 % 700) as f64 + 0.7;
+        roads.push(format!(
+            "LINESTRING ({a} 0.5, {} {b}, {} 699.2)",
+            (a * 1.7) % 900.0,
+            (b * 0.9) % 900.0
+        ));
+        rivers.push(format!(
+            "LINESTRING (0.2 {b}, 450.5 {}, 899.9 {})",
+            (b * 1.3) % 700.0,
+            a % 700.0
+        ));
+    }
+    let road_features: Vec<(Option<i64>, &str)> = roads
+        .iter()
+        .enumerate()
+        .map(|(i, wkt)| (Some(1 + (i % 3) as i64), wkt.as_str()))
+        .collect();
+    let river_features: Vec<(Option<i64>, &str)> =
+        rivers.iter().map(|wkt| (None, wkt.as_str())).collect();
+    write_layer(&path.join("roads.gpkg"), &road_features);
+    write_layer(&path.join("rivers.gpkg"), &river_features);
+    write_layer(
+        &path.join("lakes.gpkg"),
+        &[(
+            None,
+            "POLYGON ((100.2 100.7, 600.4 150.1, 500.9 650.3, 120.5 400.2, 100.2 100.7), \
+             (300 300, 350 300, 350 350, 300 350, 300 300))",
+        )],
+    );
+    let job = |out: &str| MergeLandCoverJob {
+        schema_version: SCHEMA_VERSION,
+        dem: path.join("dem.tif"),
+        stack: vec![
+            road(path.join("roads.gpkg")),
+            land_cover(path.join("lc.tif")),
+            barrier(path.join("rivers.gpkg")),
+            barrier(path.join("lakes.gpkg")),
+        ],
+        clean_bridges: true,
+        output_dir: path.join(out),
+    };
+    // 23 MiB: the 16 MiB GDAL cache floor and buffers leave about 80 of
+    // the 165 tiles resident.
+    let minimum = 23 << 20;
+    let tight = prepare(job("a"), &settings(minimum), &never).expect("prepare at minimum");
+    assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
+    let (out_a, report_a) = run(tight, &settings(minimum), &never).expect("run a");
+    assert!(
+        report_a.execution.store.tile_writes > 0,
+        "scratch not exercised"
+    );
+    let out_b = run_job(job("b"), &settings(4 << 30)).expect("run b");
+    for name in [MERGED_FILE, BRIDGES_FILE, CLASSES_FILE] {
+        let bytes_a = std::fs::read(out_a.join(name)).expect("read a");
+        let bytes_b = std::fs::read(out_b.join(name)).expect("read b");
+        assert!(bytes_a == bytes_b, "{name} differs between budgets");
+    }
+    let run_part = |dir: &Path| {
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("run.json")).expect("read"))
+                .expect("json");
+        let mut run = report["run"].clone();
+        run["job"]["output_dir"] = serde_json::Value::Null;
+        run
+    };
+    assert_eq!(run_part(&out_a), run_part(&out_b));
+    assert!(report_a.run.result.bridges_removed > 0 || report_a.run.result.bridge_cells > 0);
+}

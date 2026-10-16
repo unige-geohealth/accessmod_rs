@@ -113,25 +113,41 @@ impl ResourcePlan {
         let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
         let per_tile = (TiledGrid::<InputCell>::tile_bytes(geometry)
             + TiledGrid::<SolverCell>::tile_bytes(geometry)) as u64;
-        let total_tiles = geometry.n_tiles();
-        let budget = settings.memory_bytes;
-        let gdal_cache_bytes = (budget / 8).clamp(16 << 20, 512 << 20);
         // Output blocks (4 rasters) and input read windows (DEM f64, land
         // cover i64, classes); both bounded whatever the grid width.
         let buffer_bytes = (256 * 256 * (8 + 4 + 8 + 1)
             + 256 * std::mem::size_of::<SolverCell>()
             + STRIP_ROWS * CHUNK_COLS * (8 + 8)
             + CHUNK_COLS * 16) as u64;
+        Self::for_tiles(rows, cols, settings, per_tile, buffer_bytes, 1)
+    }
+
+    /// Plan for tiled grids taking `per_tile` bytes per tile position, with
+    /// `buffer_bytes` of fixed buffers and `queue_tenths` tenths of the
+    /// budget reserved for a priority queue (0 when there is none).
+    pub(crate) fn for_tiles(
+        rows: usize,
+        cols: usize,
+        settings: &ExecutionSettings,
+        per_tile: u64,
+        buffer_bytes: u64,
+        queue_tenths: u64,
+    ) -> Result<Self> {
+        let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
+        let total_tiles = geometry.n_tiles();
+        let budget = settings.memory_bytes;
+        let gdal_cache_bytes = (budget / 8).clamp(16 << 20, 512 << 20);
         let fixed_bytes = gdal_cache_bytes + buffer_bytes;
-        let queue_reserve_bytes = budget / 10;
+        let queue_reserve_bytes = budget / 10 * queue_tenths;
         // The solver needs at least the band of tiles around its frontier;
         // two tile rows and two tile columns across the grid is the floor.
         let tiles_x = cols.div_ceil(DEFAULT_TILE);
         let tiles_y = rows.div_ceil(DEFAULT_TILE);
         let band_tiles = (2 * (tiles_x + tiles_y)).min(total_tiles) as u64;
-        // The queue reserve is 10 % of the budget B, so tiles get
-        // 0.9·B − fixed: B must be at least (fixed + tiles) / 0.9.
-        let with_reserve = |tile_bytes: u64| (fixed_bytes + tile_bytes).div_ceil(9) * 10;
+        // The queue reserve is q tenths of the budget B, so tiles get
+        // (1 − q/10)·B − fixed: B must be at least (fixed + tiles) / (1 − q/10).
+        let with_reserve =
+            |tile_bytes: u64| (fixed_bytes + tile_bytes).div_ceil(10 - queue_tenths) * 10;
         let minimum_bytes = with_reserve(band_tiles * per_tile);
         let in_memory_bytes = with_reserve(total_tiles as u64 * per_tile);
         let tile_budget = budget.saturating_sub(fixed_bytes + queue_reserve_bytes);
