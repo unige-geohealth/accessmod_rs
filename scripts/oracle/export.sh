@@ -79,6 +79,15 @@ docker run --rm --platform "$PLATFORM" \
     > "$out/zonal-statistics-demo.log" 2>&1 \
     || { echo "error: zonal export failed, see $out/zonal-statistics-demo.log" >&2; exit 1; }
 
+# Geographic coverage on the demo project (scripts/oracle/capacity-demo.R).
+rm -rf "$out/capacity/demo"
+docker run --rm --platform "$PLATFORM" -e TZ=UTC \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'echo UTC > /etc/timezone; cd /app && Rscript /scripts/capacity-demo.R' \
+    > "$out/capacity-demo.log" 2>&1 \
+    || { echo "error: capacity export failed, see $out/capacity-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {

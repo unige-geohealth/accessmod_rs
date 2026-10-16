@@ -26,7 +26,7 @@ amGrassNS(location = "demo", mapset = "demo", {
   # The shapes directory is given with GRASS environment variables.
   shapes <- system(sprintf("echo %s", config$pathShapes), intern = TRUE)
   shp <- list.files(shapes, pattern = "^vCatchment__oracle\\.shp$", full.names = TRUE)
-  system(sprintf("ogr2ogr -f FlatGeobuf -nlt PROMOTE_TO_MULTI %s %s",
+  system(sprintf("ogr2ogr -f FlatGeobuf -nomd -nlt PROMOTE_TO_MULTI %s %s",
     file.path(out, "catchments.fgb"), shp[1]))
 })
 writeLines(sprintf("%.3f", elapsed), file.path(out, "seconds.log"))

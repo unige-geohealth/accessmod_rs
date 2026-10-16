@@ -19,7 +19,7 @@ use accessmod_core::cost::{CellMobility, Direction, Method, Neighbourhood};
 use accessmod_core::mobility::MobilityModel;
 use accessmod_core::solver::{Facility, Flow, InputCell, SolverCell, SolverConfig, solve_until};
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
-use gdal::vector::FieldValue;
+use gdal::vector::{FieldValue, Geometry, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -37,12 +37,14 @@ use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_r
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
 use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
-use crate::vector::{VectorLayer, compare_values, number_attribute};
+use crate::vector::{FeatureWriter, VectorLayer, compare_values, number_attribute, polygonize};
 
 /// Capacity table file name.
 pub const CAPACITY_FILE: &str = "capacity.csv";
 /// Residual population file name.
 pub const RESIDUAL_FILE: &str = "population_residual.tif";
+/// Catchment polygons file name.
+pub const CATCHMENTS_FILE: &str = "catchments.fgb";
 
 fn sixty() -> f64 {
     60.0
@@ -98,6 +100,9 @@ pub struct CoverageJob {
     /// Remove the population covered before the next facility.
     #[serde(default = "yes")]
     pub remove_covered: bool,
+    /// Write the catchment polygons (`catchments.fgb`).
+    #[serde(default = "yes")]
+    pub catchments: bool,
     /// What to do with facilities outside the grid or on a barrier.
     #[serde(default)]
     pub facility_issues: FacilityIssues,
@@ -506,6 +511,71 @@ fn search_bands(
         .collect())
 }
 
+/// Polygon of the spooled cells within band `limit`: their bounding box is
+/// burnt into a disk-backed mask, written to a scratch GeoTIFF and
+/// polygonised. Memory stays bounded by the tile cache and one polygon.
+fn catchment_polygon(
+    spool: &mut CellSpool,
+    limit: u32,
+    grid: &GridSpec,
+    tmp_dir: &Path,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Option<Geometry>> {
+    let cols = grid.cols as u64;
+    let mut bbox: Option<(usize, usize, usize, usize)> = None;
+    spool.for_each(|cell, band| {
+        if band <= limit {
+            let (r, c) = ((cell / cols) as usize, (cell % cols) as usize);
+            bbox = Some(bbox.map_or((r, r, c, c), |(r0, r1, c0, c1)| {
+                (r0.min(r), r1.max(r), c0.min(c), c1.max(c))
+            }));
+        }
+        Ok(())
+    })?;
+    let Some((r0, r1, c0, c1)) = bbox else {
+        return Ok(None);
+    };
+    let window = grid.window(r0..r1 + 1, c0..c1 + 1);
+    let geometry = TileGeometry::new(
+        window.rows,
+        window.cols,
+        accessmod_core::store::DEFAULT_TILE,
+    )?;
+    // A small cache: the mask is written once in spool order, then read
+    // block by block.
+    let mut mask = TiledGrid::new(geometry, 0u8, 64, tmp_dir, "catchment")?;
+    spool.for_each(|cell, band| {
+        if band <= limit {
+            let (r, c) = ((cell / cols) as usize, (cell % cols) as usize);
+            mask.set(r - r0, c - c0, 1)?;
+        }
+        Ok(())
+    })?;
+    let path = tmp_dir.join(format!("accessmod-catchment-{}.tif", std::process::id()));
+    let tif = GeoTiff::create::<u8>(&path, &window, 2, 1, 0.0)?;
+    let mut cells = vec![0u8; BLOCK];
+    let mut block = Vec::with_capacity(BLOCK * BLOCK);
+    for_each_window(
+        0..window.rows,
+        0..window.cols,
+        (BLOCK, BLOCK),
+        cancelled,
+        |r, c| {
+            for row in r.clone() {
+                mask.read_row(row, c.start, &mut cells[..c.len()])?;
+                block.extend_from_slice(&cells[..c.len()]);
+            }
+            tif.write(r, c, &mut block)
+        },
+    )?;
+    tif.close()?;
+    let dataset = gdal::Dataset::open(&path).map_err(Error::gdal(&path))?;
+    let polygon = polygonize(&dataset, &path);
+    drop(dataset);
+    let _ = std::fs::remove_file(&path);
+    polygon
+}
+
 /// One row of the capacity table.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CoverageRow {
@@ -580,7 +650,7 @@ pub fn deviations() -> Vec<Deviation> {
         },
         Deviation {
             code: "coverage_not_yet",
-            message: "Not yet available: catchment polygons, circular-buffer order, \
+            message: "Not yet available: circular-buffer order, \
                       population on barriers map, zonal coverage table.",
         },
     ]
@@ -704,6 +774,22 @@ pub fn run(
     let started = Instant::now();
     let config = job.solver_config(&grid, job.limit_s);
     let limit_band = (job.limit_s / job.band_s).ceil() as u32;
+    let mut catchments = if job.catchments {
+        Some(FeatureWriter::create(
+            &staging.path().join(CATCHMENTS_FILE),
+            "catchments",
+            &grid.srs,
+            OGRwkbGeometryType::wkbMultiPolygon,
+            &[
+                ("order", OGRFieldType::OFTInteger),
+                ("facility_id", OGRFieldType::OFTString),
+                ("name", OGRFieldType::OFTString),
+                ("case", OGRFieldType::OFTString),
+            ],
+        )?)
+    } else {
+        None
+    };
     let mut remaining = total;
     let mut reached_cells = 0u64;
     let mut rows = Vec::with_capacity(order.len());
@@ -728,6 +814,22 @@ pub fn run(
             facility.capacity
         };
         let result = catchment(&bands, capacity, limit_band);
+        if let (Some(writer), Some(limit)) = (catchments.as_mut(), result.band_limit)
+            && let Some(polygon) =
+                catchment_polygon(&mut spool, limit, &grid, &settings.tmp_dir, cancelled)?
+        {
+            writer.write(
+                polygon,
+                &[
+                    Some(FieldValue::IntegerValue(k as i32 + 1)),
+                    Some(FieldValue::StringValue(csv_field(&facility.id))),
+                    facility.name.clone().map(FieldValue::StringValue),
+                    result
+                        .case
+                        .map(|c| FieldValue::StringValue(format!("{c:?}"))),
+                ],
+            )?;
+        }
         if job.remove_covered {
             let (inner, outer) = (result.inner, result.outer);
             spool.for_each(|cell, band| {
@@ -739,8 +841,7 @@ pub fn run(
                 let new = if inner.is_some_and(|i| band <= i) {
                     // AccessMod 5 sets 0 even where there is no population.
                     0.0
-                } else if let Some((b, fraction)) = outer.filter(|(b, _)| *b == band) {
-                    let _ = b;
+                } else if let Some((_, fraction)) = outer.filter(|(b, _)| *b == band) {
                     value - value * fraction
                 } else {
                     return Ok(());
@@ -763,6 +864,9 @@ pub fn run(
             catchment: result,
             population_covered_percent: percent,
         });
+    }
+    if let Some(writer) = catchments {
+        writer.close()?;
     }
     durations_s.insert("coverage", started.elapsed().as_secs_f64());
 

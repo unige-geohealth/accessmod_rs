@@ -28,7 +28,7 @@ _Last updated: 2026-10-16._
 | Facility selection (subset of a layer) | `amFacilitiesSubset`, facility table | 🗓 attribute filter in the job; today: all features of the layer | CLI + UI (table selection) |
 | Facilities on barriers: detected, user deselects | facility validation | ✅ listed as errors, or skipped with `facility_issues: skip` | CLI |
 | Region cropping by max speed × time | `amSpeedBufferRegion.R` | ➖ not needed: the limit is applied exactly during the search | — |
-| **Geographic coverage**: capacity-based population coverage, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | 🗓 plan: Later 1 | CLI + UI (results review) |
+| **Geographic coverage**: capacity-based population coverage, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | ✅ `geographic-coverage run`: equal to the AM5 demo replay (table, residual, catchments) ([`geographic-coverage.md`](geographic-coverage.md)); 🗓 circular-buffer order | CLI + UI (results review) |
 | **Zonal statistics**: population coverage by zone and time | `amAnalysisZonal.R` | ✅ `zonal-statistics run`: equal to AM5 on the demo ([`zonal-statistics.md`](zonal-statistics.md)) | CLI + UI (charts) |
 | **Referral**: time and distance between facilities, nearest by time or distance, network | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | ✅ `referral run`: many-to-many, nearest by time and distance; times equal AM5 (after its rounding) on the demo, distances within one cell ([`referral.md`](referral.md)); 🗓 network lines output | CLI |
 | **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | 🗓 plan: Later 3 | CLI + UI (suitability tables) |

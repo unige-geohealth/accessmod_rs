@@ -72,7 +72,7 @@ Referral (all facilities to all facilities, [details](docs/benchmarks.md)):
 | --- | --- | --- |
 | 1 | `accessmod` CLI: travel-time engine on disk-backed tiled rasters (isotropic/anisotropic, nearest, path distance) | working; distribution and CI to do |
 | 2 | MCP stdio server + agent skill over the same public API | not started |
-| 3+ | Referral, zonal stats, coverage, optimization, land-cover merge, project import | referral, zonal statistics, land-cover merge and population adjustment done (referral network output to do); others planned |
+| 3+ | Referral, zonal stats, coverage, optimization, land-cover merge, project import | referral, zonal statistics, geographic coverage, land-cover merge and population adjustment done (referral network output to do); scaling up and optimization planned |
 | last | Graphical UI on top of the stabilised CLI/MCP contracts | not started |
 
 ## Documentation

@@ -96,9 +96,9 @@ Build, test, clippy and fmt must all pass before a commit.
 ## Layout
 
 ```
-crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal (no GDAL)
+crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity (no GDAL)
 crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
-crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage
 crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
 xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
@@ -123,8 +123,8 @@ determinism, memory budget, cancellation and error messages included.
 | --- | --- |
 | Rasterise lines and polygons, 3 × 3 neighbourhoods | `accessmod_core::raster` |
 | Disk-backed grids under a memory budget | `accessmod_core::store` |
-| Open a class raster, read any raster aligned on the DEM | `accessmod_io::raster` |
-| Open a vector layer (filter, CRS, reprojection), burn features | `accessmod_io::vector` |
+| Open aligned rasters, read windows, blocks of several bands with zones | `accessmod_io::raster` (`for_each_block`) |
+| Open a vector layer (filter, CRS, reprojection), burn features and zones, polygonise cells, write FlatGeobuf | `accessmod_io::vector` (`burn_zones`, `polygonize`, `FeatureWriter`) |
 | DEM grid, lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
 | Job files, path resolution, schema version, input checks | `accessmod_io::job` |
 | Memory plan and execution settings | `accessmod_io::resources` |
@@ -193,6 +193,10 @@ Things learned the hard way; check here before re-investigating.
 - Zonal statistics: AM5 covers `t < L` on whole minutes (rounded up); ours
   `t <= L` in seconds. On the same minutes, AM5 `L` equals ours `(L - 1) x
   60 s`; with that the demo sums match to 1e-9.
+- Geographic coverage works on whole-minute bands (`ceil(t / 60)`); keep
+  `band_s = 60` for parity. Residual init uses the null-aware `&&&`: people
+  <= 0 give 0 even on barriers. AM5 catchment shapefiles carry a DBF date:
+  export them with `ogr2ogr -nomd`.
 
 ### Engine
 

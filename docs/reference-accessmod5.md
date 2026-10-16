@@ -109,6 +109,16 @@ Oracle: `scripts/oracle/population-correction-demo.sh`; results in
 Oracle: `scripts/oracle/zonal-statistics-demo.sh`; results in
 [`zonal-statistics.md`](zonal-statistics.md).
 
+## Geographic coverage
+
+| Concern | Path | Notes |
+| --- | --- | --- |
+| Loop | `tools/R/amAnalysisCapacity.R`, `amCapacityAnalysis` | Order, residual init (`amInitPopResidual` in `amAnalysisScalingUp.R`), one travel time per facility rounded up to minutes |
+| Catchment | `tools/R/amAnalysisCatchment.R`, `amCatchmentAnalyst` | Bands from `amGetRasterStatZonal` (NA bands dropped), cases A–E, inner and outer rings |
+
+Oracle: `scripts/oracle/capacity-demo.R` (replay `loop_capacity_stat`); results in
+[`geographic-coverage.md`](geographic-coverage.md).
+
 ## Existing test data
 
 | Path | Content |
