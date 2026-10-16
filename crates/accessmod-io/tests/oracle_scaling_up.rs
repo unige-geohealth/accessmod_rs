@@ -8,35 +8,14 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use accessmod_io::fixtures::{oracle_available, oracle_dir, read_valid, run_job, settings};
+use accessmod_io::fixtures::{
+    csv_table, oracle_available, oracle_dir, read_valid, run_job, settings,
+};
 use accessmod_io::job::JobFile;
 use accessmod_io::scaling_up::{
     CAPACITY_FILE, CATCHMENTS_FILE, FACILITIES_FILE, RESIDUAL_FILE, ScalingUp, ScalingUpJob,
 };
 use gdal::vector::LayerAccess;
-
-/// Rows of a CSV keyed by `key`, every field by column name (no quoted
-/// commas in these tables).
-fn table(path: &Path, key: &str) -> BTreeMap<String, BTreeMap<String, String>> {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let mut lines = text.lines();
-    let header: Vec<String> = lines
-        .next()
-        .expect("header")
-        .split(',')
-        .map(|h| h.trim_matches('"').to_owned())
-        .collect();
-    lines
-        .map(|line| {
-            let fields: BTreeMap<String, String> = header
-                .iter()
-                .cloned()
-                .zip(line.split(',').map(|f| f.trim_matches('"').to_owned()))
-                .collect();
-            (fields[key].clone(), fields)
-        })
-        .collect()
-}
 
 /// Feature attribute `key` of a layer, to a value of each feature.
 fn features<T>(
@@ -76,8 +55,8 @@ fn demo_scaling_up_matches_accessmod5() {
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0);
     let n =
         |fields: &BTreeMap<String, String>, k: &str| fields[k].parse::<f64>().unwrap_or(f64::NAN);
-    let ours = table(&out.join(CAPACITY_FILE), "facility_id");
-    let theirs = table(&oracle.join("capacity.csv"), "amId");
+    let ours = csv_table(&out.join(CAPACITY_FILE), "facility_id");
+    let theirs = csv_table(&oracle.join("capacity.csv"), "amId");
     assert_eq!(ours.len(), theirs.len(), "facilities added");
     for (id, am5) in &theirs {
         let row = &ours[id];

@@ -13,35 +13,14 @@ use accessmod_io::coverage::{
     BARRIERS_FILE, CAPACITY_FILE, CATCHMENTS_FILE, CoverageJob, CoverageOrder, GeographicCoverage,
     RESIDUAL_FILE, ZONES_FILE,
 };
-use accessmod_io::fixtures::{oracle_available, oracle_dir, read_valid, run_job, settings};
+use accessmod_io::fixtures::{
+    csv_table, oracle_available, oracle_dir, read_valid, run_job, settings,
+};
 use accessmod_io::job::{
     FacilityIssues, FacilitySource, MethodName, SCHEMA_VERSION, ScenarioEntry,
 };
 use accessmod_io::zonal::ZoneLayer;
 use gdal::vector::LayerAccess;
-
-/// Rows of a CSV keyed by `key`, every field by column name.
-fn table(path: &Path, key: &str) -> BTreeMap<String, BTreeMap<String, String>> {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let mut lines = text.lines();
-    let header: Vec<String> = lines
-        .next()
-        .expect("header")
-        .split(',')
-        .map(|h| h.trim_matches('"').to_owned())
-        .collect();
-    lines
-        .map(|line| {
-            // Names hold no comma in the demo.
-            let fields: BTreeMap<String, String> = header
-                .iter()
-                .cloned()
-                .zip(line.split(',').map(|f| f.trim_matches('"').to_owned()))
-                .collect();
-            (fields[key].clone(), fields)
-        })
-        .collect()
-}
 
 /// Catchment area per facility identifier.
 fn areas(path: &Path, field: &str) -> BTreeMap<String, f64> {
@@ -118,8 +97,8 @@ fn number(fields: &BTreeMap<String, String>, key: &str) -> f64 {
 /// Our capacity table against AccessMod 5's, with `extra` columns
 /// `(ours, theirs)` on top of the common ones.
 fn compare_capacity(ours: &Path, theirs: &Path, extra: &[(&str, &str)]) {
-    let ours = table(ours, "facility_id");
-    let theirs = table(theirs, "cat");
+    let ours = csv_table(ours, "facility_id");
+    let theirs = csv_table(theirs, "cat");
     assert_eq!(ours.len(), theirs.len());
     let common = [
         ("population_within_limit", "amPopTravelTimeMax", 1.0),
@@ -240,7 +219,7 @@ fn demo_extended_coverage_matches_accessmod5() {
         serde_json::from_slice(&std::fs::read(out.join("run.json")).expect("run.json"))
             .expect("json");
     let result = &run["run"]["result"];
-    let am5 = table(&oracle.join("capacity.csv"), "cat");
+    let am5 = csv_table(&oracle.join("capacity.csv"), "cat");
     let am5 = am5.values().next().expect("a row");
     for (our, their) in [
         ("population_total", "amPopTotal"),
@@ -254,8 +233,8 @@ fn demo_extended_coverage_matches_accessmod5() {
 
     // AM5 counts people on barriers as covered (deviation
     // coverage_zonal_barriers).
-    let ours = table(&out.join(ZONES_FILE), "zone_id");
-    let theirs = table(&oracle.join("zonal.csv"), "cat");
+    let ours = csv_table(&out.join(ZONES_FILE), "zone_id");
+    let theirs = csv_table(&oracle.join("zonal.csv"), "cat");
     assert_eq!(ours.len(), theirs.len());
     for (id, am5) in &theirs {
         let row = &ours[id];

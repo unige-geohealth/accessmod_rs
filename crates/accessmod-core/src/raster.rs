@@ -231,6 +231,146 @@ pub fn polygon_spans(
     }
 }
 
+/// Visit the exact fraction of each cell covered by a polygon, row by row,
+/// as `visit(row, first_col, fractions)` (`fractions[k]` is column
+/// `first_col + k`), as `exactextractr` does for its weighted sums.
+///
+/// `rings` are the exterior ring and its holes, closed or not, of either
+/// orientation. The area of the polygon inside cell `(r, c)` follows from
+/// Green's theorem, `∮ g(x) [r ≤ y < r + 1] dy` with `g` the part of `[c,
+/// c + 1]` left of `x`, integrated in closed form on each edge, so the
+/// result is exact up to rounding (fractions are clamped to `[0, 1]`). Rows
+/// and columns outside the grid are skipped; only rows and columns of the
+/// polygon's bounding box are visited. A polygon with a non-finite vertex
+/// covers nothing (callers reject it first).
+pub fn polygon_coverage(
+    rings: &[Vec<(f64, f64)>],
+    rows: usize,
+    cols: usize,
+    visit: &mut impl FnMut(usize, usize, &[f64]),
+) {
+    if !rings
+        .iter()
+        .flatten()
+        .all(|(x, y)| x.is_finite() && y.is_finite())
+    {
+        return;
+    }
+    // Non-horizontal edges with the orientation weight of their ring:
+    // exterior counted positive, holes negative, whatever the winding.
+    struct Edge {
+        a: (f64, f64),
+        b: (f64, f64),
+        weight: f64,
+        y_min: f64,
+        y_max: f64,
+    }
+    let mut edges = Vec::new();
+    let (mut x_min, mut x_max) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (k, ring) in rings.iter().enumerate() {
+        let n = ring.len();
+        let doubled: f64 = (0..n)
+            .map(|i| {
+                let (ax, ay) = ring[i];
+                let (bx, by) = ring[(i + 1) % n];
+                ax * by - bx * ay
+            })
+            .sum();
+        if doubled == 0.0 {
+            continue;
+        }
+        let weight = if k == 0 { 1.0 } else { -1.0 } * doubled.signum();
+        for i in 0..n {
+            let a = ring[i];
+            let b = ring[(i + 1) % n];
+            x_min = x_min.min(a.0);
+            x_max = x_max.max(a.0);
+            if a.1 != b.1 {
+                edges.push(Edge {
+                    a,
+                    b,
+                    weight,
+                    y_min: a.1.min(b.1),
+                    y_max: a.1.max(b.1),
+                });
+            }
+        }
+    }
+    let y_min = edges.iter().map(|e| e.y_min).fold(f64::INFINITY, f64::min);
+    let y_max = edges
+        .iter()
+        .map(|e| e.y_max)
+        .fold(f64::NEG_INFINITY, f64::max);
+    if edges.is_empty() {
+        return;
+    }
+    let first_row = y_min.floor().max(0.0);
+    let end_row = y_max.ceil().min(rows as f64);
+    let first_col = x_min.floor().max(0.0);
+    let end_col = (x_max.floor() + 1.0).min(cols as f64);
+    if end_row <= first_row || end_col <= first_col {
+        return;
+    }
+    let (first_col, width) = (first_col as usize, (end_col - first_col) as usize);
+    edges.sort_by(|p, q| p.y_min.total_cmp(&q.y_min));
+    // Antiderivative of the covered part of [c, c + 1] left of x.
+    let covered = |u: f64, c: f64| {
+        if u <= c {
+            0.0
+        } else if u >= c + 1.0 {
+            u - c - 0.5
+        } else {
+            (u - c) * (u - c) / 2.0
+        }
+    };
+    let mut fractions = vec![0.0; width];
+    // left[k]: area added to every column of index < k.
+    let mut left = vec![0.0; width + 1];
+    let mut active: Vec<usize> = Vec::new();
+    let mut next = 0;
+    for row in first_row as usize..end_row as usize {
+        let (top, bottom) = (row as f64, row as f64 + 1.0);
+        while next < edges.len() && edges[next].y_min < bottom {
+            active.push(next);
+            next += 1;
+        }
+        active.retain(|&e| edges[e].y_max > top);
+        fractions.fill(0.0);
+        left.fill(0.0);
+        for &e in &active {
+            let Edge { a, b, weight, .. } = edges[e];
+            let x_at = |y: f64| a.0 + (y - a.1) * (b.0 - a.0) / (b.1 - a.1);
+            let (ya, yb) = (a.1.clamp(top, bottom), b.1.clamp(top, bottom));
+            let dy = (yb - ya) * weight;
+            if dy == 0.0 {
+                continue;
+            }
+            let (xa, xb) = (x_at(ya), x_at(yb));
+            let (lo, hi) = (xa.min(xb), xa.max(xb));
+            let full = (lo.floor() - first_col as f64).clamp(0.0, width as f64) as usize;
+            left[full] += dy;
+            let from = lo.floor().max(first_col as f64) as usize;
+            let to = (hi.floor() as i64).min((first_col + width) as i64 - 1);
+            for c in from as i64..=to {
+                let cf = c as f64;
+                // A near-vertical piece: its mean x, to avoid cancellation.
+                let part = if hi - lo < 1e-9 {
+                    ((lo + hi) / 2.0).clamp(cf, cf + 1.0) - cf
+                } else {
+                    (covered(xb, cf) - covered(xa, cf)) / (xb - xa)
+                };
+                fractions[c as usize - first_col] += dy * part;
+            }
+        }
+        let mut carry = 0.0;
+        for k in (0..width).rev() {
+            carry += left[k + 1];
+            fractions[k] = (fractions[k] + carry).clamp(0.0, 1.0);
+        }
+        visit(row, first_col, &fractions);
+    }
+}
+
 /// Call `visit(col, window)` for every cell of a row with its 3 × 3
 /// neighbourhood: `window[1][1]` is the cell, `window[0]` the row above,
 /// `window[2]` the row below (row offsets −1, 0, +1 as `r.mapcalc`
@@ -417,5 +557,66 @@ mod tests {
         assert_eq!(windows.len(), 3);
         assert_eq!(windows[0], (0, [[0, 1, 2], [0, 4, 5], [0, 0, 0]]));
         assert_eq!(windows[2], (2, [[2, 3, 0], [5, 6, 0], [0, 0, 0]]));
+    }
+
+    fn coverage(rings: &[Vec<(f64, f64)>], rows: usize, cols: usize) -> Vec<f64> {
+        let mut out = vec![0.0; rows * cols];
+        polygon_coverage(rings, rows, cols, &mut |r, c0, fractions| {
+            out[r * cols + c0..r * cols + c0 + fractions.len()].copy_from_slice(fractions);
+        });
+        out
+    }
+
+    fn assert_close(got: &[f64], want: &[f64]) {
+        assert_eq!(got.len(), want.len());
+        assert!(
+            got.iter().zip(want).all(|(x, y)| (x - y).abs() < 1e-12),
+            "{got:?} != {want:?}"
+        );
+    }
+
+    #[test]
+    fn coverage_of_aligned_and_offset_squares() {
+        let square = vec![(1.0, 1.0), (3.0, 1.0), (3.0, 2.0), (1.0, 2.0)];
+        let mut want = vec![0.0; 12];
+        want[5] = 1.0;
+        want[6] = 1.0;
+        assert_close(&coverage(std::slice::from_ref(&square), 3, 4), &want);
+        let reversed: Vec<_> = square.iter().rev().copied().collect();
+        assert_close(&coverage(&[reversed], 3, 4), &want);
+        // Shifted by half a cell: quarters at the corners, halves between.
+        let offset = vec![(0.5, 0.5), (2.5, 0.5), (2.5, 1.5), (0.5, 1.5)];
+        assert_close(
+            &coverage(&[offset], 2, 3),
+            &[0.25, 0.5, 0.25, 0.25, 0.5, 0.25],
+        );
+        // Partly outside the grid, west and north.
+        let outside = vec![(-0.5, -2.0), (1.5, -2.0), (1.5, 1.0), (-0.5, 1.0)];
+        assert_close(&coverage(&[outside], 1, 3), &[1.0, 0.5, 0.0]);
+    }
+
+    #[test]
+    fn coverage_of_triangle_hole_and_slanted_polygon() {
+        let triangle = vec![(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)];
+        assert_close(&coverage(&[triangle], 2, 2), &[1.0, 0.5, 0.5, 0.0]);
+        // A hole with the same winding as its exterior.
+        let outer = vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)];
+        let hole = vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)];
+        let mut want = vec![1.0; 9];
+        want[4] = 0.0;
+        assert_close(&coverage(&[outer, hole], 3, 3), &want);
+        // Fractions of a slanted quadrilateral sum to its area.
+        let quad = vec![(1.3, 0.2), (7.7, 1.6), (6.9, 8.4), (0.4, 5.1)];
+        let area = (0..4)
+            .map(|i| {
+                let (ax, ay) = quad[i];
+                let (bx, by) = quad[(i + 1) % 4];
+                ax * by - bx * ay
+            })
+            .sum::<f64>()
+            / 2.0;
+        let fractions = coverage(&[quad], 10, 10);
+        assert!(fractions.iter().all(|f| (0.0..=1.0).contains(f)));
+        assert!((fractions.iter().sum::<f64>() - area).abs() < 1e-12);
     }
 }

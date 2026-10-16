@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-use accessmod_core::raster::{line_spans, polygon_spans, thin_line_cells};
+use accessmod_core::raster::{line_spans, polygon_coverage, polygon_spans, thin_line_cells};
 use accessmod_core::store::{CellCodec, TiledGrid};
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::vector::{
@@ -16,6 +16,7 @@ use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
+use crate::raster::{AlignedBand, valid_value};
 
 /// Why coordinates cannot be placed on the grid.
 pub const NOT_REPROJECTABLE: &str = "cannot be reprojected to the DEM CRS";
@@ -189,6 +190,18 @@ impl VectorLayer {
                 .transform_coords(xs, ys, &mut [])
                 .map_err(|_| NOT_REPROJECTABLE),
             None => Ok(()),
+        }
+    }
+
+    /// `geometry` in the grid CRS (a copy, reprojected when needed), for
+    /// geometry operations in map coordinates.
+    pub fn to_grid_geometry(
+        &self,
+        geometry: &Geometry,
+    ) -> std::result::Result<Geometry, &'static str> {
+        match &self.transform {
+            Some(transform) => geometry.transform(transform).map_err(|_| NOT_REPROJECTABLE),
+            None => Ok(geometry.clone()),
         }
     }
 
@@ -565,6 +578,165 @@ pub fn polygonize(dataset: &Dataset, path: &Path) -> Result<Option<Geometry>> {
         }
     }
     Ok(any.then_some(multi))
+}
+
+/// Visit the polygons of `geometry` (multi-geometries and collections
+/// split) as rings of `(x, y)` map coordinates: exterior first.
+fn for_each_polygon(geometry: &Geometry, visit: &mut dyn FnMut(Vec<Vec<(f64, f64)>>)) {
+    match geometry_type_flatten(geometry.geometry_type()) {
+        OGRwkbGeometryType::wkbPolygon => {
+            let rings = (0..geometry.geometry_count())
+                .map(|i| {
+                    let mut points = Vec::new();
+                    geometry.get_geometry(i).get_points(&mut points);
+                    points.into_iter().map(|(x, y, _)| (x, y)).collect()
+                })
+                .collect();
+            visit(rings);
+        }
+        OGRwkbGeometryType::wkbMultiPolygon | OGRwkbGeometryType::wkbGeometryCollection => {
+            for i in 0..geometry.geometry_count() {
+                for_each_polygon(&geometry.get_geometry(i), visit);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Sum of `band` over the polygons of `geometry` (grid CRS), each cell
+/// weighted by the exact fraction of it they cover, as `exactextractr`
+/// `sum` (`accessmod_core::raster::polygon_coverage`); NoData cells are
+/// skipped, lines and points cover nothing. Rows are read one at a time.
+pub fn covered_sum(geometry: &Geometry, grid: &GridSpec, band: &AlignedBand<'_>) -> Result<f64> {
+    let nodata = band.nodata();
+    let mut sum = 0.0;
+    let mut failure = None;
+    for_each_polygon(geometry, &mut |rings| {
+        if failure.is_some() {
+            return;
+        }
+        let rings: Vec<Vec<(f64, f64)>> = rings
+            .into_iter()
+            .map(|ring| ring.into_iter().map(|(x, y)| grid.to_pixel(x, y)).collect())
+            .collect();
+        polygon_coverage(
+            &rings,
+            grid.rows,
+            grid.cols,
+            &mut |row, first, fractions| {
+                if failure.is_some() {
+                    return;
+                }
+                match band.read::<f64>(row..row + 1, first..first + fractions.len()) {
+                    Ok(Some(window)) => {
+                        for (k, fraction) in fractions.iter().enumerate() {
+                            if *fraction > 0.0
+                                && let Some(value) = window.get(row, first + k)
+                                && let Some(value) = valid_value(value, nodata)
+                            {
+                                sum += value * fraction;
+                            }
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => failure = Some(e),
+                }
+            },
+        );
+    });
+    match failure {
+        Some(e) => Err(e),
+        None => Ok(sum),
+    }
+}
+
+/// Where a geometry lies in a [`GeometrySpool`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpoolSlot {
+    offset: u64,
+    len: u64,
+}
+
+impl SpoolSlot {
+    /// Size of the geometry (WKB), bytes.
+    pub fn len(&self) -> u64 {
+        self.len
+    }
+
+    /// Whether the geometry has no bytes (never: WKB has a header).
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+/// Geometries spooled to a scratch file as WKB, so that memory does not
+/// grow with their number or size: written once, read back by slot.
+#[derive(Debug)]
+pub struct GeometrySpool {
+    file: crate::output::ScratchFile,
+    handle: std::fs::File,
+    end: u64,
+}
+
+impl GeometrySpool {
+    /// A new, empty spool in `dir`.
+    pub fn new(dir: &Path, tag: &str) -> Result<Self> {
+        let file = crate::output::ScratchFile::new(dir, tag, "wkb");
+        let handle = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(file.path())
+            .map_err(Error::file(file.path()))?;
+        Ok(Self {
+            file,
+            handle,
+            end: 0,
+        })
+    }
+
+    /// Append `geometry`.
+    pub fn push(&mut self, geometry: &Geometry) -> Result<SpoolSlot> {
+        use std::io::{Seek, SeekFrom, Write};
+        let path = self.file.path();
+        let wkb = geometry.wkb().map_err(Error::gdal(path))?;
+        self.handle
+            .seek(SeekFrom::Start(self.end))
+            .map_err(Error::file(path))?;
+        self.handle.write_all(&wkb).map_err(Error::file(path))?;
+        let slot = SpoolSlot {
+            offset: self.end,
+            len: wkb.len() as u64,
+        };
+        self.end += slot.len;
+        Ok(slot)
+    }
+
+    /// WKB of the geometry at `slot`.
+    pub fn wkb(&mut self, slot: SpoolSlot) -> Result<Vec<u8>> {
+        use std::io::{Read, Seek, SeekFrom};
+        let path = self.file.path();
+        self.handle
+            .seek(SeekFrom::Start(slot.offset))
+            .map_err(Error::file(path))?;
+        let mut wkb = vec![0; slot.len as usize];
+        self.handle
+            .read_exact(&mut wkb)
+            .map_err(Error::file(path))?;
+        Ok(wkb)
+    }
+
+    /// The geometry at `slot`.
+    pub fn get(&mut self, slot: SpoolSlot) -> Result<Geometry> {
+        let wkb = self.wkb(slot)?;
+        Geometry::from_wkb(&wkb).map_err(Error::gdal(self.file.path()))
+    }
+
+    /// Bytes written so far.
+    pub fn bytes(&self) -> u64 {
+        self.end
+    }
 }
 
 /// A FlatGeobuf layer written feature by feature (no timestamps: the same

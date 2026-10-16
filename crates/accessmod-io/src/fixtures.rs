@@ -2,6 +2,7 @@
 //! small GeoTIFF and GeoPackage inputs on a fixed UTM grid, raster reads,
 //! and running an analysis. Built only with the `fixtures` feature.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use accessmod_core::cost::CellSize;
@@ -234,4 +235,27 @@ pub fn cell_polygon(c0: f64, r0: f64, c1: f64, r1: f64) -> String {
         })
         .collect();
     format!("POLYGON (({}))", points.join(", "))
+}
+
+/// Rows of a CSV keyed by column `key`, every field by column name; quotes
+/// around fields are dropped (fields hold no comma in the test tables).
+pub fn csv_table(path: &Path, key: &str) -> BTreeMap<String, BTreeMap<String, String>> {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let mut lines = text.lines();
+    let header: Vec<String> = lines
+        .next()
+        .expect("header")
+        .split(',')
+        .map(|h| h.trim_matches('"').to_owned())
+        .collect();
+    lines
+        .map(|line| {
+            let fields: BTreeMap<String, String> = header
+                .iter()
+                .cloned()
+                .zip(line.split(',').map(|f| f.trim_matches('"').to_owned()))
+                .collect();
+            (fields[key].clone(), fields)
+        })
+        .collect()
 }

@@ -205,11 +205,25 @@ impl GridSpec {
 
     /// Grid of the DEM at `path`, or every reason it cannot define a grid.
     pub fn from_dem(dataset: &Dataset, path: &Path) -> Result<Self, Vec<String>> {
+        Self::from_raster(dataset, path, "DEM")
+    }
+
+    /// Open the raster at `path` that defines the grid of an analysis
+    /// without a DEM (`role` names it in messages).
+    pub fn open_raster(path: &Path, role: &str) -> crate::error::Result<(Dataset, Self)> {
+        let dataset = Dataset::open(path).map_err(Error::gdal(path))?;
+        let grid = Self::from_raster(&dataset, path, role)
+            .map_err(|issues| Error::Validation { issues })?;
+        Ok((dataset, grid))
+    }
+
+    /// Grid of the raster at `path`, or every reason it cannot define one.
+    fn from_raster(dataset: &Dataset, path: &Path, role: &str) -> Result<Self, Vec<String>> {
         let name = path.display();
         let prefix = |issues: Vec<String>| -> Vec<String> {
             issues
                 .into_iter()
-                .map(|i| format!("DEM {name}: {i}"))
+                .map(|i| format!("{role} {name}: {i}"))
                 .collect()
         };
         let frame = RasterFrame::of(dataset).map_err(|e| prefix(vec![e]))?;
