@@ -47,7 +47,7 @@ sums. The table is byte-identical at any budget (`tests/zonal.rs`).
 
 Output `zonal_statistics.csv`:
 `zone_id,label,time_limit_s,population,population_covered,coverage_percent`,
-limits ascending, zones by coverage ascending (ties in zone order); 0 % for
+limits ascending, zones by coverage ascending (ties by identifier, numbers numerically); 0 % for
 a zone without population. `run.json` adds totals per limit and the
 population outside the zones.
 

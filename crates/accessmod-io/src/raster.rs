@@ -83,7 +83,7 @@ pub fn valid_value(value: f64, nodata: Option<f64>) -> Option<f64> {
 
 /// Call `visit(rows, cols)` over `rows × cols` in windows of at most
 /// `height × width` cells, row of windows by row of windows; cancellation
-/// is checked before each row of windows.
+/// is checked before each window.
 pub fn for_each_window(
     rows: Range<usize>,
     cols: Range<usize>,
@@ -92,11 +92,11 @@ pub fn for_each_window(
     mut visit: impl FnMut(Range<usize>, Range<usize>) -> Result<()>,
 ) -> Result<()> {
     for start in rows.clone().step_by(height.max(1)) {
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
         let strip = start..(start + height).min(rows.end);
         for col in cols.clone().step_by(width.max(1)) {
+            if cancelled() {
+                return Err(Error::Cancelled);
+            }
             visit(strip.clone(), col..(col + width).min(cols.end))?;
         }
     }

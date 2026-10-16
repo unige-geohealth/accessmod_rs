@@ -330,7 +330,8 @@ pub struct ZonalSummary {
     pub population_outside_zones: f64,
     /// Totals per limit.
     pub limits: Vec<LimitSummary>,
-    /// Cells inside more than one zone (kept in the first).
+    /// Burns of a cell already in an earlier zone (kept there): one per
+    /// extra zone covering the cell.
     pub overlapping_cells: u64,
 }
 
@@ -458,13 +459,14 @@ pub fn run(
             time_limit_s: limit,
             population_covered: zones.iter().map(|z| z.covered[k]).sum(),
         });
-        // As AccessMod 5: by coverage, ascending; ties in zone order.
+        // As AccessMod 5: by coverage, ascending; ties by identifier (numbers
+        // numerically), as its merge sorts the zones.
         let mut order: Vec<usize> = (0..zones.len()).collect();
         order.sort_by(|&a, &b| {
             zones[a]
                 .percent(k)
                 .total_cmp(&zones[b].percent(k))
-                .then(a.cmp(&b))
+                .then_with(|| compare_ids(&prepared.zones[a].id, &prepared.zones[b].id))
         });
         for z in order {
             let zone = &prepared.zones[z];
@@ -520,6 +522,14 @@ pub fn run(
     );
     let output_dir = output::finish(staging, &report.run.job, &report, cancelled)?;
     Ok((output_dir, report))
+}
+
+/// Order of zone identifiers: numbers numerically, then text.
+fn compare_ids(a: &serde_json::Value, b: &serde_json::Value) -> std::cmp::Ordering {
+    match (a.as_f64(), b.as_f64()) {
+        (Some(x), Some(y)) => x.total_cmp(&y),
+        _ => a.to_string().cmp(&b.to_string()),
+    }
 }
 
 /// Zonal statistics.
