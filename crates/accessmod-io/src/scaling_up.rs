@@ -492,6 +492,12 @@ impl ScalingUpJob {
                 .any(|f| f.weight() > 0.0 && *f.layer() == Layer::Facilities)
     }
 
+    /// Factors with a weight > 0: AccessMod 5 drops the others before
+    /// reading their layers.
+    fn active_factors(&self) -> impl Iterator<Item = &Factor> {
+        self.suitability.iter().filter(|f| f.weight() > 0.0)
+    }
+
     /// Input files: role and path.
     fn files(&self) -> Vec<(&'static str, &Path)> {
         let mut files = vec![
@@ -510,7 +516,7 @@ impl ScalingUpJob {
                 files.push(("exclusion_layer", path));
             }
         }
-        for f in &self.suitability {
+        for f in self.active_factors() {
             if let Some(path) = f.layer().path() {
                 files.push(("suitability_layer", path));
             }
@@ -559,12 +565,30 @@ fn extra_per_tile(job: &ScalingUpJob) -> Result<u64> {
     let f64_tile = TiledGrid::<f64>::tile_bytes(probe) as u64;
     let u8_tile = TiledGrid::<u8>::tile_bytes(probe) as u64;
     let factor_grids = job
-        .suitability
-        .iter()
+        .active_factors()
         .filter(|f| needs_factor_grid(f))
         .count() as u64;
     let distance = u64::from(job.uses_facilities());
     Ok(f64_tile * (2 + distance + factor_grids) + u8_tile)
+}
+
+/// Row buffers: the rows a population window holds, and a few rows of the
+/// grid width for the row passes (distance transform, exclusions, copies).
+fn extra_bytes(job: &ScalingUpJob, grid: &GridSpec) -> u64 {
+    let row = (grid.cols * 8) as u64;
+    let window_rows: u64 = job
+        .active_factors()
+        .map(|f| match f {
+            Factor::Population { window_m, .. } => {
+                window_cells(*window_m, grid.cell.ns_m()).min(grid.rows) as u64 + 1
+            }
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0);
+    // Distance transform: values, nearest rows (16 bytes), sites, bounds,
+    // output; exclusions and copies use two more.
+    row * (window_rows + 8)
 }
 
 /// A factor whose values are stored in their own grid (the others read the
@@ -608,6 +632,7 @@ pub fn prepare(
         return Err(Error::Validation { issues });
     }
     let (slots, scenario) = scenario_table(&job.scenario);
+    let (_, dem_grid) = GridSpec::open_dem(&job.dem)?;
     let Landscape {
         grid,
         mut inputs,
@@ -619,7 +644,7 @@ pub fn prepare(
         &slots,
         settings,
         extra_per_tile(&job)?,
-        0,
+        extra_bytes(&job, &dem_grid),
         cancelled,
     )?;
     let mut issues = Vec::new();
@@ -633,7 +658,7 @@ pub fn prepare(
             job.exclusions
                 .iter()
                 .map(|e| &e.layer)
-                .chain(job.suitability.iter().map(|f| f.layer()))
+                .chain(job.active_factors().map(|f| f.layer()))
                 .filter_map(|l| match l {
                     Layer::Raster(path) => Some(("layer", path.as_path())),
                     _ => None,
@@ -650,7 +675,7 @@ pub fn prepare(
         .exclusions
         .iter()
         .map(|e| &e.layer)
-        .chain(job.suitability.iter().map(|f| f.layer()))
+        .chain(job.active_factors().map(|f| f.layer()))
     {
         if let Layer::Vector(source) = layer {
             match open_vector(source, &grid) {
@@ -820,7 +845,7 @@ enum Values {
     Grid(Box<TiledGrid<f64>>),
     /// The residual population, missing values as 0.
     ResidualZeroed,
-    /// The facility distances, rounded to `f32` as `r.grow.distance`.
+    /// The facility distances.
     FacilityDistance,
 }
 
@@ -856,7 +881,7 @@ impl FactorState {
                     .facility_distance
                     .as_mut()
                     .expect("facility distances kept when used");
-                grid.get(row, col)? as f32 as f64
+                grid.get(row, col)?
             }
         })
     }
@@ -872,14 +897,15 @@ fn check_cancel(cancelled: &dyn Fn() -> bool) -> impl FnMut() -> Result<()> + '_
     }
 }
 
-/// Values of a raster into `out` (NaN without value); `true` when its band
-/// holds integers.
+/// Values of a raster into `out` (NaN without value): whether its band holds
+/// integers, and whether any cell has a value.
 fn read_raster(
     path: &Path,
     grid: &GridSpec,
     out: &mut TiledGrid<f64>,
     cancelled: &dyn Fn() -> bool,
-) -> Result<bool> {
+) -> Result<(bool, bool)> {
+    let mut any = false;
     let (dataset, alignment) = open_aligned_raster(path, grid, "layer")?;
     let integer = dataset
         .rasterband(1)
@@ -891,11 +917,13 @@ fn read_raster(
         let width = block.cols.len();
         for i in 0..block.len() {
             let (row, col) = (block.rows.start + i / width, block.cols.start + i % width);
-            out.set(row, col, block.value(0, i).unwrap_or(f64::NAN))?;
+            let value = block.value(0, i);
+            any |= value.is_some();
+            out.set(row, col, value.unwrap_or(f64::NAN))?;
         }
         Ok(())
     })?;
-    Ok(integer)
+    Ok((integer, any))
 }
 
 /// Mark the cells of a raster or vector layer as sources (0.0) in `out`
@@ -957,8 +985,13 @@ fn map_cells(
     Ok(())
 }
 
-/// Source cells (value 0.0) of a marked grid.
-fn source_cells(grid: &mut TiledGrid<f64>, cancelled: &dyn Fn() -> bool) -> Result<Vec<Facility>> {
+/// Source cells (value 0.0) of a marked grid, at most `max` (the solver
+/// queue holds them all at start: the plan reserves memory for its queue).
+fn source_cells(
+    grid: &mut TiledGrid<f64>,
+    max: usize,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<Facility>> {
     let mut cells = Vec::new();
     grid.for_each_row_piece::<Error>(BLOCK * 16, |row, first, values| {
         if cancelled() {
@@ -966,6 +999,12 @@ fn source_cells(grid: &mut TiledGrid<f64>, cancelled: &dyn Fn() -> bool) -> Resu
         }
         for (k, v) in values.iter().enumerate() {
             if *v == 0.0 {
+                if cells.len() == max {
+                    return Err(Error::invalid(format!(
+                        "a travel-time layer starts from more than {max} cells: \
+                         raise --memory or simplify the layer"
+                    )));
+                }
                 cells.push(Facility {
                     row,
                     col: first + k,
@@ -994,7 +1033,10 @@ fn travel_minutes(
     fill(out, f64::NAN, cancelled)?;
     // Sources on barriers start nothing (r.cost skips them).
     let mut usable = Vec::with_capacity(sources.len());
-    for s in sources {
+    for (k, s) in sources.iter().enumerate() {
+        if k % 65_536 == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
         if inputs.get(s.row, s.col)?.is_passable() {
             usable.push(*s);
         }
@@ -1060,6 +1102,35 @@ fn apply_exclusion(
             }
         }
         candidates.write_row(row, 0, &flags)?;
+    }
+    Ok(())
+}
+
+/// Drop the candidates whose centre is within `radius_m` of cell `(r, c)`.
+fn exclude_near(
+    candidates: &mut TiledGrid<u8>,
+    (r, c): (usize, usize),
+    radius_m: f64,
+    grid: &GridSpec,
+) -> Result<()> {
+    let (ew, ns) = (grid.cell.ew_m(), grid.cell.ns_m());
+    let (kc, kr) = (
+        (radius_m / ew).floor() as isize,
+        (radius_m / ns).floor() as isize,
+    );
+    for dr in -kr..=kr {
+        for dc in -kc..=kc {
+            let (row, col) = (r as isize + dr, c as isize + dc);
+            let (a, b) = (ew * dc as f64, ns * dr as f64);
+            if row >= 0
+                && col >= 0
+                && (row as usize) < grid.rows
+                && (col as usize) < grid.cols
+                && a * a + b * b <= radius_m * radius_m
+            {
+                candidates.set(row as usize, col as usize, 0)?;
+            }
+        }
     }
     Ok(())
 }
@@ -1249,8 +1320,11 @@ pub fn run(
     }
 
     // Factors: static grids computed once.
+    // The solver queue starts with every source cell: they share its reserve.
+    let max_sources =
+        (plan.queue_reserve_bytes as usize / (4 * std::mem::size_of::<Facility>())).max(1);
     let mut factors = Vec::with_capacity(job.suitability.len());
-    for factor in &job.suitability {
+    for factor in job.active_factors() {
         let mut state = FactorState {
             factor: factor.clone(),
             values: Values::ResidualZeroed,
@@ -1264,13 +1338,16 @@ pub fn run(
             } => {
                 let size = window_cells(*window_m, ns);
                 if let Layer::Raster(path) = layer {
-                    read_raster(path, &grid, &mut scratch, cancelled)?;
+                    state.empty = !read_raster(path, &grid, &mut scratch, cancelled)?.1;
                     let mut out = new_f64(f64::NAN, "factor")?;
                     if size > 0 {
                         circular_sum(&mut scratch, &mut out, size / 2, check_cancel(cancelled))?;
                     } else {
                         let mut values = vec![0.0; geometry.cols()];
                         for row in 0..geometry.rows() {
+                            if cancelled() {
+                                return Err(Error::Cancelled);
+                            }
                             scratch.read_row(row, 0, &mut values)?;
                             for v in &mut values {
                                 if v.is_nan() {
@@ -1292,8 +1369,6 @@ pub fn run(
                     let mut out = new_f64(f64::INFINITY, "factor")?;
                     state.empty = !mark_sources(layer, &grid, &mut out, cancelled)?;
                     distance_to_sources(&mut out, ew, ns, check_cancel(cancelled))?;
-                    // r.grow.distance values are single precision.
-                    map_cells(&mut out, cancelled, |v| v as f32 as f64)?;
                     state.values = Values::Grid(Box::new(out));
                 }
             }
@@ -1308,7 +1383,7 @@ pub fn run(
                 let mut out = new_f64(f64::NAN, "factor")?;
                 if *layer != Layer::Facilities {
                     state.empty = !mark_sources(layer, &grid, &mut scratch, cancelled)?;
-                    let sources = source_cells(&mut scratch, cancelled)?;
+                    let sources = source_cells(&mut scratch, max_sources, cancelled)?;
                     let config = SolverConfig {
                         method: method(*name, job.mobility_model),
                         direction: *direction,
@@ -1334,7 +1409,8 @@ pub fn run(
                     unreachable!("checked by the job")
                 };
                 let mut out = new_f64(f64::NAN, "factor")?;
-                state.integer = read_raster(path, &grid, &mut out, cancelled)?;
+                let (integer, any) = read_raster(path, &grid, &mut out, cancelled)?;
+                (state.integer, state.empty) = (integer, !any);
                 state.values = Values::Grid(Box::new(out));
             }
         }
@@ -1348,6 +1424,7 @@ pub fn run(
     let config = job.solver_config(&grid);
     let limit_band = (job.limit_s / job.band_s).ceil() as u32;
     let mut spool = CellSpool::new(tmp)?;
+    let mut best_cells = CellSpool::new(tmp)?;
     let mut catchments = if job.catchments {
         Some(FeatureWriter::create(
             &staging.path().join(CATCHMENTS_FILE),
@@ -1413,6 +1490,9 @@ pub fn run(
         grids
             .candidates
             .for_each_row_piece::<Error>(BLOCK * 16, |_, _, flags| {
+                if cancelled() {
+                    return Err(Error::Cancelled);
+                }
                 count += flags.iter().filter(|f| **f != 0).count() as u64;
                 Ok(())
             })?;
@@ -1558,7 +1638,9 @@ pub fn run(
         // Evaluate the most suitable cells.
         let mut best: Option<(usize, usize, f64)> = None;
         let mut evaluated = 0u64;
-        let mut cells = Vec::new();
+        // They can be many (ties): spooled to disk, then searched in turn.
+        best_cells.clear()?;
+        let cols = geometry.cols() as u64;
         for_each_suitability(
             &mut factors,
             &rescales,
@@ -1567,12 +1649,15 @@ pub fn run(
             cancelled,
             |row, col, s| {
                 if s >= max_suitability {
-                    cells.push((row, col));
+                    best_cells
+                        .push(row as u64 * cols + col as u64, 0)
+                        .map_err(Error::file(best_cells.path()))?;
                 }
                 Ok(())
             },
         )?;
-        for (row, col) in cells {
+        best_cells.for_each(cancelled, |cell, _| {
+            let (row, col) = ((cell / cols) as usize, (cell % cols) as usize);
             let bands = search_bands(
                 &mut inputs,
                 &scenario,
@@ -1590,12 +1675,14 @@ pub fn run(
             if best.is_none_or(|(_, _, p)| population > p) {
                 best = Some((row, col, population));
             }
-        }
+            Ok(())
+        })?;
         result.candidates_evaluated += evaluated;
         let (row, col, population) = best.expect("at least one cell of maximum suitability");
         if population < 1.0 {
-            // No one reached: the cell is no candidate any more.
-            grids.candidates.set(row, col, 0)?;
+            // No one reached: the cells within 1 m of it (r.buffer around the
+            // point) are no candidates any more.
+            exclude_near(&mut grids.candidates, (row, col), 1.0, &grid)?;
             continue;
         }
         let classes: Vec<CapacityClass> = job
@@ -1685,7 +1772,12 @@ pub fn run(
         cancelled,
     )?;
     write_table(&staging.path().join(CAPACITY_FILE), &job, &rows)?;
-    write_facilities(&staging.path().join(FACILITIES_FILE), &grid, &rows)?;
+    write_facilities(
+        &staging.path().join(FACILITIES_FILE),
+        &grid,
+        loaded.as_ref(),
+        &rows,
+    )?;
     durations_s.insert("write_outputs", started.elapsed().as_secs_f64());
 
     result.facilities_added = added.len();
@@ -1696,6 +1788,7 @@ pub fn run(
         residual_store: grids.residual.stats(),
     };
     drop(spool);
+    drop(best_cells);
     let report = Report::new(
         ScalingUpRecord {
             job,
@@ -1770,15 +1863,23 @@ fn write_table(path: &Path, job: &ScalingUpJob, rows: &[Row]) -> Result<()> {
     csv.finish()
 }
 
-fn write_facilities(path: &Path, grid: &GridSpec, rows: &[Row]) -> Result<()> {
+/// Existing facilities (at their points, `added` 0) then the new ones (at
+/// cell centres, `added` 1), as the AccessMod 5 output facility layer.
+fn write_facilities(
+    path: &Path,
+    grid: &GridSpec,
+    existing: Option<&LoadedFacilities>,
+    rows: &[Row],
+) -> Result<()> {
     let mut writer = FeatureWriter::create(
         path,
         "facilities",
         &grid.srs,
         OGRwkbGeometryType::wkbPoint,
         &[
+            ("added", OGRFieldType::OFTInteger),
             ("order", OGRFieldType::OFTInteger),
-            ("facility_id", OGRFieldType::OFTInteger),
+            ("facility_id", OGRFieldType::OFTString),
             ("name", OGRFieldType::OFTString),
             ("label", OGRFieldType::OFTString),
             ("capacity", OGRFieldType::OFTReal),
@@ -1786,14 +1887,31 @@ fn write_facilities(path: &Path, grid: &GridSpec, rows: &[Row]) -> Result<()> {
             ("population_within_limit", OGRFieldType::OFTReal),
         ],
     )?;
+    let point =
+        |x: f64, y: f64| Geometry::from_wkt(&format!("POINT ({x} {y})")).map_err(Error::gdal(path));
+    for record in existing.map(|l| l.kept.as_slice()).unwrap_or_default() {
+        writer.write(
+            point(record.x, record.y)?,
+            &[
+                Some(FieldValue::IntegerValue(0)),
+                None,
+                Some(FieldValue::StringValue(csv_field(&record.id))),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+        )?;
+    }
     for (order, f, c, _) in rows {
         let (x, y) = grid.cell_centre(f.row, f.col);
-        let point = Geometry::from_wkt(&format!("POINT ({x} {y})")).map_err(Error::gdal(path))?;
         writer.write(
-            point,
+            point(x, y)?,
             &[
+                Some(FieldValue::IntegerValue(1)),
                 Some(FieldValue::IntegerValue(*order as i32)),
-                Some(FieldValue::IntegerValue(f.id as i32)),
+                Some(FieldValue::StringValue(f.id.to_string())),
                 Some(FieldValue::StringValue(f.name.clone())),
                 Some(FieldValue::StringValue(f.label.clone())),
                 Some(FieldValue::RealValue(f.capacity)),

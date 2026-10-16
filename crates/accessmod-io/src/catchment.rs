@@ -39,18 +39,18 @@ impl CellSpool {
         Ok(spool)
     }
 
-    fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> &Path {
         self.file.path()
     }
 
-    fn clear(&mut self) -> Result<()> {
+    pub(crate) fn clear(&mut self) -> Result<()> {
         let file = std::fs::File::create(self.path()).map_err(Error::file(self.path()))?;
         self.writer = Some(BufWriter::new(file));
         self.count = 0;
         Ok(())
     }
 
-    fn push(&mut self, cell: u64, band: u32) -> std::io::Result<()> {
+    pub(crate) fn push(&mut self, cell: u64, band: u32) -> std::io::Result<()> {
         let writer = self.writer.as_mut().expect("spool open for writing");
         writer.write_all(&cell.to_le_bytes())?;
         writer.write_all(&band.to_le_bytes())?;

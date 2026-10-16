@@ -108,14 +108,23 @@ fn demo_scaling_up_matches_accessmod5() {
         }
     }
 
-    // Same cells: AM5 writes the existing facilities too, without amId.
+    // Same cells, by name: both write the existing facilities too, unnamed.
     let point = |f: &gdal::vector::Feature| {
         let (x, y, _) = f.geometry().expect("geometry").get_point(0);
         (x, y)
     };
     let (ours, theirs) = (
-        features(&out.join(FACILITIES_FILE), "facility_id", point),
-        features(&oracle.join("facilities.fgb"), "amId", point),
+        features(&out.join(FACILITIES_FILE), "name", point),
+        features(&oracle.join("facilities.fgb"), "amName", point),
+    );
+    let count = |path: &Path| {
+        let dataset = gdal::Dataset::open(path).expect("dataset");
+        dataset.layer(0).expect("layer").feature_count()
+    };
+    assert_eq!(
+        count(&out.join(FACILITIES_FILE)),
+        count(&oracle.join("facilities.fgb")),
+        "existing and new facilities"
     );
     assert_eq!(ours.len(), theirs.len());
     for (id, (x, y)) in &theirs {
@@ -130,6 +139,7 @@ fn demo_scaling_up_matches_accessmod5() {
         read_valid(&out.join(RESIDUAL_FILE)),
         read_valid(&oracle.join("population_residual.tif")),
     );
+    assert_eq!(ours.len(), theirs.len(), "residual cells");
     for (a, b) in ours.iter().zip(&theirs) {
         match (a, b) {
             (Some(a), Some(b)) => assert!(close(*a, *b), "residual {a} vs {b}"),

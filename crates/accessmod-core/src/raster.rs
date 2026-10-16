@@ -146,16 +146,17 @@ pub fn thin_line_cells(
                     let (c, r) = cell(pair[0]);
                     emit(c, r);
                 } else if (x1 - x0).abs() >= (y1 - y0).abs() {
-                    let mut k = x0.min(x1).floor();
-                    while k <= x0.max(x1).floor() {
+                    // Only columns of the grid can emit a cell.
+                    let mut k = x0.min(x1).floor().max(0.0);
+                    while k <= x0.max(x1).floor().min(cols as f64 - 1.0) {
                         let x = k + 0.5;
                         let y = y0 + (x - x0) * (y1 - y0) / (x1 - x0);
                         emit(k as i64, y.floor() as i64);
                         k += 1.0;
                     }
                 } else {
-                    let mut k = y0.min(y1).floor();
-                    while k <= y0.max(y1).floor() {
+                    let mut k = y0.min(y1).floor().max(0.0);
+                    while k <= y0.max(y1).floor().min(rows as f64 - 1.0) {
                         let y = k + 0.5;
                         let x = x0 + (y - y0) * (x1 - x0) / (y1 - y0);
                         emit(x.floor() as i64, k as i64);
