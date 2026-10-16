@@ -104,6 +104,40 @@ impl Drop for Staging {
     }
 }
 
+/// A uniquely named file in the scratch directory, removed when dropped
+/// (success, error or cancellation).
+#[derive(Debug)]
+pub struct ScratchFile {
+    path: PathBuf,
+}
+
+impl ScratchFile {
+    /// A new name in `dir`, unique in this process and among processes:
+    /// `accessmod-{tag}-{pid}-{n}.{extension}`.
+    pub fn new(dir: &Path, tag: &str, extension: &str) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self {
+            path: dir.join(format!(
+                "accessmod-{tag}-{}-{n}.{extension}",
+                std::process::id()
+            )),
+        }
+    }
+
+    /// Path of the file (it may not exist yet).
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for ScratchFile {
+    fn drop(&mut self) {
+        // Best effort: the file may never have been created.
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 /// `target` must not exist or be an empty directory: no implicit overwrite.
 pub fn check_output_dir(target: &Path) -> Result<()> {
     if !target.exists() {

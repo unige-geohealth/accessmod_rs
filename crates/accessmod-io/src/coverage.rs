@@ -32,7 +32,9 @@ use crate::job::{
     FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, absolutize, check_common,
     check_files, scenario_table,
 };
-use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_field};
+use crate::output::{
+    self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, ScratchFile, Staging, csv_field,
+};
 use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
@@ -343,22 +345,23 @@ fn read_facilities(
         // Positions of the fields read: capacity, name, order (when set).
         let at_name = usize::from(capacity_field.is_some());
         let at_order = at_name + usize::from(job.name_field.is_some());
-        let mut number = |field: Option<&str>, at: usize, what: &str| -> Option<f64> {
+        // Capacities are >= 0; order values any finite number.
+        let mut number = |field: Option<&str>, at: usize, what: &str, min: f64| -> Option<f64> {
             let field = field?;
             let value = values[at].clone().and_then(number_attribute);
             match value {
-                Some(v) if v.is_finite() && v >= 0.0 => Some(v),
+                Some(v) if v.is_finite() && v >= min => Some(v),
                 _ => {
                     issues.push(format!(
-                        "facility {}: {what} {field:?} must be a number >= 0",
+                        "facility {}: {what} {field:?} must be a number >= {min}",
                         record.id
                     ));
                     None
                 }
             }
         };
-        let capacity = number(capacity_field, 0, "capacity field");
-        let order_value = number(order_field, at_order, "order field");
+        let capacity = number(capacity_field, 0, "capacity field", 0.0);
+        let order_value = number(order_field, at_order, "order field", f64::MIN);
         let name = match job.name_field.as_deref() {
             Some(_) => values[at_name].clone().map(|v| match v {
                 FieldValue::StringValue(s) => s,
@@ -388,28 +391,28 @@ fn read_facilities(
 /// Reached cells of one search, spooled to a scratch file so that memory
 /// does not grow with the catchment: cell index and band.
 struct CellSpool {
-    path: PathBuf,
+    file: ScratchFile,
     writer: Option<BufWriter<std::fs::File>>,
     count: u64,
 }
 
 impl CellSpool {
     fn new(dir: &Path) -> Result<Self> {
-        let path = dir.join(format!(
-            "accessmod-coverage-{}-{:p}.cells",
-            std::process::id(),
-            &dir
-        ));
-        let file = std::fs::File::create(&path).map_err(Error::file(&path))?;
-        Ok(Self {
-            path,
-            writer: Some(BufWriter::new(file)),
+        let mut spool = Self {
+            file: ScratchFile::new(dir, "coverage", "cells"),
+            writer: None,
             count: 0,
-        })
+        };
+        spool.clear()?;
+        Ok(spool)
+    }
+
+    fn path(&self) -> &Path {
+        self.file.path()
     }
 
     fn clear(&mut self) -> Result<()> {
-        let file = std::fs::File::create(&self.path).map_err(Error::file(&self.path))?;
+        let file = std::fs::File::create(self.path()).map_err(Error::file(self.path()))?;
         self.writer = Some(BufWriter::new(file));
         self.count = 0;
         Ok(())
@@ -423,30 +426,31 @@ impl CellSpool {
         Ok(())
     }
 
-    /// Visit the spooled cells in the order they were pushed.
-    fn for_each(&mut self, mut visit: impl FnMut(u64, u32) -> Result<()>) -> Result<()> {
+    /// Visit the spooled cells in the order they were pushed; cancellation
+    /// is checked every 65 536 cells.
+    fn for_each(
+        &mut self,
+        cancelled: &dyn Fn() -> bool,
+        mut visit: impl FnMut(u64, u32) -> Result<()>,
+    ) -> Result<()> {
         if let Some(mut writer) = self.writer.take() {
-            writer.flush().map_err(Error::file(&self.path))?;
+            writer.flush().map_err(Error::file(self.path()))?;
         }
-        let file = std::fs::File::open(&self.path).map_err(Error::file(&self.path))?;
+        let file = std::fs::File::open(self.path()).map_err(Error::file(self.path()))?;
         let mut reader = BufReader::new(file);
         let mut entry = [0u8; 12];
-        for _ in 0..self.count {
+        for k in 0..self.count {
+            if k % 65_536 == 0 && cancelled() {
+                return Err(Error::Cancelled);
+            }
             reader
                 .read_exact(&mut entry)
-                .map_err(Error::file(&self.path))?;
+                .map_err(Error::file(self.path()))?;
             let cell = u64::from_le_bytes(entry[..8].try_into().expect("8 bytes"));
             let band = u32::from_le_bytes(entry[8..].try_into().expect("4 bytes"));
             visit(cell, band)?;
         }
         Ok(())
-    }
-}
-
-impl Drop for CellSpool {
-    fn drop(&mut self) {
-        self.writer = None;
-        let _ = std::fs::remove_file(&self.path);
     }
 }
 
@@ -489,7 +493,7 @@ fn search_bands(
             let band = (cell.time_s / band_s).ceil() as u32;
             let result = spool
                 .push((r * cols + c) as u64, band)
-                .map_err(Error::file(&spool.path))
+                .map_err(Error::file(spool.path()))
                 .and_then(|()| residual.get(r, c).map_err(Error::from));
             match result {
                 Ok(value) if !value.is_nan() => *sums.entry(band).or_default() += value,
@@ -523,7 +527,7 @@ fn catchment_polygon(
 ) -> Result<Option<Geometry>> {
     let cols = grid.cols as u64;
     let mut bbox: Option<(usize, usize, usize, usize)> = None;
-    spool.for_each(|cell, band| {
+    spool.for_each(cancelled, |cell, band| {
         if band <= limit {
             let (r, c) = ((cell / cols) as usize, (cell % cols) as usize);
             bbox = Some(bbox.map_or((r, r, c, c), |(r0, r1, c0, c1)| {
@@ -544,14 +548,15 @@ fn catchment_polygon(
     // A small cache: the mask is written once in spool order, then read
     // block by block.
     let mut mask = TiledGrid::new(geometry, 0u8, 64, tmp_dir, "catchment")?;
-    spool.for_each(|cell, band| {
+    spool.for_each(cancelled, |cell, band| {
         if band <= limit {
             let (r, c) = ((cell / cols) as usize, (cell % cols) as usize);
             mask.set(r - r0, c - c0, 1)?;
         }
         Ok(())
     })?;
-    let path = tmp_dir.join(format!("accessmod-catchment-{}.tif", std::process::id()));
+    let scratch = ScratchFile::new(tmp_dir, "catchment", "tif");
+    let path = scratch.path().to_path_buf();
     let tif = GeoTiff::create::<u8>(&path, &window, 2, 1, 0.0)?;
     let mut cells = vec![0u8; BLOCK];
     let mut block = Vec::with_capacity(BLOCK * BLOCK);
@@ -572,7 +577,6 @@ fn catchment_polygon(
     let dataset = gdal::Dataset::open(&path).map_err(Error::gdal(&path))?;
     let polygon = polygonize(&dataset, &path);
     drop(dataset);
-    let _ = std::fs::remove_file(&path);
     polygon
 }
 
@@ -832,7 +836,7 @@ pub fn run(
         }
         if job.remove_covered {
             let (inner, outer) = (result.inner, result.outer);
-            spool.for_each(|cell, band| {
+            spool.for_each(cancelled, |cell, band| {
                 let (row, col) = (
                     (cell / geometry.cols() as u64) as usize,
                     (cell % geometry.cols() as u64) as usize,

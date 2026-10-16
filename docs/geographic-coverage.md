@@ -30,7 +30,9 @@ against the AccessMod 5 demo replay `replay/examples/loop_capacity_stat`.
   disk-backed mask over their bounding box, polygonised
   (`vector::polygonize`) and written as one MultiPolygon per facility
   (`vector::FeatureWriter`, FlatGeobuf).
-- Outputs are byte-identical at any `--memory` (`tests/coverage.rs`).
+- Outputs are byte-identical at any `--memory` (`tests/coverage.rs`). Limits: the vertices of
+  one catchment polygon are held in memory, and the scratch disk estimate
+  does not count the spool (12 bytes per reached cell of one search).
 
 ## Contract
 
