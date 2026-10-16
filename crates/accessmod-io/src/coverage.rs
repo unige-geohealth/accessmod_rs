@@ -297,9 +297,29 @@ pub fn prepare(
     // zones are set, share the tile budget.
     let geometry_probe = TileGeometry::new(1, 1, accessmod_core::store::DEFAULT_TILE)?;
     let mut residual_tile = TiledGrid::<f64>::tile_bytes(geometry_probe) as u64;
-    if job.zones.is_some() {
-        residual_tile += TiledGrid::<u32>::tile_bytes(geometry_probe) as u64;
-    }
+    // Per zone feature: its zone index, and at most one zone with its
+    // totals, identifier and label (128 bytes counted for them, as zonal
+    // statistics).
+    let mut zone_bytes = 0;
+    let zone_layer = match &job.zones {
+        Some(source) => {
+            residual_tile += TiledGrid::<u32>::tile_bytes(geometry_probe) as u64;
+            let (_, dem_grid) = GridSpec::open_dem(&job.dem)?;
+            let vector = open_zones(source, &dem_grid)?;
+            let count = {
+                let dataset = vector.dataset()?;
+                vector.layer(&dataset)?.feature_count() as usize
+            };
+            if count > MAX_ZONES {
+                return Err(Error::Validation {
+                    issues: vec![format!("zones: more than {MAX_ZONES} features")],
+                });
+            }
+            zone_bytes = (count * (4 + std::mem::size_of::<ZoneTotals>() + 128)) as u64;
+            Some((vector, source))
+        }
+        None => None,
+    };
     let Landscape {
         grid,
         mut inputs,
@@ -311,6 +331,7 @@ pub fn prepare(
         &slots,
         settings,
         residual_tile,
+        zone_bytes,
         cancelled,
     )?;
     open_aligned_raster(&job.population, &grid, "population")?;
@@ -319,20 +340,8 @@ pub fn prepare(
     screen_facilities(&loaded, job.facility_issues, "facilities", &mut warnings)?;
     warnings.extend(landscape_warnings(&summary, &job.scenario));
     let facilities = read_facilities(&job, &grid, &loaded, cancelled)?;
-    let (zones, feature_zones) = match &job.zones {
-        Some(source) => {
-            let vector = open_zones(source, &grid)?;
-            let count = {
-                let dataset = vector.dataset()?;
-                vector.layer(&dataset)?.feature_count() as usize
-            };
-            if count > MAX_ZONES {
-                return Err(Error::Validation {
-                    issues: vec![format!("zones: more than {MAX_ZONES} features")],
-                });
-            }
-            read_zones(&vector, source, cancelled)?
-        }
+    let (zones, feature_zones) = match &zone_layer {
+        Some((vector, source)) => read_zones(vector, source, cancelled)?,
         None => (Vec::new(), Vec::new()),
     };
     let mut durations_s = BTreeMap::new();
@@ -991,7 +1000,9 @@ pub fn run(
     durations_s.insert("coverage", started.elapsed().as_secs_f64());
 
     // Coverage per zone (amAnalysisCapacity zonalCoverage): population,
-    // people on barriers and population covered (start minus residual).
+    // people on barriers and population covered, the population minus the
+    // residual off barriers (people <= 0 start with a residual of 0, so they
+    // add their value, as in AccessMod 5).
     if let Some(source) = &job.zones {
         let started = Instant::now();
         let mut zone_grid = TiledGrid::new(
@@ -1028,13 +1039,18 @@ pub fn run(
                     if !inputs.get(row, col)?.is_passable() {
                         entry.on_barriers += people;
                     } else if !left.is_nan() {
-                        entry.covered += people.max(0.0) - left;
+                        entry.covered += people - left;
                     }
                 }
                 Ok(())
             },
         )?;
-        write_zone_table(&staging.path().join(ZONES_FILE), &zones, &totals[1..])?;
+        write_zone_table(
+            &staging.path().join(ZONES_FILE),
+            &zones,
+            &totals[1..],
+            cancelled,
+        )?;
         durations_s.insert("zones", started.elapsed().as_secs_f64());
     }
 
@@ -1140,7 +1156,12 @@ fn write_capacity_table(path: &Path, job: &CoverageJob, rows: &[CoverageRow]) ->
 }
 
 /// Zones by identifier (numbers numerically), as AccessMod 5 merges them.
-fn write_zone_table(path: &Path, zones: &[Zone], totals: &[ZoneTotals]) -> Result<()> {
+fn write_zone_table(
+    path: &Path,
+    zones: &[Zone],
+    totals: &[ZoneTotals],
+    cancelled: &dyn Fn() -> bool,
+) -> Result<()> {
     let mut csv = CsvWriter::create(
         path,
         "zone_id,label,population,population_on_barriers,population_covered,\
@@ -1148,7 +1169,10 @@ fn write_zone_table(path: &Path, zones: &[Zone], totals: &[ZoneTotals]) -> Resul
     )?;
     let mut order: Vec<usize> = (0..zones.len()).collect();
     order.sort_by(|&a, &b| compare_values(&zones[a].id, &zones[b].id));
-    for k in order {
+    for (n, k) in order.into_iter().enumerate() {
+        if n % 4096 == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
         let (zone, t) = (&zones[k], &totals[k]);
         let percent = if t.population > 0.0 {
             format!("{}", t.covered / t.population * 100.0)

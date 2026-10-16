@@ -171,7 +171,7 @@ pub fn prepare(
         mut inputs,
         summary,
         plan,
-    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, 0, cancelled)?;
+    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, 0, 0, cancelled)?;
     let mut durations_s = BTreeMap::new();
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
 
@@ -645,7 +645,7 @@ mod tests {
             tmp_dir: std::env::temp_dir(),
         };
         let (rows, cols) = (3000, 3000);
-        let plan = crate::travel_time::solver_plan(rows, cols, &settings, 0).expect("plan");
+        let plan = crate::travel_time::solver_plan(rows, cols, &settings, 0, 0).expect("plan");
         let geometry = TileGeometry::new(rows, cols, plan.tile).expect("geometry");
         let tile = (TiledGrid::<SolverCell>::tile_bytes(geometry)
             + TiledGrid::<InputCell>::tile_bytes(geometry)) as u64;

@@ -21,13 +21,15 @@ use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warni
 use crate::resources::{ExecutionSettings, ResourcePlan};
 
 /// Memory and disk plan of a run on the solver: input and state grids,
-/// `extra_per_tile` bytes per tile of further grids (0 for travel time and
-/// referral), a priority queue, output blocks and input read windows.
+/// `extra_per_tile` bytes per tile of further grids and `extra_bytes` of
+/// further buffers (0 for travel time and referral), a priority queue, output
+/// blocks and input read windows.
 pub fn solver_plan(
     rows: usize,
     cols: usize,
     settings: &ExecutionSettings,
     extra_per_tile: u64,
+    extra_bytes: u64,
 ) -> Result<ResourcePlan> {
     let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
     let per_tile = (TiledGrid::<InputCell>::tile_bytes(geometry)
@@ -38,7 +40,8 @@ pub fn solver_plan(
     let buffer_bytes = (256 * 256 * (8 + 4 + 8 + 1)
         + 256 * std::mem::size_of::<SolverCell>()
         + STRIP_ROWS * CHUNK_COLS * (8 + 8)
-        + CHUNK_COLS * 16) as u64;
+        + CHUNK_COLS * 16) as u64
+        + extra_bytes;
     ResourcePlan::for_tiles(rows, cols, settings, per_tile, buffer_bytes, 1)
 }
 
@@ -110,7 +113,7 @@ pub fn prepare(
         mut inputs,
         summary,
         plan,
-    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, 0, cancelled)?;
+    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, 0, 0, cancelled)?;
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
 
     let facilities = load_facilities(&job.facilities, &grid, &mut inputs, cancelled)?;
@@ -158,18 +161,21 @@ pub(crate) struct Landscape {
 }
 
 /// Open the DEM and the land cover, check them, plan resources (see
-/// [`solver_plan`] for `extra_per_tile`) and load the solver inputs.
+/// [`solver_plan`] for `extra_per_tile` and `extra_bytes`) and load the solver
+/// inputs.
+#[allow(clippy::too_many_arguments)] // reason: one crate-private loader, explicit inputs
 pub(crate) fn load_landscape(
     dem_path: &Path,
     land_cover_path: &Path,
     slots: &BTreeMap<i64, u16>,
     settings: &ExecutionSettings,
     extra_per_tile: u64,
+    extra_bytes: u64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Landscape> {
     let (dem, grid) = GridSpec::open_dem(dem_path)?;
     let (land_cover, alignment) = open_class_raster(land_cover_path, &grid, "land cover")?;
-    let plan = solver_plan(grid.rows, grid.cols, settings, extra_per_tile)?;
+    let plan = solver_plan(grid.rows, grid.cols, settings, extra_per_tile, extra_bytes)?;
     plan.configure_gdal()?;
     let geometry = TileGeometry::new(grid.rows, grid.cols, plan.tile)?;
     let mut inputs = TiledGrid::new(
@@ -584,7 +590,7 @@ mod tests {
     #[test]
     fn minimum_budget_leaves_the_frontier_band() {
         let (rows, cols) = (5000, 7000);
-        let probe = solver_plan(rows, cols, &settings(64 << 30), 0).expect("roomy plan");
+        let probe = solver_plan(rows, cols, &settings(64 << 30), 0, 0).expect("roomy plan");
         assert_eq!(probe.resident_tiles, probe.total_tiles);
         assert_eq!(probe.scratch_bytes, 0);
 
@@ -593,7 +599,7 @@ mod tests {
         let band = 2 * (cols.div_ceil(DEFAULT_TILE) + rows.div_ceil(DEFAULT_TILE));
         let mut budget = probe.minimum_bytes;
         for _ in 0..4 {
-            let plan = solver_plan(rows, cols, &settings(budget), 0).expect("at minimum");
+            let plan = solver_plan(rows, cols, &settings(budget), 0, 0).expect("at minimum");
             assert!(
                 plan.resident_tiles >= band,
                 "{} < {band}",
@@ -603,7 +609,7 @@ mod tests {
             budget = plan.minimum_bytes;
         }
 
-        let err = solver_plan(rows, cols, &settings(32 << 20), 0).expect_err("too small");
+        let err = solver_plan(rows, cols, &settings(32 << 20), 0, 0).expect_err("too small");
         assert_eq!(err.kind(), crate::error::ErrorKind::Validation);
         assert!(err.to_string().contains("--memory"), "{err}");
     }

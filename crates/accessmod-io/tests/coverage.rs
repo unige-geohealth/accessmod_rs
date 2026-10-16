@@ -143,6 +143,24 @@ fn outputs_do_not_depend_on_memory() {
     let dir = tempfile::tempdir().expect("tmp");
     let (cols, rows) = (900, 700);
     let mut job = fixture(dir.path(), cols, rows, 3000.0);
+    // A barrier strip (class 9) holding people.
+    let land_cover = (0..cols * rows)
+        .map(|i| {
+            if i % cols == 600 && i / cols < 500 {
+                9
+            } else {
+                1
+            }
+        })
+        .collect();
+    write_raster::<u8>(
+        &dir.path().join("lc.tif"),
+        cols,
+        rows,
+        geo_transform(X0, Y0),
+        land_cover,
+        Some(0.0),
+    );
     let zones = dir.path().join("zones.gpkg");
     let (west, centre) = (
         cell_polygon(0.0, 0.0, 450.0, 700.0),
