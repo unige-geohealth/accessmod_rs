@@ -263,6 +263,10 @@ impl MergeLandCoverJob {
                     if let Some(classes) = &item.classes {
                         if classes.is_empty() {
                             issues.push(format!("{at}: classes is empty"));
+                        } else if classes.len() > MAX_ITEM_CLASSES {
+                            issues.push(format!(
+                                "{at}: classes lists more than {MAX_ITEM_CLASSES} classes"
+                            ));
                         }
                         duplicates(classes.iter().copied(), &at, "classes", &mut issues);
                     }
@@ -1046,11 +1050,16 @@ fn burn_part(
     grid: &GridSpec,
     cells: &mut TiledGrid<MergeCell>,
     update: &dyn Fn(&mut MergeCell),
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<bool> {
     let mut failure = None;
     let mut burnt = false;
     let mut visit = |row: usize, c0: usize, c1: usize| {
         if failure.is_some() {
+            return;
+        }
+        if cancelled() {
+            failure = Some(Error::Cancelled);
             return;
         }
         burnt = true;
@@ -1060,7 +1069,7 @@ fn burn_part(
                 cells.set(row, col, cell)
             });
             if let Err(error) = result {
-                failure = Some(error);
+                failure = Some(error.into());
                 return;
             }
         }
@@ -1070,7 +1079,7 @@ fn burn_part(
         Part::Polygon(rings) => polygon_spans(rings, grid.rows, grid.cols, &mut visit),
     }
     match failure {
-        Some(error) => Err(error.into()),
+        Some(error) => Err(error),
         None => Ok(burnt),
     }
 }
@@ -1418,7 +1427,7 @@ fn paint_road(
                         return Ok(());
                     }
                     lines += 1;
-                    burnt |= burn_part(&part, grid, cells, &update)?;
+                    burnt |= burn_part(&part, grid, cells, &update, cancelled)?;
                     Ok(())
                 },
             )?;
@@ -1482,7 +1491,7 @@ fn paint_barrier(
                         Part::Line(_) => lines += 1,
                         Part::Polygon(_) => polygons += 1,
                     }
-                    burnt |= burn_part(&part, grid, cells, &update)?;
+                    burnt |= burn_part(&part, grid, cells, &update, cancelled)?;
                     Ok(())
                 },
             )?;
