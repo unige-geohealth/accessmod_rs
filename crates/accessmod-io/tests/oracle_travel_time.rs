@@ -4,33 +4,16 @@
 //! are exported by `scripts/oracle/export.sh` into `_oracle/travel-time/demo`.
 //! The test skips, with a message, when the export is absent.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use accessmod_core::cost::Neighbourhood;
+use accessmod_io::fixtures::{never, oracle_available, oracle_dir, read_with_nodata, settings};
 use accessmod_io::job::{
     FacilityIssues, FacilitySource, MethodName, OutputOptions, SCHEMA_VERSION, ScenarioEntry,
     TravelTimeJob,
 };
 use accessmod_io::output::{NEAREST_FILE, TRAVEL_TIME_FILE};
-use accessmod_io::travel_time::{ExecutionSettings, prepare, run};
-use gdal::Dataset;
-use gdal::raster::GdalType;
-
-fn demo_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../_oracle/travel-time/demo")
-}
-
-fn read<T: GdalType + Copy>(path: &Path) -> (Vec<T>, Option<f64>) {
-    let ds = Dataset::open(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let band = ds.rasterband(1).expect("band");
-    let (cols, rows) = ds.raster_size();
-    let data = band
-        .read_as::<T>((0, 0), (cols, rows), (cols, rows), None)
-        .expect("read")
-        .data()
-        .to_vec();
-    (data, band.no_data_value())
-}
+use accessmod_io::travel_time::{prepare, run};
 
 fn scenario(dir: &Path) -> Vec<ScenarioEntry> {
     std::fs::read_to_string(dir.join("demo-scenario.txt"))
@@ -113,26 +96,23 @@ fn compare(case: &Case, dir: &Path, tmp: &Path) -> Comparison {
         outputs: OutputOptions::default(),
         output_dir: tmp.join(&case.name),
     };
-    let settings = ExecutionSettings {
-        memory_bytes: 256 << 20,
-        threads: 1,
-        tmp_dir: std::env::temp_dir(),
-    };
-    let prepared = prepare(job, &settings, &|| false).expect("prepare");
+    let settings = settings(256 << 20, 1);
+    let prepared = prepare(job, &settings, &never).expect("prepare");
     let ids: Vec<i64> = prepared
         .facilities
         .kept
         .iter()
         .map(|f| f.id.as_i64().expect("integer cat"))
         .collect();
-    let (out, _) = run(prepared, &settings, &|| false).expect("run");
+    let (out, _) = run(prepared, &settings, &never).expect("run");
 
-    let (ours, ours_nodata) = read::<f64>(&out.join(TRAVEL_TIME_FILE));
-    let (our_nearest, _) = read::<u32>(&out.join(NEAREST_FILE));
-    let oracle_dir = dir.join("oracle");
+    let (ours, ours_nodata) = read_with_nodata::<f64>(&out.join(TRAVEL_TIME_FILE));
+    let (our_nearest, _) = read_with_nodata::<u32>(&out.join(NEAREST_FILE));
+    let exported = dir.join("oracle");
     let (oracle, oracle_nodata) =
-        read::<f64>(&oracle_dir.join(format!("{}-travel_time_seconds.tif", case.name)));
-    let (oracle_nearest, _) = read::<i32>(&oracle_dir.join(format!("{}-nearest.tif", case.name)));
+        read_with_nodata::<f64>(&exported.join(format!("{}-travel_time_seconds.tif", case.name)));
+    let (oracle_nearest, _) =
+        read_with_nodata::<i32>(&exported.join(format!("{}-nearest.tif", case.name)));
 
     let limit = case.limit_s.unwrap_or(f64::INFINITY);
     let mut c = Comparison::default();
@@ -167,12 +147,8 @@ fn compare(case: &Case, dir: &Path, tmp: &Path) -> Comparison {
 
 #[test]
 fn demo_matches_accessmod5() {
-    let dir = demo_dir();
-    if !dir.join("oracle").is_dir() {
-        eprintln!(
-            "SKIPPED: {} not found; run scripts/oracle/export.sh",
-            dir.display()
-        );
+    let dir = oracle_dir("travel-time/demo");
+    if !oracle_available(&[&dir.join("oracle")]) {
         return;
     }
     let tmp = tempfile::tempdir().expect("tmp");

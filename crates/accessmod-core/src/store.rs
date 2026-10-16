@@ -55,7 +55,7 @@ macro_rules! numeric_codec {
         }
     )*};
 }
-numeric_codec!(u8, u16, u32, u64, f32, f64);
+numeric_codec!(u8, u16, u32, u64, i32, i64, f32, f64);
 
 /// Default tile side, cells. Small tiles keep the band of tiles around the
 /// Dijkstra frontier small: on a 2000² synthetic grid, 64² tiles were each

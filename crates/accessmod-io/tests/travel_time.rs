@@ -1,80 +1,41 @@
 //! End-to-end travel-time runs on small GeoTIFF / GeoPackage fixtures built
 //! with GDAL in a temporary directory.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use accessmod_core::cost::{Direction, Neighbourhood};
 use accessmod_core::mobility::{MobilityModel, TransportMode};
-use accessmod_io::error::{Error, ErrorKind};
+use accessmod_io::error::ErrorKind;
+use accessmod_io::fixtures::{
+    EPSG, RES, X0, Y0, geo_transform, never, read, run_job, settings, to_wgs84, write_layer,
+    write_raster,
+};
 use accessmod_io::job::{
     FacilityIssues, FacilitySource, MethodName, OutputOptions, SCHEMA_VERSION, ScenarioEntry,
     TravelTimeJob,
 };
 use accessmod_io::output::{FLOAT_NODATA, NEAREST_FILE, TRAVEL_TIME_FILE};
-use accessmod_io::travel_time::{ExecutionSettings, prepare, run};
-use gdal::raster::{Buffer, GdalType};
-use gdal::spatial_ref::SpatialRef;
-use gdal::vector::{
-    Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType,
-};
-use gdal::{Dataset, DriverManager};
+use accessmod_io::travel_time::{TravelTime, prepare, run};
+use gdal::vector::{FieldValue, OGRFieldType};
 
-const EPSG: u32 = 32632;
-const X0: f64 = 500_000.0;
-const Y0: f64 = 5_000_000.0;
-const RES: f64 = 100.0;
-
-fn geo_transform(x0: f64, y0: f64) -> [f64; 6] {
-    [x0, RES, 0.0, y0, 0.0, -RES]
-}
-
-fn write_raster<T: GdalType + Copy>(
-    path: &Path,
-    cols: usize,
-    rows: usize,
-    gt: [f64; 6],
-    data: Vec<T>,
-    nodata: Option<f64>,
-) {
-    let driver = DriverManager::get_driver_by_name("GTiff").expect("GTiff driver");
-    let mut ds = driver
-        .create_with_band_type::<T, _>(path, cols, rows, 1)
-        .expect("create raster");
-    ds.set_geo_transform(&gt).expect("geotransform");
-    ds.set_spatial_ref(&SpatialRef::from_epsg(EPSG).expect("srs"))
-        .expect("srs");
-    let mut band = ds.rasterband(1).expect("band");
-    band.set_no_data_value(nodata).expect("nodata");
-    let mut buffer = Buffer::new((cols, rows), data);
-    band.write((0, 0), (cols, rows), &mut buffer)
-        .expect("write");
-}
-
+/// Facility layer `facilities` with points `(hf_id, x, y)` in EPSG `epsg`.
 fn write_points(path: &Path, epsg: u32, points: &[(i64, f64, f64)]) {
-    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG driver");
-    let mut ds = driver.create_vector_only(path).expect("create gpkg");
-    let srs = SpatialRef::from_epsg(epsg).expect("srs");
-    let layer = ds
-        .create_layer(LayerOptions {
-            name: "facilities",
-            srs: Some(&srs),
-            ty: OGRwkbGeometryType::wkbPoint,
-            options: None,
-        })
-        .expect("layer");
-    layer
-        .create_defn_fields(&[("hf_id", OGRFieldType::OFTInteger64)])
-        .expect("fields");
-    let field = layer.defn().field_index("hf_id").expect("field");
-    for &(id, x, y) in points {
-        let geometry = Geometry::from_wkt(&format!("POINT ({x} {y})")).expect("point");
-        let mut feature = Feature::new(layer.defn()).expect("feature");
-        feature.set_geometry(geometry).expect("geometry");
-        feature
-            .set_field(field, &FieldValue::Integer64Value(id))
-            .expect("id");
-        feature.create(&layer).expect("create feature");
-    }
+    let wkts: Vec<String> = points
+        .iter()
+        .map(|(_, x, y)| format!("POINT ({x} {y})"))
+        .collect();
+    let features: Vec<(Option<FieldValue>, &str)> = points
+        .iter()
+        .zip(&wkts)
+        .map(|((id, _, _), wkt)| (Some(FieldValue::Integer64Value(*id)), wkt.as_str()))
+        .collect();
+    write_layer(
+        path,
+        "facilities",
+        epsg,
+        ("hf_id", OGRFieldType::OFTInteger64),
+        &features,
+    );
 }
 
 /// A `cols × rows` flat landscape of class 1, with facilities at the given
@@ -149,37 +110,10 @@ impl Fixture {
     }
 }
 
-fn settings(memory_bytes: u64, threads: usize) -> ExecutionSettings {
-    ExecutionSettings {
-        memory_bytes,
-        threads,
-        tmp_dir: std::env::temp_dir(),
-    }
-}
-
-fn never() -> bool {
-    false
-}
-
-fn run_job(job: TravelTimeJob, settings: &ExecutionSettings) -> Result<PathBuf, Error> {
-    let prepared = prepare(job, settings, &never)?;
-    run(prepared, settings, &never).map(|(dir, _)| dir)
-}
-
-fn read<T: GdalType + Copy>(path: &Path) -> Vec<T> {
-    let ds = Dataset::open(path).expect("open output");
-    let band = ds.rasterband(1).expect("band");
-    let (cols, rows) = ds.raster_size();
-    band.read_as::<T>((0, 0), (cols, rows), (cols, rows), None)
-        .expect("read")
-        .data()
-        .to_vec()
-}
-
 #[test]
 fn corridor_by_hand() {
     let fixture = Fixture::new(5, 3, &[(1, 0)]);
-    let out = run_job(fixture.job.clone(), &settings(256 << 20, 1)).expect("run");
+    let out = run_job::<TravelTime>(fixture.job.clone(), &settings(256 << 20, 1)).expect("run");
     let time: Vec<f64> = read(&out.join(TRAVEL_TIME_FILE));
     // Middle row: 72 s per 100 m step at 5 km/h.
     for c in 0..5 {
@@ -228,7 +162,7 @@ fn corridor_by_hand() {
 fn barriers_and_limit_leave_nodata() {
     let mut fixture = Fixture::new(5, 1, &[(0, 0)]);
     fixture.job.limit_s = Some(144.0);
-    let out = run_job(fixture.job.clone(), &settings(256 << 20, 1)).expect("run");
+    let out = run_job::<TravelTime>(fixture.job.clone(), &settings(256 << 20, 1)).expect("run");
     let time: Vec<f64> = read(&out.join(TRAVEL_TIME_FILE));
     assert_eq!(time, vec![0.0, 72.0, 144.0, FLOAT_NODATA, FLOAT_NODATA]);
 }
@@ -241,8 +175,8 @@ fn outputs_do_not_depend_on_memory_or_threads() {
     a.neighbourhood = Neighbourhood::Sixteen;
     let mut b = a.clone();
     b.output_dir = fixture.path().join("b");
-    let out_a = run_job(a, &settings(256 << 20, 1)).expect("run a");
-    let out_b = run_job(b, &settings(4 << 30, 4)).expect("run b");
+    let out_a = run_job::<TravelTime>(a, &settings(256 << 20, 1)).expect("run a");
+    let out_b = run_job::<TravelTime>(b, &settings(4 << 30, 4)).expect("run b");
     for name in [
         TRAVEL_TIME_FILE,
         NEAREST_FILE,
@@ -294,7 +228,7 @@ fn larger_land_cover_on_the_lattice_is_windowed() {
         vec![1; 63],
         Some(0.0),
     );
-    let out = run_job(fixture.job.clone(), &settings(256 << 20, 1)).expect("run");
+    let out = run_job::<TravelTime>(fixture.job.clone(), &settings(256 << 20, 1)).expect("run");
     let time: Vec<f64> = read(&out.join(TRAVEL_TIME_FILE));
     assert_eq!(time.len(), 15);
     assert!((time[5 + 4] - 288.0).abs() < 1e-9);
@@ -324,21 +258,11 @@ fn facility_problems_fail_or_warn() {
 fn facilities_in_another_crs_are_reprojected() {
     let fixture = Fixture::new(5, 3, &[]);
     // Centre of cell (1, 2) in EPSG:32632, expressed in WGS 84 lon/lat.
-    let (x, y) = (X0 + 250.0, Y0 - 150.0);
-    let utm = SpatialRef::from_epsg(EPSG).expect("srs");
-    let mut wgs84 = SpatialRef::from_epsg(4326).expect("srs");
-    wgs84.set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
-    let mut utm_traditional = utm.clone();
-    utm_traditional
-        .set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
-    let transform =
-        gdal::spatial_ref::CoordTransform::new(&utm_traditional, &wgs84).expect("transform");
-    let (mut xs, mut ys) = ([x], [y]);
-    transform
-        .transform_coords(&mut xs, &mut ys, &mut [])
-        .expect("to wgs84");
+    let [(lon, lat)] = to_wgs84(&[(X0 + 250.0, Y0 - 150.0)])[..] else {
+        unreachable!("one point in, one out")
+    };
     std::fs::remove_file(fixture.path().join("hf.gpkg")).expect("remove");
-    write_points(&fixture.path().join("hf.gpkg"), 4326, &[(7, xs[0], ys[0])]);
+    write_points(&fixture.path().join("hf.gpkg"), 4326, &[(7, lon, lat)]);
     let prepared = prepare(fixture.job.clone(), &settings(256 << 20, 1), &never).expect("prepare");
     assert!(prepared.facilities.reprojected);
     let f = &prepared.facilities.kept[0];
@@ -379,7 +303,7 @@ fn cancellation_leaves_nothing_behind() {
 #[test]
 fn wide_grids_cross_read_and_write_chunks() {
     // Wider than one read chunk (4096 columns) and one output block (256).
-    let cols = accessmod_io::inputs::CHUNK_COLS + 4;
+    let cols = accessmod_io::raster::CHUNK_COLS + 4;
     let fixture = Fixture::new(cols, 2, &[(0, 0)]);
     // Land cover on the lattice, shifted 3 columns east: the first 3 DEM
     // columns are uncovered (barriers) except that the facility needs one.
@@ -404,7 +328,7 @@ fn wide_grids_cross_read_and_write_chunks() {
         EPSG,
         &[(1, X0 + 350.0, Y0 - 50.0)],
     );
-    let out = run_job(job, &settings(256 << 20, 2)).expect("run");
+    let out = run_job::<TravelTime>(job, &settings(256 << 20, 2)).expect("run");
     let time: Vec<f64> = read(&out.join(TRAVEL_TIME_FILE));
     assert_eq!(time[2], FLOAT_NODATA, "uncovered column is a barrier");
     assert_eq!(time[3], 0.0);

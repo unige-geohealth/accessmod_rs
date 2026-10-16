@@ -3,14 +3,8 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use gdal::DriverManager;
-use gdal::raster::Buffer;
-use gdal::spatial_ref::SpatialRef;
-use gdal::vector::{
-    Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType,
-};
-
-const EPSG: u32 = 32632;
+use accessmod_io::fixtures::{EPSG, X0, Y0, geo_transform, write_layer, write_raster};
+use gdal::vector::{FieldValue, OGRFieldType};
 
 fn accessmod(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_accessmod"))
@@ -30,49 +24,21 @@ fn stdout_json(output: &Output) -> serde_json::Value {
     })
 }
 
-fn write_raster<T: gdal::raster::GdalType + Copy>(path: &Path, value: T) {
-    let gt = [500_000.0, 100.0, 0.0, 5_000_000.0, 0.0, -100.0];
-    let mut ds = DriverManager::get_driver_by_name("GTiff")
-        .expect("GTiff")
-        .create_with_band_type::<T, _>(path, 4, 3, 1)
-        .expect("create");
-    ds.set_geo_transform(&gt).expect("gt");
-    ds.set_spatial_ref(&SpatialRef::from_epsg(EPSG).expect("srs"))
-        .expect("srs");
-    let mut band = ds.rasterband(1).expect("band");
-    band.write((0, 0), (4, 3), &mut Buffer::new((4, 3), vec![value; 12]))
-        .expect("write");
-}
-
 /// 4 x 3 flat landscape, class 1 everywhere, one facility in cell (1, 0).
 fn fixture(dir: &Path) {
-    write_raster(&dir.join("dem.tif"), 0.0f32);
-    write_raster(&dir.join("lc.tif"), 1u8);
-    let srs = SpatialRef::from_epsg(EPSG).expect("srs");
-    let mut ds = DriverManager::get_driver_by_name("GPKG")
-        .expect("GPKG")
-        .create_vector_only(dir.join("hf.gpkg"))
-        .expect("create");
-    let layer = ds
-        .create_layer(LayerOptions {
-            name: "hf",
-            srs: Some(&srs),
-            ty: OGRwkbGeometryType::wkbPoint,
-            options: None,
-        })
-        .expect("layer");
-    layer
-        .create_defn_fields(&[("code", OGRFieldType::OFTString)])
-        .expect("field");
-    let field = layer.defn().field_index("code").expect("field");
-    let mut feature = Feature::new(layer.defn()).expect("feature");
-    feature
-        .set_geometry(Geometry::from_wkt("POINT (500050 4999850)").expect("point"))
-        .expect("geometry");
-    feature
-        .set_field(field, &FieldValue::StringValue("HC-1".into()))
-        .expect("field");
-    feature.create(&layer).expect("create");
+    let gt = geo_transform(X0, Y0);
+    write_raster(&dir.join("dem.tif"), 4, 3, gt, vec![0.0f32; 12], None);
+    write_raster(&dir.join("lc.tif"), 4, 3, gt, vec![1u8; 12], None);
+    write_layer(
+        &dir.join("hf.gpkg"),
+        "hf",
+        EPSG,
+        ("code", OGRFieldType::OFTString),
+        &[(
+            Some(FieldValue::StringValue("HC-1".into())),
+            "POINT (500050 4999850)",
+        )],
+    );
 }
 
 fn direct_args<'a>(dir: &'a str, out: &'a str) -> Vec<String> {

@@ -11,6 +11,8 @@ use accessmod_core::cost::CellSize;
 use gdal::Dataset;
 use gdal::spatial_ref::SpatialRef;
 
+use crate::error::Error;
+
 /// Maximum relative difference between two resolutions.
 pub const RESOLUTION_TOLERANCE: f64 = 1e-9;
 /// Maximum distance, in cells, between an origin offset and a whole number of
@@ -194,6 +196,13 @@ pub fn check_projected_metric(srs: Option<&SpatialRef>) -> Vec<String> {
 }
 
 impl GridSpec {
+    /// Open the DEM at `path` and the grid it defines.
+    pub fn open_dem(path: &Path) -> crate::error::Result<(Dataset, Self)> {
+        let dem = Dataset::open(path).map_err(Error::gdal(path))?;
+        let grid = Self::from_dem(&dem, path).map_err(|issues| Error::Validation { issues })?;
+        Ok((dem, grid))
+    }
+
     /// Grid of the DEM at `path`, or every reason it cannot define a grid.
     pub fn from_dem(dataset: &Dataset, path: &Path) -> Result<Self, Vec<String>> {
         let name = path.display();
@@ -232,13 +241,29 @@ impl GridSpec {
         }
     }
 
+    /// Alignment of the grid on itself (the DEM's own raster).
+    pub fn alignment(&self) -> Alignment {
+        Alignment {
+            row_offset: 0,
+            col_offset: 0,
+            rows: self.rows,
+            cols: self.cols,
+        }
+    }
+
+    /// Pixel coordinates `(column, row)` of point `(x, y)` in grid CRS
+    /// coordinates, fractional: cell `(r, c)` covers `[c, c + 1) × [r, r + 1)`.
+    pub fn to_pixel(&self, x: f64, y: f64) -> (f64, f64) {
+        let [x0, ew, _, y0, _, ns] = self.geo_transform;
+        ((x - x0) / ew, (y - y0) / ns)
+    }
+
     /// Cell containing point `(x, y)` in grid CRS coordinates, or `None`
     /// outside the grid. A point on a cell edge belongs to the cell east of
     /// it and south of it (GDAL pixel convention: `floor`).
     pub fn locate(&self, x: f64, y: f64) -> Option<(usize, usize)> {
-        let [x0, ew, _, y0, _, ns] = self.geo_transform;
-        let col = ((x - x0) / ew).floor();
-        let row = ((y - y0) / ns).floor();
+        let (col, row) = self.to_pixel(x, y);
+        let (col, row) = (col.floor(), row.floor());
         let inside = col >= 0.0 && row >= 0.0 && col < self.cols as f64 && row < self.rows as f64;
         inside.then_some((row as usize, col as usize))
     }

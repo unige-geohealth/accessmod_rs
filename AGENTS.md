@@ -96,9 +96,9 @@ Build, test, clippy and fmt must all pass before a commit.
 ## Layout
 
 ```
-crates/accessmod-core   tiled storage, mobility models, cost model, solver, referral (no GDAL)
-crates/accessmod-io     GDAL/PROJ boundary, jobs, validation, outputs, reports; examples/ (synthetic data, raster compare)
-crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral
+crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge (no GDAL)
+crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover
 crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
 xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
@@ -110,6 +110,37 @@ docs/                   plan, references, design decisions, tutorial (with data 
 
 `accessmod-core` never depends on GDAL, PROJ, a project layout or an external
 process.
+
+## Reusable GIS toolkit
+
+Analyses are short compositions of shared, low-level GIS building blocks,
+the way AccessMod 5 composes GRASS modules (`v.to.rast`, `r.patch`,
+`r.mapcalc`). An analysis module holds only its domain rules; the
+mechanics live in the toolkit and are written, tested and reviewed once:
+determinism, memory budget, cancellation and error messages included.
+
+| Need | Toolkit |
+| --- | --- |
+| Rasterise lines and polygons, 3 × 3 neighbourhoods | `accessmod_core::raster` |
+| Disk-backed grids under a memory budget | `accessmod_core::store` |
+| Open a class raster, read any raster aligned on the DEM | `accessmod_io::raster` |
+| Open a vector layer (filter, CRS, reprojection), burn features | `accessmod_io::vector` |
+| DEM grid, lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
+| Job files, path resolution, schema version, input checks | `accessmod_io::job` |
+| Memory plan and execution settings | `accessmod_io::resources` |
+| Staging directory, GeoTIFF blocks, CSV, `finish` | `accessmod_io::output` |
+| `run.json` (`Report`, `Execution`), fingerprints, warnings | `accessmod_io::report` |
+| `prepare` / `run` contract driven by the CLI (and MCP) | `accessmod_io::analysis::Analysis` |
+| Test inputs, oracle paths, running a job | `accessmod_io::fixtures` (feature `fixtures`), `accessmod-core/tests/common` |
+
+Rules:
+
+- No copy of a helper in an analysis, a command or a test. Before writing
+  one, look in the toolkit; if it is not domain-specific, add it there with
+  its own test and use it from every caller.
+- A new analysis implements `Analysis`; its CLI command is
+  `exec::job_command::<A>` unless it needs direct parameters.
+- Reviewers treat duplicated logic as a defect.
 
 ## Local scratch
 

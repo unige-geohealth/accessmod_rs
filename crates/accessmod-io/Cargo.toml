@@ -16,10 +16,15 @@ sha2 = "0.10"
 sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
 thiserror.workspace = true
 
+[features]
+# Test fixtures (`accessmod_io::fixtures`) for this crate's tests and the CLI's.
+fixtures = []
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [dev-dependencies]
+accessmod-io = { path = ".", features = ["fixtures"] }
 tempfile = "3"
 
 [lints]

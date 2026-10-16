@@ -1,208 +1,38 @@
 //! Travel-time analysis: validation (`prepare`) and execution (`run`).
 
 use std::collections::BTreeMap;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use accessmod_core::cost::CellMobility;
 use accessmod_core::solver::{InputCell, SolveStats, SolverCell, SolverConfig, solve};
-use accessmod_core::store::{DEFAULT_TILE, StoreStats, TileGeometry, TiledGrid, tiles_for_budget};
-use gdal::Dataset;
+use accessmod_core::store::{DEFAULT_TILE, StoreStats, TileGeometry, TiledGrid};
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 
+use crate::analysis::{Analysis, Cancelled};
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityIssue, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
-use crate::inputs::{CHUNK_COLS, InputSummary, STRIP_ROWS, load_inputs, open_land_cover};
-use crate::job::{FacilityIssues, MethodName, ScenarioEntry, TravelTimeJob};
+use crate::inputs::{InputSummary, load_inputs};
+use crate::job::{FacilityIssues, MethodName, ScenarioEntry, TravelTimeJob, check_files};
 use crate::output::{self, Staging};
-use crate::resources;
+use crate::raster::{CHUNK_COLS, STRIP_ROWS, open_class_raster};
+use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
+use crate::resources::{ExecutionSettings, ResourcePlan};
 
-/// Version of the `run.json` document.
-pub const RUN_REPORT_VERSION: u32 = 1;
-
-/// Execution settings: they change speed, never results, and are not part
-/// of the job.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ExecutionSettings {
-    /// Memory budget, bytes.
-    pub memory_bytes: u64,
-    /// Threads for GDAL encoding and compression.
-    pub threads: usize,
-    /// Directory for scratch tiles.
-    pub tmp_dir: PathBuf,
-}
-
-impl ExecutionSettings {
-    /// Defaults from the host: half the available memory, available CPUs,
-    /// the system temporary directory.
-    pub fn from_host() -> Self {
-        Self {
-            memory_bytes: resources::default_memory_budget(),
-            threads: resources::default_threads(),
-            tmp_dir: std::env::temp_dir(),
-        }
-    }
-}
-
-/// A non-blocking problem, reported in `run.json` and on stderr.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Warning {
-    /// Stable machine-readable code.
-    pub code: &'static str,
-    /// Human-readable message.
-    pub message: String,
-}
-
-/// A documented difference from AccessMod 5 that applies to this run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Deviation {
-    /// Stable machine-readable code.
-    pub code: &'static str,
-    /// What differs and why.
-    pub message: &'static str,
-}
-
-/// Size, checksum and path of an input file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct Fingerprint {
-    /// Role of the file in the job.
-    pub role: &'static str,
-    /// Path.
-    pub path: PathBuf,
-    /// Size, bytes.
-    pub bytes: u64,
-    /// SHA-256 of the file content (main file only for multi-file formats).
-    pub sha256: String,
-}
-
-/// Memory and disk plan of a run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ResourcePlan {
-    /// Memory budget, bytes.
-    pub memory_budget_bytes: u64,
-    /// Memory reserved for fixed buffers (GDAL cache, output strips), bytes.
-    pub fixed_bytes: u64,
-    /// Memory reserved for the priority queue, bytes.
-    pub queue_reserve_bytes: u64,
-    /// GDAL block cache (`GDAL_CACHEMAX`), bytes.
-    pub gdal_cache_bytes: u64,
-    /// Tile side, cells.
-    pub tile: usize,
-    /// Tiles per grid.
-    pub total_tiles: usize,
-    /// Resident tiles per grid.
-    pub resident_tiles: usize,
-    /// Memory to keep every tile resident (no scratch I/O), bytes.
-    pub in_memory_bytes: u64,
-    /// Smallest budget accepted, bytes.
-    pub minimum_bytes: u64,
-    /// Scratch disk needed in the worst case, bytes (0 when every tile is
-    /// resident).
-    pub scratch_bytes: u64,
-    /// Free space where scratch files go, bytes, if known.
-    pub free_disk_bytes: Option<u64>,
-}
-
-impl ResourcePlan {
-    /// Plan for a `rows × cols` grid under `settings`, or the reason it does
-    /// not fit (both estimates included).
-    pub fn new(rows: usize, cols: usize, settings: &ExecutionSettings) -> Result<Self> {
-        let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
-        let per_tile = (TiledGrid::<InputCell>::tile_bytes(geometry)
-            + TiledGrid::<SolverCell>::tile_bytes(geometry)) as u64;
-        // Output blocks (4 rasters) and input read windows (DEM f64, land
-        // cover i64, classes); both bounded whatever the grid width.
-        let buffer_bytes = (256 * 256 * (8 + 4 + 8 + 1)
-            + 256 * std::mem::size_of::<SolverCell>()
-            + STRIP_ROWS * CHUNK_COLS * (8 + 8)
-            + CHUNK_COLS * 16) as u64;
-        Self::for_tiles(rows, cols, settings, per_tile, buffer_bytes, 1)
-    }
-
-    /// Plan for tiled grids taking `per_tile` bytes per tile position, with
-    /// `buffer_bytes` of fixed buffers and `queue_tenths` tenths of the
-    /// budget reserved for a priority queue (0 when there is none).
-    pub(crate) fn for_tiles(
-        rows: usize,
-        cols: usize,
-        settings: &ExecutionSettings,
-        per_tile: u64,
-        buffer_bytes: u64,
-        queue_tenths: u64,
-    ) -> Result<Self> {
-        let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
-        let total_tiles = geometry.n_tiles();
-        let budget = settings.memory_bytes;
-        let gdal_cache_bytes = (budget / 8).clamp(16 << 20, 512 << 20);
-        let fixed_bytes = gdal_cache_bytes + buffer_bytes;
-        let queue_reserve_bytes = budget / 10 * queue_tenths;
-        // The solver needs at least the band of tiles around its frontier;
-        // two tile rows and two tile columns across the grid is the floor.
-        let tiles_x = cols.div_ceil(DEFAULT_TILE);
-        let tiles_y = rows.div_ceil(DEFAULT_TILE);
-        let band_tiles = (2 * (tiles_x + tiles_y)).min(total_tiles) as u64;
-        // The queue reserve is q tenths of the budget B, so tiles get
-        // (1 − q/10)·B − fixed: B must be at least (fixed + tiles) / (1 − q/10).
-        let with_reserve =
-            |tile_bytes: u64| (fixed_bytes + tile_bytes).div_ceil(10 - queue_tenths) * 10;
-        let minimum_bytes = with_reserve(band_tiles * per_tile);
-        let in_memory_bytes = with_reserve(total_tiles as u64 * per_tile);
-        let tile_budget = budget.saturating_sub(fixed_bytes + queue_reserve_bytes);
-        let resident_tiles = tiles_for_budget(tile_budget, &[per_tile as usize]).min(total_tiles);
-        let scratch_bytes = if resident_tiles >= total_tiles {
-            0
-        } else {
-            total_tiles as u64 * per_tile
-        };
-        let free_disk_bytes = resources::free_disk(&settings.tmp_dir);
-        let plan = Self {
-            memory_budget_bytes: budget,
-            fixed_bytes,
-            queue_reserve_bytes,
-            gdal_cache_bytes,
-            tile: DEFAULT_TILE,
-            total_tiles,
-            resident_tiles,
-            in_memory_bytes,
-            minimum_bytes,
-            scratch_bytes,
-            free_disk_bytes,
-        };
-        let mut issues = Vec::new();
-        if budget < minimum_bytes {
-            issues.push(format!(
-                "memory budget {} is below the minimum {} for a {rows} x {cols} grid \
-                 ({} keeps everything in memory); raise --memory",
-                mib(budget),
-                mib(minimum_bytes),
-                mib(in_memory_bytes)
-            ));
-        }
-        if let Some(free) = free_disk_bytes
-            && free < scratch_bytes
-        {
-            issues.push(format!(
-                "scratch directory {} has {} free, the run may need {}; use --tmp-dir \
-                 or raise --memory (in memory: {})",
-                settings.tmp_dir.display(),
-                mib(free),
-                mib(scratch_bytes),
-                mib(in_memory_bytes)
-            ));
-        }
-        if issues.is_empty() {
-            Ok(plan)
-        } else {
-            Err(Error::Validation { issues })
-        }
-    }
-}
-
-fn mib(bytes: u64) -> String {
-    format!("{:.0} MiB", bytes as f64 / (1u64 << 20) as f64)
+/// Memory and disk plan of a travel-time or referral run: input and state
+/// grids, a priority queue, output blocks and input read windows.
+pub fn solver_plan(rows: usize, cols: usize, settings: &ExecutionSettings) -> Result<ResourcePlan> {
+    let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
+    let per_tile = (TiledGrid::<InputCell>::tile_bytes(geometry)
+        + TiledGrid::<SolverCell>::tile_bytes(geometry)) as u64;
+    // Output blocks (4 rasters) and input read windows (DEM f64, land
+    // cover i64, classes); both bounded whatever the grid width.
+    let buffer_bytes = (256 * 256 * (8 + 4 + 8 + 1)
+        + 256 * std::mem::size_of::<SolverCell>()
+        + STRIP_ROWS * CHUNK_COLS * (8 + 8)
+        + CHUNK_COLS * 16) as u64;
+    ResourcePlan::for_tiles(rows, cols, settings, per_tile, buffer_bytes, 1)
 }
 
 /// Inputs loaded and validated, ready to solve.
@@ -230,32 +60,6 @@ pub struct Prepared {
     pub durations_s: BTreeMap<&'static str, f64>,
 }
 
-pub(crate) fn sha256_file(role: &'static str, path: &Path) -> Result<Fingerprint> {
-    let mut file = std::fs::File::open(path).map_err(Error::file(path))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0u8; 1 << 20];
-    let mut bytes = 0u64;
-    loop {
-        let n = file.read(&mut buffer).map_err(Error::file(path))?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buffer[..n]);
-        bytes += n as u64;
-    }
-    let sha256 = hasher
-        .finalize()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    Ok(Fingerprint {
-        role,
-        path: path.to_path_buf(),
-        bytes,
-        sha256,
-    })
-}
-
 fn facility_issue_text(issue: &FacilityIssue) -> String {
     let id = issue
         .id
@@ -281,18 +85,14 @@ pub fn prepare(
     let mut durations_s = BTreeMap::new();
     let started = Instant::now();
     let mut issues = job.check();
-    if let Err(Error::Validation { issues: more }) = output::check_output_dir(&job.output_dir) {
-        issues.extend(more);
-    }
-    for (name, path) in [
-        ("dem", &job.dem),
-        ("land_cover", &job.land_cover),
-        ("facilities.path", &job.facilities.path),
-    ] {
-        if !path.exists() {
-            issues.push(format!("{name}: {} does not exist", path.display()));
-        }
-    }
+    issues.extend(check_files(
+        &job.output_dir,
+        [
+            ("dem".to_owned(), job.dem.as_path()),
+            ("land_cover".to_owned(), job.land_cover.as_path()),
+            ("facilities.path".to_owned(), job.facilities.path.as_path()),
+        ],
+    ));
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
@@ -317,11 +117,14 @@ pub fn prepare(
     warnings.extend(landscape_warnings(&summary, &job.scenario));
 
     let fingerprint_started = Instant::now();
-    let fingerprints = vec![
-        sha256_file("dem", &job.dem)?,
-        sha256_file("land_cover", &job.land_cover)?,
-        sha256_file("facilities", &job.facilities.path)?,
-    ];
+    let fingerprints = fingerprints(
+        &[
+            ("dem", job.dem.as_path()),
+            ("land_cover", job.land_cover.as_path()),
+            ("facilities", job.facilities.path.as_path()),
+        ],
+        cancelled,
+    )?;
     durations_s.insert("fingerprints", fingerprint_started.elapsed().as_secs_f64());
 
     Ok(Prepared {
@@ -356,12 +159,10 @@ pub(crate) fn load_landscape(
     settings: &ExecutionSettings,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Landscape> {
-    let dem = Dataset::open(dem_path).map_err(Error::gdal(dem_path))?;
-    let grid = GridSpec::from_dem(&dem, dem_path).map_err(|issues| Error::Validation { issues })?;
-    let (land_cover, alignment) = open_land_cover(land_cover_path, &grid)?;
-    let plan = ResourcePlan::new(grid.rows, grid.cols, settings)?;
-    gdal::config::set_config_option("GDAL_CACHEMAX", &plan.gdal_cache_bytes.to_string())
-        .map_err(Error::gdal(dem_path))?;
+    let (dem, grid) = GridSpec::open_dem(dem_path)?;
+    let (land_cover, alignment) = open_class_raster(land_cover_path, &grid, "land cover")?;
+    let plan = solver_plan(grid.rows, grid.cols, settings)?;
+    plan.configure_gdal()?;
     let geometry = TileGeometry::new(grid.rows, grid.cols, plan.tile)?;
     let mut inputs = TiledGrid::new(
         geometry,
@@ -554,19 +355,6 @@ pub struct RunRecord {
     pub deviations: Vec<Deviation>,
 }
 
-/// Grid description for the report.
-#[derive(Debug, Clone, Serialize)]
-pub struct GridReport {
-    /// Columns.
-    pub cols: usize,
-    /// Rows.
-    pub rows: usize,
-    /// GDAL geotransform.
-    pub geo_transform: [f64; 6],
-    /// CRS as WKT.
-    pub crs_wkt: String,
-}
-
 /// Solver counters that do not depend on execution settings.
 #[derive(Debug, Clone, Serialize)]
 pub struct SolverReport {
@@ -580,48 +368,17 @@ pub struct SolverReport {
     pub shared_cells: Vec<(u32, u32)>,
 }
 
-/// Execution part of `run.json`: varies with host and settings.
+/// Execution details of a travel-time run.
 #[derive(Debug, Clone, Serialize)]
-pub struct ExecutionReport {
-    /// Settings used.
-    pub settings: ExecutionSettings,
-    /// Memory and disk plan.
-    pub plan: ResourcePlan,
-    /// Seconds per phase.
-    pub durations_s: BTreeMap<&'static str, f64>,
+pub struct SolverStores {
     /// Cache counters of the input grid.
     pub input_store: StoreStats,
     /// Cache counters of the state grid.
     pub state_store: StoreStats,
-    /// Peak resident memory, bytes, where reported by the platform.
-    pub peak_rss_bytes: Option<u64>,
-    /// Versions of the engine and libraries.
-    pub versions: BTreeMap<&'static str, String>,
 }
 
-/// `run.json`.
-#[derive(Debug, Clone, Serialize)]
-pub struct RunReport {
-    /// Version of this document.
-    pub report_version: u32,
-    /// Deterministic part.
-    pub run: RunRecord,
-    /// Execution part.
-    pub execution: ExecutionReport,
-}
-
-/// Versions of the engine, GDAL and PROJ.
-pub fn versions() -> BTreeMap<&'static str, String> {
-    let mut map = BTreeMap::new();
-    map.insert("accessmod", env!("CARGO_PKG_VERSION").to_owned());
-    map.insert("gdal", gdal::version::version_info("RELEASE_NAME"));
-    let proj = gdal::version::version_info("BUILD_INFO")
-        .lines()
-        .find_map(|l| l.strip_prefix("PROJ_RUNTIME_VERSION=").map(str::to_owned))
-        .unwrap_or_default();
-    map.insert("proj", proj);
-    map
-}
+/// `run.json` of a travel-time run.
+pub type RunReport = Report<RunRecord, SolverStores>;
 
 /// Solve a prepared job and write every output atomically.
 pub fn run(
@@ -680,7 +437,6 @@ pub fn run(
         shared_cells: &stats.shared_cells,
     };
     output::write_json(&staging.path().join("nearest_facility.json"), &table)?;
-    output::write_json(&staging.path().join("job.resolved.json"), job)?;
 
     let mut warnings = prepared.warnings.clone();
     for (ordinal, kept) in &stats.shared_cells {
@@ -691,17 +447,15 @@ pub fn run(
             ),
         });
     }
-    let report = RunReport {
-        report_version: RUN_REPORT_VERSION,
-        run: RunRecord {
+    let stores = SolverStores {
+        input_store: prepared.inputs.stats(),
+        state_store: state.stats(),
+    };
+    let report = Report::new(
+        RunRecord {
             job: job.clone(),
             inputs: prepared.fingerprints.clone(),
-            grid: GridReport {
-                cols: prepared.grid.cols,
-                rows: prepared.grid.rows,
-                geo_transform: prepared.grid.geo_transform,
-                crs_wkt: prepared.grid.srs.to_wkt().unwrap_or_default(),
-            },
+            grid: GridReport::of(&prepared.grid),
             input_summary: prepared.summary.clone(),
             facilities_used: prepared.facilities.kept.len(),
             facilities_skipped: prepared.facilities.issues.len(),
@@ -715,21 +469,14 @@ pub fn run(
             warnings,
             deviations: deviations(job),
         },
-        execution: ExecutionReport {
-            settings: settings.clone(),
-            plan: prepared.plan.clone(),
-            durations_s: prepared.durations_s.clone(),
-            input_store: prepared.inputs.stats(),
-            state_store: state.stats(),
-            peak_rss_bytes: resources::peak_rss(),
-            versions: versions(),
-        },
-    };
-    output::write_json(&staging.path().join("run.json"), &report)?;
-    if cancelled() {
-        return Err(Error::Cancelled);
-    }
-    let output_dir = staging.commit()?;
+        Execution::now(
+            settings,
+            prepared.plan.clone(),
+            prepared.durations_s.clone(),
+            stores,
+        ),
+    );
+    let output_dir = output::finish(staging, job, &report, cancelled)?;
     Ok((output_dir, report))
 }
 
@@ -747,6 +494,68 @@ fn summarise(state: &mut TiledGrid<SolverCell>, grid: &GridSpec) -> Result<Resul
     Ok(summary)
 }
 
+/// Travel-time analysis.
+#[derive(Debug)]
+pub struct TravelTime;
+
+impl Analysis for TravelTime {
+    type Job = TravelTimeJob;
+    type Prepared = Prepared;
+    type Report = RunReport;
+
+    fn prepare(
+        job: TravelTimeJob,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<Prepared> {
+        prepare(job, settings, cancelled)
+    }
+
+    fn run(
+        prepared: Prepared,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<(PathBuf, RunReport)> {
+        run(prepared, settings, cancelled)
+    }
+
+    fn warnings(prepared: &Prepared) -> &[Warning] {
+        &prepared.warnings
+    }
+
+    fn describe(prepared: &Prepared) -> String {
+        format!(
+            "travel time: {} x {} grid, {} facilities, {} passable cells ({} of {} tiles resident)",
+            prepared.grid.cols,
+            prepared.grid.rows,
+            prepared.facilities.kept.len(),
+            prepared.summary.passable,
+            prepared.plan.resident_tiles,
+            prepared.plan.total_tiles
+        )
+    }
+
+    fn validation(prepared: &Prepared) -> serde_json::Value {
+        serde_json::json!({
+            "job": prepared.job,
+            "grid": {"cols": prepared.grid.cols, "rows": prepared.grid.rows,
+                     "geo_transform": prepared.grid.geo_transform},
+            "input_summary": prepared.summary,
+            "facilities_used": prepared.facilities.kept.len(),
+            "facilities_skipped": prepared.facilities.issues,
+            "warnings": prepared.warnings,
+            "plan": prepared.plan,
+        })
+    }
+
+    fn outcome(report: &RunReport) -> String {
+        format!(
+            "{} cells reached, max {:.0} s",
+            report.run.result.reached_cells, report.run.result.max_travel_time_s
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -762,7 +571,7 @@ mod tests {
     #[test]
     fn minimum_budget_leaves_the_frontier_band() {
         let (rows, cols) = (5000, 7000);
-        let probe = ResourcePlan::new(rows, cols, &settings(64 << 30)).expect("roomy plan");
+        let probe = solver_plan(rows, cols, &settings(64 << 30)).expect("roomy plan");
         assert_eq!(probe.resident_tiles, probe.total_tiles);
         assert_eq!(probe.scratch_bytes, 0);
 
@@ -771,7 +580,7 @@ mod tests {
         let band = 2 * (cols.div_ceil(DEFAULT_TILE) + rows.div_ceil(DEFAULT_TILE));
         let mut budget = probe.minimum_bytes;
         for _ in 0..4 {
-            let plan = ResourcePlan::new(rows, cols, &settings(budget)).expect("at minimum");
+            let plan = solver_plan(rows, cols, &settings(budget)).expect("at minimum");
             assert!(
                 plan.resident_tiles >= band,
                 "{} < {band}",
@@ -781,7 +590,7 @@ mod tests {
             budget = plan.minimum_bytes;
         }
 
-        let err = ResourcePlan::new(rows, cols, &settings(32 << 20)).expect_err("too small");
+        let err = solver_plan(rows, cols, &settings(32 << 20)).expect_err("too small");
         assert_eq!(err.kind(), crate::error::ErrorKind::Validation);
         assert!(err.to_string().contains("--memory"), "{err}");
     }

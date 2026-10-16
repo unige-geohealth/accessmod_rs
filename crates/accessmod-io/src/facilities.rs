@@ -2,14 +2,13 @@
 
 use accessmod_core::solver::{Facility, InputCell};
 use accessmod_core::store::TiledGrid;
-use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use gdal::vector::{FieldValue, Geometry, LayerAccess, OGRwkbGeometryType, geometry_type_flatten};
-use gdal::{Dataset, DatasetOptions, GdalOpenFlags};
 use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::FacilitySource;
+use crate::vector::VectorLayer;
 
 /// A facility used by the solver.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -72,11 +71,6 @@ impl LoadedFacilities {
     }
 }
 
-fn traditional(mut srs: SpatialRef) -> SpatialRef {
-    srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
-    srs
-}
-
 fn json_id(value: Option<FieldValue>) -> Option<serde_json::Value> {
     use serde_json::Value;
     match value? {
@@ -119,45 +113,18 @@ pub fn load_facilities(
     grid: &GridSpec,
     inputs: &mut TiledGrid<InputCell>,
 ) -> Result<LoadedFacilities> {
+    let vector = VectorLayer::open(
+        &source.path,
+        source.layer.as_deref(),
+        source.filter.as_deref(),
+        grid,
+        "facilities",
+    )?;
+    let dataset = vector.dataset()?;
+    let mut layer = vector.layer(&dataset)?;
+    let field_index = vector.field_index(&layer, &source.id_field)?;
+    let invalid = |issue: String| vector.invalid(issue);
     let path = &source.path;
-    let options = DatasetOptions {
-        open_flags: GdalOpenFlags::GDAL_OF_VECTOR | GdalOpenFlags::GDAL_OF_READONLY,
-        ..DatasetOptions::default()
-    };
-    let dataset = Dataset::open_ex(path, options).map_err(Error::gdal(path))?;
-    let invalid = |issue: String| Error::invalid(format!("facilities {}: {issue}", path.display()));
-    let mut layer = match &source.layer {
-        Some(name) => dataset
-            .layer_by_name(name)
-            .map_err(|_| invalid(format!("no layer named {name:?}")))?,
-        None => dataset
-            .layer(0)
-            .map_err(|_| invalid("has no layer".into()))?,
-    };
-    if let Some(filter) = &source.filter {
-        layer
-            .set_attribute_filter(filter)
-            .map_err(|e| invalid(format!("invalid filter {filter:?} ({e})")))?;
-    }
-    let layer_name = layer.name();
-    let field_index = layer.defn().field_index(&source.id_field).map_err(|_| {
-        invalid(format!(
-            "layer {layer_name:?} has no field {:?}",
-            source.id_field
-        ))
-    })?;
-
-    let layer_srs = layer
-        .spatial_ref()
-        .ok_or_else(|| invalid(format!("layer {layer_name:?} has no CRS")))?;
-    let reprojected = layer_srs != grid.srs;
-    let transform = if reprojected {
-        let from = traditional(layer_srs);
-        let to = traditional(grid.srs.clone());
-        Some(CoordTransform::new(&from, &to).map_err(Error::gdal(path))?)
-    } else {
-        None
-    };
 
     let mut kept = Vec::new();
     let mut issues = Vec::new();
@@ -188,17 +155,12 @@ pub fn load_facilities(
                 continue;
             }
         };
-        if let Some(transform) = &transform {
-            let (mut xs, mut ys) = ([x], [y]);
-            if transform
-                .transform_coords(&mut xs, &mut ys, &mut [])
-                .is_err()
-            {
-                issue("cannot be reprojected to the DEM CRS".into());
-                continue;
-            }
-            (x, y) = (xs[0], ys[0]);
+        let (mut xs, mut ys) = ([x], [y]);
+        if let Err(why) = vector.to_grid_crs(&mut xs, &mut ys) {
+            issue(why.into());
+            continue;
         }
+        (x, y) = (xs[0], ys[0]);
         let Some((row, col)) = grid.locate(x, y) else {
             issue("outside the DEM grid".into());
             continue;
@@ -227,8 +189,8 @@ pub fn load_facilities(
         });
     }
     Ok(LoadedFacilities {
-        layer: layer_name,
-        reprojected,
+        reprojected: vector.reprojected(),
+        layer: vector.name,
         kept,
         issues,
     })

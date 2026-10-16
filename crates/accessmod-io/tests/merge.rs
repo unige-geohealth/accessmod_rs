@@ -4,82 +4,20 @@
 use std::path::{Path, PathBuf};
 
 use accessmod_io::error::{Error, ErrorKind};
+use accessmod_io::fixtures::{
+    EPSG, RES, X0, Y0, geo_transform, never, read, run_job, settings, to_wgs84, write_layer,
+    write_raster,
+};
 use accessmod_io::job::SCHEMA_VERSION;
 use accessmod_io::merge::{
     BRIDGES_FILE, BarrierItem, CLASSES_FILE, LandCoverItem, MERGED_FILE, MERGED_NODATA,
-    MergeLandCoverJob, Reclass, RoadItem, StackItem, prepare, run,
+    MergeLandCover, MergeLandCoverJob, Reclass, RoadItem, StackItem, prepare, run,
 };
-use accessmod_io::travel_time::ExecutionSettings;
-use gdal::raster::{Buffer, GdalType};
-use gdal::spatial_ref::SpatialRef;
-use gdal::vector::{
-    Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType,
-};
-use gdal::{Dataset, DriverManager};
-
-const EPSG: u32 = 32632;
-const X0: f64 = 500_000.0;
-const Y0: f64 = 5_000_000.0;
-const RES: f64 = 100.0;
-
-fn write_raster<T: GdalType + Copy>(
-    path: &Path,
-    cols: usize,
-    rows: usize,
-    data: Vec<T>,
-    nodata: f64,
-) {
-    let driver = DriverManager::get_driver_by_name("GTiff").expect("GTiff driver");
-    let mut ds = driver
-        .create_with_band_type::<T, _>(path, cols, rows, 1)
-        .expect("create raster");
-    ds.set_geo_transform(&[X0, RES, 0.0, Y0, 0.0, -RES])
-        .expect("geotransform");
-    ds.set_spatial_ref(&SpatialRef::from_epsg(EPSG).expect("srs"))
-        .expect("srs");
-    let mut band = ds.rasterband(1).expect("band");
-    band.set_no_data_value(Some(nodata)).expect("nodata");
-    let mut buffer = Buffer::new((cols, rows), data);
-    band.write((0, 0), (cols, rows), &mut buffer)
-        .expect("write");
-}
+use gdal::vector::{FieldValue, OGRFieldType};
 
 /// Map x, y of a point given in cell units (column, row from the top left).
 fn map(col: f64, row: f64) -> (f64, f64) {
     (X0 + col * RES, Y0 - row * RES)
-}
-
-/// Write a GeoPackage layer of WKT geometries (in cell units, see [`map`])
-/// with an integer `class` field.
-fn write_layer(path: &Path, features: &[(Option<i64>, &str)]) {
-    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG driver");
-    let mut ds = driver.create_vector_only(path).expect("create gpkg");
-    let srs = SpatialRef::from_epsg(EPSG).expect("srs");
-    let layer = ds
-        .create_layer(LayerOptions {
-            name: "items",
-            srs: Some(&srs),
-            ty: OGRwkbGeometryType::wkbUnknown,
-            options: None,
-        })
-        .expect("layer");
-    layer
-        .create_defn_fields(&[("class", OGRFieldType::OFTInteger64)])
-        .expect("fields");
-    let field = layer.defn().field_index("class").expect("field");
-    for (class, wkt) in features {
-        // Coordinates in cell units, converted to map units.
-        let converted = convert_wkt(wkt);
-        let geometry = Geometry::from_wkt(&converted).expect("wkt");
-        let mut feature = Feature::new(layer.defn()).expect("feature");
-        feature.set_geometry(geometry).expect("geometry");
-        if let Some(class) = class {
-            feature
-                .set_field(field, &FieldValue::Integer64Value(*class))
-                .expect("class");
-        }
-        feature.create(&layer).expect("create feature");
-    }
 }
 
 /// Replace every "col row" pair of a WKT in cell units by map coordinates.
@@ -115,31 +53,26 @@ fn convert_wkt(wkt: &str) -> String {
     out
 }
 
-fn settings(memory_bytes: u64) -> ExecutionSettings {
-    ExecutionSettings {
-        memory_bytes,
-        threads: 2,
-        tmp_dir: std::env::temp_dir(),
-    }
+/// A layer `items` of WKT geometries in cell units (see [`map`]) with an
+/// integer `class` field.
+fn write_items(path: &Path, features: &[(Option<i64>, &str)]) {
+    let wkts: Vec<String> = features.iter().map(|(_, wkt)| convert_wkt(wkt)).collect();
+    let features: Vec<(Option<FieldValue>, &str)> = features
+        .iter()
+        .zip(&wkts)
+        .map(|((class, _), wkt)| (class.map(FieldValue::Integer64Value), wkt.as_str()))
+        .collect();
+    write_layer(
+        path,
+        "items",
+        EPSG,
+        ("class", OGRFieldType::OFTInteger64),
+        &features,
+    );
 }
 
-fn never() -> bool {
-    false
-}
-
-fn run_job(job: MergeLandCoverJob, settings: &ExecutionSettings) -> Result<PathBuf, Error> {
-    let prepared = prepare(job, settings, &never)?;
-    run(prepared, settings, &never).map(|(dir, _)| dir)
-}
-
-fn read<T: GdalType + Copy>(path: &Path) -> Vec<T> {
-    let ds = Dataset::open(path).expect("open output");
-    let band = ds.rasterband(1).expect("band");
-    let (cols, rows) = ds.raster_size();
-    band.read_as::<T>((0, 0), (cols, rows), (cols, rows), None)
-        .expect("read")
-        .data()
-        .to_vec()
+fn merge(job: MergeLandCoverJob, memory_bytes: u64) -> Result<PathBuf, Error> {
+    run_job::<MergeLandCover>(job, &settings(memory_bytes, 2))
 }
 
 fn road(path: PathBuf) -> StackItem {
@@ -178,8 +111,9 @@ fn by_hand_fixture(dir: &Path) -> MergeLandCoverJob {
         &dir.join("dem.tif"),
         cols,
         rows,
+        geo_transform(X0, Y0),
         vec![0.0; cols * rows],
-        -9999.0,
+        Some(-9999.0),
     );
     let mut lc = vec![1u8; cols * rows];
     for r in 0..rows {
@@ -187,10 +121,17 @@ fn by_hand_fixture(dir: &Path) -> MergeLandCoverJob {
     }
     lc[cols + 2] = 0;
     lc[2 * cols + 3] = 0;
-    write_raster::<u8>(&dir.join("lc.tif"), cols, rows, lc, 0.0);
+    write_raster::<u8>(
+        &dir.join("lc.tif"),
+        cols,
+        rows,
+        geo_transform(X0, Y0),
+        lc,
+        Some(0.0),
+    );
     // Road class 3 along row 4 (cells (4, 0) .. (4, 2)), class 7 inside
     // cell (2, 2) only, and a feature without class.
-    write_layer(
+    write_items(
         &dir.join("roads.gpkg"),
         &[
             (Some(3), "LINESTRING (0.5 4.5, 2.5 4.5)"),
@@ -199,7 +140,7 @@ fn by_hand_fixture(dir: &Path) -> MergeLandCoverJob {
         ],
     );
     // Barrier polygon over column 4 (centres x = 4.5), rows 0..=1.
-    write_layer(
+    write_items(
         &dir.join("barrier.gpkg"),
         &[(
             None,
@@ -223,7 +164,7 @@ fn by_hand_fixture(dir: &Path) -> MergeLandCoverJob {
 fn stack_priority_barriers_and_bridges_by_hand() {
     let dir = tempfile::tempdir().expect("tmp");
     let job = by_hand_fixture(dir.path());
-    let out = run_job(job, &settings(256 << 20)).expect("merge");
+    let out = merge(job, 256 << 20).expect("merge");
     let merged = read::<i32>(&out.join(MERGED_FILE));
     let bridges = read::<u8>(&out.join(BRIDGES_FILE));
     let n = MERGED_NODATA;
@@ -263,7 +204,7 @@ fn without_cleaning_the_bridge_stays() {
     let dir = tempfile::tempdir().expect("tmp");
     let mut job = by_hand_fixture(dir.path());
     job.clean_bridges = false;
-    let out = run_job(job, &settings(256 << 20)).expect("merge");
+    let out = merge(job, 256 << 20).expect("merge");
     assert_eq!(read::<i32>(&out.join(MERGED_FILE))[2 * 6 + 2], 1007);
     assert!(!out.join(BRIDGES_FILE).exists());
 }
@@ -281,7 +222,7 @@ fn class_conflicts_are_rejected_and_reclass_resolves_them() {
     if let StackItem::LandCover(lc) = &mut job.stack[1] {
         lc.reclass = vec![Reclass { from: 2, to: 3 }];
     }
-    let err = prepare(job.clone(), &settings(256 << 20), &never).expect_err("conflict");
+    let err = prepare(job.clone(), &settings(256 << 20, 2), &never).expect_err("conflict");
     assert_eq!(err.kind(), ErrorKind::Validation);
     let text = err.to_string();
     assert!(
@@ -292,7 +233,7 @@ fn class_conflicts_are_rejected_and_reclass_resolves_them() {
     if let StackItem::LandCover(lc) = &mut job.stack[1] {
         lc.reclass = vec![Reclass { from: 2, to: 20 }];
     }
-    let out = run_job(job, &settings(256 << 20)).expect("merge");
+    let out = merge(job, 256 << 20).expect("merge");
     let merged = read::<i32>(&out.join(MERGED_FILE));
     assert_eq!(merged[5], 20);
     // Class 7 is listed first: it keeps its cell, which is a bridge.
@@ -311,7 +252,7 @@ fn missing_fields_and_bad_filters_are_validation_errors() {
         layer: None,
         filter: Some("no_such_field = 1".into()),
     }));
-    let err = prepare(job, &settings(256 << 20), &never).expect_err("invalid");
+    let err = prepare(job, &settings(256 << 20, 2), &never).expect_err("invalid");
     let Error::Validation { issues } = err else {
         panic!("validation error expected");
     };
@@ -329,13 +270,21 @@ fn outputs_do_not_depend_on_memory() {
         &path.join("dem.tif"),
         cols,
         rows,
+        geo_transform(X0, Y0),
         vec![0.0; cols * rows],
-        -9999.0,
+        Some(-9999.0),
     );
     let lc: Vec<u16> = (0..cols * rows)
         .map(|i| [1, 2, 3, 0][(i / cols / 37 + i % cols / 53) % 4])
         .collect();
-    write_raster::<u16>(&path.join("lc.tif"), cols, rows, lc, 0.0);
+    write_raster::<u16>(
+        &path.join("lc.tif"),
+        cols,
+        rows,
+        geo_transform(X0, Y0),
+        lc,
+        Some(0.0),
+    );
     let mut roads = Vec::new();
     let mut rivers = Vec::new();
     for k in 0..40 {
@@ -359,9 +308,9 @@ fn outputs_do_not_depend_on_memory() {
         .collect();
     let river_features: Vec<(Option<i64>, &str)> =
         rivers.iter().map(|wkt| (None, wkt.as_str())).collect();
-    write_layer(&path.join("roads.gpkg"), &road_features);
-    write_layer(&path.join("rivers.gpkg"), &river_features);
-    write_layer(
+    write_items(&path.join("roads.gpkg"), &road_features);
+    write_items(&path.join("rivers.gpkg"), &river_features);
+    write_items(
         &path.join("lakes.gpkg"),
         &[(
             None,
@@ -384,14 +333,14 @@ fn outputs_do_not_depend_on_memory() {
     // 23 MiB: the 16 MiB GDAL cache floor and buffers leave about 80 of
     // the 165 tiles resident.
     let minimum = 23 << 20;
-    let tight = prepare(job("a"), &settings(minimum), &never).expect("prepare at minimum");
+    let tight = prepare(job("a"), &settings(minimum, 2), &never).expect("prepare at minimum");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(minimum), &never).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(minimum, 2), &never).expect("run a");
     assert!(
-        report_a.execution.store.tile_writes > 0,
+        report_a.execution.details.store.tile_writes > 0,
         "scratch not exercised"
     );
-    let out_b = run_job(job("b"), &settings(4 << 30)).expect("run b");
+    let out_b = merge(job("b"), 4 << 30).expect("run b");
     for name in [MERGED_FILE, BRIDGES_FILE, CLASSES_FILE] {
         let bytes_a = std::fs::read(out_a.join(name)).expect("read a");
         let bytes_b = std::fs::read(out_b.join(name)).expect("read b");
@@ -414,61 +363,36 @@ fn layers_in_another_crs_are_reprojected_and_outside_features_counted() {
     let dir = tempfile::tempdir().expect("tmp");
     let mut job = by_hand_fixture(dir.path());
     // The barrier of the fixture, in WGS 84, plus a polygon far outside.
-    let utm = SpatialRef::from_epsg(EPSG).expect("utm");
-    let mut wgs84 = SpatialRef::from_epsg(4326).expect("wgs84");
-    wgs84.set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
-    let mut utm_traditional = utm.clone();
-    utm_traditional
-        .set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
-    let to_wgs84 =
-        gdal::spatial_ref::CoordTransform::new(&utm_traditional, &wgs84).expect("transform");
     let ring = |cells: &[(f64, f64)]| {
-        let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = cells.iter().map(|&(c, r)| map(c, r)).unzip();
-        to_wgs84
-            .transform_coords(&mut xs, &mut ys, &mut [])
-            .expect("to wgs84");
-        let points: Vec<String> = xs
+        let map_points: Vec<(f64, f64)> = cells.iter().map(|&(c, r)| map(c, r)).collect();
+        let points: Vec<String> = to_wgs84(&map_points)
             .iter()
-            .zip(&ys)
-            .map(|(x, y)| format!("{x} {y}"))
+            .map(|(lon, lat)| format!("{lon} {lat}"))
             .collect();
         format!("POLYGON (({}))", points.join(", "))
     };
     let barrier = ring(&[(4.1, 0.1), (4.9, 0.1), (4.9, 1.9), (4.1, 1.9), (4.1, 0.1)]);
     let far = ring(&[(40.0, 40.0), (41.0, 40.0), (41.0, 41.0), (40.0, 40.0)]);
-    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG");
-    let mut ds = driver
-        .create_vector_only(dir.path().join("barrier4326.gpkg"))
-        .expect("create");
-    let layer = ds
-        .create_layer(LayerOptions {
-            name: "barrier",
-            srs: Some(&SpatialRef::from_epsg(4326).expect("wgs84")),
-            ty: OGRwkbGeometryType::wkbPolygon,
-            options: None,
-        })
-        .expect("layer");
-    for wkt in [&barrier, &far] {
-        let mut feature = Feature::new(layer.defn()).expect("feature");
-        feature
-            .set_geometry(Geometry::from_wkt(wkt).expect("wkt"))
-            .expect("geometry");
-        feature.create(&layer).expect("create");
-    }
-    drop(ds);
+    write_layer(
+        &dir.path().join("barrier4326.gpkg"),
+        "barrier",
+        4326,
+        ("class", OGRFieldType::OFTInteger64),
+        &[(None, &barrier), (None, &far)],
+    );
     job.stack[2] = StackItem::Barrier(BarrierItem {
         path: dir.path().join("barrier4326.gpkg"),
         layer: None,
         filter: None,
     });
-    let prepared = prepare(job, &settings(256 << 20), &never).expect("prepare");
+    let prepared = prepare(job, &settings(256 << 20, 2), &never).expect("prepare");
     assert!(
         prepared
             .warnings
             .iter()
             .any(|w| w.code == "stack_item_reprojected")
     );
-    let (out, report) = run(prepared, &settings(256 << 20), &never).expect("run");
+    let (out, report) = run(prepared, &settings(256 << 20, 2), &never).expect("run");
     let merged = read::<i32>(&out.join(MERGED_FILE));
     assert_eq!((merged[4], merged[6 + 4]), (MERGED_NODATA, MERGED_NODATA));
     assert_eq!(report.run.result.barrier_cells, 2);
@@ -487,34 +411,21 @@ fn layers_in_another_crs_are_reprojected_and_outside_features_counted() {
 fn non_finite_coordinates_fail_the_run() {
     let dir = tempfile::tempdir().expect("tmp");
     let mut job = by_hand_fixture(dir.path());
-    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG");
-    let mut ds = driver
-        .create_vector_only(dir.path().join("bad.gpkg"))
-        .expect("create");
-    let layer = ds
-        .create_layer(LayerOptions {
-            name: "bad",
-            srs: Some(&SpatialRef::from_epsg(EPSG).expect("srs")),
-            ty: OGRwkbGeometryType::wkbLineString,
-            options: None,
-        })
-        .expect("layer");
-    let mut geometry = Geometry::empty(OGRwkbGeometryType::wkbLineString).expect("line");
     let (x, y) = map(0.5, 0.5);
-    geometry.add_point_2d((x, y));
-    geometry.add_point_2d((f64::NAN, y));
-    let mut feature = Feature::new(layer.defn()).expect("feature");
-    feature.set_geometry(geometry).expect("geometry");
-    feature.create(&layer).expect("create");
-    drop(feature);
-    drop(ds);
+    write_layer(
+        &dir.path().join("bad.gpkg"),
+        "bad",
+        EPSG,
+        ("class", OGRFieldType::OFTInteger64),
+        &[(None, &format!("LINESTRING ({x} {y}, nan {y})"))],
+    );
     job.stack.push(StackItem::Barrier(BarrierItem {
         path: dir.path().join("bad.gpkg"),
         layer: None,
         filter: None,
     }));
     let out = job.output_dir.clone();
-    let err = run_job(job, &settings(256 << 20)).expect_err("non-finite");
+    let err = merge(job, 256 << 20).expect_err("non-finite");
     assert_eq!(err.kind(), ErrorKind::Validation);
     assert!(err.to_string().contains("non-finite coordinates"), "{err}");
     assert!(!out.exists(), "a failed run leaves no output");

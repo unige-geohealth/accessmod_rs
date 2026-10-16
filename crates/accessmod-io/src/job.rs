@@ -10,9 +10,11 @@ use std::path::{Path, PathBuf};
 use accessmod_core::cost::{CellMobility, Direction, Method, Neighbourhood};
 use accessmod_core::mobility::{MobilityModel, TransportMode, bicycle};
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
+use crate::output;
 
 /// Current job schema version.
 pub const SCHEMA_VERSION: u32 = 1;
@@ -117,43 +119,90 @@ pub struct OutputOptions {
     pub direction: bool,
 }
 
-impl TravelTimeJob {
+/// A job document: JSON, versioned, with paths relative to its file.
+pub trait JobFile: Sized + DeserializeOwned + JsonSchema {
+    /// Paths made absolute against `base` (when relative); see
+    /// [`absolutize`].
+    fn resolve_paths(self, base: &Path) -> Self;
+
     /// Parse a job from JSON.
-    pub fn from_json(text: &str) -> Result<Self> {
+    fn from_json(text: &str) -> Result<Self> {
         serde_json::from_str(text).map_err(|e| Error::invalid(format!("job JSON: {e}")))
     }
 
     /// Read and parse a job file; relative paths are resolved against the
     /// file's directory.
-    pub fn from_file(path: &Path) -> Result<Self> {
+    fn from_file(path: &Path) -> Result<Self> {
         let text = std::fs::read_to_string(path).map_err(Error::file(path))?;
-        let job = Self::from_json(&text)?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Ok(job.resolve_paths(base))
+        Ok(Self::from_json(&text)?.resolve_paths(base))
     }
 
     /// JSON schema of the job document.
-    pub fn json_schema() -> serde_json::Value {
-        serde_json::to_value(schemars::schema_for!(TravelTimeJob))
+    fn schema() -> serde_json::Value {
+        serde_json::to_value(schemars::schema_for!(Self))
             .expect("a generated schema serialises to JSON")
     }
+}
 
-    /// Paths made absolute against `base` (when relative).
-    pub fn resolve_paths(mut self, base: &Path) -> Self {
-        let absolute = |p: &Path| {
-            if p.is_absolute() {
-                p.to_path_buf()
-            } else {
-                base.join(p)
-            }
-        };
-        self.dem = absolute(&self.dem);
-        self.land_cover = absolute(&self.land_cover);
-        self.facilities.path = absolute(&self.facilities.path);
-        self.output_dir = absolute(&self.output_dir);
+/// Make `path` absolute against `base` when it is relative.
+pub fn absolutize(path: &mut PathBuf, base: &Path) {
+    if !path.is_absolute() {
+        *path = base.join(&*path);
+    }
+}
+
+/// Every repetition in `values`: (value, previous position, position),
+/// 0-based, in order of appearance.
+pub fn repeated<T: Ord + Copy>(values: impl IntoIterator<Item = T>) -> Vec<(T, usize, usize)> {
+    let mut last = BTreeMap::new();
+    values
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, value)| last.insert(value, i).map(|previous| (value, previous, i)))
+        .collect()
+}
+
+/// Problem with a job's `schema_version`, if any.
+pub fn check_schema_version(schema_version: u32) -> Option<String> {
+    (schema_version != SCHEMA_VERSION).then(|| {
+        format!("schema_version is {schema_version}, this engine reads version {SCHEMA_VERSION}")
+    })
+}
+
+/// Problems found before reading any input: the output directory must not
+/// exist or be empty, and every named input file must exist.
+pub fn check_files<'a>(
+    output_dir: &Path,
+    inputs: impl IntoIterator<Item = (String, &'a Path)>,
+) -> Vec<String> {
+    let mut issues = match output::check_output_dir(output_dir) {
+        Err(Error::Validation { issues }) => issues,
+        _ => Vec::new(),
+    };
+    for (name, path) in inputs {
+        if !path.exists() {
+            issues.push(format!("{name}: {} does not exist", path.display()));
+        }
+    }
+    issues
+}
+
+impl JobFile for TravelTimeJob {
+    fn resolve_paths(mut self, base: &Path) -> Self {
+        for path in [
+            &mut self.dem,
+            &mut self.land_cover,
+            &mut self.facilities.path,
+            &mut self.output_dir,
+        ] {
+            absolutize(path, base);
+        }
         self
     }
+}
 
+impl TravelTimeJob {
     /// Solver method.
     pub fn method(&self) -> Method {
         match self.method {
@@ -185,25 +234,18 @@ pub fn check_common(
     scenario: &[ScenarioEntry],
     limit_s: Option<f64>,
 ) -> Vec<String> {
-    let mut issues = Vec::new();
-    if schema_version != SCHEMA_VERSION {
-        issues.push(format!(
-            "schema_version is {schema_version}, this engine reads version {SCHEMA_VERSION}"
-        ));
-    }
+    let mut issues: Vec<String> = check_schema_version(schema_version).into_iter().collect();
     if scenario.is_empty() {
         issues.push("scenario is empty: every cell would be a barrier".into());
     }
-    let mut seen = BTreeMap::new();
-    for (i, entry) in scenario.iter().enumerate() {
-        if let Some(first) = seen.insert(entry.class, i) {
-            issues.push(format!(
-                "scenario class {} is listed twice (entries {} and {})",
-                entry.class,
-                first + 1,
-                i + 1
-            ));
-        }
+    for (class, first, i) in repeated(scenario.iter().map(|e| e.class)) {
+        issues.push(format!(
+            "scenario class {class} is listed twice (entries {} and {})",
+            first + 1,
+            i + 1
+        ));
+    }
+    for entry in scenario {
         if CellMobility::new(entry.mode, entry.speed_kmh).is_none() {
             issues.push(format!(
                 "scenario class {}: speed_kmh must be finite and > 0, got {} \
@@ -325,7 +367,7 @@ mod tests {
 
     #[test]
     fn schema_lists_required_fields() {
-        let schema = TravelTimeJob::json_schema();
+        let schema = TravelTimeJob::schema();
         let required = schema["required"].as_array().expect("required list");
         assert!(required.iter().any(|v| v == "dem"));
         assert!(!required.iter().any(|v| v == "limit_s"));

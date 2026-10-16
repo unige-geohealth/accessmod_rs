@@ -1,11 +1,14 @@
-//! Canonical outputs: atomic output directory and streamed GeoTIFFs.
+//! Outputs: atomic output directory, streamed GeoTIFFs and CSV, JSON
+//! documents, and the travel-time rasters.
 
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use accessmod_core::solver::SolverCell;
 use accessmod_core::store::TiledGrid;
 use gdal::raster::{Buffer, GdalType, RasterCreationOptions};
 use gdal::{Dataset, DriverManager};
+use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
@@ -26,8 +29,8 @@ pub const DISTANCE_FILE: &str = "path_distance_m.tif";
 /// Direction output file name.
 pub const DIRECTION_FILE: &str = "direction.tif";
 
-/// GeoTIFF block side, cells.
-const BLOCK: usize = 256;
+/// GeoTIFF block side, cells. Outputs are written one block at a time.
+pub const BLOCK: usize = 256;
 
 /// Output directory being written. Files go to a hidden sibling directory
 /// that replaces the target on [`Staging::commit`]; dropping an uncommitted
@@ -119,60 +122,79 @@ pub fn check_output_dir(target: &Path) -> Result<()> {
     Ok(())
 }
 
-fn create_geotiff<T: GdalType>(
-    path: &Path,
-    grid: &GridSpec,
-    predictor: u8,
-    threads: usize,
-    nodata: f64,
-) -> Result<Dataset> {
-    let driver = DriverManager::get_driver_by_name("GTiff").map_err(Error::gdal(path))?;
-    let mut options = RasterCreationOptions::new();
-    for (key, value) in [
-        ("TILED", "YES".to_owned()),
-        ("BLOCKXSIZE", BLOCK.to_string()),
-        ("BLOCKYSIZE", BLOCK.to_string()),
-        ("COMPRESS", "DEFLATE".to_owned()),
-        ("PREDICTOR", predictor.to_string()),
-        ("BIGTIFF", "IF_SAFER".to_owned()),
-        ("NUM_THREADS", threads.max(1).to_string()),
-    ] {
-        options
-            .set_name_value(key, &value)
-            .map_err(Error::gdal(path))?;
-    }
-    let mut dataset = driver
-        .create_with_band_type_with_options::<T, _>(path, grid.cols, grid.rows, 1, &options)
-        .map_err(Error::gdal(path))?;
-    dataset
-        .set_geo_transform(&grid.geo_transform)
-        .map_err(Error::gdal(path))?;
-    dataset
-        .set_spatial_ref(&grid.srs)
-        .map_err(Error::gdal(path))?;
-    dataset
-        .rasterband(1)
-        .and_then(|mut band| band.set_no_data_value(Some(nodata)))
-        .map_err(Error::gdal(path))?;
-    Ok(dataset)
+/// A single-band GeoTIFF on the grid, written block by block: tiled,
+/// DEFLATE-compressed, with the grid's geotransform and CRS.
+#[derive(Debug)]
+pub struct GeoTiff {
+    dataset: Dataset,
+    path: PathBuf,
 }
 
-/// Write `data` (`width × height`, row-major) at `(col, row)` and give the
-/// emptied vector back for reuse.
-fn write_window<T: GdalType + Copy>(
-    dataset: &Dataset,
-    path: &Path,
-    (col, row): (usize, usize),
-    (width, height): (usize, usize),
-    data: &mut Vec<T>,
-) -> Result<()> {
-    let mut buffer = Buffer::new((width, height), std::mem::take(data));
-    let result = dataset.rasterband(1).and_then(|mut band| {
-        band.write((col as isize, row as isize), (width, height), &mut buffer)
-    });
-    *data = buffer.into_shape_and_vec().1;
-    data.clear();
-    result.map_err(Error::gdal(path))
+impl GeoTiff {
+    /// Create `path` with cells of type `T`, the given TIFF `predictor`
+    /// (2 for integers, 3 for floats) and NoData value.
+    pub fn create<T: GdalType>(
+        path: &Path,
+        grid: &GridSpec,
+        predictor: u8,
+        threads: usize,
+        nodata: f64,
+    ) -> Result<Self> {
+        let driver = DriverManager::get_driver_by_name("GTiff").map_err(Error::gdal(path))?;
+        let mut options = RasterCreationOptions::new();
+        for (key, value) in [
+            ("TILED", "YES".to_owned()),
+            ("BLOCKXSIZE", BLOCK.to_string()),
+            ("BLOCKYSIZE", BLOCK.to_string()),
+            ("COMPRESS", "DEFLATE".to_owned()),
+            ("PREDICTOR", predictor.to_string()),
+            ("BIGTIFF", "IF_SAFER".to_owned()),
+            ("NUM_THREADS", threads.max(1).to_string()),
+        ] {
+            options
+                .set_name_value(key, &value)
+                .map_err(Error::gdal(path))?;
+        }
+        let mut dataset = driver
+            .create_with_band_type_with_options::<T, _>(path, grid.cols, grid.rows, 1, &options)
+            .map_err(Error::gdal(path))?;
+        dataset
+            .set_geo_transform(&grid.geo_transform)
+            .map_err(Error::gdal(path))?;
+        dataset
+            .set_spatial_ref(&grid.srs)
+            .map_err(Error::gdal(path))?;
+        dataset
+            .rasterband(1)
+            .and_then(|mut band| band.set_no_data_value(Some(nodata)))
+            .map_err(Error::gdal(path))?;
+        Ok(Self {
+            dataset,
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// Write `data` (`width × height`, row-major) at `(col, row)`; `data`
+    /// comes back empty, its allocation kept for the next block.
+    pub fn write<T: GdalType + Copy>(
+        &self,
+        (col, row): (usize, usize),
+        (width, height): (usize, usize),
+        data: &mut Vec<T>,
+    ) -> Result<()> {
+        let mut buffer = Buffer::new((width, height), std::mem::take(data));
+        let result = self.dataset.rasterband(1).and_then(|mut band| {
+            band.write((col as isize, row as isize), (width, height), &mut buffer)
+        });
+        *data = buffer.into_shape_and_vec().1;
+        data.clear();
+        result.map_err(Error::gdal(&self.path))
+    }
+
+    /// Flush and close the file.
+    pub fn close(self) -> Result<()> {
+        self.dataset.close().map_err(Error::gdal(&self.path))
+    }
 }
 
 /// Write the canonical rasters from the solver state into `dir`.
@@ -185,17 +207,20 @@ pub fn write_rasters(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<()> {
     let (rows, cols) = (grid.rows, grid.cols);
-    let time_path = dir.join(TRAVEL_TIME_FILE);
-    let nearest_path = dir.join(NEAREST_FILE);
-    let distance_path = dir.join(DISTANCE_FILE);
-    let direction_path = dir.join(DIRECTION_FILE);
-    let time_ds = create_geotiff::<f64>(&time_path, grid, 3, threads, FLOAT_NODATA)?;
-    let nearest_ds =
-        create_geotiff::<u32>(&nearest_path, grid, 2, threads, f64::from(NEAREST_NODATA))?;
-    let distance_ds = create_geotiff::<f64>(&distance_path, grid, 3, threads, FLOAT_NODATA)?;
-    let direction_ds = if with_direction {
-        Some(create_geotiff::<u8>(
-            &direction_path,
+    let time_tif =
+        GeoTiff::create::<f64>(&dir.join(TRAVEL_TIME_FILE), grid, 3, threads, FLOAT_NODATA)?;
+    let nearest_tif = GeoTiff::create::<u32>(
+        &dir.join(NEAREST_FILE),
+        grid,
+        2,
+        threads,
+        f64::from(NEAREST_NODATA),
+    )?;
+    let distance_tif =
+        GeoTiff::create::<f64>(&dir.join(DISTANCE_FILE), grid, 3, threads, FLOAT_NODATA)?;
+    let direction_tif = if with_direction {
+        Some(GeoTiff::create::<u8>(
+            &dir.join(DIRECTION_FILE),
             grid,
             2,
             threads,
@@ -241,33 +266,111 @@ pub fn write_rasters(
             }
             let at = (col0, row0);
             let size = (width, height);
-            write_window(&time_ds, &time_path, at, size, &mut time)?;
-            write_window(&nearest_ds, &nearest_path, at, size, &mut nearest)?;
-            write_window(&distance_ds, &distance_path, at, size, &mut distance)?;
-            if let Some(ds) = &direction_ds {
-                write_window(ds, &direction_path, at, size, &mut direction)?;
+            time_tif.write(at, size, &mut time)?;
+            nearest_tif.write(at, size, &mut nearest)?;
+            distance_tif.write(at, size, &mut distance)?;
+            if let Some(tif) = &direction_tif {
+                tif.write(at, size, &mut direction)?;
             }
         }
     }
-    for (dataset, path) in [
-        (time_ds, time_path),
-        (nearest_ds, nearest_path),
-        (distance_ds, distance_path),
-    ]
-    .into_iter()
-    .chain(direction_ds.map(|ds| (ds, direction_path)))
+    for tif in [time_tif, nearest_tif, distance_tif]
+        .into_iter()
+        .chain(direction_tif)
     {
-        dataset.close().map_err(Error::gdal(path))?;
+        tif.close()?;
     }
     Ok(())
 }
 
 /// Write `value` as pretty JSON to `path`, with a trailing newline.
-pub fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
+pub fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
     let mut text = serde_json::to_string_pretty(value).map_err(|e| Error::File {
         path: path.to_path_buf(),
         source: std::io::Error::other(e),
     })?;
     text.push('\n');
     std::fs::write(path, text).map_err(Error::file(path))
+}
+
+/// Last step of every run: write `job.resolved.json` and `run.json` into
+/// the staging directory, then move it into place unless cancelled.
+pub fn finish(
+    staging: Staging,
+    job: &impl Serialize,
+    report: &impl Serialize,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<PathBuf> {
+    write_json(&staging.path().join("job.resolved.json"), job)?;
+    write_json(&staging.path().join("run.json"), report)?;
+    if cancelled() {
+        return Err(Error::Cancelled);
+    }
+    staging.commit()
+}
+
+/// CSV field: identifiers as text, quoted when needed; floats in shortest
+/// round-trip form.
+pub fn csv_field(value: &serde_json::Value) -> String {
+    let text = match value {
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+    if text.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", text.replace('"', "\"\""))
+    } else {
+        text
+    }
+}
+
+/// Streaming CSV file: a header, then one line per record.
+#[derive(Debug)]
+pub struct CsvWriter {
+    path: PathBuf,
+    out: std::io::BufWriter<std::fs::File>,
+}
+
+impl CsvWriter {
+    /// Create `path` and write the `header` line.
+    pub fn create(path: &Path, header: &str) -> Result<Self> {
+        let file = std::fs::File::create(path).map_err(Error::file(path))?;
+        let mut writer = Self {
+            path: path.to_path_buf(),
+            out: std::io::BufWriter::new(file),
+        };
+        writer.line(header)?;
+        Ok(writer)
+    }
+
+    /// Write one line of already formatted fields (see [`csv_field`]).
+    pub fn record(&mut self, fields: &[String]) -> Result<()> {
+        self.line(&fields.join(","))
+    }
+
+    fn line(&mut self, text: &str) -> Result<()> {
+        writeln!(self.out, "{text}").map_err(Error::file(&self.path))
+    }
+
+    /// Flush the file.
+    pub fn finish(mut self) -> Result<()> {
+        self.out.flush().map_err(Error::file(&self.path))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csv_fields_are_quoted_when_needed() {
+        assert_eq!(csv_field(&serde_json::json!("HC 1")), "HC 1");
+        assert_eq!(csv_field(&serde_json::json!("a,b")), "\"a,b\"");
+        assert_eq!(
+            csv_field(&serde_json::json!("say \"hi\"")),
+            "\"say \"\"hi\"\"\""
+        );
+        assert_eq!(csv_field(&serde_json::json!(12)), "12");
+        assert_eq!(csv_field(&serde_json::Value::Null), "");
+    }
 }

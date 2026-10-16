@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
+use accessmod_io::report::versions;
 use accessmod_io::resources;
-use accessmod_io::travel_time::versions;
 use gdal::DriverManager;
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
 use serde_json::json;

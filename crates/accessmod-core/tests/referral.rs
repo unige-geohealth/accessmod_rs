@@ -9,16 +9,12 @@ use accessmod_core::solver::{Facility, InputCell, SolverCell, SolverConfig, solv
 use accessmod_core::store::{Frozen, TileGeometry, TiledGrid};
 use proptest::prelude::*;
 
-const B: u16 = InputCell::BARRIER;
+mod common;
+
+use common::{B, mobility};
 
 fn scratch_dir() -> PathBuf {
-    let dir = std::env::temp_dir().join("accessmod-referral-tests");
-    std::fs::create_dir_all(&dir).expect("temp dir is writable");
-    dir
-}
-
-fn mobility(mode: TransportMode, speed_kmh: f64) -> CellMobility {
-    CellMobility::new(mode, speed_kmh).expect("positive test speed")
+    common::scratch_dir("accessmod-referral-tests")
 }
 
 #[derive(Debug, Clone)]

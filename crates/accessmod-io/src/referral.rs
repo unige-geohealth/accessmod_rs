@@ -13,19 +13,19 @@ use accessmod_core::store::{TileGeometry, TiledGrid};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::analysis::{Analysis, Cancelled};
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityRecord, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::InputSummary;
 use crate::job::{
-    FacilityIssues, FacilitySource, MethodName, ScenarioEntry, check_common, scenario_table,
+    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, absolutize, check_common,
+    check_files, scenario_table,
 };
-use crate::output::{self, Staging};
-use crate::resources;
-use crate::travel_time::{
-    Deviation, ExecutionSettings, Fingerprint, GridReport, Landscape, ResourcePlan, Warning,
-    landscape_warnings, load_landscape, screen_facilities, sha256_file, versions,
-};
+use crate::output::{self, CsvWriter, Staging, csv_field};
+use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
+use crate::resources::{ExecutionSettings, ResourcePlan};
+use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
 
 /// Referral job (schema version 1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -72,43 +72,22 @@ pub struct ReferralJob {
     pub output_dir: PathBuf,
 }
 
-impl ReferralJob {
-    /// Parse a job from JSON.
-    pub fn from_json(text: &str) -> Result<Self> {
-        serde_json::from_str(text).map_err(|e| Error::invalid(format!("job JSON: {e}")))
-    }
-
-    /// Read and parse a job file; relative paths are resolved against the
-    /// file's directory.
-    pub fn from_file(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path).map_err(Error::file(path))?;
-        let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Ok(Self::from_json(&text)?.resolve_paths(base))
-    }
-
-    /// JSON schema of the job document.
-    pub fn json_schema() -> serde_json::Value {
-        serde_json::to_value(schemars::schema_for!(ReferralJob))
-            .expect("a generated schema serialises to JSON")
-    }
-
-    /// Paths made absolute against `base` (when relative).
-    pub fn resolve_paths(mut self, base: &Path) -> Self {
-        let absolute = |p: &Path| {
-            if p.is_absolute() {
-                p.to_path_buf()
-            } else {
-                base.join(p)
-            }
-        };
-        self.dem = absolute(&self.dem);
-        self.land_cover = absolute(&self.land_cover);
-        self.origins.path = absolute(&self.origins.path);
-        self.destinations.path = absolute(&self.destinations.path);
-        self.output_dir = absolute(&self.output_dir);
+impl JobFile for ReferralJob {
+    fn resolve_paths(mut self, base: &Path) -> Self {
+        for path in [
+            &mut self.dem,
+            &mut self.land_cover,
+            &mut self.origins.path,
+            &mut self.destinations.path,
+            &mut self.output_dir,
+        ] {
+            absolutize(path, base);
+        }
         self
     }
+}
 
+impl ReferralJob {
     /// Solver method.
     pub fn method(&self) -> Method {
         match self.method {
@@ -167,19 +146,18 @@ pub fn prepare(
 ) -> Result<PreparedReferral> {
     let started = Instant::now();
     let mut issues = job.check();
-    if let Err(Error::Validation { issues: more }) = output::check_output_dir(&job.output_dir) {
-        issues.extend(more);
-    }
-    for (name, path) in [
-        ("dem", &job.dem),
-        ("land_cover", &job.land_cover),
-        ("origins.path", &job.origins.path),
-        ("destinations.path", &job.destinations.path),
-    ] {
-        if !path.exists() {
-            issues.push(format!("{name}: {} does not exist", path.display()));
-        }
-    }
+    issues.extend(check_files(
+        &job.output_dir,
+        [
+            ("dem".to_owned(), job.dem.as_path()),
+            ("land_cover".to_owned(), job.land_cover.as_path()),
+            ("origins.path".to_owned(), job.origins.path.as_path()),
+            (
+                "destinations.path".to_owned(),
+                job.destinations.path.as_path(),
+            ),
+        ],
+    ));
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
@@ -222,14 +200,15 @@ pub fn prepare(
     warnings.extend(landscape_warnings(&summary, &job.scenario));
 
     let started = Instant::now();
-    let mut fingerprints = vec![
-        sha256_file("dem", &job.dem)?,
-        sha256_file("land_cover", &job.land_cover)?,
-        sha256_file("origins", &job.origins.path)?,
+    let mut files = vec![
+        ("dem", job.dem.as_path()),
+        ("land_cover", job.land_cover.as_path()),
+        ("origins", job.origins.path.as_path()),
     ];
     if job.destinations.path != job.origins.path {
-        fingerprints.push(sha256_file("destinations", &job.destinations.path)?);
+        files.push(("destinations", job.destinations.path.as_path()));
     }
+    let fingerprints = fingerprints(&files, cancelled)?;
     durations_s.insert("fingerprints", started.elapsed().as_secs_f64());
 
     Ok(PreparedReferral {
@@ -267,15 +246,7 @@ pub struct ReferralSummary {
 }
 
 /// `run.json` of a referral run.
-#[derive(Debug, Clone, Serialize)]
-pub struct ReferralReport {
-    /// Version of this document.
-    pub report_version: u32,
-    /// Deterministic part.
-    pub run: ReferralRecord,
-    /// Execution part.
-    pub execution: ReferralExecution,
-}
+pub type ReferralReport = Report<ReferralRecord, ReferralWorkers>;
 
 /// Deterministic part of `run.json`.
 #[derive(Debug, Clone, Serialize)]
@@ -296,23 +267,13 @@ pub struct ReferralRecord {
     pub deviations: Vec<Deviation>,
 }
 
-/// Execution part of `run.json`.
+/// Execution details of a referral run.
 #[derive(Debug, Clone, Serialize)]
-pub struct ReferralExecution {
-    /// Settings used.
-    pub settings: ExecutionSettings,
-    /// Memory and disk plan.
-    pub plan: ResourcePlan,
+pub struct ReferralWorkers {
     /// Worker threads.
     pub workers: usize,
     /// Whether the inputs were shared in memory (else read from scratch).
     pub inputs_in_memory: bool,
-    /// Seconds per phase.
-    pub durations_s: BTreeMap<&'static str, f64>,
-    /// Peak resident memory, bytes, where reported by the platform.
-    pub peak_rss_bytes: Option<u64>,
-    /// Versions of the engine and libraries.
-    pub versions: BTreeMap<&'static str, String>,
 }
 
 /// Deviations from AccessMod 5 for referral.
@@ -422,12 +383,18 @@ pub fn run(
 
     let started = Instant::now();
     let dir = staging.path();
-    let mut all = CsvWriter::create(&dir.join("referral.csv"))?;
-    let mut by_time = CsvWriter::create(&dir.join("nearest_by_time.csv"))?;
+    let pairs_csv = |name: &str| {
+        CsvWriter::create(
+            &dir.join(name),
+            "origin_id,destination_id,time_s,distance_m",
+        )
+    };
+    let mut all = pairs_csv("referral.csv")?;
+    let mut by_time = pairs_csv("nearest_by_time.csv")?;
     let mut by_distance = if job.nearest_only {
         None
     } else {
-        Some(CsvWriter::create(&dir.join("nearest_by_distance.csv"))?)
+        Some(pairs_csv("nearest_by_distance.csv")?)
     };
     let (mut pairs, mut reached_pairs) = (0usize, 0usize);
     for (oi, o) in origins.kept.iter().enumerate() {
@@ -438,7 +405,7 @@ pub fn run(
             if job.nearest_only && pair.is_none() {
                 continue;
             }
-            all.write(&o.id, Some(&destinations.kept[di].id), pair)?;
+            all.record(&pair_fields(&o.id, Some(&destinations.kept[di].id), pair))?;
             pairs += 1;
             reached_pairs += usize::from(pair.is_some());
         }
@@ -455,10 +422,14 @@ pub fn run(
                 .map(|(_, p)| key(p))
                 .fold(f64::INFINITY, f64::min);
             if reached.is_empty() {
-                return out.write(&o.id, None, None);
+                return out.record(&pair_fields(&o.id, None, None));
             }
             for (di, p) in reached.iter().filter(|(_, p)| key(p) == best) {
-                out.write(&o.id, Some(&destinations.kept[*di].id), Some(*p))?;
+                out.record(&pair_fields(
+                    &o.id,
+                    Some(&destinations.kept[*di].id),
+                    Some(*p),
+                ))?;
             }
             Ok(())
         };
@@ -472,7 +443,6 @@ pub fn run(
     if let Some(out) = by_distance {
         out.finish()?;
     }
-    output::write_json(&dir.join("job.resolved.json"), &job)?;
     durations_s.insert("write_outputs", started.elapsed().as_secs_f64());
 
     let mut warnings = warnings;
@@ -487,17 +457,15 @@ pub fn run(
             ),
         });
     }
-    let report = ReferralReport {
-        report_version: crate::travel_time::RUN_REPORT_VERSION,
-        run: ReferralRecord {
-            job: job.clone(),
+    let details = ReferralWorkers {
+        workers,
+        inputs_in_memory: frozen.in_memory(),
+    };
+    let report = Report::new(
+        ReferralRecord {
+            job,
             inputs: fingerprints,
-            grid: GridReport {
-                cols: grid.cols,
-                rows: grid.rows,
-                geo_transform: grid.geo_transform,
-                crs_wkt: grid.srs.to_wkt().unwrap_or_default(),
-            },
+            grid: GridReport::of(&grid),
             input_summary: summary,
             result: ReferralSummary {
                 origins: origins.kept.len(),
@@ -511,21 +479,9 @@ pub fn run(
             warnings,
             deviations: deviations(),
         },
-        execution: ReferralExecution {
-            settings: settings.clone(),
-            plan,
-            workers,
-            inputs_in_memory: frozen.in_memory(),
-            durations_s,
-            peak_rss_bytes: resources::peak_rss(),
-            versions: versions(),
-        },
-    };
-    output::write_json(&dir.join("run.json"), &report)?;
-    if cancelled() {
-        return Err(Error::Cancelled);
-    }
-    let output_dir = staging.commit()?;
+        Execution::now(settings, plan, durations_s, details),
+    );
+    let output_dir = output::finish(staging, &report.run.job, &report, cancelled)?;
     Ok((output_dir, report))
 }
 
@@ -577,82 +533,92 @@ fn worker_budget(
     (workers, budget)
 }
 
-/// CSV field: identifiers as text, quoted when needed; floats in shortest
-/// round-trip form.
-pub(crate) fn csv_field(value: &serde_json::Value) -> String {
-    let text = match value {
-        serde_json::Value::Null => String::new(),
-        serde_json::Value::String(s) => s.clone(),
-        other => other.to_string(),
-    };
-    if text.contains([',', '"', '\n', '\r']) {
-        format!("\"{}\"", text.replace('"', "\"\""))
-    } else {
-        text
-    }
+/// CSV fields of a pair: `origin_id,destination_id,time_s,distance_m`, empty
+/// for a missing destination or an unreached pair.
+fn pair_fields(
+    origin: &serde_json::Value,
+    destination: Option<&serde_json::Value>,
+    pair: Option<Pair>,
+) -> [String; 4] {
+    let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
+    [
+        csv_field(origin),
+        destination.map(csv_field).unwrap_or_default(),
+        number(pair.map(|p| p.time_s)),
+        number(pair.map(|p| p.distance_m)),
+    ]
 }
 
-/// Streaming CSV of pairs: `origin_id,destination_id,time_s,distance_m`.
-struct CsvWriter {
-    path: PathBuf,
-    out: std::io::BufWriter<std::fs::File>,
-}
+/// Referral analysis.
+#[derive(Debug)]
+pub struct Referral;
 
-impl CsvWriter {
-    fn create(path: &Path) -> Result<Self> {
-        let file = std::fs::File::create(path).map_err(Error::file(path))?;
-        let mut writer = Self {
-            path: path.to_path_buf(),
-            out: std::io::BufWriter::new(file),
-        };
-        writer.line("origin_id,destination_id,time_s,distance_m")?;
-        Ok(writer)
+impl Analysis for Referral {
+    type Job = ReferralJob;
+    type Prepared = PreparedReferral;
+    type Report = ReferralReport;
+
+    fn prepare(
+        job: ReferralJob,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<PreparedReferral> {
+        prepare(job, settings, cancelled)
     }
 
-    fn line(&mut self, text: &str) -> Result<()> {
-        use std::io::Write as _;
-        writeln!(self.out, "{text}").map_err(Error::file(&self.path))
+    fn run(
+        prepared: PreparedReferral,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<(PathBuf, ReferralReport)> {
+        run(prepared, settings, cancelled)
     }
 
-    /// One pair; empty fields for a missing destination or an unreached pair.
-    fn write(
-        &mut self,
-        origin: &serde_json::Value,
-        destination: Option<&serde_json::Value>,
-        pair: Option<Pair>,
-    ) -> Result<()> {
-        let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
-        let line = format!(
-            "{},{},{},{}",
-            csv_field(origin),
-            destination.map(csv_field).unwrap_or_default(),
-            number(pair.map(|p| p.time_s)),
-            number(pair.map(|p| p.distance_m))
-        );
-        self.line(&line)
+    fn warnings(prepared: &PreparedReferral) -> &[Warning] {
+        &prepared.warnings
     }
 
-    fn finish(mut self) -> Result<()> {
-        use std::io::Write as _;
-        self.out.flush().map_err(Error::file(&self.path))
+    fn describe(prepared: &PreparedReferral) -> String {
+        format!(
+            "referral: {} origins x {} destinations on a {} x {} grid",
+            prepared.origins.kept.len(),
+            prepared.destinations.kept.len(),
+            prepared.grid.cols,
+            prepared.grid.rows
+        )
+    }
+
+    fn validation(prepared: &PreparedReferral) -> serde_json::Value {
+        serde_json::json!({
+            "job": prepared.job,
+            "origins_used": prepared.origins.kept.len(),
+            "origins_skipped": prepared.origins.issues,
+            "destinations_used": prepared.destinations.kept.len(),
+            "destinations_skipped": prepared.destinations.issues,
+            "warnings": prepared.warnings,
+            "plan": prepared.plan,
+        })
+    }
+
+    fn outcome(report: &ReferralReport) -> String {
+        let r = &report.run.result;
+        format!(
+            "{} pairs ({} reached) from {} searches{}",
+            r.pairs,
+            r.reached_pairs,
+            r.searches,
+            if r.reversed {
+                ", started from the destinations"
+            } else {
+                ""
+            }
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn csv_fields_are_quoted_when_needed() {
-        assert_eq!(csv_field(&serde_json::json!("HC 1")), "HC 1");
-        assert_eq!(csv_field(&serde_json::json!("a,b")), "\"a,b\"");
-        assert_eq!(
-            csv_field(&serde_json::json!("say \"hi\"")),
-            "\"say \"\"hi\"\"\""
-        );
-        assert_eq!(csv_field(&serde_json::json!(12)), "12");
-        assert_eq!(csv_field(&serde_json::Value::Null), "");
-    }
 
     #[test]
     fn minimal_job_parses() {

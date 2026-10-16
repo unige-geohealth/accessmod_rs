@@ -3,36 +3,21 @@
 //! `_oracle/merge-land-cover/demo` (`scripts/oracle/merge-land-cover-demo.sh`).
 //! Skips, with a message, when the export is absent.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use accessmod_io::fixtures::{oracle_available, oracle_dir, read_valid, run_job, settings};
 use accessmod_io::job::SCHEMA_VERSION;
 use accessmod_io::merge::{
-    BRIDGES_FILE, BarrierItem, LandCoverItem, MERGED_FILE, MergeLandCoverJob, RoadItem, StackItem,
-    prepare, run,
+    BRIDGES_FILE, BarrierItem, LandCoverItem, MERGED_FILE, MergeLandCover, MergeLandCoverJob,
+    RoadItem, StackItem,
 };
-use accessmod_io::travel_time::ExecutionSettings;
-use gdal::Dataset;
 
-fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../_oracle/merge-land-cover/demo")
-}
-
-/// Cell values, `None` for NoData.
-fn read(path: &Path) -> Vec<Option<i64>> {
-    let ds = Dataset::open(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let band = ds.rasterband(1).expect("band");
-    let (cols, rows) = ds.raster_size();
-    let nodata = band.no_data_value();
-    band.read_as::<f64>((0, 0), (cols, rows), (cols, rows), None)
-        .expect("read")
-        .data()
-        .iter()
-        .map(|&v| (Some(v) != nodata && !v.is_nan()).then_some(v as i64))
-        .collect()
+fn root() -> std::path::PathBuf {
+    oracle_dir("merge-land-cover/demo")
 }
 
 fn differing_cells(ours: &Path, theirs: &Path) -> usize {
-    let (a, b) = (read(ours), read(theirs));
+    let (a, b) = (read_valid(ours), read_valid(theirs));
     assert_eq!(a.len(), b.len(), "grid sizes differ");
     a.iter().zip(&b).filter(|(x, y)| x != y).count()
 }
@@ -75,19 +60,11 @@ fn job(classes: Vec<i64>, clean_bridges: bool, out: &Path) -> MergeLandCoverJob 
 #[test]
 fn demo_merge_matches_accessmod5() {
     let oracle = root().join("oracle");
-    if !oracle.is_dir() {
-        eprintln!(
-            "SKIPPED: {} not found; run scripts/oracle/export.sh",
-            oracle.display()
-        );
+    if !oracle_available(&[&oracle]) {
         return;
     }
     let tmp = tempfile::tempdir().expect("tmp");
-    let settings = ExecutionSettings {
-        memory_bytes: 256 << 20,
-        threads: 2,
-        tmp_dir: std::env::temp_dir(),
-    };
+    let settings = settings(256 << 20, 2);
     // Line rasterisation differs from v.to.rast -d on a few cells (lines
     // passing near a cell corner, docs/merge-land-cover.md): on the demo,
     // 1 of about 1 320 road cells and 1 of about 1 680 river cells. The
@@ -101,8 +78,7 @@ fn demo_merge_matches_accessmod5() {
     ] {
         let label = format!("{name}{}", if clean { " cleaned" } else { "" });
         let out = tmp.path().join(label.replace(' ', "-"));
-        let prepared = prepare(job(classes, clean, &out), &settings, &|| false).expect("prepare");
-        run(prepared, &settings, &|| false).expect("run");
+        run_job::<MergeLandCover>(job(classes, clean, &out), &settings).expect("run");
         let reference = if clean {
             oracle.join(format!("merged-cleaned-{name}.tif"))
         } else {

@@ -5,15 +5,16 @@
 //! 4 computation, 130 cancelled.
 
 mod doctor;
+mod exec;
 mod inspect;
-mod merge;
-mod referral;
 mod travel_time;
 
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use accessmod_io::merge::MergeLandCover;
+use accessmod_io::referral::Referral;
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -45,12 +46,12 @@ enum Command {
     /// Travel time and distance between facilities (many-to-many).
     Referral {
         #[command(subcommand)]
-        command: referral::Command,
+        command: exec::JobCommand,
     },
     /// Merge land cover, roads and barriers into one land-cover raster.
     MergeLandCover {
         #[command(subcommand)]
-        command: merge::Command,
+        command: exec::JobCommand,
     },
 }
 
@@ -93,8 +94,10 @@ fn main() -> ExitCode {
         Command::Doctor(args) => doctor::run(&args),
         Command::Dataset { command } => inspect::run(&command),
         Command::TravelTime { command } => travel_time::run(command, &cancel),
-        Command::Referral { command } => referral::run(command, &cancel),
-        Command::MergeLandCover { command } => merge::run(command, &cancel),
+        Command::Referral { command } => exec::job_command::<Referral>(command, &cancel),
+        Command::MergeLandCover { command } => {
+            exec::job_command::<MergeLandCover>(command, &cancel)
+        }
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

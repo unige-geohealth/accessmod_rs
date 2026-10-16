@@ -8,12 +8,12 @@ use std::path::{Path, PathBuf};
 
 use accessmod_core::cost::Neighbourhood;
 use accessmod_core::mobility::TransportMode;
+use accessmod_io::fixtures::{oracle_available, oracle_dir, run_job, settings};
 use accessmod_io::job::{FacilityIssues, FacilitySource, MethodName, ScenarioEntry};
-use accessmod_io::referral::{ReferralJob, prepare, run};
-use accessmod_io::travel_time::ExecutionSettings;
+use accessmod_io::referral::{Referral, ReferralJob};
 
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../_oracle")
+    oracle_dir("")
 }
 
 /// Fields of one CSV line, honouring double quotes.
@@ -102,24 +102,15 @@ fn job(neighbourhood: Neighbourhood, out: &Path) -> ReferralJob {
 #[test]
 fn demo_referral_matches_accessmod5() {
     let oracle = root().join("referral/demo/oracle");
-    if !oracle.is_dir() || !root().join("travel-time/demo/input").is_dir() {
-        eprintln!(
-            "SKIPPED: {} not found; run scripts/oracle/export.sh",
-            oracle.display()
-        );
+    if !oracle_available(&[&oracle, &root().join("travel-time/demo/input")]) {
         return;
     }
     let tmp = tempfile::tempdir().expect("tmp");
-    let settings = ExecutionSettings {
-        memory_bytes: 256 << 20,
-        threads: 4,
-        tmp_dir: std::env::temp_dir(),
-    };
+    let settings = settings(256 << 20, 4);
     let mut failures = Vec::new();
     for (name, neighbourhood) in [("8", Neighbourhood::Eight), ("16", Neighbourhood::Sixteen)] {
         let out = tmp.path().join(name);
-        let prepared = prepare(job(neighbourhood, &out), &settings, &|| false).expect("prepare");
-        run(prepared, &settings, &|| false).expect("run");
+        run_job::<Referral>(job(neighbourhood, &out), &settings).expect("run");
         let ours = pairs(
             &out.join("referral.csv"),
             ["origin_id", "destination_id", "time_s", "distance_m"],

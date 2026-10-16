@@ -13,14 +13,13 @@
 
 use std::path::Path;
 
-use gdal::DriverManager;
-use gdal::raster::{Buffer, GdalType, RasterCreationOptions};
+use accessmod_core::cost::CellSize;
+use accessmod_io::fixtures::{EPSG, write_features};
+use accessmod_io::grid::GridSpec;
+use accessmod_io::output::GeoTiff;
 use gdal::spatial_ref::SpatialRef;
-use gdal::vector::{
-    Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType,
-};
+use gdal::vector::{FieldValue, OGRFieldType};
 
-const EPSG: u32 = 32632;
 const X0: f64 = 400_000.0;
 const Y0: f64 = 5_100_000.0;
 const RES: f64 = 100.0;
@@ -62,35 +61,20 @@ fn cell(row: usize, col: usize, rows: usize, cols: usize) -> (u16, f32) {
     (class, dem as f32)
 }
 
-fn create<T: GdalType>(
-    path: &Path,
-    cols: usize,
-    rows: usize,
-    nodata: Option<f64>,
-) -> Result<gdal::Dataset, Error> {
-    let mut options = RasterCreationOptions::new();
-    for (k, v) in [
-        ("TILED", "YES"),
-        ("COMPRESS", "DEFLATE"),
-        ("BIGTIFF", "IF_SAFER"),
-    ] {
-        options.set_name_value(k, v)?;
-    }
-    let mut ds = DriverManager::get_driver_by_name("GTiff")?
-        .create_with_band_type_with_options::<T, _>(path, cols, rows, 1, &options)?;
-    ds.set_geo_transform(&[X0, RES, 0.0, Y0, 0.0, -RES])?;
-    ds.set_spatial_ref(&SpatialRef::from_epsg(EPSG)?)?;
-    ds.rasterband(1)?.set_no_data_value(nodata)?;
-    Ok(ds)
-}
-
 fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
-    let dem_ds = create::<f32>(&dir.join("dem.tif"), cols, rows, Some(-9999.0))?;
-    let lc_ds = create::<u16>(&dir.join("land_cover.tif"), cols, rows, Some(0.0))?;
+    let grid = GridSpec {
+        cols,
+        rows,
+        geo_transform: [X0, RES, 0.0, Y0, 0.0, -RES],
+        srs: SpatialRef::from_epsg(EPSG)?,
+        cell: CellSize::new(RES, RES).ok_or("invalid cell size")?,
+    };
+    let dem_tif = GeoTiff::create::<f32>(&dir.join("dem.tif"), &grid, 3, 1, -9999.0)?;
+    let lc_tif = GeoTiff::create::<u16>(&dir.join("land_cover.tif"), &grid, 2, 1, 0.0)?;
+    let mut dem = Vec::with_capacity(STRIP * cols);
+    let mut lc = Vec::with_capacity(STRIP * cols);
     for start in (0..rows).step_by(STRIP) {
         let height = STRIP.min(rows - start);
-        let mut dem = Vec::with_capacity(height * cols);
-        let mut lc = Vec::with_capacity(height * cols);
         for row in start..start + height {
             for col in 0..cols {
                 let (class, z) = cell(row, col, rows, cols);
@@ -98,19 +82,11 @@ fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
                 dem.push(z);
             }
         }
-        dem_ds.rasterband(1)?.write(
-            (0, start as isize),
-            (cols, height),
-            &mut Buffer::new((cols, height), dem),
-        )?;
-        lc_ds.rasterband(1)?.write(
-            (0, start as isize),
-            (cols, height),
-            &mut Buffer::new((cols, height), lc),
-        )?;
+        dem_tif.write((0, start), (cols, height), &mut dem)?;
+        lc_tif.write((0, start), (cols, height), &mut lc)?;
     }
-    dem_ds.close()?;
-    lc_ds.close()?;
+    dem_tif.close()?;
+    lc_tif.close()?;
     Ok(())
 }
 
@@ -135,32 +111,35 @@ fn write_facilities(dir: &Path, cols: usize, rows: usize, count: usize) -> Resul
     if path.exists() {
         std::fs::remove_file(&path)?;
     }
-    let mut ds = DriverManager::get_driver_by_name("GPKG")?.create_vector_only(&path)?;
-    let srs = SpatialRef::from_epsg(EPSG)?;
-    let layer = ds.create_layer(LayerOptions {
-        name: "facilities",
-        srs: Some(&srs),
-        ty: OGRwkbGeometryType::wkbPoint,
-        options: None,
-    })?;
-    layer.create_defn_fields(&[
-        ("code", OGRFieldType::OFTString),
-        ("name", OGRFieldType::OFTString),
-    ])?;
-    let code = layer.defn().field_index("code")?;
-    let name = layer.defn().field_index("name")?;
-    for (k, (row, col)) in facility_cells(cols, rows, count).into_iter().enumerate() {
-        let x = X0 + (col as f64 + 0.5) * RES;
-        let y = Y0 - (row as f64 + 0.5) * RES;
-        let mut feature = Feature::new(layer.defn())?;
-        feature.set_geometry(Geometry::from_wkt(&format!("POINT ({x} {y})"))?)?;
-        feature.set_field(code, &FieldValue::StringValue(format!("HF-{:02}", k + 1)))?;
-        feature.set_field(
-            name,
-            &FieldValue::StringValue(format!("Health centre {}", k + 1)),
-        )?;
-        feature.create(&layer)?;
-    }
+    let features: Vec<(String, Vec<Option<FieldValue>>)> = facility_cells(cols, rows, count)
+        .into_iter()
+        .enumerate()
+        .map(|(k, (row, col))| {
+            let x = X0 + (col as f64 + 0.5) * RES;
+            let y = Y0 - (row as f64 + 0.5) * RES;
+            (
+                format!("POINT ({x} {y})"),
+                vec![
+                    Some(FieldValue::StringValue(format!("HF-{:02}", k + 1))),
+                    Some(FieldValue::StringValue(format!("Health centre {}", k + 1))),
+                ],
+            )
+        })
+        .collect();
+    let features: Vec<(&str, Vec<Option<FieldValue>>)> = features
+        .iter()
+        .map(|(wkt, values)| (wkt.as_str(), values.clone()))
+        .collect();
+    write_features(
+        &path,
+        "facilities",
+        EPSG,
+        &[
+            ("code", OGRFieldType::OFTString),
+            ("name", OGRFieldType::OFTString),
+        ],
+        &features,
+    );
     Ok(())
 }
 

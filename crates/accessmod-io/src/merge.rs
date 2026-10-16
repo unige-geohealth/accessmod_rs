@@ -7,32 +7,24 @@
 //! grid by priority (`accessmod_core::merge`) and streams the outputs.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use accessmod_core::merge::{MergeCell, bridge_row, line_spans, polygon_spans};
+use accessmod_core::merge::{MergeCell, bridge_row};
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
-use gdal::raster::{Buffer, RasterCreationOptions};
-use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
-use gdal::vector::{
-    FieldValue, Geometry, Layer, LayerAccess, OGRwkbGeometryType, geometry_type_flatten,
-};
-use gdal::{Dataset, DatasetOptions, DriverManager, GdalOpenFlags};
+use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::analysis::{Analysis, Cancelled};
 use crate::error::{Error, Result};
-use crate::grid::{Alignment, GridSpec};
-use crate::inputs::{CHUNK_COLS, STRIP_ROWS, integer_nodata, open_class_raster};
-use crate::job::SCHEMA_VERSION;
-use crate::output::{self, Staging};
-use crate::referral::csv_field;
-use crate::resources;
-use crate::travel_time::{
-    Deviation, ExecutionSettings, Fingerprint, GridReport, RUN_REPORT_VERSION, ResourcePlan,
-    Warning, sha256_file, versions,
-};
+use crate::grid::GridSpec;
+use crate::job::{JobFile, absolutize, check_files, check_schema_version, repeated};
+use crate::output::{self, BLOCK, CsvWriter, GeoTiff, Staging, csv_field};
+use crate::raster::{AlignedBand, CHUNK_COLS, STRIP_ROWS, integer_nodata, open_class_raster};
+use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
+use crate::resources::{ExecutionSettings, ResourcePlan};
+use crate::vector::{Burn, FeatureCounts, VectorLayer, burn_layer, integer_attribute};
 
 /// Merged land cover file name.
 pub const MERGED_FILE: &str = "land_cover_merged.tif";
@@ -50,8 +42,6 @@ pub const ROAD_CLASS_OFFSET: i64 = 1000;
 
 /// Distinct classes a raster item may hold.
 const MAX_ITEM_CLASSES: usize = 65_536;
-/// GeoTIFF block side of the outputs, cells.
-const BLOCK: usize = 256;
 
 fn yes() -> bool {
     true
@@ -174,6 +164,14 @@ impl StackItem {
         }
     }
 
+    fn path_mut(&mut self) -> &mut PathBuf {
+        match self {
+            Self::LandCover(item) => &mut item.path,
+            Self::Road(item) => &mut item.path,
+            Self::Barrier(item) => &mut item.path,
+        }
+    }
+
     fn kind(&self) -> &'static str {
         match self {
             Self::LandCover(_) => "land_cover",
@@ -183,55 +181,23 @@ impl StackItem {
     }
 }
 
-impl MergeLandCoverJob {
-    /// Parse a job from JSON.
-    pub fn from_json(text: &str) -> Result<Self> {
-        serde_json::from_str(text).map_err(|e| Error::invalid(format!("job JSON: {e}")))
-    }
-
-    /// Read and parse a job file; relative paths are resolved against the
-    /// file's directory.
-    pub fn from_file(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path).map_err(Error::file(path))?;
-        let job = Self::from_json(&text)?;
-        let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Ok(job.resolve_paths(base))
-    }
-
-    /// JSON schema of the job document.
-    pub fn json_schema() -> serde_json::Value {
-        serde_json::to_value(schemars::schema_for!(MergeLandCoverJob))
-            .expect("a generated schema serialises to JSON")
-    }
-
-    /// Paths made absolute against `base` (when relative).
-    pub fn resolve_paths(mut self, base: &Path) -> Self {
-        let absolute = |p: &mut PathBuf| {
-            if !p.is_absolute() {
-                *p = base.join(&*p);
-            }
-        };
-        absolute(&mut self.dem);
-        absolute(&mut self.output_dir);
+impl JobFile for MergeLandCoverJob {
+    fn resolve_paths(mut self, base: &Path) -> Self {
+        absolutize(&mut self.dem, base);
+        absolutize(&mut self.output_dir, base);
         for item in &mut self.stack {
-            match item {
-                StackItem::LandCover(item) => absolute(&mut item.path),
-                StackItem::Road(item) => absolute(&mut item.path),
-                StackItem::Barrier(item) => absolute(&mut item.path),
-            }
+            absolutize(item.path_mut(), base);
         }
         self
     }
+}
 
+impl MergeLandCoverJob {
     /// Problems that make the job invalid regardless of its input data.
     pub fn check(&self) -> Vec<String> {
-        let mut issues = Vec::new();
-        if self.schema_version != SCHEMA_VERSION {
-            issues.push(format!(
-                "schema_version is {}, this engine reads version {SCHEMA_VERSION}",
-                self.schema_version
-            ));
-        }
+        let mut issues: Vec<String> = check_schema_version(self.schema_version)
+            .into_iter()
+            .collect();
         if !self
             .stack
             .iter()
@@ -279,14 +245,7 @@ impl MergeLandCoverJob {
 }
 
 fn duplicates(values: impl Iterator<Item = i64>, at: &str, field: &str, issues: &mut Vec<String>) {
-    let mut seen = BTreeSet::new();
-    let mut repeated = BTreeSet::new();
-    for value in values {
-        if !seen.insert(value) {
-            repeated.insert(value);
-        }
-    }
-    for value in repeated {
+    for (value, _, _) in repeated(values) {
         issues.push(format!("{at}: class {value} is listed twice in {field}"));
     }
 }
@@ -304,27 +263,6 @@ pub struct ItemClass {
     pub rank: u32,
     /// Raster cells inside the grid, or road features.
     pub count: u64,
-}
-
-/// Feature counts of a vector item.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct FeatureCounts {
-    /// Features read (after the attribute filter).
-    pub read: u64,
-    /// Features that burnt at least one cell.
-    pub used: u64,
-    /// Features without a usable class (road) or not in `classes`.
-    pub without_class: u64,
-    /// Features without a line (road) or line and polygon (barrier) part:
-    /// no geometry, points, curves.
-    pub unsupported_geometry: u64,
-    /// Features with usable parts that burn no cell (outside the grid, or
-    /// polygons too small to hold a cell centre).
-    pub outside_grid: u64,
-    /// Line parts burnt.
-    pub lines: u64,
-    /// Polygon parts burnt.
-    pub polygons: u64,
 }
 
 /// Validated stack item.
@@ -377,33 +315,24 @@ pub fn prepare(
 ) -> Result<PreparedMerge> {
     let started = Instant::now();
     let mut issues = job.check();
-    if let Err(Error::Validation { issues: more }) = output::check_output_dir(&job.output_dir) {
-        issues.extend(more);
-    }
-    if !job.dem.exists() {
-        issues.push(format!("dem: {} does not exist", job.dem.display()));
-    }
-    for (i, item) in job.stack.iter().enumerate() {
-        if !item.path().exists() {
-            issues.push(format!(
-                "stack item {} ({}): {} does not exist",
-                i + 1,
-                item.kind(),
-                item.path().display()
-            ));
-        }
-    }
+    let stack_files = job.stack.iter().enumerate().map(|(i, item)| {
+        (
+            format!("stack item {} ({})", i + 1, item.kind()),
+            item.path(),
+        )
+    });
+    issues.extend(check_files(
+        &job.output_dir,
+        std::iter::once(("dem".to_owned(), job.dem.as_path())).chain(stack_files),
+    ));
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
 
-    let dem = Dataset::open(&job.dem).map_err(Error::gdal(&job.dem))?;
-    let grid = GridSpec::from_dem(&dem, &job.dem).map_err(|issues| Error::Validation { issues })?;
-    drop(dem);
+    let (_, grid) = GridSpec::open_dem(&job.dem)?;
     // The GDAL cache depends on the budget only: set it before reading items.
     let plan = merge_plan(&grid, settings, 0)?;
-    gdal::config::set_config_option("GDAL_CACHEMAX", &plan.gdal_cache_bytes.to_string())
-        .map_err(Error::gdal(&job.dem))?;
+    plan.configure_gdal()?;
 
     let mut warnings = Vec::new();
     let mut items = Vec::with_capacity(job.stack.len());
@@ -451,13 +380,10 @@ pub fn prepare(
     durations_s.insert("validate", started.elapsed().as_secs_f64());
 
     let started = Instant::now();
-    let mut fingerprints = vec![sha256_file("dem", &job.dem)?];
-    for item in &job.stack {
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
-        fingerprints.push(sha256_file("stack_item", item.path())?);
-    }
+    let files: Vec<(&'static str, &Path)> = std::iter::once(("dem", job.dem.as_path()))
+        .chain(job.stack.iter().map(|item| ("stack_item", item.path())))
+        .collect();
+    let fingerprints = fingerprints(&files, cancelled)?;
     durations_s.insert("fingerprints", started.elapsed().as_secs_f64());
 
     Ok(PreparedMerge {
@@ -516,27 +442,22 @@ fn plan_land_cover(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ItemPlan> {
     let (dataset, alignment) = open_class_raster(&item.path, grid, at)?;
+    let band = AlignedBand::new(&dataset, &item.path, alignment, grid)?;
+    let nodata = integer_nodata(band.nodata());
     let mut counts: BTreeMap<i64, u64> = BTreeMap::new();
     let mut too_many = false;
-    for_each_raster_window(
-        &dataset,
-        &item.path,
-        &alignment,
-        grid,
-        cancelled,
-        |_, _, values| {
-            for value in values.iter().flatten() {
-                if let Some(count) = counts.get_mut(value) {
-                    *count += 1;
-                } else if counts.len() < MAX_ITEM_CLASSES {
-                    counts.insert(*value, 1);
-                } else {
-                    too_many = true;
-                }
+    band.for_each_covered_row::<i64>(cancelled, |_, _, values| {
+        for value in values.iter().filter(|v| Some(**v) != nodata) {
+            if let Some(count) = counts.get_mut(value) {
+                *count += 1;
+            } else if counts.len() < MAX_ITEM_CLASSES {
+                counts.insert(*value, 1);
+            } else {
+                too_many = true;
             }
-            Ok(())
-        },
-    )?;
+        }
+        Ok(())
+    })?;
     if too_many {
         return Err(Error::invalid(format!(
             "{at}: more than {MAX_ITEM_CLASSES} distinct classes; is it a class raster?"
@@ -599,30 +520,18 @@ fn plan_road(
     warnings: &mut Vec<Warning>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ItemPlan> {
-    let source = VectorSource::open(
+    let vector = VectorLayer::open(
         &item.path,
         item.layer.as_deref(),
         item.filter.as_deref(),
         grid,
         at,
     )?;
-    let dataset = open_vector(&item.path)?;
-    let mut layer = source.layer(&dataset)?;
-    let invalid = |issue: String| Error::invalid(format!("{at}: {issue}"));
-    let defn_index = |name: &str| layer.defn().field_index(name);
-    let class_index = defn_index(&item.class_field).map_err(|_| {
-        invalid(format!(
-            "layer {:?} has no field {:?}",
-            source.layer_name, item.class_field
-        ))
-    })?;
+    let dataset = vector.dataset()?;
+    let mut layer = vector.layer(&dataset)?;
+    let class_index = vector.field_index(&layer, &item.class_field)?;
     let label_index = match &item.label_field {
-        Some(name) => Some(defn_index(name).map_err(|_| {
-            invalid(format!(
-                "layer {:?} has no field {name:?}",
-                source.layer_name
-            ))
-        })?),
+        Some(name) => Some(vector.field_index(&layer, name)?),
         None => None,
     };
     // Class → (features, first non-empty label).
@@ -635,12 +544,12 @@ fn plan_road(
         let value = feature
             .field(class_index)
             .map_err(Error::gdal(&item.path))?;
-        let Some(class) = value.and_then(integer_value) else {
+        let Some(class) = value.and_then(integer_attribute) else {
             without_class += 1;
             continue;
         };
         if found.len() >= MAX_ITEM_CLASSES && !found.contains_key(&class) {
-            return Err(invalid(format!(
+            return Err(vector.invalid(format!(
                 "more than {MAX_ITEM_CLASSES} distinct classes in {:?}; is it a class field?",
                 item.class_field
             )));
@@ -717,13 +626,13 @@ fn plan_road(
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
-    reprojection_warning(&source.layer_name, source.transform.is_some(), at, warnings);
+    reprojection_warning(&vector, at, warnings);
     Ok(ItemPlan {
         position,
         kind: "road",
         path: item.path.clone(),
-        layer: Some(source.layer_name),
-        reprojected: Some(source.transform.is_some()),
+        reprojected: Some(vector.reprojected()),
+        layer: Some(vector.name),
         classes,
         features: None,
     })
@@ -736,42 +645,34 @@ fn plan_barrier(
     position: usize,
     warnings: &mut Vec<Warning>,
 ) -> Result<ItemPlan> {
-    let source = VectorSource::open(
+    let vector = VectorLayer::open(
         &item.path,
         item.layer.as_deref(),
         item.filter.as_deref(),
         grid,
         at,
     )?;
-    reprojection_warning(&source.layer_name, source.transform.is_some(), at, warnings);
+    reprojection_warning(&vector, at, warnings);
     Ok(ItemPlan {
         position,
         kind: "barrier",
         path: item.path.clone(),
-        layer: Some(source.layer_name),
-        reprojected: Some(source.transform.is_some()),
+        reprojected: Some(vector.reprojected()),
+        layer: Some(vector.name),
         classes: Vec::new(),
         features: None,
     })
 }
 
-fn reprojection_warning(layer: &str, reprojected: bool, at: &str, warnings: &mut Vec<Warning>) {
-    if reprojected {
+fn reprojection_warning(vector: &VectorLayer, at: &str, warnings: &mut Vec<Warning>) {
+    if vector.reprojected() {
         warnings.push(Warning {
             code: "stack_item_reprojected",
-            message: format!("{at}: geometries of layer {layer:?} are reprojected to the DEM CRS"),
+            message: format!(
+                "{at}: geometries of layer {:?} are reprojected to the DEM CRS",
+                vector.name
+            ),
         });
-    }
-}
-
-/// Integer class of an attribute: integers, whole reals and integer text.
-fn integer_value(value: FieldValue) -> Option<i64> {
-    match value {
-        FieldValue::IntegerValue(v) => Some(i64::from(v)),
-        FieldValue::Integer64Value(v) => Some(v),
-        FieldValue::RealValue(v) if v.fract() == 0.0 && v.abs() < 9.0e15 => Some(v as i64),
-        FieldValue::StringValue(text) => text.trim().parse().ok(),
-        _ => None,
     }
 }
 
@@ -813,288 +714,6 @@ fn class_conflicts(items: &[ItemPlan]) -> Vec<String> {
     issues
 }
 
-/// A vector layer of a stack item, checked, with its transform to the grid
-/// CRS.
-struct VectorSource {
-    layer_name: String,
-    filter: Option<String>,
-    path: PathBuf,
-    transform: Option<CoordTransform>,
-}
-
-fn open_vector(path: &Path) -> Result<Dataset> {
-    let options = DatasetOptions {
-        open_flags: GdalOpenFlags::GDAL_OF_VECTOR | GdalOpenFlags::GDAL_OF_READONLY,
-        ..DatasetOptions::default()
-    };
-    Dataset::open_ex(path, options).map_err(Error::gdal(path))
-}
-
-impl VectorSource {
-    /// Check the layer, its CRS and the attribute filter.
-    fn open(
-        path: &Path,
-        layer: Option<&str>,
-        filter: Option<&str>,
-        grid: &GridSpec,
-        at: &str,
-    ) -> Result<Self> {
-        let dataset = open_vector(path)?;
-        let invalid = |issue: String| Error::invalid(format!("{at} {}: {issue}", path.display()));
-        let mut found = match layer {
-            Some(name) => dataset
-                .layer_by_name(name)
-                .map_err(|_| invalid(format!("no layer named {name:?}")))?,
-            None => dataset
-                .layer(0)
-                .map_err(|_| invalid("has no layer".into()))?,
-        };
-        let layer_name = found.name();
-        let layer_srs = found
-            .spatial_ref()
-            .ok_or_else(|| invalid(format!("layer {layer_name:?} has no CRS")))?;
-        let transform = if layer_srs == grid.srs {
-            None
-        } else {
-            let from = traditional(layer_srs);
-            let to = traditional(grid.srs.clone());
-            Some(CoordTransform::new(&from, &to).map_err(Error::gdal(path))?)
-        };
-        if let Some(filter) = filter {
-            found
-                .set_attribute_filter(filter)
-                .map_err(|e| invalid(format!("invalid filter {filter:?} ({e})")))?;
-            // Some drivers (GeoPackage) accept any filter and fail only when
-            // reading; a query with the same dialect fails up front.
-            let query = format!(
-                "SELECT * FROM \"{}\" WHERE {filter}",
-                layer_name.replace('"', "\"\"")
-            );
-            dataset
-                .execute_sql(&query, None, gdal::vector::sql::Dialect::DEFAULT)
-                .map_err(|e| invalid(format!("invalid filter {filter:?} ({e})")))?;
-        }
-        Ok(Self {
-            layer_name,
-            filter: filter.map(str::to_owned),
-            path: path.to_path_buf(),
-            transform,
-        })
-    }
-
-    /// The layer of `dataset` (opened with [`open_vector`]), with the
-    /// attribute filter set.
-    fn layer<'a>(&self, dataset: &'a Dataset) -> Result<Layer<'a>> {
-        let mut layer = dataset
-            .layer_by_name(&self.layer_name)
-            .map_err(Error::gdal(&self.path))?;
-        if let Some(filter) = &self.filter {
-            layer
-                .set_attribute_filter(filter)
-                .map_err(Error::gdal(&self.path))?;
-        }
-        Ok(layer)
-    }
-}
-
-fn traditional(mut srs: SpatialRef) -> SpatialRef {
-    srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
-    srs
-}
-
-/// Call `visit(row, first_col, values)` for every row piece of the raster
-/// inside the grid, in strips of [`STRIP_ROWS`] rows and chunks of
-/// [`CHUNK_COLS`] columns; `None` is NoData.
-fn for_each_raster_window(
-    dataset: &Dataset,
-    path: &Path,
-    alignment: &Alignment,
-    grid: &GridSpec,
-    cancelled: &dyn Fn() -> bool,
-    mut visit: impl FnMut(usize, usize, &[Option<i64>]) -> Result<()>,
-) -> Result<()> {
-    let band = dataset.rasterband(1).map_err(Error::gdal(path))?;
-    let nodata = integer_nodata(band.no_data_value());
-    let row_first = alignment.row_offset.max(0) as usize;
-    let row_end = (alignment.row_offset + alignment.rows as i64).min(grid.rows as i64) as usize;
-    let Some((raster_col, col_first, width_all)) = alignment.row_window(row_first, grid.cols)
-    else {
-        return Ok(());
-    };
-    let mut values = Vec::with_capacity(CHUNK_COLS);
-    for start in (row_first..row_end).step_by(STRIP_ROWS) {
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
-        let height = STRIP_ROWS.min(row_end - start);
-        for offset in (0..width_all).step_by(CHUNK_COLS) {
-            let width = CHUNK_COLS.min(width_all - offset);
-            let buffer = band
-                .read_as::<i64>(
-                    (
-                        (raster_col + offset) as isize,
-                        alignment.raster_row(start) as isize,
-                    ),
-                    (width, height),
-                    (width, height),
-                    None,
-                )
-                .map_err(Error::gdal(path))?;
-            for r in 0..height {
-                values.clear();
-                values.extend(
-                    buffer.data()[r * width..(r + 1) * width]
-                        .iter()
-                        .map(|&v| (Some(v) != nodata).then_some(v)),
-                );
-                visit(start + r, col_first + offset, &values)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-/// A line or polygon of a geometry, in pixel coordinates of the grid.
-#[derive(Debug)]
-enum Part {
-    Line(Vec<(f64, f64)>),
-    Polygon(Vec<Vec<(f64, f64)>>),
-}
-
-/// Map coordinates `points` to grid pixel coordinates, reprojecting first
-/// when needed, or why they cannot be.
-fn to_pixels(
-    points: Vec<(f64, f64, f64)>,
-    grid: &GridSpec,
-    transform: Option<&CoordTransform>,
-) -> std::result::Result<Vec<(f64, f64)>, &'static str> {
-    let [x0, ew, _, y0, _, ns] = grid.geo_transform;
-    let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = points.into_iter().map(|(x, y, _)| (x, y)).unzip();
-    if let Some(transform) = transform {
-        transform
-            .transform_coords(&mut xs, &mut ys, &mut [])
-            .map_err(|_| "cannot be reprojected to the DEM CRS")?;
-    }
-    let pixels: Vec<(f64, f64)> = xs
-        .into_iter()
-        .zip(ys)
-        .map(|(x, y)| ((x - x0) / ew, (y - y0) / ns))
-        .collect();
-    if pixels.iter().all(|(x, y)| x.is_finite() && y.is_finite()) {
-        Ok(pixels)
-    } else {
-        Err("has non-finite coordinates")
-    }
-}
-
-/// Visit the line and polygon parts of `geometry` one at a time, so that
-/// only one part's coordinates are held. Multi-geometries and collections
-/// are split; other parts (points, curves) are counted in `unsupported`.
-/// A part that cannot be reprojected, or has non-finite coordinates, is an
-/// error built by `problem`.
-fn for_each_part(
-    geometry: &Geometry,
-    grid: &GridSpec,
-    transform: Option<&CoordTransform>,
-    problem: &dyn Fn(&str) -> Error,
-    unsupported: &mut u64,
-    visit: &mut dyn FnMut(Part) -> Result<()>,
-) -> Result<()> {
-    let points = |g: &Geometry| {
-        let mut out = Vec::new();
-        g.get_points(&mut out);
-        out
-    };
-    match geometry_type_flatten(geometry.geometry_type()) {
-        OGRwkbGeometryType::wkbLineString | OGRwkbGeometryType::wkbLinearRing => {
-            let line = to_pixels(points(geometry), grid, transform).map_err(problem)?;
-            if !line.is_empty() {
-                visit(Part::Line(line))?;
-            }
-        }
-        OGRwkbGeometryType::wkbPolygon => {
-            let mut rings = Vec::with_capacity(geometry.geometry_count());
-            for i in 0..geometry.geometry_count() {
-                rings.push(
-                    to_pixels(points(&geometry.get_geometry(i)), grid, transform)
-                        .map_err(problem)?,
-                );
-            }
-            if !rings.is_empty() {
-                visit(Part::Polygon(rings))?;
-            }
-        }
-        OGRwkbGeometryType::wkbMultiLineString
-        | OGRwkbGeometryType::wkbMultiPolygon
-        | OGRwkbGeometryType::wkbGeometryCollection => {
-            for i in 0..geometry.geometry_count() {
-                for_each_part(
-                    &geometry.get_geometry(i),
-                    grid,
-                    transform,
-                    problem,
-                    unsupported,
-                    visit,
-                )?;
-            }
-        }
-        _ => *unsupported += 1,
-    }
-    Ok(())
-}
-
-/// Apply `update` to every cell `part` burns; `true` when it burns at
-/// least one cell of the grid.
-fn burn_part(
-    part: &Part,
-    grid: &GridSpec,
-    cells: &mut TiledGrid<MergeCell>,
-    update: &dyn Fn(&mut MergeCell),
-    cancelled: &dyn Fn() -> bool,
-) -> Result<bool> {
-    let mut failure = None;
-    let mut burnt = false;
-    let mut visit = |row: usize, c0: usize, c1: usize| {
-        if failure.is_some() {
-            return;
-        }
-        if cancelled() {
-            failure = Some(Error::Cancelled);
-            return;
-        }
-        burnt = true;
-        for col in c0..=c1 {
-            let result = cells.get(row, col).and_then(|mut cell| {
-                update(&mut cell);
-                cells.set(row, col, cell)
-            });
-            if let Err(error) = result {
-                failure = Some(error.into());
-                return;
-            }
-        }
-    };
-    match part {
-        Part::Line(points) => line_spans(points, grid.rows, grid.cols, &mut visit),
-        Part::Polygon(rings) => polygon_spans(rings, grid.rows, grid.cols, &mut visit),
-    }
-    match failure {
-        Some(error) => Err(error),
-        None => Ok(burnt),
-    }
-}
-
-/// Error for feature `fid` (or position `index`) of stack item `at`.
-fn feature_problem(at: &str, fid: Option<u64>, index: u64) -> impl Fn(&str) -> Error {
-    let which = fid.map_or_else(|| format!("#{index}"), |fid| format!("FID {fid}"));
-    let at = at.to_owned();
-    move |why: &str| {
-        Error::invalid(format!(
-            "{at} feature {which}: {why}; fix it or leave it out with \"where\""
-        ))
-    }
-}
-
 /// Merge result counters.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct MergeSummary {
@@ -1129,15 +748,7 @@ pub struct MergedClass {
 }
 
 /// `run.json` of a merge.
-#[derive(Debug, Clone, Serialize)]
-pub struct MergeReport {
-    /// Version of this document.
-    pub report_version: u32,
-    /// Deterministic part.
-    pub run: MergeRecord,
-    /// Execution part.
-    pub execution: MergeExecution,
-}
+pub type MergeReport = Report<MergeRecord, MergeStore>;
 
 /// Deterministic part of `run.json`.
 #[derive(Debug, Clone, Serialize)]
@@ -1158,21 +769,11 @@ pub struct MergeRecord {
     pub deviations: Vec<Deviation>,
 }
 
-/// Execution part of `run.json`.
+/// Execution details of a merge.
 #[derive(Debug, Clone, Serialize)]
-pub struct MergeExecution {
-    /// Settings used.
-    pub settings: ExecutionSettings,
-    /// Memory and disk plan.
-    pub plan: ResourcePlan,
-    /// Seconds per phase.
-    pub durations_s: BTreeMap<&'static str, f64>,
+pub struct MergeStore {
     /// Cache counters of the merge grid.
     pub store: StoreStats,
-    /// Peak resident memory, bytes, where reported by the platform.
-    pub peak_rss_bytes: Option<u64>,
-    /// Versions of the engine and libraries.
-    pub versions: BTreeMap<&'static str, String>,
 }
 
 /// Deviations from AccessMod 5 that apply to every merge.
@@ -1216,15 +817,25 @@ pub fn run(
 
     let started = Instant::now();
     for (item, plan) in prepared.job.stack.iter().zip(prepared.items.iter_mut()) {
+        let at = format!("stack item {} ({})", plan.position, plan.kind);
         match item {
             StackItem::LandCover(item) => {
-                paint_land_cover(item, plan, grid, &mut cells, cancelled)?
+                paint_land_cover(item, plan, &at, grid, &mut cells, cancelled)?
             }
             StackItem::Road(item) => {
-                plan.features = Some(paint_road(item, plan, grid, &mut cells, cancelled)?);
+                plan.features = Some(paint_road(item, plan, &at, grid, &mut cells, cancelled)?);
             }
             StackItem::Barrier(item) => {
-                plan.features = Some(paint_barrier(item, plan, grid, &mut cells, cancelled)?);
+                let vector = open_item_layer(&item.path, &item.layer, &item.filter, grid, &at)?;
+                let barrier = |cell: &mut MergeCell| cell.flags |= MergeCell::BARRIER;
+                plan.features = Some(burn_layer(
+                    &vector,
+                    grid,
+                    &mut cells,
+                    Burn::LinesAndPolygons,
+                    cancelled,
+                    |_| Ok(Some(barrier)),
+                )?);
             }
         }
     }
@@ -1257,17 +868,34 @@ pub fn run(
             class.label.clone_from(label);
         }
     }
-    write_classes_csv(&staging.path().join(CLASSES_FILE), &result.classes)?;
-    output::write_json(&staging.path().join("job.resolved.json"), &prepared.job)?;
+    let mut csv = CsvWriter::create(
+        &staging.path().join(CLASSES_FILE),
+        "class,label,stack_item,cells",
+    )?;
+    for class in &result.classes {
+        let label = class
+            .label
+            .as_ref()
+            .map(|l| csv_field(&serde_json::Value::String(l.clone())))
+            .unwrap_or_default();
+        csv.record(&[
+            class.class.to_string(),
+            label,
+            class.stack_item.to_string(),
+            class.cells.to_string(),
+        ])?;
+    }
+    csv.finish()?;
     prepared
         .durations_s
         .insert("write_outputs", started.elapsed().as_secs_f64());
 
     let mut warnings = prepared.warnings.clone();
     for item in &prepared.items {
-        if let Some(features) = &item.features
-            && features.unsupported_geometry > 0
-        {
+        let Some(features) = &item.features else {
+            continue;
+        };
+        if features.unsupported_geometry > 0 {
             warnings.push(Warning {
                 code: "unsupported_geometry",
                 message: format!(
@@ -1283,9 +911,7 @@ pub fn run(
                 ),
             });
         }
-        if let Some(features) = &item.features
-            && features.outside_grid > 0
-        {
+        if features.outside_grid > 0 {
             warnings.push(Warning {
                 code: "features_outside_grid",
                 message: format!(
@@ -1296,262 +922,110 @@ pub fn run(
             });
         }
     }
-    let report = MergeReport {
-        report_version: RUN_REPORT_VERSION,
-        run: MergeRecord {
-            job: prepared.job.clone(),
-            inputs: prepared.fingerprints.clone(),
-            grid: GridReport {
-                cols: grid.cols,
-                rows: grid.rows,
-                geo_transform: grid.geo_transform,
-                crs_wkt: grid.srs.to_wkt().unwrap_or_default(),
-            },
-            stack: prepared.items.clone(),
+    let store = cells.stats();
+    let PreparedMerge {
+        job,
+        grid,
+        items,
+        plan,
+        fingerprints,
+        durations_s,
+        ..
+    } = prepared;
+    let report = Report::new(
+        MergeRecord {
+            job,
+            inputs: fingerprints,
+            grid: GridReport::of(&grid),
+            stack: items,
             result,
             warnings,
             deviations: deviations(),
         },
-        execution: MergeExecution {
-            settings: settings.clone(),
-            plan: prepared.plan.clone(),
-            durations_s: prepared.durations_s.clone(),
-            store: cells.stats(),
-            peak_rss_bytes: resources::peak_rss(),
-            versions: versions(),
-        },
-    };
-    output::write_json(&staging.path().join("run.json"), &report)?;
-    if cancelled() {
-        return Err(Error::Cancelled);
-    }
-    let output_dir = staging.commit()?;
+        Execution::now(settings, plan, durations_s, MergeStore { store }),
+    );
+    let output_dir = output::finish(staging, &report.run.job, &report, cancelled)?;
     Ok((output_dir, report))
+}
+
+/// The layer of a vector stack item, checked.
+fn open_item_layer(
+    path: &Path,
+    layer: &Option<String>,
+    filter: &Option<String>,
+    grid: &GridSpec,
+    at: &str,
+) -> Result<VectorLayer> {
+    VectorLayer::open(path, layer.as_deref(), filter.as_deref(), grid, at)
+}
+
+/// Item classes keyed by their value in the item: (class, rank).
+fn class_ranks(plan: &ItemPlan) -> BTreeMap<i64, (i32, u32)> {
+    plan.classes
+        .iter()
+        .map(|c| (c.source_class, (c.class, c.rank)))
+        .collect()
 }
 
 fn paint_land_cover(
     item: &LandCoverItem,
     plan: &ItemPlan,
+    at: &str,
     grid: &GridSpec,
     cells: &mut TiledGrid<MergeCell>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<()> {
-    let at = format!("stack item {} (land_cover)", plan.position);
-    let (dataset, alignment) = open_class_raster(&item.path, grid, &at)?;
-    let classes: BTreeMap<i64, (i32, u32)> = plan
-        .classes
-        .iter()
-        .map(|c| (c.source_class, (c.class, c.rank)))
-        .collect();
-    for_each_raster_window(
-        &dataset,
-        &item.path,
-        &alignment,
-        grid,
-        cancelled,
-        |row, col, values| {
-            for (k, value) in values.iter().enumerate() {
-                let Some(&(class, rank)) = value.as_ref().and_then(|v| classes.get(v)) else {
-                    continue;
-                };
-                let mut cell = cells.get(row, col + k)?;
-                cell.paint(class, rank);
-                cells.set(row, col + k, cell)?;
+    let (dataset, alignment) = open_class_raster(&item.path, grid, at)?;
+    let band = AlignedBand::new(&dataset, &item.path, alignment, grid)?;
+    let nodata = integer_nodata(band.nodata());
+    let classes = class_ranks(plan);
+    band.for_each_covered_row::<i64>(cancelled, |row, col, values| {
+        for (k, value) in values.iter().enumerate() {
+            if Some(*value) == nodata {
+                continue;
             }
-            Ok(())
-        },
-    )
+            let Some(&(class, rank)) = classes.get(value) else {
+                continue;
+            };
+            let mut cell = cells.get(row, col + k)?;
+            cell.paint(class, rank);
+            cells.set(row, col + k, cell)?;
+        }
+        Ok(())
+    })
 }
 
 fn paint_road(
     item: &RoadItem,
     plan: &ItemPlan,
+    at: &str,
     grid: &GridSpec,
     cells: &mut TiledGrid<MergeCell>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<FeatureCounts> {
-    let at = format!("stack item {} (road)", plan.position);
-    let source = VectorSource::open(
-        &item.path,
-        item.layer.as_deref(),
-        item.filter.as_deref(),
-        grid,
-        &at,
-    )?;
-    let dataset = open_vector(&item.path)?;
-    let mut layer = source.layer(&dataset)?;
-    let class_index = layer
-        .defn()
-        .field_index(&item.class_field)
-        .map_err(Error::gdal(&item.path))?;
-    let classes: BTreeMap<i64, (i32, u32)> = plan
-        .classes
-        .iter()
-        .map(|c| (c.source_class, (c.class, c.rank)))
-        .collect();
-    let mut counts = FeatureCounts::default();
-    for (index, feature) in layer.features().enumerate() {
-        counts.read += 1;
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
+    let vector = open_item_layer(&item.path, &item.layer, &item.filter, grid, at)?;
+    let class_index = {
+        let dataset = vector.dataset()?;
+        let layer = vector.layer(&dataset)?;
+        vector.field_index(&layer, &item.class_field)?
+    };
+    let classes = class_ranks(plan);
+    // Roads are lines: AccessMod 5 rasterises them with `v.to.rast
+    // type=line`.
+    burn_layer(&vector, grid, cells, Burn::Lines, cancelled, |feature| {
         let value = feature
             .field(class_index)
             .map_err(Error::gdal(&item.path))?;
-        let Some(&(class, rank)) = value.and_then(integer_value).and_then(|v| classes.get(&v))
-        else {
-            counts.without_class += 1;
-            continue;
-        };
-        let update = |cell: &mut MergeCell| {
-            cell.paint(class, rank);
-            cell.flags |= MergeCell::ROAD;
-        };
-        let problem = feature_problem(&at, feature.fid(), index as u64);
-        let (mut lines, mut burnt, mut unsupported) = (0u64, false, 0u64);
-        if let Some(geometry) = feature.geometry() {
-            for_each_part(
-                geometry,
-                grid,
-                source.transform.as_ref(),
-                &problem,
-                &mut unsupported,
-                &mut |part| {
-                    if cancelled() {
-                        return Err(Error::Cancelled);
-                    }
-                    // Roads are lines: AccessMod 5 rasterises them with
-                    // `v.to.rast type=line`. A feature with polygons only
-                    // counts as unsupported (no line part).
-                    if matches!(part, Part::Polygon(_)) {
-                        return Ok(());
-                    }
-                    lines += 1;
-                    burnt |= burn_part(&part, grid, cells, &update, cancelled)?;
-                    Ok(())
-                },
-            )?;
-        }
-        tally(&mut counts, lines, 0, burnt);
-    }
-    Ok(counts)
-}
-
-/// Count one feature with `lines` and `polygons` parts.
-fn tally(counts: &mut FeatureCounts, lines: u64, polygons: u64, burnt: bool) {
-    counts.lines += lines;
-    counts.polygons += polygons;
-    if lines + polygons == 0 {
-        counts.unsupported_geometry += 1;
-    } else if burnt {
-        counts.used += 1;
-    } else {
-        counts.outside_grid += 1;
-    }
-}
-
-fn paint_barrier(
-    item: &BarrierItem,
-    plan: &ItemPlan,
-    grid: &GridSpec,
-    cells: &mut TiledGrid<MergeCell>,
-    cancelled: &dyn Fn() -> bool,
-) -> Result<FeatureCounts> {
-    let at = format!("stack item {} (barrier)", plan.position);
-    let source = VectorSource::open(
-        &item.path,
-        item.layer.as_deref(),
-        item.filter.as_deref(),
-        grid,
-        &at,
-    )?;
-    let dataset = open_vector(&item.path)?;
-    let mut layer = source.layer(&dataset)?;
-    let mut counts = FeatureCounts::default();
-    let update = |cell: &mut MergeCell| cell.flags |= MergeCell::BARRIER;
-    for (index, feature) in layer.features().enumerate() {
-        counts.read += 1;
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
-        let problem = feature_problem(&at, feature.fid(), index as u64);
-        let (mut lines, mut polygons, mut burnt, mut unsupported) = (0u64, 0u64, false, 0u64);
-        if let Some(geometry) = feature.geometry() {
-            for_each_part(
-                geometry,
-                grid,
-                source.transform.as_ref(),
-                &problem,
-                &mut unsupported,
-                &mut |part| {
-                    if cancelled() {
-                        return Err(Error::Cancelled);
-                    }
-                    match part {
-                        Part::Line(_) => lines += 1,
-                        Part::Polygon(_) => polygons += 1,
-                    }
-                    burnt |= burn_part(&part, grid, cells, &update, cancelled)?;
-                    Ok(())
-                },
-            )?;
-        }
-        tally(&mut counts, lines, polygons, burnt);
-    }
-    Ok(counts)
-}
-
-fn create_geotiff<T: gdal::raster::GdalType>(
-    path: &Path,
-    grid: &GridSpec,
-    threads: usize,
-    nodata: f64,
-) -> Result<Dataset> {
-    let driver = DriverManager::get_driver_by_name("GTiff").map_err(Error::gdal(path))?;
-    let mut options = RasterCreationOptions::new();
-    for (key, value) in [
-        ("TILED", "YES".to_owned()),
-        ("BLOCKXSIZE", BLOCK.to_string()),
-        ("BLOCKYSIZE", BLOCK.to_string()),
-        ("COMPRESS", "DEFLATE".to_owned()),
-        ("PREDICTOR", "2".to_owned()),
-        ("BIGTIFF", "IF_SAFER".to_owned()),
-        ("NUM_THREADS", threads.max(1).to_string()),
-    ] {
-        options
-            .set_name_value(key, &value)
-            .map_err(Error::gdal(path))?;
-    }
-    let mut dataset = driver
-        .create_with_band_type_with_options::<T, _>(path, grid.cols, grid.rows, 1, &options)
-        .map_err(Error::gdal(path))?;
-    dataset
-        .set_geo_transform(&grid.geo_transform)
-        .map_err(Error::gdal(path))?;
-    dataset
-        .set_spatial_ref(&grid.srs)
-        .map_err(Error::gdal(path))?;
-    dataset
-        .rasterband(1)
-        .and_then(|mut band| band.set_no_data_value(Some(nodata)))
-        .map_err(Error::gdal(path))?;
-    Ok(dataset)
-}
-
-fn write_block<T: gdal::raster::GdalType + Copy>(
-    dataset: &Dataset,
-    path: &Path,
-    (col, row): (usize, usize),
-    (width, height): (usize, usize),
-    data: &mut Vec<T>,
-) -> Result<()> {
-    let mut buffer = Buffer::new((width, height), std::mem::take(data));
-    let result = dataset.rasterband(1).and_then(|mut band| {
-        band.write((col as isize, row as isize), (width, height), &mut buffer)
-    });
-    *data = buffer.into_shape_and_vec().1;
-    data.clear();
-    result.map_err(Error::gdal(path))
+        Ok(value
+            .and_then(integer_attribute)
+            .and_then(|v| classes.get(&v))
+            .map(|&(class, rank)| {
+                move |cell: &mut MergeCell| {
+                    cell.paint(class, rank);
+                    cell.flags |= MergeCell::ROAD;
+                }
+            }))
+    })
 }
 
 /// Stream the merged land cover (and the bridge map) block by block, each
@@ -1565,13 +1039,18 @@ fn write_outputs(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<MergeSummary> {
     let (rows, cols) = (grid.rows, grid.cols);
-    let merged_path = dir.join(MERGED_FILE);
-    let bridges_path = dir.join(BRIDGES_FILE);
-    let merged_ds = create_geotiff::<i32>(&merged_path, grid, threads, f64::from(MERGED_NODATA))?;
-    let bridges_ds = if clean_bridges {
-        Some(create_geotiff::<u8>(
-            &bridges_path,
+    let merged_tif = GeoTiff::create::<i32>(
+        &dir.join(MERGED_FILE),
+        grid,
+        2,
+        threads,
+        f64::from(MERGED_NODATA),
+    )?;
+    let bridges_tif = if clean_bridges {
+        Some(GeoTiff::create::<u8>(
+            &dir.join(BRIDGES_FILE),
             grid,
+            2,
             threads,
             f64::from(BRIDGE_NODATA),
         )?)
@@ -1651,9 +1130,9 @@ fn write_outputs(
             }
             let at = (col0, row0);
             let size = (width, height);
-            write_block(&merged_ds, &merged_path, at, size, &mut merged_block)?;
-            if let Some(ds) = &bridges_ds {
-                write_block(ds, &bridges_path, at, size, &mut bridge_block)?;
+            merged_tif.write(at, size, &mut merged_block)?;
+            if let Some(tif) = &bridges_tif {
+                tif.write(at, size, &mut bridge_block)?;
             }
         }
     }
@@ -1672,9 +1151,9 @@ fn write_outputs(
             }
         }
     }
-    merged_ds.close().map_err(Error::gdal(&merged_path))?;
-    if let Some(ds) = bridges_ds {
-        ds.close().map_err(Error::gdal(&bridges_path))?;
+    merged_tif.close()?;
+    if let Some(tif) = bridges_tif {
+        tif.close()?;
     }
     summary.classes = class_cells
         .into_iter()
@@ -1688,21 +1167,65 @@ fn write_outputs(
     Ok(summary)
 }
 
-fn write_classes_csv(path: &Path, classes: &[MergedClass]) -> Result<()> {
-    let mut text = String::from("class,label,stack_item,cells\n");
-    for class in classes {
-        let label = class
-            .label
-            .as_ref()
-            .map(|l| csv_field(&serde_json::Value::String(l.clone())))
-            .unwrap_or_default();
-        text.push_str(&format!(
-            "{},{label},{},{}\n",
-            class.class, class.stack_item, class.cells
-        ));
+/// Merge land cover.
+#[derive(Debug)]
+pub struct MergeLandCover;
+
+impl Analysis for MergeLandCover {
+    type Job = MergeLandCoverJob;
+    type Prepared = PreparedMerge;
+    type Report = MergeReport;
+
+    fn prepare(
+        job: MergeLandCoverJob,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<PreparedMerge> {
+        prepare(job, settings, cancelled)
     }
-    let mut file = std::fs::File::create(path).map_err(Error::file(path))?;
-    file.write_all(text.as_bytes()).map_err(Error::file(path))
+
+    fn run(
+        prepared: PreparedMerge,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<(PathBuf, MergeReport)> {
+        run(prepared, settings, cancelled)
+    }
+
+    fn warnings(prepared: &PreparedMerge) -> &[Warning] {
+        &prepared.warnings
+    }
+
+    fn describe(prepared: &PreparedMerge) -> String {
+        let classes: usize = prepared.items.iter().map(|i| i.classes.len()).sum();
+        format!(
+            "merge: {} stack items, {} classes on a {} x {} grid",
+            prepared.items.len(),
+            classes,
+            prepared.grid.cols,
+            prepared.grid.rows
+        )
+    }
+
+    fn validation(prepared: &PreparedMerge) -> serde_json::Value {
+        serde_json::json!({
+            "job": prepared.job,
+            "stack": prepared.items,
+            "warnings": prepared.warnings,
+            "plan": prepared.plan,
+        })
+    }
+
+    fn outcome(report: &MergeReport) -> String {
+        let r = &report.run.result;
+        format!(
+            "{} classified cells in {} classes, {} barrier cells, {} bridges removed",
+            r.classified_cells,
+            r.classes.len(),
+            r.barrier_cells,
+            r.bridges_removed
+        )
+    }
 }
 
 #[cfg(test)]
@@ -1787,15 +1310,7 @@ mod tests {
     }
 
     #[test]
-    fn attribute_classes() {
-        assert_eq!(integer_value(FieldValue::IntegerValue(3)), Some(3));
-        assert_eq!(integer_value(FieldValue::RealValue(4.0)), Some(4));
-        assert_eq!(integer_value(FieldValue::RealValue(4.5)), None);
-        assert_eq!(
-            integer_value(FieldValue::StringValue(" 12 ".into())),
-            Some(12)
-        );
-        assert_eq!(integer_value(FieldValue::StringValue("M".into())), None);
+    fn output_classes_fit_32_bits() {
         assert!(output_class(i64::from(i32::MIN)).is_err());
         assert!(output_class(1 << 40).is_err());
     }
