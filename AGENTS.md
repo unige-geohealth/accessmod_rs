@@ -86,7 +86,7 @@ cargo run -p accessmod-cli -- doctor --json
 cargo run -p accessmod-cli -- travel-time run --job job.json --json
 cargo run -p accessmod-cli -- referral run --job referral.json --json
 sh benchmark/travel-time/run.sh 1000 2000   # benchmark vs AccessMod 5 (Docker), writes report.md
-sh benchmark/referral/run.sh 1000 20         # idem; also benchmark/geographic-coverage/
+sh benchmark/referral/run.sh 1000 20         # idem; also benchmark/geographic-coverage/, scaling-up/, optimization/
 ```
 
 The workspace needs GDAL ≥ 3.5 and PROJ installed (`gdal-config` on `PATH`).
@@ -96,9 +96,9 @@ Build, test, clippy and fmt must all pass before a commit.
 ## Layout
 
 ```
-crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity, scaling up, focal operations (no GDAL)
+crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity, scaling up, optimization, focal operations (no GDAL)
 crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
-crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage, scaling-up
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage, scaling-up, optimization
 crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
 xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
@@ -122,13 +122,13 @@ determinism, memory budget, cancellation and error messages included.
 
 | Need | Toolkit |
 | --- | --- |
-| Rasterise lines and polygons, 3 × 3 neighbourhoods | `accessmod_core::raster` |
+| Rasterise lines and polygons, exact cell coverage fractions of a polygon (`polygon_coverage`, as `exactextractr`), 3 × 3 neighbourhoods | `accessmod_core::raster` |
 | Distance to source cells, sums over a disc (`r.grow.distance`, `r.buffer`, `r.neighbors -c`) | `accessmod_core::focal` |
 | Disk-backed grids under a memory budget | `accessmod_core::store` |
 | Open aligned rasters, read windows, blocks of several bands with zones | `accessmod_io::raster` (`for_each_block`) |
-| Open a vector layer (filter, CRS, reprojection), burn features (dense lines, or `Burn::Thin` as `v.to.rast` without `-d`) and zones, polygonise cells, write FlatGeobuf | `accessmod_io::vector` (`burn_layer`, `burn_zones`, `polygonize`, `FeatureWriter`) |
+| Open a vector layer (filter, CRS, reprojection), burn features (dense lines, or `Burn::Thin` as `v.to.rast` without `-d`) and zones, polygonise cells, sums over polygons weighted by coverage, geometries spooled to disk, write FlatGeobuf | `accessmod_io::vector` (`burn_layer`, `burn_zones`, `polygonize`, `covered_sum`, `GeometrySpool`, `FeatureWriter`) |
 | Residual population, band search, catchment polygon, removal (capacity analyses) | `accessmod_io::catchment` |
-| DEM grid, lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
+| DEM grid (or the grid of another raster, `open_raster`), lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
 | Job files, path resolution, schema version, input checks | `accessmod_io::job` |
 | Memory plan and execution settings | `accessmod_io::resources` |
 | Staging directory, GeoTIFF blocks, CSV, `finish` | `accessmod_io::output` |
@@ -211,6 +211,12 @@ Things learned the hard way; check here before re-investigating.
   with a non-null neighbour get a sum.
   GDAL's XYZ export (`gdal_translate -of XYZ`) converts values to single
   precision: compare full-precision rasters, not XYZ dumps.
+- Optimization: `exactextractr` returns each sum in single precision for a
+  Float32 population (AM5 values are ours rounded to float32); its
+  catchment argument is a file pattern in the shapes directory
+  (`amGetShapesList`). Candidates covering no one are dropped only after a
+  step that reduced some catchment (early returns), and touching counts
+  as intersecting.
 
 ### Engine
 
@@ -241,7 +247,10 @@ Things learned the hard way; check here before re-investigating.
 - Benchmark scripts are POSIX `sh` (zsh has no `time -p`); on macOS,
   `/usr/bin/time -l` reports peak RSS, on Linux `/usr/bin/time -v`. Inside
   the AccessMod 5 image, time with `/proc/uptime` (its `date` has no `%N`),
-  and never assign R globals such as `config` in a replay script.
+  and never assign R globals such as `config` in a replay script. Give each
+  container run its own output directory: a directory removed and made
+  again under the same name may not be writable through the Docker
+  bind mount (`am5_session` in `benchmark/lib.sh`).
 - Run the checks and stop on failure before committing: a command chain
   that pipes clippy through `grep` does not stop on errors.
 - Reviews by Codex: `codex exec -s read-only "<precise brief>"`, output kept

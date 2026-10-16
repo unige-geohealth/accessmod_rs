@@ -38,6 +38,7 @@ start-up, against the accessmod-rs command):
 | Referral, 90 pairs | 11.67 s | 0.23 s |
 | Geographic coverage | 14.55 s | 0.40 s |
 | Scaling up, 10 facilities added | 39.39 s | 0.50 s |
+| Optimization, 10 facilities, 1 per zone | 4.24 s | 0.29 s |
 
 On 16 M-cell synthetic grids (AccessMod 5: its engine alone, a lower bound):
 
@@ -74,7 +75,7 @@ On 16 M-cell synthetic grids (AccessMod 5: its engine alone, a lower bound):
 | --- | --- | --- |
 | 1 | `accessmod` CLI: travel-time engine on disk-backed tiled rasters (isotropic/anisotropic, nearest, path distance) | working; distribution and CI to do |
 | 2 | MCP stdio server + agent skill over the same public API | not started |
-| 3+ | Referral, zonal stats, coverage, optimization, land-cover merge, project import | referral, zonal statistics, geographic coverage, land-cover merge, population adjustment and scaling up done (referral network output to do); optimization planned |
+| 3+ | Referral, zonal stats, coverage, optimization, land-cover merge, project import | referral, zonal statistics, geographic coverage, land-cover merge, population adjustment, scaling up and optimization done (referral network output to do) |
 | last | Graphical UI on top of the stabilised CLI/MCP contracts | not started |
 
 ## Documentation

@@ -127,7 +127,8 @@ extended variant `capacity-demo-extended.json`); results in
 | Path | Content |
 | --- | --- |
 | `tests/accessibility/` | Motorized and bicycling demo cases, config JSON, reference data |
-| `tests/referral/`, `tests/optimization/` | Later milestones |
+| `tests/referral/` | Later milestones |
+| `tests/optimization/` | Optimization config (`config.json`), replayed by the oracle |
 | `docker/alpine_base/data/demo/` | Demo GRASS project (DEM, landcover, facilities) |
 | `tests/README.md` | AmTests harness and patterns |
 
@@ -153,3 +154,18 @@ by this repository), `P2-01_road-topology-referral.md`,
 Oracle: `scripts/oracle/scaling-up-demo.R` (replay `demo_scaling_up` with
 `rPopulation__demo_patients`, plus the thin rasterisation of the roads);
 results in [`scaling-up.md`](scaling-up.md).
+
+## Optimization
+
+| Concern | Path | Notes |
+| --- | --- | --- |
+| Loop | `tools/R/amAnalysisOptimization.R`, `amAnalysisOptimization` | Region from the population; duplicates (`st_equals` names, `duplicated` keeps one); greedy on `totalPop`, ties `initialPop` then first; contained catchments appended |
+| Selection | `amOptimization_selectCandidate` | Zone minimum: best value among lacking zones, then any row with that value |
+| Overlaps | `amOptimization_reduceOverlaps` | `st_intersects` (touching counts), `st_difference`; empty → set aside; `totalPop > 0` filter only after an intersection (early returns) |
+| Population | `amOptimization_extractPopulation` | `exactextractr::exact_extract(fun = "sum")`: coverage fractions, NA → 0; single precision for a Float32 raster |
+| Zones | `amOptimization_assignAdminCol` | Facility points per zone by `st_intersects`, last zone wins; quota zones from the catchments; label groups |
+| Shapes | `tools/R/amDataManage.R`, `amGetShapesList` | The catchment name is a file pattern in the shapes directory |
+
+Oracle: `scripts/oracle/optimization-demo.R` (`tests/optimization/config.json`
+with and without zones, and 15 km discs); results in
+[`optimization.md`](optimization.md).

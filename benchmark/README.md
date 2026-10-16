@@ -12,6 +12,7 @@ sh benchmark/travel-time/run.sh 1000 2000 4000
 sh benchmark/referral/run.sh 1000 20 2000 50 4000 100
 sh benchmark/geographic-coverage/run.sh 1000 20 2000 50 4000 100
 sh benchmark/scaling-up/run.sh
+sh benchmark/optimization/run.sh
 ```
 
 Needs Docker, the AccessMod 5 image and the oracle exports
@@ -30,6 +31,8 @@ included) against the accessmod-rs command, inputs to outputs.
 | [Referral](referral/report.md), 90 pairs | 11.67 s | 0.23 s |
 | [Geographic coverage](geographic-coverage/report.md), with catchments | 14.55 s | 0.40 s |
 | [Scaling up](scaling-up/report.md), 10 facilities added | 39.39 s | 0.50 s |
+| [Optimization](optimization/report.md), 10 facilities, 1 per zone | 4.24 s | 0.29 s |
+| [Optimization](optimization/report.md), 672 overlapping discs, 100 facilities | 58.11 s | 0.42 s |
 
 ## Synthetic landscapes, 16 M cells
 

@@ -32,7 +32,7 @@ _Last updated: 2026-10-16._
 | **Zonal statistics**: population coverage by zone and time | `amAnalysisZonal.R` | ✅ `zonal-statistics run`: equal to AM5 on the demo ([`zonal-statistics.md`](zonal-statistics.md)) | CLI + UI (charts) |
 | **Referral**: time and distance between facilities, nearest by time or distance, network | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | ✅ `referral run`: many-to-many, nearest by time and distance; times equal AM5 (after its rounding) on the demo, distances within one cell ([`referral.md`](referral.md)); 🗓 network lines output | CLI |
 | **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | ✅ `scaling-up run`: equal to the AM5 demo replay (facilities, table, residual, catchments) ([`scaling-up.md`](scaling-up.md)) | CLI + UI (suitability tables) |
-| **Optimization**: greedy best population coverage | `amAnalysisOptimization.R` | 🗓 plan: Later 3 | CLI |
+| **Optimization**: greedy best population coverage | `amAnalysisOptimization.R` | ✅ `optimization run`: equal to the AM5 demo tests (with and without zone minimum) and on overlapping discs, values in single precision ([`optimization.md`](optimization.md)) | CLI |
 | Replay of saved analyses | `amAnalysisReplay.R` | 🟡 `job.json` / `job.resolved.json` replay any run; 🗓 converter from AM5 analysis configs | CLI |
 
 ## Toolbox

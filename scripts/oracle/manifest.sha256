@@ -25,6 +25,11 @@ c2901d3024150bb0b4645aa503ea357b7a92feb8bd203321e0a2974acf3ca78e  ./merge-land-c
 c1a98e64b2cb175c0be62b7e6ac3ca5436f24c7540c970712d51d8dbebacab49  ./merge-land-cover/demo/oracle/stack-road-1.tif
 847e536ded214710b8d38ab4d9e5a05c75e370747526aaf6b13d73f9f66092ff  ./merge-land-cover/demo/oracle/stack-road-2.tif
 2d358f5269aae2c0f1e2f082c3066f5985608e848431c6dd90788b7b473d4354  ./merge-land-cover/demo/oracle/stack-road-3.tif
+d036169c06a2fc77adb4332488a83cbbf0c91142e9377154aeca5e4ffaac1982  ./optimization/demo/oracle/catchments.fgb
+b017b816c444452059de6c67da5cca6b552145613a08d81a0a19bf260a51a07e  ./optimization/demo/oracle/discs.fgb
+dff1993b1dc1f43f6336e82346039ba0fcbe169d6287db231d1af81a2a078feb  ./optimization/demo/oracle/optimization_admin.csv
+795e77fa78bba4feba930e5fce64c58860eb172281b4e1d3e387140b452fe84f  ./optimization/demo/oracle/optimization_discs.csv
+e61c70e2138d2b4d6e5db7818b97ce6b91f3f0c1a5aecce9dd784dfdf5e9692c  ./optimization/demo/oracle/optimization_no_admin.csv
 bd13cf51faf7bf4fc4d84aaebe3a656c3a2459f96f57c88f9433357c170cf2a1  ./population-correction/demo/input/dem.tif
 0079c3ed3e537c150a4e84358575c31ab3650b85a2a0852434b7464b8bb10559  ./population-correction/demo/input/land_cover.tif
 08f5da1207c5b9c47fe9170c1a64b6520fdb583551ca6f3c5cddd71af0016a82  ./population-correction/demo/input/population.tif

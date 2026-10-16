@@ -85,29 +85,43 @@ am5() {
         > "$2/log.txt" 2>&1 || { echo "error: AccessMod 5 run failed, see $2/log.txt" >&2; exit 1; }
 }
 
-# am5_replay <out dir> <replay config under the repository>: run an
-# AccessMod 5 replay on its demo project $REPEAT times, each in a fresh
-# container: within one R session AccessMod 5 caches results, so a repeated
-# replay can skip its work (benchmark/am5/replay.R). Appends the seconds of
-# each run to <out dir>/seconds.txt and those of loading global.R to
-# <out dir>/load-all.txt; <out dir>/load.txt is their median.
-am5_replay() {
-    : > "$1/seconds.txt"
-    : > "$1/load-all.txt"
+# am5_session <out dir> <R script under the repository> [args...]: run an
+# R script in the AccessMod 5 image on its demo project $REPEAT times, each
+# in a fresh container: within one R session AccessMod 5 caches results, so
+# a repeated analysis can skip its work. The script loads global.R, writes
+# the seconds of that to /out/load.txt and those of its analysis to
+# /out/seconds.txt (see benchmark/am5/replay.R); they are appended to
+# <out dir>/load-all.txt and <out dir>/seconds.txt; <out dir>/load.txt is
+# the median load. The other files of the last run stay in <out dir>/run.
+am5_session() {
+    out=$1 script=$2
+    shift 2
+    : > "$out/seconds.txt"
+    : > "$out/load-all.txt"
     k=1
     while [ "$k" -le "$REPEAT" ]; do
-        mkdir -p "$1/run"
+        # A fresh directory per run: one removed and made again under the same
+        # name may not be writable through the Docker bind mount.
+        mkdir -p "$out/run-$k"
         docker run --rm --platform "$PLATFORM" -e TZ=UTC -e REPEAT=1 \
-            -v "$root:/repo:ro" -v "$1/run:/out" \
+            -v "$root:/repo:ro" -v "$out/run-$k:/out" \
             --entrypoint sh "$IMAGE" -c \
-            "echo UTC > /etc/timezone; cd /app && Rscript /repo/benchmark/am5/replay.R /repo/$2" \
-            > "$1/log-$k.txt" 2>&1 ||
-            { echo "error: AccessMod 5 replay failed, see $1/log-$k.txt" >&2; exit 1; }
-        cat "$1/run/seconds.txt" >> "$1/seconds.txt"
-        cat "$1/run/load.txt" >> "$1/load-all.txt"
+            "echo UTC > /etc/timezone; cd /app && Rscript /repo/$script $*" \
+            > "$out/log-$k.txt" 2>&1 ||
+            { echo "error: AccessMod 5 run failed, see $out/log-$k.txt" >&2; exit 1; }
+        cat "$out/run-$k/seconds.txt" >> "$out/seconds.txt"
+        cat "$out/run-$k/load.txt" >> "$out/load-all.txt"
         k=$((k + 1))
     done
-    median < "$1/load-all.txt" > "$1/load.txt"
+    rm -rf "$out/run"
+    mv "$out/run-$REPEAT" "$out/run"
+    median < "$out/load-all.txt" > "$out/load.txt"
+}
+
+# am5_replay <out dir> <replay config under the repository>: am5_session
+# with an AccessMod 5 replay (benchmark/am5/replay.R).
+am5_replay() {
+    am5_session "$1" benchmark/am5/replay.R "/repo/$2"
 }
 
 # Value of a numeric JSON field (first match) in a file.
