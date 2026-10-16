@@ -10,7 +10,7 @@ Status: ✅ available · 🟡 partial · 🗓 planned (milestone in
 Interface: **CLI** works from the command line or a job file; **UI** needs
 an interactive interface to be practical (map, drag-and-drop, tables).
 
-_Last updated: 2026-10-09._
+_Last updated: 2026-10-16._
 
 ## Analyses
 
@@ -86,3 +86,6 @@ necessary for:
 
 The plan keeps the UI last (Later 5), on top of the stabilised CLI and MCP
 contracts, so every interface action maps to a reproducible job.
+
+Feasibility, architecture and the screen-to-job mapping are in
+[`ui.md`](ui.md).
