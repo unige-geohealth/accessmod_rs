@@ -70,6 +70,15 @@ docker run --rm --platform "$PLATFORM" \
     > "$out/population-correction-demo.log" 2>&1 \
     || { echo "error: population export failed, see $out/population-correction-demo.log" >&2; exit 1; }
 
+# Zonal statistics on the demo project (scripts/oracle/zonal-statistics-demo.sh).
+rm -rf "$out/zonal-statistics/demo"
+docker run --rm --platform "$PLATFORM" \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'grass /data/dbgrass/demo/demo --exec sh /scripts/zonal-statistics-demo.sh' \
+    > "$out/zonal-statistics-demo.log" 2>&1 \
+    || { echo "error: zonal export failed, see $out/zonal-statistics-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {

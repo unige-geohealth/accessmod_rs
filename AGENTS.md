@@ -96,9 +96,9 @@ Build, test, clippy and fmt must all pass before a commit.
 ## Layout
 
 ```
-crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population (no GDAL)
+crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal (no GDAL)
 crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
-crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics
 crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
 xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
@@ -190,6 +190,9 @@ Things learned the hard way; check here before re-investigating.
   demo (summation order). The demo merged land cover has few barrier cells,
   so the estimated case moves only 41 people; the known case (field
   `pop_known` added by the oracle script) exercises the ratios.
+- Zonal statistics: AM5 covers `t < L` on whole minutes (rounded up); ours
+  `t <= L` in seconds. On the same minutes, AM5 `L` equals ours `(L - 1) x
+  60 s`; with that the demo sums match to 1e-9.
 
 ### Engine
 

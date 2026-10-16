@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use accessmod_io::merge::MergeLandCover;
 use accessmod_io::population::AdjustPopulation;
 use accessmod_io::referral::Referral;
+use accessmod_io::zonal::ZonalStatistics;
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -57,6 +58,12 @@ enum Command {
     /// Adjust population distribution: move population on barriers within its
     /// zone, or scale zones to known populations.
     AdjustPopulationDistribution {
+        #[command(subcommand)]
+        command: exec::JobCommand,
+    },
+    /// Zonal statistics: population covered within travel-time limits, per
+    /// zone.
+    ZonalStatistics {
         #[command(subcommand)]
         command: exec::JobCommand,
     },
@@ -107,6 +114,9 @@ fn main() -> ExitCode {
         }
         Command::AdjustPopulationDistribution { command } => {
             exec::job_command::<AdjustPopulation>(command, &cancel)
+        }
+        Command::ZonalStatistics { command } => {
+            exec::job_command::<ZonalStatistics>(command, &cancel)
         }
     };
     match result {

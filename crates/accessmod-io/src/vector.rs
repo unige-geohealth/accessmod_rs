@@ -421,6 +421,33 @@ pub fn burn_layer<T: CellCodec, U: Fn(&mut T)>(
     Ok(counts)
 }
 
+/// Burn zone polygons into a grid of zone indices (0: no zone) by cell
+/// centre. `zone_of` gives the index of each feature's zone (`None`: left
+/// out); a cell in several zones keeps the first one burnt (layer order).
+/// Returns the feature counts and the cells claimed by a later zone.
+pub fn burn_zones(
+    layer: &VectorLayer,
+    grid: &GridSpec,
+    zones: &mut TiledGrid<u32>,
+    cancelled: &dyn Fn() -> bool,
+    mut zone_of: impl FnMut(&Feature<'_>) -> Result<Option<u32>>,
+) -> Result<(FeatureCounts, u64)> {
+    let overlaps = std::cell::Cell::new(0u64);
+    let counts = burn_layer(layer, grid, zones, Burn::Polygons, cancelled, |feature| {
+        let overlaps = &overlaps;
+        Ok(zone_of(feature)?.map(|zone| {
+            move |cell: &mut u32| {
+                if *cell == 0 {
+                    *cell = zone;
+                } else if *cell != zone {
+                    overlaps.set(overlaps.get() + 1);
+                }
+            }
+        }))
+    })?;
+    Ok((counts, overlaps.get()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -21,3 +21,4 @@ pub mod report;
 pub mod resources;
 pub mod travel_time;
 pub mod vector;
+pub mod zonal;

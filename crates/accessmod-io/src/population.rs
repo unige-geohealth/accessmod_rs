@@ -8,7 +8,6 @@
 //! burnt on the grid by cell centre; a cell in several zones belongs to the
 //! first one in layer order.
 
-use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -23,13 +22,10 @@ use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{JobFile, absolutize, check_files, check_schema_version};
 use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_field};
-use crate::raster::{
-    AlignedBand, Window, for_each_window, integer_nodata, open_aligned_raster, open_class_raster,
-    valid_value,
-};
+use crate::raster::{AlignedBand, for_each_block, open_aligned_raster, open_class_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
-use crate::vector::{Burn, VectorLayer, burn_layer, json_attribute, number_attribute};
+use crate::vector::{VectorLayer, burn_zones, json_attribute, number_attribute};
 
 /// Adjusted population file name.
 pub const POPULATION_FILE: &str = "population_adjusted.tif";
@@ -238,8 +234,9 @@ fn population_plan(
         + std::mem::size_of::<ZoneTotals>()
         + std::mem::size_of::<Option<f64>>()
         + std::mem::size_of::<f64>();
-    // Per block: population (f64), land cover (i64), zone row and output.
-    let buffer_bytes = (BLOCK * BLOCK * (8 + 8 + 8) + BLOCK * 4 + zones * per_zone) as u64;
+    // Per block: two bands read as f64 then held as Option<f64>, zones and
+    // output.
+    let buffer_bytes = (BLOCK * BLOCK * (2 * (8 + 16) + 4 + 8) + zones * per_zone) as u64;
     ResourcePlan::for_tiles(grid.rows, grid.cols, settings, per_tile, buffer_bytes, 0)
 }
 
@@ -387,47 +384,6 @@ pub fn deviations() -> Vec<Deviation> {
     ]
 }
 
-/// The population inputs read block by block.
-struct Inputs<'a> {
-    population: AlignedBand<'a>,
-    population_nodata: Option<f64>,
-    land_cover: AlignedBand<'a>,
-    land_cover_nodata: Option<i64>,
-}
-
-/// Values of one cell of a block: population (if any), whether it is a
-/// barrier, its zone index (0: none).
-type CellVisit<'v> = dyn FnMut(usize, usize, Option<f64>, bool, u32) -> Result<()> + 'v;
-
-impl Inputs<'_> {
-    /// Visit every cell of block `rows × cols`.
-    fn visit_block(
-        &self,
-        rows: std::ops::Range<usize>,
-        cols: std::ops::Range<usize>,
-        zones: &mut TiledGrid<u32>,
-        zone_row: &mut [u32],
-        visit: &mut CellVisit<'_>,
-    ) -> Result<()> {
-        let population: Option<Window<f64>> = self.population.read(rows.clone(), cols.clone())?;
-        let land_cover: Option<Window<i64>> = self.land_cover.read(rows.clone(), cols.clone())?;
-        let zone_row = &mut zone_row[..cols.len()];
-        for row in rows {
-            zones.read_row(row, cols.start, zone_row)?;
-            for (k, col) in cols.clone().enumerate() {
-                let people = population
-                    .as_ref()
-                    .and_then(|w| w.get(row, col))
-                    .and_then(|v| valid_value(v, self.population_nodata));
-                let class = land_cover.as_ref().and_then(|w| w.get(row, col));
-                let barrier = class.is_none_or(|c| Some(c) == self.land_cover_nodata);
-                visit(row, col, people, barrier, zone_row[k])?;
-            }
-        }
-        Ok(())
-    }
-}
-
 /// Adjust the population and write every output atomically.
 pub fn run(
     mut prepared: PreparedPopulation,
@@ -449,19 +405,10 @@ pub fn run(
     // Zones on the grid, by cell centre; the first zone keeps a shared cell.
     let started = Instant::now();
     let vector = open_zones(&job.zones, grid)?;
-    let overlaps = Cell::new(0u64);
     let mut next = 0u32;
-    burn_layer(&vector, grid, &mut zones, Burn::Polygons, cancelled, |_| {
+    let (_, overlaps) = burn_zones(&vector, grid, &mut zones, cancelled, |_| {
         next += 1;
-        let zone = next;
-        let overlaps = &overlaps;
-        Ok(Some(move |cell: &mut u32| {
-            if *cell == 0 {
-                *cell = zone;
-            } else if *cell != zone {
-                overlaps.set(overlaps.get() + 1);
-            }
-        }))
+        Ok(Some(next))
     })?;
     prepared
         .durations_s
@@ -473,49 +420,39 @@ pub fn run(
         open_class_raster(&job.land_cover, grid, "land cover")?;
     let population = AlignedBand::new(&population_ds, &job.population, population_alignment, grid)?;
     let land_cover = AlignedBand::new(&land_cover_ds, &job.land_cover, land_cover_alignment, grid)?;
-    let inputs = Inputs {
-        population_nodata: population.nodata(),
-        land_cover_nodata: integer_nodata(land_cover.nodata()),
-        population,
-        land_cover,
-    };
-    let mut zone_row = vec![0u32; BLOCK];
+    // Band 0: people per cell; band 1: land cover (`None`: barrier).
+    let bands = [&population, &land_cover];
 
     // Pass 1: totals per zone.
     let started = Instant::now();
     let mut summary = PopulationSummary {
         zones: prepared.targets.len(),
-        overlapping_cells: overlaps.get(),
+        overlapping_cells: overlaps,
         ..PopulationSummary::default()
     };
     let mut totals = vec![ZoneTotals::default(); prepared.targets.len() + 1];
-    for_each_window(
-        0..grid.rows,
-        0..grid.cols,
+    for_each_block(
+        grid,
         (BLOCK, BLOCK),
+        &bands,
+        Some(&mut zones),
         cancelled,
-        |rows, cols| {
-            inputs.visit_block(
-                rows,
-                cols,
-                &mut zones,
-                &mut zone_row,
-                &mut |_, _, people, barrier, zone| {
-                    let Some(people) = people else {
-                        return Ok(());
-                    };
-                    summary.population += people;
-                    if barrier {
-                        summary.population_on_barrier += people;
-                    }
-                    if zone == 0 {
-                        summary.population_outside_zones += people;
-                    } else {
-                        totals[zone as usize].add(people, barrier);
-                    }
-                    Ok(())
-                },
-            )
+        |block| {
+            for i in 0..block.len() {
+                let Some(people) = block.value(0, i) else {
+                    continue;
+                };
+                let barrier = block.value(1, i).is_none();
+                summary.population += people;
+                if barrier {
+                    summary.population_on_barrier += people;
+                }
+                match block.zone(i) {
+                    0 => summary.population_outside_zones += people,
+                    zone => totals[zone as usize].add(people, barrier),
+                }
+            }
+            Ok(())
         },
     )?;
     let ratios: Vec<Option<f64>> = std::iter::once(None)
@@ -531,7 +468,7 @@ pub fn run(
         .durations_s
         .insert("totals", started.elapsed().as_secs_f64());
 
-    // Pass 2: adjusted population.
+    // Pass 2: adjusted population, written block by block.
     let started = Instant::now();
     let tif = GeoTiff::create::<f64>(
         &staging.path().join(POPULATION_FILE),
@@ -541,32 +478,27 @@ pub fn run(
         FLOAT_NODATA,
     )?;
     let mut adjusted = vec![0.0f64; prepared.targets.len() + 1];
-    let mut block = Vec::with_capacity(BLOCK * BLOCK);
-    for_each_window(
-        0..grid.rows,
-        0..grid.cols,
+    let mut values = Vec::with_capacity(BLOCK * BLOCK);
+    for_each_block(
+        grid,
         (BLOCK, BLOCK),
+        &bands,
+        Some(&mut zones),
         cancelled,
-        |rows, cols| {
-            inputs.visit_block(
-                rows.clone(),
-                cols.clone(),
-                &mut zones,
-                &mut zone_row,
-                &mut |_, _, people, barrier, zone| {
-                    let value = match (people, barrier, ratios[zone as usize]) {
-                        (Some(people), false, Some(ratio)) => {
-                            let value = people * ratio;
-                            adjusted[zone as usize] += value;
-                            value
-                        }
-                        _ => FLOAT_NODATA,
-                    };
-                    block.push(value);
-                    Ok(())
-                },
-            )?;
-            tif.write(rows, cols, &mut block)
+        |block| {
+            for i in 0..block.len() {
+                let zone = block.zone(i) as usize;
+                let value = match (block.value(0, i), block.value(1, i), ratios[zone]) {
+                    (Some(people), Some(_), Some(ratio)) => {
+                        let value = people * ratio;
+                        adjusted[zone] += value;
+                        value
+                    }
+                    _ => FLOAT_NODATA,
+                };
+                values.push(value);
+            }
+            tif.write(block.rows.clone(), block.cols.clone(), &mut values)
         },
     )?;
     tif.close()?;

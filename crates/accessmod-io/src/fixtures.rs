@@ -197,3 +197,41 @@ pub fn oracle_available(paths: &[&Path]) -> bool {
         None => true,
     }
 }
+
+/// Copy `src` to a Float64 GeoTIFF `dst` on the same grid, CRS and NoData,
+/// mapping every valid value through `f` (e.g. minutes to seconds).
+pub fn map_raster(src: &Path, dst: &Path, f: impl Fn(f64) -> f64) {
+    let source = Dataset::open(src).unwrap_or_else(|e| panic!("{}: {e}", src.display()));
+    let (values, nodata) = read_with_nodata::<f64>(src);
+    let (cols, rows) = source.raster_size();
+    let driver = DriverManager::get_driver_by_name("GTiff").expect("GTiff driver");
+    let mut ds = driver
+        .create_with_band_type::<f64, _>(dst, cols, rows, 1)
+        .expect("create raster");
+    ds.set_geo_transform(&source.geo_transform().expect("geotransform"))
+        .expect("geotransform");
+    ds.set_spatial_ref(&source.spatial_ref().expect("srs"))
+        .expect("srs");
+    let mapped: Vec<f64> = values
+        .into_iter()
+        .map(|v| valid_value(v, nodata).map_or(v, &f))
+        .collect();
+    let mut band = ds.rasterband(1).expect("band");
+    band.set_no_data_value(nodata).expect("nodata");
+    band.write((0, 0), (cols, rows), &mut Buffer::new((cols, rows), mapped))
+        .expect("write");
+}
+
+/// WKT polygon over cells `[c0, c1) × [r0, r1)` of the fixture grid
+/// (fractional cell units, see [`grid`]).
+pub fn cell_polygon(c0: f64, r0: f64, c1: f64, r1: f64) -> String {
+    let g = grid(1, 1);
+    let points: Vec<String> = [(c0, r0), (c1, r0), (c1, r1), (c0, r1), (c0, r0)]
+        .iter()
+        .map(|&(c, r)| {
+            let (x, y) = g.to_map(c, r);
+            format!("{x} {y}")
+        })
+        .collect();
+    format!("POLYGON (({}))", points.join(", "))
+}

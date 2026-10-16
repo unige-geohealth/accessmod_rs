@@ -100,6 +100,15 @@ Oracle: `scripts/oracle/merge-land-cover-demo.sh`; results in
 Oracle: `scripts/oracle/population-correction-demo.sh`; results in
 [`adjust-population.md`](adjust-population.md).
 
+## Zonal statistics
+
+| Concern | Path | Notes |
+| --- | --- | --- |
+| Procedure | `tools/R/amAnalysisZonal.R`, `amZonalAnalysis` | Zones by `v.to.rast use=attr`; per limit (minutes) population where `0 <= t < limit` summed by `r.univar zones=`; NA → 0; ordered by coverage |
+
+Oracle: `scripts/oracle/zonal-statistics-demo.sh`; results in
+[`zonal-statistics.md`](zonal-statistics.md).
+
 ## Existing test data
 
 | Path | Content |

@@ -55,3 +55,10 @@ b943918ccaf1be20fd792bbd4ffdc5ecc8f0accaed80014c13e9944f8f5c7e63  ./travel-time/
 e1602ea73f4772833f160dd9ade2a497415aef02e66a72c9d37d62693f4ca9bc  ./travel-time/demo/oracle/iso-from-8-nearest.tif
 81d4b267eed271aab7460256cbb3892f97b209b6f6422b1be6e732a5d48fe45b  ./travel-time/demo/oracle/iso-from-8-travel_time_seconds.tif
 b83f28a54bf88976e2cb006c259802e16af62b6ed1477bbad5cc75c40c863baf  ./travel-time/demo/travel-time-cases.txt
+bd13cf51faf7bf4fc4d84aaebe3a656c3a2459f96f57c88f9433357c170cf2a1  ./zonal-statistics/demo/input/dem.tif
+08f5da1207c5b9c47fe9170c1a64b6520fdb583551ca6f3c5cddd71af0016a82  ./zonal-statistics/demo/input/population.tif
+c1a5bfbef23e90abf9cccafd7dd1f4505296e03aa95f5970d9da079dd3ed27eb  ./zonal-statistics/demo/input/travel_time_minutes.tif
+f60670f4a011d24f36e8a6b4a87bbf36e731b29dd1b5f13b5ba4e17407e4b7a1  ./zonal-statistics/demo/input/zones.fgb
+bc00daa0b467e9dfdba2df6ca31fb47ec59308d1f5367e95abe88dee9ea9942b  ./zonal-statistics/demo/oracle/covered-30.csv
+757e928815bbb9fccb75a0099064d38a2e72b66e2477a7819f8a5ee295e267a2  ./zonal-statistics/demo/oracle/covered-60.csv
+bbebdb3bf9a5a4272b7f39cd0ba6b04fac1465eadc795f9bc9f3cd4ea9dd4051  ./zonal-statistics/demo/oracle/population.csv

@@ -4,7 +4,8 @@ use std::path::Path;
 
 use accessmod_io::error::ErrorKind;
 use accessmod_io::fixtures::{
-    EPSG, X0, Y0, geo_transform, grid, never, read, run_job, settings, write_layer, write_raster,
+    EPSG, X0, Y0, cell_polygon, geo_transform, never, read, run_job, settings, write_layer,
+    write_raster,
 };
 use accessmod_io::job::SCHEMA_VERSION;
 use accessmod_io::output::FLOAT_NODATA;
@@ -12,20 +13,6 @@ use accessmod_io::population::{
     AdjustPopulation, AdjustPopulationJob, POPULATION_FILE, ZONES_FILE, ZoneSource, prepare, run,
 };
 use gdal::vector::{FieldValue, OGRFieldType};
-
-/// Polygon over cells `[c0, c1) × [r0, r1)` of the fixture grid.
-fn cells(c0: f64, r0: f64, c1: f64, r1: f64) -> String {
-    let g = grid(1, 1);
-    let corners = [(c0, r0), (c1, r0), (c1, r1), (c0, r1), (c0, r0)];
-    let points: Vec<String> = corners
-        .iter()
-        .map(|&(c, r)| {
-            let (x, y) = g.to_map(c, r);
-            format!("{x} {y}")
-        })
-        .collect();
-    format!("POLYGON (({}))", points.join(", "))
-}
 
 /// 4 × 2 grid, 10 people per cell, land cover NoData at (0, 0).
 /// Zone A: columns 0–1; zone B: (0, 2) and (0, 3); zone C: cell (0, 0),
@@ -46,9 +33,9 @@ fn fixture(dir: &Path, known: bool) -> AdjustPopulationJob {
     lc[0] = 0;
     write_raster::<u8>(&dir.join("lc.tif"), cols, rows, gt, lc, Some(0.0));
     let zones = [
-        ("A", 60.0, cells(0.0, 0.0, 2.0, 2.0)),
-        ("B", 0.0, cells(2.0, 0.0, 4.0, 1.0)),
-        ("C", 5.0, cells(0.0, 0.0, 1.0, 1.0)),
+        ("A", 60.0, cell_polygon(0.0, 0.0, 2.0, 2.0)),
+        ("B", 0.0, cell_polygon(2.0, 0.0, 4.0, 1.0)),
+        ("C", 5.0, cell_polygon(0.0, 0.0, 1.0, 1.0)),
     ];
     let features: Vec<(Option<FieldValue>, &str)> = zones
         .iter()
@@ -184,7 +171,7 @@ fn outputs_do_not_depend_on_memory() {
         .map(|k| {
             let c0 = (k % 3) as f64 * 300.0 + 0.3;
             let r0 = (k / 3) as f64 * 350.0 + 0.6;
-            cells(c0, r0, c0 + 310.0, r0 + 340.0)
+            cell_polygon(c0, r0, c0 + 310.0, r0 + 340.0)
         })
         .collect();
     let features: Vec<(Option<FieldValue>, &str)> = zones
@@ -213,11 +200,12 @@ fn outputs_do_not_depend_on_memory() {
         },
         output_dir: path.join(out),
     };
-    // 20 MiB: the 16 MiB GDAL cache floor and buffers leave a fraction of
-    // the 165 zone tiles resident.
-    let tight = prepare(job("a"), &settings(20 << 20, 1), &never).expect("prepare");
+    // 21.5 MiB: the 16 MiB GDAL cache floor and block buffers leave part
+    // of the 165 zone tiles resident.
+    let tight_budget = 43 << 19;
+    let tight = prepare(job("a"), &settings(tight_budget, 1), &never).expect("prepare");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(20 << 20, 1), &never).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), &never).expect("run a");
     assert!(
         report_a.execution.details.store.tile_writes > 0,
         "scratch not exercised"
@@ -236,8 +224,11 @@ fn missing_known_populations_leave_the_zone_out() {
     let dir = tempfile::tempdir().expect("tmp");
     let mut job = fixture(dir.path(), true);
     let zones = [
-        (cells(0.0, 0.0, 2.0, 2.0), None),
-        (cells(2.0, 0.0, 4.0, 1.0), Some(FieldValue::RealValue(40.0))),
+        (cell_polygon(0.0, 0.0, 2.0, 2.0), None),
+        (
+            cell_polygon(2.0, 0.0, 4.0, 1.0),
+            Some(FieldValue::RealValue(40.0)),
+        ),
     ];
     let features: Vec<(&str, Vec<Option<FieldValue>>)> = zones
         .iter()

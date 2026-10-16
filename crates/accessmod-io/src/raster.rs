@@ -254,6 +254,90 @@ impl<'a> AlignedBand<'a> {
     }
 }
 
+/// Values of several bands and of a zone grid over one block of cells,
+/// row-major (cell `i` is row `rows.start + i / cols.len()`).
+#[derive(Debug, Default)]
+pub struct Block {
+    /// Grid rows of the block.
+    pub rows: Range<usize>,
+    /// Grid columns of the block.
+    pub cols: Range<usize>,
+    values: Vec<Vec<Option<f64>>>,
+    zones: Vec<u32>,
+}
+
+impl Block {
+    /// Cells of the block.
+    pub fn len(&self) -> usize {
+        self.rows.len() * self.cols.len()
+    }
+
+    /// Whether the block has no cell.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Value of band `band` at cell `i`: `None` for NoData, NaN or outside
+    /// the raster.
+    pub fn value(&self, band: usize, i: usize) -> Option<f64> {
+        self.values[band][i]
+    }
+
+    /// Zone index of cell `i` (0: no zone, or no zone grid).
+    pub fn zone(&self, i: usize) -> u32 {
+        self.zones.get(i).copied().unwrap_or(0)
+    }
+}
+
+/// Visit the grid in blocks of `size` cells with the values of `bands` (as
+/// `f64`, see [`Block::value`]) and of the zone grid `zones`. Blocks come
+/// in row-major order, so sums over them do not depend on the memory
+/// budget; write outputs in blocks of [`crate::output::BLOCK`].
+pub fn for_each_block(
+    grid: &GridSpec,
+    size: (usize, usize),
+    bands: &[&AlignedBand<'_>],
+    mut zones: Option<&mut accessmod_core::store::TiledGrid<u32>>,
+    cancelled: &dyn Fn() -> bool,
+    mut visit: impl FnMut(&Block) -> Result<()>,
+) -> Result<()> {
+    let nodata: Vec<Option<f64>> = bands.iter().map(|b| b.nodata()).collect();
+    let mut block = Block {
+        values: vec![Vec::new(); bands.len()],
+        ..Block::default()
+    };
+    for_each_window(0..grid.rows, 0..grid.cols, size, cancelled, |rows, cols| {
+        block.rows = rows.clone();
+        block.cols = cols.clone();
+        for (k, band) in bands.iter().enumerate() {
+            let window = band.read::<f64>(rows.clone(), cols.clone())?;
+            let out = &mut block.values[k];
+            out.clear();
+            for row in rows.clone() {
+                out.extend(cols.clone().map(|col| {
+                    window
+                        .as_ref()
+                        .and_then(|w| w.get(row, col))
+                        .and_then(|v| valid_value(v, nodata[k]))
+                }));
+            }
+        }
+        block.zones.clear();
+        if let Some(zones) = zones.as_deref_mut() {
+            let width = cols.len();
+            block.zones.resize(rows.len() * width, 0);
+            for (r, row) in rows.clone().enumerate() {
+                zones.read_row(
+                    row,
+                    cols.start,
+                    &mut block.zones[r * width..(r + 1) * width],
+                )?;
+            }
+        }
+        visit(&block)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

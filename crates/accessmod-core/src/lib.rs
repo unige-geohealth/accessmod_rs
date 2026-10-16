@@ -16,3 +16,4 @@ pub mod raster;
 pub mod referral;
 pub mod solver;
 pub mod store;
+pub mod zonal;
