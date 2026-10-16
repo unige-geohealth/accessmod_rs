@@ -307,12 +307,16 @@ pub struct ItemClass {
 pub struct FeatureCounts {
     /// Features read (after the attribute filter).
     pub read: u64,
-    /// Features burnt into the grid.
+    /// Features that burnt at least one cell.
     pub used: u64,
     /// Features without a usable class (road) or not in `classes`.
     pub without_class: u64,
-    /// Features without geometry, or with points or curves only.
+    /// Features without a line (road) or line and polygon (barrier) part:
+    /// no geometry, points, curves.
     pub unsupported_geometry: u64,
+    /// Features with usable parts that burn no cell (outside the grid, or
+    /// polygons too small to hold a cell centre).
+    pub outside_grid: u64,
     /// Line parts burnt.
     pub lines: u64,
     /// Polygon parts burnt.
@@ -392,7 +396,8 @@ pub fn prepare(
     let dem = Dataset::open(&job.dem).map_err(Error::gdal(&job.dem))?;
     let grid = GridSpec::from_dem(&dem, &job.dem).map_err(|issues| Error::Validation { issues })?;
     drop(dem);
-    let plan = merge_plan(&grid, settings)?;
+    // The GDAL cache depends on the budget only: set it before reading items.
+    let plan = merge_plan(&grid, settings, 0)?;
     gdal::config::set_config_option("GDAL_CACHEMAX", &plan.gdal_cache_bytes.to_string())
         .map_err(Error::gdal(&job.dem))?;
 
@@ -415,9 +420,15 @@ pub fn prepare(
                 &mut warnings,
                 cancelled,
             ),
-            StackItem::Road(item) => {
-                plan_road(item, &grid, &at, position, &mut rank, &mut warnings)
-            }
+            StackItem::Road(item) => plan_road(
+                item,
+                &grid,
+                &at,
+                position,
+                &mut rank,
+                &mut warnings,
+                cancelled,
+            ),
             StackItem::Barrier(item) => plan_barrier(item, &grid, &at, position, &mut warnings),
         };
         match planned {
@@ -430,12 +441,17 @@ pub fn prepare(
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
+    let classes: usize = items.iter().map(|item| item.classes.len()).sum();
+    let plan = merge_plan(&grid, settings, classes)?;
     let mut durations_s = BTreeMap::new();
     durations_s.insert("validate", started.elapsed().as_secs_f64());
 
     let started = Instant::now();
     let mut fingerprints = vec![sha256_file("dem", &job.dem)?];
     for item in &job.stack {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
         fingerprints.push(sha256_file("stack_item", item.path())?);
     }
     durations_s.insert("fingerprints", started.elapsed().as_secs_f64());
@@ -451,15 +467,27 @@ pub fn prepare(
     })
 }
 
-/// Memory plan: one tiled grid of [`MergeCell`], raster read windows and
-/// output blocks with their one-cell halo.
-fn merge_plan(grid: &GridSpec, settings: &ExecutionSettings) -> Result<ResourcePlan> {
+/// Bytes held per class of the stack: item plan, class maps, per-class
+/// counts and the class table (generous).
+const BYTES_PER_CLASS: usize = 256;
+
+/// Memory plan: one tiled grid of [`MergeCell`], raster read windows (and
+/// their NoData-mapped row), output blocks with their one-cell halo, and
+/// `classes` class entries. Vector features are read one at a time and
+/// burnt one part at a time; a part's coordinates are not counted.
+fn merge_plan(
+    grid: &GridSpec,
+    settings: &ExecutionSettings,
+    classes: usize,
+) -> Result<ResourcePlan> {
     let geometry = TileGeometry::new(grid.rows, grid.cols, accessmod_core::store::DEFAULT_TILE)?;
     let per_tile = TiledGrid::<MergeCell>::tile_bytes(geometry) as u64;
     let halo = (BLOCK + 2) * (BLOCK + 2);
     let buffer_bytes = (STRIP_ROWS * CHUNK_COLS * 8
-        + halo * (std::mem::size_of::<MergeCell>() + 2)
-        + BLOCK * BLOCK * (4 + 1)) as u64;
+        + CHUNK_COLS * std::mem::size_of::<Option<i64>>()
+        + halo * (std::mem::size_of::<MergeCell>() + 2 + std::mem::size_of::<Option<i32>>())
+        + BLOCK * BLOCK * (4 + 1)
+        + classes * BYTES_PER_CLASS) as u64;
     ResourcePlan::for_tiles(grid.rows, grid.cols, settings, per_tile, buffer_bytes, 0)
 }
 
@@ -565,6 +593,7 @@ fn plan_road(
     position: usize,
     rank: &mut u32,
     warnings: &mut Vec<Warning>,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<ItemPlan> {
     let source = VectorSource::open(
         &item.path,
@@ -595,7 +624,10 @@ fn plan_road(
     // Class → (features, first non-empty label).
     let mut found: BTreeMap<i64, (u64, Option<String>)> = BTreeMap::new();
     let mut without_class = 0u64;
-    for feature in layer.features() {
+    for (index, feature) in layer.features().enumerate() {
+        if index % 4096 == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
         let value = feature
             .field(class_index)
             .map_err(Error::gdal(&item.path))?;
@@ -603,6 +635,12 @@ fn plan_road(
             without_class += 1;
             continue;
         };
+        if found.len() >= MAX_ITEM_CLASSES && !found.contains_key(&class) {
+            return Err(invalid(format!(
+                "more than {MAX_ITEM_CLASSES} distinct classes in {:?}; is it a class field?",
+                item.class_field
+            )));
+        }
         let label = match label_index {
             Some(index) => feature
                 .field_as_string(index)
@@ -912,40 +950,52 @@ fn for_each_raster_window(
     Ok(())
 }
 
-/// Parts of a geometry in pixel coordinates of the grid.
-#[derive(Debug, Default)]
-struct Parts {
-    lines: Vec<Vec<(f64, f64)>>,
-    polygons: Vec<Vec<Vec<(f64, f64)>>>,
-    unsupported: bool,
+/// A line or polygon of a geometry, in pixel coordinates of the grid.
+#[derive(Debug)]
+enum Part {
+    Line(Vec<(f64, f64)>),
+    Polygon(Vec<Vec<(f64, f64)>>),
 }
 
 /// Map coordinates `points` to grid pixel coordinates, reprojecting first
-/// when needed. `None` when reprojection fails.
+/// when needed, or why they cannot be.
 fn to_pixels(
     points: Vec<(f64, f64, f64)>,
     grid: &GridSpec,
     transform: Option<&CoordTransform>,
-) -> Option<Vec<(f64, f64)>> {
+) -> std::result::Result<Vec<(f64, f64)>, &'static str> {
     let [x0, ew, _, y0, _, ns] = grid.geo_transform;
     let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = points.into_iter().map(|(x, y, _)| (x, y)).unzip();
     if let Some(transform) = transform {
-        transform.transform_coords(&mut xs, &mut ys, &mut []).ok()?;
+        transform
+            .transform_coords(&mut xs, &mut ys, &mut [])
+            .map_err(|_| "cannot be reprojected to the DEM CRS")?;
     }
-    Some(
-        xs.into_iter()
-            .zip(ys)
-            .map(|(x, y)| ((x - x0) / ew, (y - y0) / ns))
-            .collect(),
-    )
+    let pixels: Vec<(f64, f64)> = xs
+        .into_iter()
+        .zip(ys)
+        .map(|(x, y)| ((x - x0) / ew, (y - y0) / ns))
+        .collect();
+    if pixels.iter().all(|(x, y)| x.is_finite() && y.is_finite()) {
+        Ok(pixels)
+    } else {
+        Err("has non-finite coordinates")
+    }
 }
 
-fn collect_parts(
+/// Visit the line and polygon parts of `geometry` one at a time, so that
+/// only one part's coordinates are held. Multi-geometries and collections
+/// are split; other parts (points, curves) are counted in `unsupported`.
+/// A part that cannot be reprojected, or has non-finite coordinates, is an
+/// error built by `problem`.
+fn for_each_part(
     geometry: &Geometry,
     grid: &GridSpec,
     transform: Option<&CoordTransform>,
-    parts: &mut Parts,
-) {
+    problem: &dyn Fn(&str) -> Error,
+    unsupported: &mut u64,
+    visit: &mut dyn FnMut(Part) -> Result<()>,
+) -> Result<()> {
     let points = |g: &Geometry| {
         let mut out = Vec::new();
         g.get_points(&mut out);
@@ -953,35 +1003,86 @@ fn collect_parts(
     };
     match geometry_type_flatten(geometry.geometry_type()) {
         OGRwkbGeometryType::wkbLineString | OGRwkbGeometryType::wkbLinearRing => {
-            match to_pixels(points(geometry), grid, transform) {
-                Some(line) if !line.is_empty() => parts.lines.push(line),
-                Some(_) => {}
-                None => parts.unsupported = true,
+            let line = to_pixels(points(geometry), grid, transform).map_err(problem)?;
+            if !line.is_empty() {
+                visit(Part::Line(line))?;
             }
         }
         OGRwkbGeometryType::wkbPolygon => {
             let mut rings = Vec::with_capacity(geometry.geometry_count());
             for i in 0..geometry.geometry_count() {
-                match to_pixels(points(&geometry.get_geometry(i)), grid, transform) {
-                    Some(ring) => rings.push(ring),
-                    None => {
-                        parts.unsupported = true;
-                        return;
-                    }
-                }
+                rings.push(
+                    to_pixels(points(&geometry.get_geometry(i)), grid, transform)
+                        .map_err(problem)?,
+                );
             }
             if !rings.is_empty() {
-                parts.polygons.push(rings);
+                visit(Part::Polygon(rings))?;
             }
         }
         OGRwkbGeometryType::wkbMultiLineString
         | OGRwkbGeometryType::wkbMultiPolygon
         | OGRwkbGeometryType::wkbGeometryCollection => {
             for i in 0..geometry.geometry_count() {
-                collect_parts(&geometry.get_geometry(i), grid, transform, parts);
+                for_each_part(
+                    &geometry.get_geometry(i),
+                    grid,
+                    transform,
+                    problem,
+                    unsupported,
+                    visit,
+                )?;
             }
         }
-        _ => parts.unsupported = true,
+        _ => *unsupported += 1,
+    }
+    Ok(())
+}
+
+/// Apply `update` to every cell `part` burns; `true` when it burns at
+/// least one cell of the grid.
+fn burn_part(
+    part: &Part,
+    grid: &GridSpec,
+    cells: &mut TiledGrid<MergeCell>,
+    update: &dyn Fn(&mut MergeCell),
+) -> Result<bool> {
+    let mut failure = None;
+    let mut burnt = false;
+    let mut visit = |row: usize, c0: usize, c1: usize| {
+        if failure.is_some() {
+            return;
+        }
+        burnt = true;
+        for col in c0..=c1 {
+            let result = cells.get(row, col).and_then(|mut cell| {
+                update(&mut cell);
+                cells.set(row, col, cell)
+            });
+            if let Err(error) = result {
+                failure = Some(error);
+                return;
+            }
+        }
+    };
+    match part {
+        Part::Line(points) => line_spans(points, grid.rows, grid.cols, &mut visit),
+        Part::Polygon(rings) => polygon_spans(rings, grid.rows, grid.cols, &mut visit),
+    }
+    match failure {
+        Some(error) => Err(error.into()),
+        None => Ok(burnt),
+    }
+}
+
+/// Error for feature `fid` (or position `index`) of stack item `at`.
+fn feature_problem(at: &str, fid: Option<u64>, index: u64) -> impl Fn(&str) -> Error {
+    let which = fid.map_or_else(|| format!("#{index}"), |fid| format!("FID {fid}"));
+    let at = at.to_owned();
+    move |why: &str| {
+        Error::invalid(format!(
+            "{at} feature {which}: {why}; fix it or leave it out with \"where\""
+        ))
     }
 }
 
@@ -1173,6 +1274,18 @@ pub fn run(
                 ),
             });
         }
+        if let Some(features) = &item.features
+            && features.outside_grid > 0
+        {
+            warnings.push(Warning {
+                code: "features_outside_grid",
+                message: format!(
+                    "stack item {} ({}): {} features burn no cell (outside the grid, or \
+                     polygons holding no cell centre)",
+                    item.position, item.kind, features.outside_grid
+                ),
+            });
+        }
     }
     let report = MergeReport {
         report_version: RUN_REPORT_VERSION,
@@ -1241,22 +1354,6 @@ fn paint_land_cover(
     )
 }
 
-/// Apply `update` to every cell of the spans.
-fn update_spans(
-    cells: &mut TiledGrid<MergeCell>,
-    spans: &[(usize, usize, usize)],
-    update: impl Fn(&mut MergeCell),
-) -> Result<()> {
-    for &(row, c0, c1) in spans {
-        for col in c0..=c1 {
-            let mut cell = cells.get(row, col)?;
-            update(&mut cell);
-            cells.set(row, col, cell)?;
-        }
-    }
-    Ok(())
-}
-
 fn paint_road(
     item: &RoadItem,
     plan: &ItemPlan,
@@ -1284,10 +1381,9 @@ fn paint_road(
         .map(|c| (c.source_class, (c.class, c.rank)))
         .collect();
     let mut counts = FeatureCounts::default();
-    let mut spans = Vec::new();
-    for feature in layer.features() {
+    for (index, feature) in layer.features().enumerate() {
         counts.read += 1;
-        if counts.read % 4096 == 0 && cancelled() {
+        if cancelled() {
             return Err(Error::Cancelled);
         }
         let value = feature
@@ -1298,28 +1394,51 @@ fn paint_road(
             counts.without_class += 1;
             continue;
         };
-        let mut parts = Parts::default();
-        if let Some(geometry) = feature.geometry() {
-            collect_parts(geometry, grid, source.transform.as_ref(), &mut parts);
-        }
-        if parts.lines.is_empty() {
-            counts.unsupported_geometry += 1;
-            continue;
-        }
-        spans.clear();
-        for line in &parts.lines {
-            line_spans(line, grid.rows, grid.cols, &mut |r, c0, c1| {
-                spans.push((r, c0, c1))
-            });
-        }
-        update_spans(cells, &spans, |cell| {
+        let update = |cell: &mut MergeCell| {
             cell.paint(class, rank);
             cell.flags |= MergeCell::ROAD;
-        })?;
-        counts.used += 1;
-        counts.lines += parts.lines.len() as u64;
+        };
+        let problem = feature_problem(&at, feature.fid(), index as u64);
+        let (mut lines, mut burnt, mut unsupported) = (0u64, false, 0u64);
+        if let Some(geometry) = feature.geometry() {
+            for_each_part(
+                geometry,
+                grid,
+                source.transform.as_ref(),
+                &problem,
+                &mut unsupported,
+                &mut |part| {
+                    if cancelled() {
+                        return Err(Error::Cancelled);
+                    }
+                    // Roads are lines: AccessMod 5 rasterises them with
+                    // `v.to.rast type=line`. A feature with polygons only
+                    // counts as unsupported (no line part).
+                    if matches!(part, Part::Polygon(_)) {
+                        return Ok(());
+                    }
+                    lines += 1;
+                    burnt |= burn_part(&part, grid, cells, &update)?;
+                    Ok(())
+                },
+            )?;
+        }
+        tally(&mut counts, lines, 0, burnt);
     }
     Ok(counts)
+}
+
+/// Count one feature with `lines` and `polygons` parts.
+fn tally(counts: &mut FeatureCounts, lines: u64, polygons: u64, burnt: bool) {
+    counts.lines += lines;
+    counts.polygons += polygons;
+    if lines + polygons == 0 {
+        counts.unsupported_geometry += 1;
+    } else if burnt {
+        counts.used += 1;
+    } else {
+        counts.outside_grid += 1;
+    }
 }
 
 fn paint_barrier(
@@ -1340,32 +1459,35 @@ fn paint_barrier(
     let dataset = open_vector(&item.path)?;
     let mut layer = source.layer(&dataset)?;
     let mut counts = FeatureCounts::default();
-    let mut spans = Vec::new();
-    for feature in layer.features() {
+    let update = |cell: &mut MergeCell| cell.flags |= MergeCell::BARRIER;
+    for (index, feature) in layer.features().enumerate() {
         counts.read += 1;
-        if counts.read % 4096 == 0 && cancelled() {
+        if cancelled() {
             return Err(Error::Cancelled);
         }
-        let mut parts = Parts::default();
+        let problem = feature_problem(&at, feature.fid(), index as u64);
+        let (mut lines, mut polygons, mut burnt, mut unsupported) = (0u64, 0u64, false, 0u64);
         if let Some(geometry) = feature.geometry() {
-            collect_parts(geometry, grid, source.transform.as_ref(), &mut parts);
+            for_each_part(
+                geometry,
+                grid,
+                source.transform.as_ref(),
+                &problem,
+                &mut unsupported,
+                &mut |part| {
+                    if cancelled() {
+                        return Err(Error::Cancelled);
+                    }
+                    match part {
+                        Part::Line(_) => lines += 1,
+                        Part::Polygon(_) => polygons += 1,
+                    }
+                    burnt |= burn_part(&part, grid, cells, &update)?;
+                    Ok(())
+                },
+            )?;
         }
-        if parts.lines.is_empty() && parts.polygons.is_empty() {
-            counts.unsupported_geometry += 1;
-            continue;
-        }
-        spans.clear();
-        let mut push = |r, c0, c1| spans.push((r, c0, c1));
-        for line in &parts.lines {
-            line_spans(line, grid.rows, grid.cols, &mut push);
-        }
-        for polygon in &parts.polygons {
-            polygon_spans(polygon, grid.rows, grid.cols, &mut push);
-        }
-        update_spans(cells, &spans, |cell| cell.flags |= MergeCell::BARRIER)?;
-        counts.used += 1;
-        counts.lines += parts.lines.len() as u64;
-        counts.polygons += parts.polygons.len() as u64;
+        tally(&mut counts, lines, polygons, burnt);
     }
     Ok(counts)
 }

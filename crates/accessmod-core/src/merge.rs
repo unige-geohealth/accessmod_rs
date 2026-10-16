@@ -95,14 +95,16 @@ impl CellCodec for MergeCell {
     }
 }
 
-/// Index range `[first, last]` of the unit intervals `[k, k + 1)` meeting
-/// the closed interval `[lo, hi]`, clipped to `0 .. n`. An interval ending
-/// exactly on a boundary does not reach the next unit, unless it is a
-/// single point.
-fn unit_range(lo: f64, hi: f64, n: usize) -> Option<(usize, usize)> {
+/// Index range `[first, last]`, clipped to `0 .. n`, of the half-open unit
+/// intervals `[k, k + 1)` holding a point of `[lo, hi]`, or of `[lo, hi)`
+/// when `open_hi` (the end point itself belongs to the next unit).
+fn unit_range(lo: f64, hi: f64, open_hi: bool, n: usize) -> Option<(usize, usize)> {
     let first = lo.floor();
-    let last = if hi > lo { hi.ceil() - 1.0 } else { first };
-    if last < 0.0 || first >= n as f64 || !(first.is_finite() && last.is_finite()) {
+    let mut last = hi.floor();
+    if open_hi && hi > lo && hi == last {
+        last -= 1.0;
+    }
+    if last < 0.0 || first >= n as f64 {
         return None;
     }
     Some((first.max(0.0) as usize, last.min(n as f64 - 1.0) as usize))
@@ -111,18 +113,30 @@ fn unit_range(lo: f64, hi: f64, n: usize) -> Option<(usize, usize)> {
 /// Visit the cells a segment touches, row by row, as column spans
 /// `visit(row, first_col, last_col)` (inclusive).
 ///
-/// A cell is touched when the segment meets it, edges included except the
-/// high edge of the segment's extent (see `unit_range`). Each row's span is
-/// computed from the segment's own end points, never from a clipped one.
+/// Cells are half-open (`[col, col + 1) × [row, row + 1)`); a cell is
+/// touched when it holds a point of the closed segment. Each row's span is
+/// computed from the segment's own end points, never from a clipped one, so
+/// it does not depend on how the grid is split. Segments with a non-finite
+/// end point touch nothing (callers reject them first).
 fn segment_spans(
-    (x0, y0): (f64, f64),
-    (x1, y1): (f64, f64),
+    a: (f64, f64),
+    b: (f64, f64),
     rows: usize,
     cols: usize,
     visit: &mut impl FnMut(usize, usize, usize),
 ) {
+    // Same orientation whichever way the line runs, so that interpolation
+    // rounds the same way.
+    let ((x0, y0), (x1, y1)) = if (a.1, a.0) <= (b.1, b.0) {
+        (a, b)
+    } else {
+        (b, a)
+    };
+    if ![x0, y0, x1, y1].iter().all(|v| v.is_finite()) {
+        return;
+    }
     let (y_lo, y_hi) = (y0.min(y1), y0.max(y1));
-    let Some((r_first, r_last)) = unit_range(y_lo, y_hi, rows) else {
+    let Some((r_first, r_last)) = unit_range(y_lo, y_hi, false, rows) else {
         return;
     };
     // x on the segment at height y, exact at both end points.
@@ -136,14 +150,24 @@ fn segment_spans(
         }
     };
     for row in r_first..=r_last {
-        let (xa, xb) = if y0 == y1 {
-            (x0, x1)
+        let span = if y0 == y1 {
+            unit_range(x0.min(x1), x0.max(x1), false, cols)
         } else {
+            // Points with y in [top, bottom], or [top, bottom) when the
+            // segment goes on into the next row.
             let top = (row as f64).max(y_lo);
-            let bottom = ((row + 1) as f64).min(y_hi);
-            (x_at(top), x_at(bottom))
+            let next_row = (row + 1) as f64;
+            let bottom = next_row.min(y_hi);
+            let (xa, xb) = (x_at(top), x_at(bottom));
+            if bottom == next_row && xb > xa {
+                // The open end is the high one: a whole-number x there
+                // belongs to the next row only.
+                unit_range(xa, xb, true, cols)
+            } else {
+                unit_range(xa.min(xb), xa.max(xb), false, cols)
+            }
         };
-        if let Some((c0, c1)) = unit_range(xa.min(xb), xa.max(xb), cols) {
+        if let Some((c0, c1)) = span {
             visit(row, c0, c1);
         }
     }
@@ -175,12 +199,21 @@ pub fn line_spans(
 /// `rings` are the exterior ring and its holes, closed or not; the
 /// even-odd rule decides inside. A centre exactly on an edge is inside when
 /// the edge is its west boundary (half-open on both axes, deterministic).
+/// A polygon with a non-finite vertex covers nothing (callers reject it
+/// first).
 pub fn polygon_spans(
     rings: &[Vec<(f64, f64)>],
     rows: usize,
     cols: usize,
     visit: &mut impl FnMut(usize, usize, usize),
 ) {
+    if !rings
+        .iter()
+        .flatten()
+        .all(|(x, y)| x.is_finite() && y.is_finite())
+    {
+        return;
+    }
     let mut y_min = f64::INFINITY;
     let mut y_max = f64::NEG_INFINITY;
     for &(_, y) in rings.iter().flatten() {
@@ -348,6 +381,38 @@ mod tests {
             cells_of_line(&[(0.5, 0.5), (1.5, 1.5)], 2, 2),
             vec![(0, 0), (1, 1)]
         );
+    }
+
+    #[test]
+    fn end_points_on_cell_edges_burn_the_cell_they_belong_to() {
+        // (1.0, 0.5) belongs to cell (0, 1); (0.5, 2.0) to cell (2, 0).
+        assert_eq!(
+            cells_of_line(&[(0.5, 0.5), (1.0, 0.5)], 3, 3),
+            vec![(0, 0), (0, 1)]
+        );
+        assert_eq!(
+            cells_of_line(&[(0.5, 0.5), (0.5, 2.0)], 3, 3),
+            vec![(0, 0), (1, 0), (2, 0)]
+        );
+        // Leaving a row through a whole-number x on the high side: the
+        // crossing point belongs to the next row.
+        assert_eq!(
+            cells_of_line(&[(0.5, 0.5), (1.5, 1.5)], 2, 2),
+            cells_of_line(&[(1.5, 1.5), (0.5, 0.5)], 2, 2)
+        );
+        // Moving south-west through the corner (1.0, 1.0), which belongs to
+        // cell (1, 1).
+        assert_eq!(
+            cells_of_line(&[(1.5, 0.5), (0.5, 1.5)], 2, 2),
+            vec![(0, 1), (1, 0), (1, 1)]
+        );
+    }
+
+    #[test]
+    fn non_finite_coordinates_burn_nothing() {
+        assert!(cells_of_line(&[(0.5, 0.5), (f64::NAN, 1.5)], 3, 3).is_empty());
+        let ring = vec![(0.0, 0.0), (3.0, 0.0), (f64::NAN, 3.0), (0.0, 3.0)];
+        assert!(cells_of_polygon(&[ring], 3, 3).is_empty());
     }
 
     #[test]

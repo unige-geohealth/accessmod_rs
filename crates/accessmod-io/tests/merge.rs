@@ -408,3 +408,114 @@ fn outputs_do_not_depend_on_memory() {
     assert_eq!(run_part(&out_a), run_part(&out_b));
     assert!(report_a.run.result.bridges_removed > 0 || report_a.run.result.bridge_cells > 0);
 }
+
+#[test]
+fn layers_in_another_crs_are_reprojected_and_outside_features_counted() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = by_hand_fixture(dir.path());
+    // The barrier of the fixture, in WGS 84, plus a polygon far outside.
+    let utm = SpatialRef::from_epsg(EPSG).expect("utm");
+    let mut wgs84 = SpatialRef::from_epsg(4326).expect("wgs84");
+    wgs84.set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
+    let mut utm_traditional = utm.clone();
+    utm_traditional
+        .set_axis_mapping_strategy(gdal::spatial_ref::AxisMappingStrategy::TraditionalGisOrder);
+    let to_wgs84 =
+        gdal::spatial_ref::CoordTransform::new(&utm_traditional, &wgs84).expect("transform");
+    let ring = |cells: &[(f64, f64)]| {
+        let (mut xs, mut ys): (Vec<f64>, Vec<f64>) = cells.iter().map(|&(c, r)| map(c, r)).unzip();
+        to_wgs84
+            .transform_coords(&mut xs, &mut ys, &mut [])
+            .expect("to wgs84");
+        let points: Vec<String> = xs
+            .iter()
+            .zip(&ys)
+            .map(|(x, y)| format!("{x} {y}"))
+            .collect();
+        format!("POLYGON (({}))", points.join(", "))
+    };
+    let barrier = ring(&[(4.1, 0.1), (4.9, 0.1), (4.9, 1.9), (4.1, 1.9), (4.1, 0.1)]);
+    let far = ring(&[(40.0, 40.0), (41.0, 40.0), (41.0, 41.0), (40.0, 40.0)]);
+    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG");
+    let mut ds = driver
+        .create_vector_only(dir.path().join("barrier4326.gpkg"))
+        .expect("create");
+    let layer = ds
+        .create_layer(LayerOptions {
+            name: "barrier",
+            srs: Some(&SpatialRef::from_epsg(4326).expect("wgs84")),
+            ty: OGRwkbGeometryType::wkbPolygon,
+            options: None,
+        })
+        .expect("layer");
+    for wkt in [&barrier, &far] {
+        let mut feature = Feature::new(layer.defn()).expect("feature");
+        feature
+            .set_geometry(Geometry::from_wkt(wkt).expect("wkt"))
+            .expect("geometry");
+        feature.create(&layer).expect("create");
+    }
+    drop(ds);
+    job.stack[2] = StackItem::Barrier(BarrierItem {
+        path: dir.path().join("barrier4326.gpkg"),
+        layer: None,
+        filter: None,
+    });
+    let prepared = prepare(job, &settings(256 << 20), &never).expect("prepare");
+    assert!(
+        prepared
+            .warnings
+            .iter()
+            .any(|w| w.code == "stack_item_reprojected")
+    );
+    let (out, report) = run(prepared, &settings(256 << 20), &never).expect("run");
+    let merged = read::<i32>(&out.join(MERGED_FILE));
+    assert_eq!((merged[4], merged[6 + 4]), (MERGED_NODATA, MERGED_NODATA));
+    assert_eq!(report.run.result.barrier_cells, 2);
+    let features = report.run.stack[2].features.as_ref().expect("counts");
+    assert_eq!((features.used, features.outside_grid), (1, 1));
+    assert!(
+        report
+            .run
+            .warnings
+            .iter()
+            .any(|w| w.code == "features_outside_grid")
+    );
+}
+
+#[test]
+fn non_finite_coordinates_fail_the_run() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = by_hand_fixture(dir.path());
+    let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG");
+    let mut ds = driver
+        .create_vector_only(dir.path().join("bad.gpkg"))
+        .expect("create");
+    let layer = ds
+        .create_layer(LayerOptions {
+            name: "bad",
+            srs: Some(&SpatialRef::from_epsg(EPSG).expect("srs")),
+            ty: OGRwkbGeometryType::wkbLineString,
+            options: None,
+        })
+        .expect("layer");
+    let mut geometry = Geometry::empty(OGRwkbGeometryType::wkbLineString).expect("line");
+    let (x, y) = map(0.5, 0.5);
+    geometry.add_point_2d((x, y));
+    geometry.add_point_2d((f64::NAN, y));
+    let mut feature = Feature::new(layer.defn()).expect("feature");
+    feature.set_geometry(geometry).expect("geometry");
+    feature.create(&layer).expect("create");
+    drop(feature);
+    drop(ds);
+    job.stack.push(StackItem::Barrier(BarrierItem {
+        path: dir.path().join("bad.gpkg"),
+        layer: None,
+        filter: None,
+    }));
+    let out = job.output_dir.clone();
+    let err = run_job(job, &settings(256 << 20)).expect_err("non-finite");
+    assert_eq!(err.kind(), ErrorKind::Validation);
+    assert!(err.to_string().contains("non-finite coordinates"), "{err}");
+    assert!(!out.exists(), "a failed run leaves no output");
+}

@@ -44,15 +44,18 @@ project. Polygon skeletons for barriers are not implemented.
   not depend on the order the items are painted in.
 - **Rasterisation in pixel coordinates of the whole grid**, in
   `accessmod-core` (no GDAL):
-  - lines burn every cell they touch. Each row's span is computed from the
-    segment's own end points, so a line burns the same cells whatever the
-    tile or strip boundaries;
+  - lines burn every cell holding a point of the line, cells being
+    half-open (`[col, col + 1) × [row, row + 1)`): an end point on a cell
+    edge burns the cell it belongs to. Each row's span is computed from the
+    segment's own end points, in a fixed orientation, so a line burns the
+    same cells whatever its direction and the tile or strip boundaries;
   - polygons burn the cells whose centre is inside (even-odd rule, holes
     excluded, half-open edges).
 - **Bounded memory.** The merge state lives in the tiled store
   (12 bytes/cell, disk-backed under `--memory`). Rasters are read in
-  strips, vectors one feature at a time, and outputs are written in
-  256 × 256 blocks with a one-cell halo for the bridge test. Outputs are
+  strips, vectors one feature and one part at a time (a part's vertices
+  are the only memory not counted in the budget), and outputs are written
+  in 256 × 256 blocks with a one-cell halo for the bridge test. Outputs are
   byte-identical at any budget (`tests/merge.rs`).
 - **Explicit reprojection.** Vector layers in another CRS are reprojected
   to the DEM CRS, with a warning in `run.json`. Rasters must already lie on
@@ -92,6 +95,10 @@ Job (`accessmod merge-land-cover schema` prints it):
   split. Points and curves are left out, with a warning.
 - Validation fails when a class comes from more than one item. The message
   names the items, as AccessMod 5 does.
+- A feature that cannot be reprojected, or has non-finite coordinates,
+  fails the run (exit code 2) with its FID: leaving it out silently could
+  open a barrier. Features that burn no cell (outside the grid) are counted
+  in `run.json` with a warning.
 
 Outputs:
 
