@@ -151,6 +151,10 @@ Things learned the hard way; check here before re-investigating.
   comparisons), drops self pairs, keeps closest-time ties, and measures
   distances with `r.path` from the facility points (ours: cell centres;
   up to one cell diagonal apart).
+- Merge land cover: AM5 rasterises lines with `v.to.rast -d`. Our
+  half-open "all touched" rule differs on 1 road and 1 river cell of the
+  demo (`gdal_rasterize -at`: 7), so the merged land cover differs on 2 of
+  44 492 cells; areas (`type=area`, cell centre) and bridges are identical.
 
 ### Engine
 
@@ -163,6 +167,9 @@ Things learned the hard way; check here before re-investigating.
   a tolerance, or use `search_from: origins` for exact equality.
 - Every budget split must count per-worker state (queue, state tiles) and
   results held in memory; Codex reviews caught these twice.
+- GeoPackage accepts any attribute filter in `set_attribute_filter` and
+  fails only when reading (no feature, an error on stderr). Validate a
+  filter by running `SELECT * FROM "layer" WHERE …` with `execute_sql`.
 
 ### Tooling
 
