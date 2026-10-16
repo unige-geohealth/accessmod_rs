@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-02-27 10:07:14",
+  "analysis": "amAnalysisOptimization",
+  "mapset": "demo",
+  "location": "demo",
+  "output": [
+    "tOptimization__oracle",
+    "lAnalysisParameters__oracle"
+  ],
+  "editable": [
+    {
+      "key": "nTot",
+      "mode": "numeric",
+      "class": "integer",
+      "min": 1,
+      "desc": "Total number of facilities to select"
+    },
+    {
+      "key": "adminCheck",
+      "mode": "logical",
+      "class": "logical",
+      "desc": "Ensure a minimum number of facilities per admin unit"
+    },
+    {
+      "key": "npAdmin",
+      "mode": "numeric",
+      "class": "integer",
+      "min": 1,
+      "desc": "Minimum number of facilities per admin unit"
+    }
+  ],
+  "args": {
+    "inputCatchment": "vCatchment__demo",
+    "inputPopulation": "rPopulation__demo_patients",
+    "inputFacilities": "vFacility__demo",
+    "inputAdmin": "vZone__demo",
+    "outputOptimization": "tOptimization__oracle",
+    "idFieldCatchment": "cat_join",
+    "idFieldHf": "cat",
+    "adminColName": "admin_name",
+    "adminIdColName": "cat",
+    "nTot": 10,
+    "adminCheck": true,
+    "npAdmin": 1,
+    "pBarTitle": "Optimization analysis"
+  }
+}

@@ -15,6 +15,7 @@ pub mod grid;
 pub mod inputs;
 pub mod job;
 pub mod merge;
+pub mod optimization;
 pub mod output;
 pub mod population;
 pub mod raster;

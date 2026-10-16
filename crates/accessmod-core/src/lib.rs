@@ -13,6 +13,7 @@ pub mod cost;
 pub mod focal;
 pub mod merge;
 pub mod mobility;
+pub mod optimization;
 pub mod population;
 pub mod raster;
 pub mod referral;

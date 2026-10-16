@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "population": "../../_oracle/population-correction/demo/input/population.tif",
+  "catchments": { "path": "../../_oracle/optimization/demo/oracle/catchments.fgb", "id_field": "cat_join" },
+  "max_facilities": 10,
+  "zone_quota": {
+    "zones": { "path": "../../_oracle/zonal-statistics/demo/input/zones.fgb", "id_field": "cat", "label_field": "admin_name" },
+    "facilities": { "path": "../../_oracle/travel-time/demo/input/facilities.fgb", "id_field": "cat" },
+    "min_per_zone": 1
+  },
+  "output_dir": "../../_shared/benchmark/optimization/demo/out"
+}
