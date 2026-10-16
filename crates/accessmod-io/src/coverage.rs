@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::analysis::{Analysis, Cancelled};
 use crate::catchment::{
-    CellSpool, PopulationTotals, catchment_polygon, init_residual, remove_covered, search_bands,
+    CATCHMENT_COLUMNS, CellSpool, PopulationTotals, ResidualStep, catchment_fields,
+    catchment_polygon, init_residual, remove_covered, search_bands, table_number,
 };
 use crate::error::{Error, Result};
 use crate::facilities::{LoadedFacilities, load_facilities};
@@ -870,38 +871,32 @@ pub fn run(
 fn write_capacity_table(path: &Path, job: &CoverageJob, rows: &[CoverageRow]) -> Result<()> {
     let mut csv = CsvWriter::create(
         path,
-        "order,facility_id,name,capacity,order_value,travel_time_limit_s,\
-         population_within_limit,population_band_correlation,catchment_travel_time_s,\
-         population_catchment,capacity_realised,capacity_residual,\
-         population_catchment_not_covered,population_residual_before,\
-         population_residual_after,population_covered_percent,catchment_case",
+        &format!("order,facility_id,name,capacity,order_value,{CATCHMENT_COLUMNS}"),
     )?;
-    let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
     for row in rows {
         let c = &row.catchment;
         let f = &row.facility;
-        csv.record(&[
+        let mut record = vec![
             row.order.to_string(),
             csv_field(&f.id),
             f.name
                 .as_ref()
                 .map(|n| csv_field(&serde_json::Value::String(n.clone())))
                 .unwrap_or_default(),
-            number(Some(c.capacity)),
-            number(f.order_value),
-            number(Some(job.limit_s)),
-            number(c.population_within_limit),
-            number(c.correlation),
-            number(c.band_limit.map(|b| f64::from(b) * job.band_s)),
-            number(c.population_catchment),
-            number(Some(c.capacity_realised)),
-            number(Some(c.capacity_residual)),
-            number(c.population_not_covered()),
-            number(Some(row.population_residual_before)),
-            number(Some(row.population_residual_after)),
-            number(Some(row.population_covered_percent)),
-            c.case.map(|k| format!("{k:?}")).unwrap_or_default(),
-        ])?;
+            table_number(Some(c.capacity)),
+            table_number(f.order_value),
+        ];
+        record.extend(catchment_fields(
+            c,
+            job.limit_s,
+            job.band_s,
+            ResidualStep {
+                before: row.population_residual_before,
+                after: row.population_residual_after,
+                covered_percent: row.population_covered_percent,
+            },
+        ));
+        csv.record(&record)?;
     }
     csv.finish()
 }

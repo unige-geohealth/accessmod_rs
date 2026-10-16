@@ -17,6 +17,7 @@ use accessmod_io::coverage::GeographicCoverage;
 use accessmod_io::merge::MergeLandCover;
 use accessmod_io::population::AdjustPopulation;
 use accessmod_io::referral::Referral;
+use accessmod_io::scaling_up::ScalingUp;
 use accessmod_io::zonal::ZonalStatistics;
 use clap::{Parser, Subcommand};
 
@@ -74,6 +75,12 @@ enum Command {
         #[command(subcommand)]
         command: exec::JobCommand,
     },
+    /// Scaling up: add facilities where they are most suitable and cover the
+    /// most people.
+    ScalingUp {
+        #[command(subcommand)]
+        command: exec::JobCommand,
+    },
 }
 
 /// Failure of a command: exit code and the message already reported.
@@ -128,6 +135,7 @@ fn main() -> ExitCode {
         Command::GeographicCoverage { command } => {
             exec::job_command::<GeographicCoverage>(command, &cancel)
         }
+        Command::ScalingUp { command } => exec::job_command::<ScalingUp>(command, &cancel),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

@@ -314,3 +314,47 @@ pub(crate) fn remove_covered(
     })?;
     Ok(removed)
 }
+
+/// Capacity table columns shared by the capacity analyses, from the limit
+/// to the catchment case (see [`catchment_fields`]).
+pub(crate) const CATCHMENT_COLUMNS: &str = "travel_time_limit_s,population_within_limit,\
+     population_band_correlation,catchment_travel_time_s,population_catchment,\
+     capacity_realised,capacity_residual,population_catchment_not_covered,\
+     population_residual_before,population_residual_after,population_covered_percent,\
+     catchment_case";
+
+/// A number in a capacity table; empty when missing.
+pub(crate) fn table_number(v: Option<f64>) -> String {
+    v.map(|x| format!("{x}")).unwrap_or_default()
+}
+
+/// Residual population around one facility and the share covered so far.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ResidualStep {
+    pub(crate) before: f64,
+    pub(crate) after: f64,
+    pub(crate) covered_percent: f64,
+}
+
+/// Values of [`CATCHMENT_COLUMNS`] for one facility.
+pub(crate) fn catchment_fields(
+    c: &Catchment,
+    limit_s: f64,
+    band_s: f64,
+    step: ResidualStep,
+) -> [String; 12] {
+    [
+        table_number(Some(limit_s)),
+        table_number(c.population_within_limit),
+        table_number(c.correlation),
+        table_number(c.band_limit.map(|b| f64::from(b) * band_s)),
+        table_number(c.population_catchment),
+        table_number(Some(c.capacity_realised)),
+        table_number(Some(c.capacity_residual)),
+        table_number(c.population_not_covered()),
+        table_number(Some(step.before)),
+        table_number(Some(step.after)),
+        table_number(Some(step.covered_percent)),
+        c.case.map(|k| format!("{k:?}")).unwrap_or_default(),
+    ]
+}

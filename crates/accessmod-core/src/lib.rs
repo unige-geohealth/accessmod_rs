@@ -16,6 +16,7 @@ pub mod mobility;
 pub mod population;
 pub mod raster;
 pub mod referral;
+pub mod scaling_up;
 pub mod solver;
 pub mod store;
 pub mod zonal;
