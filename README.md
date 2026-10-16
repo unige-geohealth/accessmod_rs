@@ -27,44 +27,45 @@ and figures on a small synthetic landscape (travel time, then referral).
 
 ## AccessMod 5 vs accessmod-rs
 
-Same travel-time analysis (anisotropic, 16 neighbours, three transport
-modes) on synthetic grids, single runs on an Apple M1 Pro
-([details and caveats](docs/benchmarks.md)):
+Median of 3 runs on an Apple M1 Pro, AccessMod 5 in its Docker image
+([all modules, scripts and reports](benchmark/README.md)). On the AccessMod 5
+demo project, full analysis (AccessMod 5 replay, without its 5.4 s of R
+start-up, against the accessmod-rs command):
 
-| Cells | AccessMod 5 (`r.walk.accessmod`) | accessmod-rs (solve / total) | Memory AM5 → rs |
-| ---: | ---: | ---: | ---: |
-| 1 M | 0.96 s | 0.78 s / 1.5 s | 216 → 136 MB |
-| 16 M | 21.8 s | 16.7 s / 18.6 s | 2.1 → 0.7 GB |
-| 64 M | 121.7 s | 92.1 s / 100.2 s | 7.9 → 1.9 GB |
-| 64 M, `--memory 1G` | — | 101.3 s / 117.5 s | 0.85 GB |
+| Module | AccessMod 5 | accessmod-rs |
+| --- | ---: | ---: |
+| Travel time | 1.42 s | 0.24 s |
+| Referral, 90 pairs | 11.67 s | 0.23 s |
+| Geographic coverage | 14.55 s | 0.40 s |
 
-Referral (all facilities to all facilities, [details](docs/benchmarks.md)):
+On 16 M-cell synthetic grids (AccessMod 5: its engine alone, a lower bound):
 
-| Cells, facilities | AccessMod 5 | accessmod-rs |
-| ---: | ---: | ---: |
-| demo 44 k, 10 | 13.1 s (replay analysis) | 0.3 s |
-| 16 M, 100 (9 900 pairs) | ≥ 72.6 s (engine only, lower bound) | 17.7 s |
+| Module | AccessMod 5 | accessmod-rs | Memory AM5 → rs |
+| --- | ---: | ---: | ---: |
+| Travel time, 10 facilities | 15.8 s | 16.1 s (solve 14.7 s) | 2.1 → 0.7 GB |
+| Referral, 9 900 pairs | ≥ 35.7 s | 13.5 s | — → 0.7 GB |
+| Geographic coverage, 100 facilities | ≥ 133.9 s | 19.7 s | — → 0.5 GB |
 
 - **Same numbers**: travel times agree with AccessMod 5 to 1e-15 (relative),
   with identical reachable areas and nearest facilities; on the AccessMod 5
   demo project as well ([oracle tests](docs/plan.md)). Referral times match
   AccessMod 5 on its demo after its rounding up to whole seconds; distances
   differ by less than one cell ([why](docs/referral.md)).
-- **Less memory, bounded memory**: 1.6 × (1 M cells) to 4 × (64 M) less than
-  AccessMod 5, and a hard
-  budget (`--memory`) with disk-backed tiles: results are byte-identical
-  whatever the budget, so national grids run on small machines.
-- **Faster engine**: the solver is 16–24 % faster than `r.walk.accessmod`;
-  the total includes reading inputs and writing compressed outputs, which
-  AccessMod 5 does in separate import and export steps.
+- **Less memory, bounded memory**: about 3 × less than AccessMod 5 at 16 M
+  cells, and a hard budget (`--memory`) with disk-backed tiles: results are
+  byte-identical whatever the budget, so national grids run on small
+  machines.
+- **Engine on par, analyses faster**: the travel-time solver matches
+  `r.walk.accessmod` (its total includes reading inputs and writing
+  compressed outputs); analyses built on many searches gain most, as
+  accessmod-rs works on the reached cells only.
 - **One binary**: no R, Shiny, GRASS or Docker; scriptable with job files,
   JSON output and exit codes.
 - **Referral without the detours**: distances come from the search itself (no
   `r.path` / `v.net`), searches stop at the last destination and run in
   parallel; many-to-one runs from the few destinations.
-- **No start-up cost**: an AccessMod 5 replay spends 6 s loading its R code
-  before computing; the demo travel time takes 9 s end to end in AccessMod 5
-  and 0.5 s with accessmod-rs.
+- **No start-up cost**: an AccessMod 5 replay spends about 5 s loading its R
+  code before computing.
 
 ## Deliverables
 
@@ -79,7 +80,7 @@ Referral (all facilities to all facilities, [details](docs/benchmarks.md)):
 
 - [`docs/tutorial/`](docs/tutorial/README.md) — step-by-step travel time and referral
 - [`docs/coverage.md`](docs/coverage.md) — AccessMod 5 features: covered, planned, needing a UI
-- [`docs/benchmarks.md`](docs/benchmarks.md) — performance against AccessMod 5
+- [`benchmark/`](benchmark/README.md) — performance against AccessMod 5, per module
 - [`docs/cost-model.md`](docs/cost-model.md) — cost model, neighbours and direction codes
 - [`docs/referral.md`](docs/referral.md) — referral design, decisions and differences from AccessMod 5
 - [`docs/plan.md`](docs/plan.md) — architecture, contracts and milestones

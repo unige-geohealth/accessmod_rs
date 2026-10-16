@@ -1,0 +1,6 @@
+# Scenario of the synthetic landscape (synthetic_inputs job.json): class mode speed_kmh
+1 walking 5
+2 walking 4
+3 walking 2
+1001 motorized 60
+1002 bicycling 15

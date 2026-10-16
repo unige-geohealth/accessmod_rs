@@ -68,7 +68,7 @@ _Last updated: 2026-10-16._
 | --- | --- |
 | R/Shiny web app + GRASS GIS + Docker, packaged as Electron app or VM | Single `accessmod` binary (CLI); 🗓 self-contained archives with GDAL/PROJ (milestone 1, distribution) |
 | Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; 🗓 MCP server for agents (milestone 2) |
-| Memory needs grow with the grid (GRASS segments) | Explicit memory budget, tiled disk storage, same results at any budget ([benchmarks](benchmarks.md)) |
+| Memory needs grow with the grid (GRASS segments) | Explicit memory budget, tiled disk storage, same results at any budget ([benchmarks](../benchmark/README.md)) |
 | Results in minutes (rounded) | Results in seconds and metres; minutes as a compatibility export (🗓) |
 
 ## Where an interface is needed

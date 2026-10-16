@@ -8,7 +8,10 @@
 //! - `land_cover.tif` (UInt16): 1 built area, 2 grassland, 3 forest,
 //!   1001 main road, 1002 secondary road, 9 river (left out of the scenario,
 //!   so a barrier except where roads bridge it), 0 lake (NoData);
-//! - `facilities.gpkg`: facilities on the main road, field `code`;
+//! - `population.tif` (Float32): 50 people per cell in the town, 5 elsewhere,
+//!   river included (people on a barrier), none on the lake (NoData);
+//! - `facilities.gpkg`: facilities on the main road, fields `code`, `name`
+//!   and `capacity` (20 000 people);
 //! - `job.json`: an anisotropic job on these inputs.
 
 use std::path::Path;
@@ -76,8 +79,10 @@ fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
     let grid = grid(cols, rows)?;
     let dem_tif = GeoTiff::create::<f32>(&dir.join("dem.tif"), &grid, 3, 1, -9999.0)?;
     let lc_tif = GeoTiff::create::<u16>(&dir.join("land_cover.tif"), &grid, 2, 1, 0.0)?;
+    let pop_tif = GeoTiff::create::<f32>(&dir.join("population.tif"), &grid, 3, 1, -9999.0)?;
     let mut dem = Vec::with_capacity(STRIP * cols);
     let mut lc = Vec::with_capacity(STRIP * cols);
+    let mut pop = Vec::with_capacity(STRIP * cols);
     for start in (0..rows).step_by(STRIP) {
         let height = STRIP.min(rows - start);
         for row in start..start + height {
@@ -85,13 +90,20 @@ fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
                 let (class, z) = cell(row, col, rows, cols);
                 lc.push(class);
                 dem.push(z);
+                pop.push(match class {
+                    0 => -9999.0,
+                    1 => 50.0,
+                    _ => 5.0,
+                });
             }
         }
         dem_tif.write(start..start + height, 0..cols, &mut dem)?;
         lc_tif.write(start..start + height, 0..cols, &mut lc)?;
+        pop_tif.write(start..start + height, 0..cols, &mut pop)?;
     }
     dem_tif.close()?;
     lc_tif.close()?;
+    pop_tif.close()?;
     Ok(())
 }
 
@@ -127,6 +139,7 @@ fn write_facilities(dir: &Path, cols: usize, rows: usize, count: usize) -> Resul
                 vec![
                     Some(FieldValue::StringValue(format!("HF-{:02}", k + 1))),
                     Some(FieldValue::StringValue(format!("Health centre {}", k + 1))),
+                    Some(FieldValue::RealValue(20_000.0)),
                 ],
             )
         })
@@ -142,6 +155,7 @@ fn write_facilities(dir: &Path, cols: usize, rows: usize, count: usize) -> Resul
         &[
             ("code", OGRFieldType::OFTString),
             ("name", OGRFieldType::OFTString),
+            ("capacity", OGRFieldType::OFTReal),
         ],
         &features,
     );

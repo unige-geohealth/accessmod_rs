@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "dem": "../../_oracle/travel-time/demo/input/dem.tif",
+  "land_cover": "../../_oracle/travel-time/demo/input/land_cover.tif",
+  "population": "../../_oracle/population-correction/demo/input/population.tif",
+  "facilities": { "path": "../../_oracle/travel-time/demo/input/facilities.fgb", "id_field": "cat" },
+  "capacity_field": "capacity",
+  "name_field": "name",
+  "order": { "field": { "field": "capacity", "descending": true } },
+  "scenario": [
+    { "class": 1, "mode": "bicycling", "speed_kmh": 6 },
+    { "class": 2, "mode": "walking", "speed_kmh": 4 },
+    { "class": 3, "mode": "walking", "speed_kmh": 2 },
+    { "class": 1001, "mode": "motorized", "speed_kmh": 100 },
+    { "class": 1002, "mode": "motorized", "speed_kmh": 80 },
+    { "class": 1003, "mode": "motorized", "speed_kmh": 50 }
+  ],
+  "method": "anisotropic",
+  "direction": "towards_facilities",
+  "neighbourhood": 8,
+  "limit_s": 7200,
+  "output_dir": "../../_shared/benchmark/geographic-coverage/demo/out"
+}
