@@ -20,12 +20,19 @@ use crate::raster::{CHUNK_COLS, STRIP_ROWS, open_class_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
 
-/// Memory and disk plan of a travel-time or referral run: input and state
-/// grids, a priority queue, output blocks and input read windows.
-pub fn solver_plan(rows: usize, cols: usize, settings: &ExecutionSettings) -> Result<ResourcePlan> {
+/// Memory and disk plan of a run on the solver: input and state grids,
+/// `extra_per_tile` bytes per tile of further grids (0 for travel time and
+/// referral), a priority queue, output blocks and input read windows.
+pub fn solver_plan(
+    rows: usize,
+    cols: usize,
+    settings: &ExecutionSettings,
+    extra_per_tile: u64,
+) -> Result<ResourcePlan> {
     let geometry = TileGeometry::new(rows, cols, DEFAULT_TILE)?;
     let per_tile = (TiledGrid::<InputCell>::tile_bytes(geometry)
-        + TiledGrid::<SolverCell>::tile_bytes(geometry)) as u64;
+        + TiledGrid::<SolverCell>::tile_bytes(geometry)) as u64
+        + extra_per_tile;
     // Output blocks (4 rasters) and input read windows (DEM f64, land
     // cover i64, classes); both bounded whatever the grid width.
     let buffer_bytes = (256 * 256 * (8 + 4 + 8 + 1)
@@ -103,7 +110,7 @@ pub fn prepare(
         mut inputs,
         summary,
         plan,
-    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, cancelled)?;
+    } = load_landscape(&job.dem, &job.land_cover, &slots, settings, 0, cancelled)?;
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
 
     let facilities = load_facilities(&job.facilities, &grid, &mut inputs, cancelled)?;
@@ -150,18 +157,19 @@ pub(crate) struct Landscape {
     pub plan: ResourcePlan,
 }
 
-/// Open the DEM and the land cover, check them, plan resources and load the
-/// solver inputs.
+/// Open the DEM and the land cover, check them, plan resources (see
+/// [`solver_plan`] for `extra_per_tile`) and load the solver inputs.
 pub(crate) fn load_landscape(
     dem_path: &Path,
     land_cover_path: &Path,
     slots: &BTreeMap<i64, u16>,
     settings: &ExecutionSettings,
+    extra_per_tile: u64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Landscape> {
     let (dem, grid) = GridSpec::open_dem(dem_path)?;
     let (land_cover, alignment) = open_class_raster(land_cover_path, &grid, "land cover")?;
-    let plan = solver_plan(grid.rows, grid.cols, settings)?;
+    let plan = solver_plan(grid.rows, grid.cols, settings, extra_per_tile)?;
     plan.configure_gdal()?;
     let geometry = TileGeometry::new(grid.rows, grid.cols, plan.tile)?;
     let mut inputs = TiledGrid::new(
@@ -576,7 +584,7 @@ mod tests {
     #[test]
     fn minimum_budget_leaves_the_frontier_band() {
         let (rows, cols) = (5000, 7000);
-        let probe = solver_plan(rows, cols, &settings(64 << 30)).expect("roomy plan");
+        let probe = solver_plan(rows, cols, &settings(64 << 30), 0).expect("roomy plan");
         assert_eq!(probe.resident_tiles, probe.total_tiles);
         assert_eq!(probe.scratch_bytes, 0);
 
@@ -585,7 +593,7 @@ mod tests {
         let band = 2 * (cols.div_ceil(DEFAULT_TILE) + rows.div_ceil(DEFAULT_TILE));
         let mut budget = probe.minimum_bytes;
         for _ in 0..4 {
-            let plan = solver_plan(rows, cols, &settings(budget)).expect("at minimum");
+            let plan = solver_plan(rows, cols, &settings(budget), 0).expect("at minimum");
             assert!(
                 plan.resident_tiles >= band,
                 "{} < {band}",
@@ -595,7 +603,7 @@ mod tests {
             budget = plan.minimum_bytes;
         }
 
-        let err = solver_plan(rows, cols, &settings(32 << 20)).expect_err("too small");
+        let err = solver_plan(rows, cols, &settings(32 << 20), 0).expect_err("too small");
         assert_eq!(err.kind(), crate::error::ErrorKind::Validation);
         assert!(err.to_string().contains("--memory"), "{err}");
     }

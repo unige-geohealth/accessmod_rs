@@ -36,6 +36,7 @@ dependencies = [
  "accessmod-core",
  "accessmod-io",
  "gdal",
+ "gdal-sys",
  "libc",
  "schemars",
  "serde",

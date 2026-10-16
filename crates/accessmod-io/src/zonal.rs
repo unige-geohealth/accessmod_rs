@@ -23,7 +23,7 @@ use crate::output::{self, BLOCK, CsvWriter, Staging, csv_field};
 use crate::raster::{AlignedBand, for_each_block, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
-use crate::vector::{VectorLayer, burn_zones, json_attribute};
+use crate::vector::{VectorLayer, burn_zones, compare_values, json_attribute};
 
 /// Zonal statistics file name.
 pub const ZONAL_FILE: &str = "zonal_statistics.csv";
@@ -466,7 +466,7 @@ pub fn run(
             zones[a]
                 .percent(k)
                 .total_cmp(&zones[b].percent(k))
-                .then_with(|| compare_ids(&prepared.zones[a].id, &prepared.zones[b].id))
+                .then_with(|| compare_values(&prepared.zones[a].id, &prepared.zones[b].id))
         });
         for z in order {
             let zone = &prepared.zones[z];
@@ -522,14 +522,6 @@ pub fn run(
     );
     let output_dir = output::finish(staging, &report.run.job, &report, cancelled)?;
     Ok((output_dir, report))
-}
-
-/// Order of zone identifiers: numbers numerically, then text.
-fn compare_ids(a: &serde_json::Value, b: &serde_json::Value) -> std::cmp::Ordering {
-    match (a.as_f64(), b.as_f64()) {
-        (Some(x), Some(y)) => x.total_cmp(&y),
-        _ => a.to_string().cmp(&b.to_string()),
-    }
 }
 
 /// Zonal statistics.

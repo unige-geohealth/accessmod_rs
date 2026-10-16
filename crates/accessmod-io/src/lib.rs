@@ -5,6 +5,7 @@
 //! `accessmod-core`.
 
 pub mod analysis;
+pub mod coverage;
 pub mod error;
 pub mod facilities;
 #[cfg(feature = "fixtures")]

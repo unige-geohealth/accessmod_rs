@@ -141,6 +141,33 @@ impl VectorLayer {
         Ok(layer)
     }
 
+    /// Values of `fields` for every feature, in layer order (`None`: null).
+    pub fn read_fields(
+        &self,
+        fields: &[&str],
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<Vec<Option<FieldValue>>>> {
+        let dataset = self.dataset()?;
+        let mut layer = self.layer(&dataset)?;
+        let indices = fields
+            .iter()
+            .map(|field| self.field_index(&layer, field))
+            .collect::<Result<Vec<_>>>()?;
+        let mut rows = Vec::new();
+        for feature in layer.features() {
+            if cancelled() {
+                return Err(Error::Cancelled);
+            }
+            rows.push(
+                indices
+                    .iter()
+                    .map(|&i| feature.field(i).map_err(Error::gdal(&self.path)))
+                    .collect::<Result<Vec<_>>>()?,
+            );
+        }
+        Ok(rows)
+    }
+
     /// Index of field `field` in `layer`, or a validation error.
     pub fn field_index(&self, layer: &Layer<'_>, field: &str) -> Result<usize> {
         layer
@@ -263,6 +290,14 @@ pub fn json_attribute(value: Option<FieldValue>) -> Option<serde_json::Value> {
         FieldValue::DateValue(v) => Some(Value::from(v.to_string())),
         FieldValue::DateTimeValue(v) => Some(Value::from(v.to_string())),
         _ => None,
+    }
+}
+
+/// Order of attribute values (identifiers): numbers numerically, then text.
+pub fn compare_values(a: &serde_json::Value, b: &serde_json::Value) -> std::cmp::Ordering {
+    match (a.as_f64(), b.as_f64()) {
+        (Some(x), Some(y)) => x.total_cmp(&y),
+        _ => a.to_string().cmp(&b.to_string()),
     }
 }
 
@@ -446,6 +481,124 @@ pub fn burn_zones(
         }))
     })?;
     Ok((counts, overlaps.get()))
+}
+
+/// The cells of `dataset` (band 1) whose value is not 0, as one
+/// MultiPolygon in its georeferenced coordinates; `None` when no cell is
+/// set. Cells sharing an edge form one polygon (GDALPolygonize).
+pub fn polygonize(dataset: &Dataset, path: &Path) -> Result<Option<Geometry>> {
+    let band = dataset.rasterband(1).map_err(Error::gdal(path))?;
+    let driver = gdal::DriverManager::get_driver_by_name("Memory").map_err(Error::gdal(path))?;
+    let mut memory = driver.create_vector_only("").map_err(Error::gdal(path))?;
+    let layer = memory
+        .create_layer(gdal::vector::LayerOptions {
+            name: "cells",
+            srs: dataset.spatial_ref().ok().as_ref(),
+            ty: OGRwkbGeometryType::wkbPolygon,
+            options: None,
+        })
+        .map_err(Error::gdal(path))?;
+    layer
+        .create_defn_fields(&[("value", gdal::vector::OGRFieldType::OFTInteger)])
+        .map_err(Error::gdal(path))?;
+    // SAFETY: the band and layer handles stay valid for the call (both
+    // owners live until the end of this function); the band is its own mask
+    // (0 cells are skipped); no options, no progress callback.
+    let status = unsafe {
+        gdal_sys::GDALPolygonize(
+            band.c_rasterband(),
+            band.c_rasterband(),
+            layer.c_layer(),
+            0,
+            std::ptr::null_mut(),
+            None,
+            std::ptr::null_mut(),
+        )
+    };
+    if status != gdal_sys::CPLErr::CE_None {
+        return Err(Error::Gdal {
+            path: path.to_path_buf(),
+            source: gdal::errors::GdalError::CplError {
+                class: status,
+                number: 0,
+                msg: "GDALPolygonize failed".into(),
+            },
+        });
+    }
+    let mut layer = memory.layer(0).map_err(Error::gdal(path))?;
+    let mut multi =
+        Geometry::empty(OGRwkbGeometryType::wkbMultiPolygon).map_err(Error::gdal(path))?;
+    let mut any = false;
+    for feature in layer.features() {
+        if let Some(polygon) = feature.geometry() {
+            multi
+                .add_geometry(polygon.clone())
+                .map_err(Error::gdal(path))?;
+            any = true;
+        }
+    }
+    Ok(any.then_some(multi))
+}
+
+/// A FlatGeobuf layer written feature by feature (no timestamps: the same
+/// features give the same bytes).
+#[derive(Debug)]
+pub struct FeatureWriter {
+    dataset: Dataset,
+    path: PathBuf,
+}
+
+impl FeatureWriter {
+    /// Create `path` with layer `name`, CRS `srs`, geometry type `kind` and
+    /// attribute `fields`.
+    pub fn create(
+        path: &Path,
+        name: &str,
+        srs: &SpatialRef,
+        kind: OGRwkbGeometryType::Type,
+        fields: &[(&str, gdal::vector::OGRFieldType::Type)],
+    ) -> Result<Self> {
+        let driver =
+            gdal::DriverManager::get_driver_by_name("FlatGeobuf").map_err(Error::gdal(path))?;
+        let mut dataset = driver.create_vector_only(path).map_err(Error::gdal(path))?;
+        let layer = dataset
+            .create_layer(gdal::vector::LayerOptions {
+                name,
+                srs: Some(srs),
+                ty: kind,
+                options: None,
+            })
+            .map_err(Error::gdal(path))?;
+        layer
+            .create_defn_fields(fields)
+            .map_err(Error::gdal(path))?;
+        Ok(Self {
+            dataset,
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// Write one feature; `values` follow the fields (`None`: null).
+    pub fn write(&mut self, geometry: Geometry, values: &[Option<FieldValue>]) -> Result<()> {
+        let layer = self.dataset.layer(0).map_err(Error::gdal(&self.path))?;
+        let mut feature = Feature::new(layer.defn()).map_err(Error::gdal(&self.path))?;
+        feature
+            .set_geometry(geometry)
+            .map_err(Error::gdal(&self.path))?;
+        for (index, value) in values.iter().enumerate() {
+            if let Some(value) = value {
+                feature
+                    .set_field(index, value)
+                    .map_err(Error::gdal(&self.path))?;
+            }
+        }
+        feature.create(&layer).map_err(Error::gdal(&self.path))
+    }
+
+    /// Write the index and close the file.
+    pub fn close(self) -> Result<()> {
+        self.dataset.close().map_err(Error::gdal(&self.path))
+    }
 }
 
 #[cfg(test)]

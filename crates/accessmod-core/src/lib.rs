@@ -8,6 +8,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod capacity;
 pub mod cost;
 pub mod merge;
 pub mod mobility;

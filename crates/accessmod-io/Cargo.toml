@@ -9,6 +9,8 @@ license.workspace = true
 [dependencies]
 accessmod-core.workspace = true
 gdal = "0.19"
+# GDALPolygonize, not wrapped by the gdal crate (same version as gdal uses).
+gdal-sys = "0.12"
 schemars.workspace = true
 serde.workspace = true
 serde_json = "1"

@@ -232,6 +232,21 @@ impl GridSpec {
         }
     }
 
+    /// The sub-grid of cells `rows × cols` (same CRS and cell size).
+    pub fn window(&self, rows: std::ops::Range<usize>, cols: std::ops::Range<usize>) -> Self {
+        let (x0, y0) = self.to_map(cols.start as f64, rows.start as f64);
+        let mut geo_transform = self.geo_transform;
+        geo_transform[0] = x0;
+        geo_transform[3] = y0;
+        Self {
+            cols: cols.len(),
+            rows: rows.len(),
+            geo_transform,
+            srs: self.srs.clone(),
+            cell: self.cell,
+        }
+    }
+
     /// Frame of the grid.
     pub fn frame(&self) -> RasterFrame {
         RasterFrame {

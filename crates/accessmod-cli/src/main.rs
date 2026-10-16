@@ -13,6 +13,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use accessmod_io::coverage::GeographicCoverage;
 use accessmod_io::merge::MergeLandCover;
 use accessmod_io::population::AdjustPopulation;
 use accessmod_io::referral::Referral;
@@ -67,6 +68,12 @@ enum Command {
         #[command(subcommand)]
         command: exec::JobCommand,
     },
+    /// Geographic coverage: facilities take, in turn, the population they reach
+    /// up to their capacity.
+    GeographicCoverage {
+        #[command(subcommand)]
+        command: exec::JobCommand,
+    },
 }
 
 /// Failure of a command: exit code and the message already reported.
@@ -117,6 +124,9 @@ fn main() -> ExitCode {
         }
         Command::ZonalStatistics { command } => {
             exec::job_command::<ZonalStatistics>(command, &cancel)
+        }
+        Command::GeographicCoverage { command } => {
+            exec::job_command::<GeographicCoverage>(command, &cancel)
         }
     };
     match result {
