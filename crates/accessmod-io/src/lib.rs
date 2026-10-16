@@ -14,6 +14,7 @@ pub mod inputs;
 pub mod job;
 pub mod merge;
 pub mod output;
+pub mod population;
 pub mod raster;
 pub mod referral;
 pub mod report;

@@ -90,6 +90,16 @@ Facts established from the code (to be confirmed by oracle runs):
 Oracle: `scripts/oracle/merge-land-cover-demo.sh`; results in
 [`merge-land-cover.md`](merge-land-cover.md).
 
+## Adjust population distribution
+
+| Concern | Path | Notes |
+| --- | --- | --- |
+| Procedure | `modules/amPopulationBarrierCorrection/helper.R`, `amPopulationBarrierCorrection` | Partial population off barriers (land cover not null), `v.rast.stats` sums per zone, ratio = full (or known) / partial, `v.to.rast use=attr`, output = partial × ratio |
+| UI and modes | `modules/amPopulationBarrierCorrection/amUi.R` | Population known per zone (field) or not |
+
+Oracle: `scripts/oracle/population-correction-demo.sh`; results in
+[`adjust-population.md`](adjust-population.md).
+
 ## Existing test data
 
 | Path | Content |

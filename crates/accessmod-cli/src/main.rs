@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use accessmod_io::merge::MergeLandCover;
+use accessmod_io::population::AdjustPopulation;
 use accessmod_io::referral::Referral;
 use clap::{Parser, Subcommand};
 
@@ -50,6 +51,12 @@ enum Command {
     },
     /// Merge land cover, roads and barriers into one land-cover raster.
     MergeLandCover {
+        #[command(subcommand)]
+        command: exec::JobCommand,
+    },
+    /// Adjust population distribution: move population on barriers within its
+    /// zone, or scale zones to known populations.
+    AdjustPopulationDistribution {
         #[command(subcommand)]
         command: exec::JobCommand,
     },
@@ -97,6 +104,9 @@ fn main() -> ExitCode {
         Command::Referral { command } => exec::job_command::<Referral>(command, &cancel),
         Command::MergeLandCover { command } => {
             exec::job_command::<MergeLandCover>(command, &cancel)
+        }
+        Command::AdjustPopulationDistribution { command } => {
+            exec::job_command::<AdjustPopulation>(command, &cancel)
         }
     };
     match result {

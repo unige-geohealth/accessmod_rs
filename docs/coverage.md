@@ -42,7 +42,7 @@ _Last updated: 2026-10-16._
 | **Merge land cover**: stack land cover, roads (classes from an attribute) and barriers (lines, areas) in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: stack as an ordered list; 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); 🗓 polygon skeleton option | CLI (stack as a list) + UI (ordering, conflicts) |
 | Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges` (default on), `bridges.tif` identical to AM5 on the demo | CLI |
 | Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` on land-cover items (AM5 quick correction) | CLI + UI |
-| **Adjust population distribution**: population on barriers, redistribution | `modules/amPopulationBarrierCorrection` | 🗓 plan: Later 6 | CLI |
+| **Adjust population distribution**: population on barriers, redistribution | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: zone or known population; equal to AM5 within 6e-15 on the demo ([`adjust-population.md`](adjust-population.md)) | CLI |
 | **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview`, toolbox | ➖ engine; 🗓 UI (plan: Later 5) | UI |
 
 ## Project and data

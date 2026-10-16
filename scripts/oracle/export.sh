@@ -60,6 +60,16 @@ docker run --rm --platform "$PLATFORM" \
     > "$out/merge-land-cover-demo.log" 2>&1 \
     || { echo "error: merge export failed, see $out/merge-land-cover-demo.log" >&2; exit 1; }
 
+# Adjust population distribution on the demo project
+# (scripts/oracle/population-correction-demo.sh).
+rm -rf "$out/population-correction/demo"
+docker run --rm --platform "$PLATFORM" \
+    -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
+    --entrypoint sh "$IMAGE" \
+    -c 'grass /data/dbgrass/demo/demo --exec sh /scripts/population-correction-demo.sh' \
+    > "$out/population-correction-demo.log" 2>&1 \
+    || { echo "error: population export failed, see $out/population-correction-demo.log" >&2; exit 1; }
+
 cd "$out"
 if [ "$update" -eq 1 ]; then
     {

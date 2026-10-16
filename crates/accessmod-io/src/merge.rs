@@ -21,7 +21,9 @@ use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{JobFile, absolutize, check_files, check_schema_version, repeated};
 use crate::output::{self, BLOCK, CsvWriter, GeoTiff, Staging, csv_field};
-use crate::raster::{AlignedBand, CHUNK_COLS, STRIP_ROWS, integer_nodata, open_class_raster};
+use crate::raster::{
+    AlignedBand, CHUNK_COLS, STRIP_ROWS, for_each_window, integer_nodata, open_class_raster,
+};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
 use crate::vector::{Burn, FeatureCounts, VectorLayer, burn_layer, integer_attribute};
@@ -1076,17 +1078,17 @@ fn write_outputs(
     let mut bridge = vec![false; BLOCK + 2];
     let mut merged_block = Vec::with_capacity(BLOCK * BLOCK);
     let mut bridge_block = Vec::with_capacity(BLOCK * BLOCK);
-    for row0 in (0..rows).step_by(BLOCK) {
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
-        let height = BLOCK.min(rows - row0);
-        let top = row0.saturating_sub(1);
-        let bottom = (row0 + height + 1).min(rows);
-        for col0 in (0..cols).step_by(BLOCK) {
-            let width = BLOCK.min(cols - col0);
+    for_each_window(
+        0..rows,
+        0..cols,
+        (BLOCK, BLOCK),
+        cancelled,
+        |block_rows, block_cols| {
+            let (row0, col0, width) = (block_rows.start, block_cols.start, block_cols.len());
+            let top = row0.saturating_sub(1);
+            let bottom = (block_rows.end + 1).min(rows);
             let left = col0.saturating_sub(1);
-            let right = (col0 + width + 1).min(cols);
+            let right = (block_cols.end + 1).min(cols);
             let span = right - left;
             for (k, row) in (top..bottom).enumerate() {
                 cells.read_row(row, left, &mut window[..span])?;
@@ -1100,7 +1102,7 @@ fn write_outputs(
                     road[k].push(cell.is_road());
                 }
             }
-            for row in row0..row0 + height {
+            for row in block_rows.clone() {
                 let k = row - top;
                 let inner = col0 - left;
                 if clean_bridges {
@@ -1128,14 +1130,13 @@ fn write_outputs(
                     }
                 }
             }
-            let at = (col0, row0);
-            let size = (width, height);
-            merged_tif.write(at, size, &mut merged_block)?;
+            merged_tif.write(block_rows.clone(), block_cols.clone(), &mut merged_block)?;
             if let Some(tif) = &bridges_tif {
-                tif.write(at, size, &mut bridge_block)?;
+                tif.write(block_rows, block_cols, &mut bridge_block)?;
             }
-        }
-    }
+            Ok(())
+        },
+    )?;
     // Barrier and uncovered cells.
     cells.for_each_row_piece(BLOCK, |_, col, piece| {
         if col == 0 && cancelled() {

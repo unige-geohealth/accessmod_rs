@@ -257,3 +257,30 @@ fn merge_land_cover_runs_from_a_job() {
     let schema = stdout_json(&accessmod(&["merge-land-cover", "schema"]));
     assert!(schema["properties"]["stack"].is_object());
 }
+
+#[test]
+fn adjust_population_distribution_schema_and_validation() {
+    let schema = stdout_json(&accessmod(&["adjust-population-distribution", "schema"]));
+    assert!(schema["properties"]["zones"].is_object());
+    let tmp = tempfile::tempdir().expect("tmp");
+    let job_path = tmp.path().join("job.json");
+    std::fs::write(
+        &job_path,
+        r#"{"schema_version": 1, "dem": "dem.tif", "population": "pop.tif",
+            "land_cover": "lc.tif", "zones": {"path": "z.gpkg", "id_field": "id"},
+            "output_dir": "out"}"#,
+    )
+    .expect("write job");
+    let output = accessmod(&[
+        "adjust-population-distribution",
+        "validate",
+        "--json",
+        "--job",
+        job_path.to_str().expect("utf-8 path"),
+    ]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        stdout_json(&output)["issues"].as_array().map(Vec::len),
+        Some(4)
+    );
+}

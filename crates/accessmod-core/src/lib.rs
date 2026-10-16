@@ -11,6 +11,7 @@
 pub mod cost;
 pub mod merge;
 pub mod mobility;
+pub mod population;
 pub mod raster;
 pub mod referral;
 pub mod solver;

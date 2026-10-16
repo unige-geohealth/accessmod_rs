@@ -96,9 +96,9 @@ Build, test, clippy and fmt must all pass before a commit.
 ## Layout
 
 ```
-crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge (no GDAL)
+crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population (no GDAL)
 crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
-crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution
 crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
 xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
@@ -186,6 +186,10 @@ Things learned the hard way; check here before re-investigating.
   half-open "all touched" rule differs on 1 road and 1 river cell of the
   demo (`gdal_rasterize -at`: 7), so the merged land cover differs on 2 of
   44 492 cells; areas (`type=area`, cell centre) and bridges are identical.
+- Adjust population distribution: equal to AM5 within 6e-15 relative on the
+  demo (summation order). The demo merged land cover has few barrier cells,
+  so the estimated case moves only 41 people; the known case (field
+  `pop_known` added by the oracle script) exercises the ratios.
 
 ### Engine
 

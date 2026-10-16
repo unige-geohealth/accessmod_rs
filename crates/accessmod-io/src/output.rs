@@ -2,6 +2,7 @@
 //! documents, and the travel-time rasters.
 
 use std::io::Write as _;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use accessmod_core::solver::SolverCell;
@@ -12,6 +13,7 @@ use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
+use crate::raster::for_each_window;
 
 /// NoData of `travel_time_seconds.tif` and `path_distance_m.tif`.
 pub const FLOAT_NODATA: f64 = -9999.0;
@@ -174,14 +176,15 @@ impl GeoTiff {
         })
     }
 
-    /// Write `data` (`width × height`, row-major) at `(col, row)`; `data`
-    /// comes back empty, its allocation kept for the next block.
+    /// Write `data` (row-major) over grid `rows × cols`; `data` comes back
+    /// empty, its allocation kept for the next block.
     pub fn write<T: GdalType + Copy>(
         &self,
-        (col, row): (usize, usize),
-        (width, height): (usize, usize),
+        rows: Range<usize>,
+        cols: Range<usize>,
         data: &mut Vec<T>,
     ) -> Result<()> {
+        let (row, col, height, width) = (rows.start, cols.start, rows.len(), cols.len());
         let mut buffer = Buffer::new((width, height), std::mem::take(data));
         let result = self.dataset.rasterband(1).and_then(|mut band| {
             band.write((col as isize, row as isize), (width, height), &mut buffer)
@@ -237,15 +240,15 @@ pub fn write_rasters(
     let mut nearest = Vec::with_capacity(BLOCK * BLOCK);
     let mut distance = Vec::with_capacity(BLOCK * BLOCK);
     let mut direction = Vec::with_capacity(if with_direction { BLOCK * BLOCK } else { 0 });
-    for row0 in (0..rows).step_by(BLOCK) {
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
-        let height = BLOCK.min(rows - row0);
-        for col0 in (0..cols).step_by(BLOCK) {
-            let width = BLOCK.min(cols - col0);
-            for row in row0..row0 + height {
-                state.read_row(row, col0, &mut cells[..width])?;
+    for_each_window(
+        0..rows,
+        0..cols,
+        (BLOCK, BLOCK),
+        cancelled,
+        |block_rows, block_cols| {
+            let width = block_cols.len();
+            for row in block_rows.clone() {
+                state.read_row(row, block_cols.start, &mut cells[..width])?;
                 for cell in &cells[..width] {
                     let reached = cell.is_reached();
                     time.push(if reached { cell.time_s } else { FLOAT_NODATA });
@@ -264,16 +267,15 @@ pub fn write_rasters(
                     }
                 }
             }
-            let at = (col0, row0);
-            let size = (width, height);
-            time_tif.write(at, size, &mut time)?;
-            nearest_tif.write(at, size, &mut nearest)?;
-            distance_tif.write(at, size, &mut distance)?;
+            time_tif.write(block_rows.clone(), block_cols.clone(), &mut time)?;
+            nearest_tif.write(block_rows.clone(), block_cols.clone(), &mut nearest)?;
+            distance_tif.write(block_rows.clone(), block_cols.clone(), &mut distance)?;
             if let Some(tif) = &direction_tif {
-                tif.write(at, size, &mut direction)?;
+                tif.write(block_rows, block_cols, &mut direction)?;
             }
-        }
-    }
+            Ok(())
+        },
+    )?;
     for tif in [time_tif, nearest_tif, distance_tif]
         .into_iter()
         .chain(direction_tif)

@@ -21,6 +21,25 @@ pub const CHUNK_COLS: usize = 4096;
 /// Open a raster of integer classes and check it lies on the DEM lattice
 /// with the DEM's CRS. `role` names the raster in messages.
 pub fn open_class_raster(path: &Path, grid: &GridSpec, role: &str) -> Result<(Dataset, Alignment)> {
+    open_raster(path, grid, role, true)
+}
+
+/// Open a raster of any numeric type and check it lies on the DEM lattice
+/// with the DEM's CRS. `role` names the raster in messages.
+pub fn open_aligned_raster(
+    path: &Path,
+    grid: &GridSpec,
+    role: &str,
+) -> Result<(Dataset, Alignment)> {
+    open_raster(path, grid, role, false)
+}
+
+fn open_raster(
+    path: &Path,
+    grid: &GridSpec,
+    role: &str,
+    integer: bool,
+) -> Result<(Dataset, Alignment)> {
     let dataset = Dataset::open(path).map_err(Error::gdal(path))?;
     let prefix = |issues: Vec<String>| Error::Validation {
         issues: issues
@@ -36,7 +55,7 @@ pub fn open_class_raster(path: &Path, grid: &GridSpec, role: &str) -> Result<(Da
         Err(_) => issues.push("no coordinate reference system".into()),
     }
     match dataset.rasterband(1) {
-        Ok(band) if !band.band_type().is_integer() => issues.push(format!(
+        Ok(band) if integer && !band.band_type().is_integer() => issues.push(format!(
             "classes must be integers, band type is {}",
             band.band_type().name()
         )),
@@ -62,25 +81,36 @@ pub fn valid_value(value: f64, nodata: Option<f64>) -> Option<f64> {
     (Some(value) != nodata && !value.is_nan()).then_some(value)
 }
 
-/// Call `visit(rows, cols)` over `rows × cols` in chunks of at most
-/// [`STRIP_ROWS`] × [`CHUNK_COLS`] cells, strip by strip; cancellation is
-/// checked before each strip.
+/// Call `visit(rows, cols)` over `rows × cols` in windows of at most
+/// `height × width` cells, row of windows by row of windows; cancellation
+/// is checked before each row of windows.
+pub fn for_each_window(
+    rows: Range<usize>,
+    cols: Range<usize>,
+    (height, width): (usize, usize),
+    cancelled: &dyn Fn() -> bool,
+    mut visit: impl FnMut(Range<usize>, Range<usize>) -> Result<()>,
+) -> Result<()> {
+    for start in rows.clone().step_by(height.max(1)) {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let strip = start..(start + height).min(rows.end);
+        for col in cols.clone().step_by(width.max(1)) {
+            visit(strip.clone(), col..(col + width).min(cols.end))?;
+        }
+    }
+    Ok(())
+}
+
+/// [`for_each_window`] in read chunks of [`STRIP_ROWS`] × [`CHUNK_COLS`].
 pub fn for_each_chunk(
     rows: Range<usize>,
     cols: Range<usize>,
     cancelled: &dyn Fn() -> bool,
-    mut visit: impl FnMut(Range<usize>, Range<usize>) -> Result<()>,
+    visit: impl FnMut(Range<usize>, Range<usize>) -> Result<()>,
 ) -> Result<()> {
-    for start in rows.clone().step_by(STRIP_ROWS) {
-        if cancelled() {
-            return Err(Error::Cancelled);
-        }
-        let strip = start..(start + STRIP_ROWS).min(rows.end);
-        for chunk in cols.clone().step_by(CHUNK_COLS) {
-            visit(strip.clone(), chunk..(chunk + CHUNK_COLS).min(cols.end))?;
-        }
-    }
-    Ok(())
+    for_each_window(rows, cols, (STRIP_ROWS, CHUNK_COLS), cancelled, visit)
 }
 
 /// Band 1 of a raster, read in grid coordinates through its alignment on
@@ -119,6 +149,17 @@ impl<T> Window<T> {
     pub fn row(&self, row: usize) -> Option<&[T]> {
         let r = row.checked_sub(self.first_row)?;
         self.values.get(r * self.width..(r + 1) * self.width)
+    }
+
+    /// Value of grid cell `(row, col)`, if the window holds it.
+    pub fn get(&self, row: usize, col: usize) -> Option<T>
+    where
+        T: Copy,
+    {
+        let k = col
+            .checked_sub(self.first_col)
+            .filter(|k| *k < self.width)?;
+        self.row(row).map(|values| values[k])
     }
 }
 

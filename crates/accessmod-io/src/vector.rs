@@ -252,6 +252,31 @@ impl VectorLayer {
     }
 }
 
+/// An attribute as a JSON value (identifiers): numbers, text, dates.
+pub fn json_attribute(value: Option<FieldValue>) -> Option<serde_json::Value> {
+    use serde_json::Value;
+    match value? {
+        FieldValue::IntegerValue(v) => Some(Value::from(v)),
+        FieldValue::Integer64Value(v) => Some(Value::from(v)),
+        FieldValue::StringValue(v) => Some(Value::from(v)),
+        FieldValue::RealValue(v) => serde_json::Number::from_f64(v).map(Value::Number),
+        FieldValue::DateValue(v) => Some(Value::from(v.to_string())),
+        FieldValue::DateTimeValue(v) => Some(Value::from(v.to_string())),
+        _ => None,
+    }
+}
+
+/// Numeric value of an attribute: integers, reals and numeric text.
+pub fn number_attribute(value: FieldValue) -> Option<f64> {
+    match value {
+        FieldValue::IntegerValue(v) => Some(f64::from(v)),
+        FieldValue::Integer64Value(v) => Some(v as f64),
+        FieldValue::RealValue(v) => Some(v),
+        FieldValue::StringValue(text) => text.trim().parse().ok(),
+        _ => None,
+    }
+}
+
 /// Integer value of an attribute: integers, whole reals and integer text.
 pub fn integer_attribute(value: FieldValue) -> Option<i64> {
     match value {
@@ -268,6 +293,8 @@ pub fn integer_attribute(value: FieldValue) -> Option<i64> {
 pub enum Burn {
     /// Lines only (as `v.to.rast type=line`); polygons are ignored.
     Lines,
+    /// Polygons only (as `v.to.rast type=area`); lines are ignored.
+    Polygons,
     /// Lines (every cell touched) and polygons (cell centre inside).
     LinesAndPolygons,
 }
@@ -381,6 +408,7 @@ pub fn burn_layer<T: CellCodec, U: Fn(&mut T)>(
             layer.for_each_part(geometry, grid, &problem, &mut unsupported, &mut |part| {
                 match part {
                     Part::Polygon(_) if burn == Burn::Lines => return Ok(()),
+                    Part::Line(_) if burn == Burn::Polygons => return Ok(()),
                     Part::Polygon(_) => polygons += 1,
                     Part::Line(_) => lines += 1,
                 }
@@ -407,5 +435,14 @@ mod tests {
             Some(12)
         );
         assert_eq!(integer_attribute(FieldValue::StringValue("M".into())), None);
+        assert_eq!(number_attribute(FieldValue::RealValue(2.5)), Some(2.5));
+        assert_eq!(
+            number_attribute(FieldValue::StringValue("7.25".into())),
+            Some(7.25)
+        );
+        assert_eq!(
+            json_attribute(Some(FieldValue::StringValue("HC-1".into()))),
+            Some(serde_json::json!("HC-1"))
+        );
     }
 }

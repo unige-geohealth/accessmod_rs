@@ -2,13 +2,13 @@
 
 use accessmod_core::solver::{Facility, InputCell};
 use accessmod_core::store::TiledGrid;
-use gdal::vector::{FieldValue, Geometry, LayerAccess, OGRwkbGeometryType, geometry_type_flatten};
+use gdal::vector::{Geometry, LayerAccess, OGRwkbGeometryType, geometry_type_flatten};
 use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::FacilitySource;
-use crate::vector::VectorLayer;
+use crate::vector::{VectorLayer, json_attribute};
 
 /// A facility used by the solver.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -71,19 +71,6 @@ impl LoadedFacilities {
     }
 }
 
-fn json_id(value: Option<FieldValue>) -> Option<serde_json::Value> {
-    use serde_json::Value;
-    match value? {
-        FieldValue::IntegerValue(v) => Some(Value::from(v)),
-        FieldValue::Integer64Value(v) => Some(Value::from(v)),
-        FieldValue::StringValue(v) => Some(Value::from(v)),
-        FieldValue::RealValue(v) => serde_json::Number::from_f64(v).map(Value::Number),
-        FieldValue::DateValue(v) => Some(Value::from(v.to_string())),
-        FieldValue::DateTimeValue(v) => Some(Value::from(v.to_string())),
-        _ => None,
-    }
-}
-
 /// Single point of a geometry: a point or a one-point multipoint.
 fn single_point(geometry: &Geometry) -> std::result::Result<(f64, f64), String> {
     let kind = geometry_type_flatten(geometry.geometry_type());
@@ -135,7 +122,7 @@ pub fn load_facilities(
         }
         let feature_index = index as u64;
         let fid = feature.fid();
-        let id = json_id(feature.field(field_index).map_err(Error::gdal(path))?);
+        let id = json_attribute(feature.field(field_index).map_err(Error::gdal(path))?);
         let mut issue = |reason: String| {
             issues.push(FacilityIssue {
                 feature_index,

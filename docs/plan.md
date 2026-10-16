@@ -295,9 +295,10 @@ This repository becomes the **canonical source** of the model, without R:
    `accessmod serve`, optional Tauri package, no TUI ([`ui.md`](ui.md)).
 6. Land-cover merge (land cover, roads with classes, barriers, bridge
    cleaning), done (2026-10-16) except the polygon skeleton option
-   ([`merge-land-cover.md`](merge-land-cover.md)); population correction
-   on barriers, as in the AccessMod 5 toolbox. Both are prerequisites of
-   coverage analyses on raw data. See [`coverage.md`](coverage.md).
+   ([`merge-land-cover.md`](merge-land-cover.md)); population adjustment on
+   barriers, done (2026-10-16) ([`adjust-population.md`](adjust-population.md)).
+   Both are prerequisites of coverage analyses on raw data. See
+   [`coverage.md`](coverage.md).
 
 ## Tests and acceptance criteria
 

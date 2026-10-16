@@ -87,8 +87,8 @@ fn write_rasters(dir: &Path, cols: usize, rows: usize) -> Result<(), Error> {
                 dem.push(z);
             }
         }
-        dem_tif.write((0, start), (cols, height), &mut dem)?;
-        lc_tif.write((0, start), (cols, height), &mut lc)?;
+        dem_tif.write(start..start + height, 0..cols, &mut dem)?;
+        lc_tif.write(start..start + height, 0..cols, &mut lc)?;
     }
     dem_tif.close()?;
     lc_tif.close()?;
