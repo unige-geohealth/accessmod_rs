@@ -7,7 +7,10 @@ use std::time::Instant;
 
 use accessmod_core::cost::{CellMobility, Method, Neighbourhood};
 use accessmod_core::mobility::MobilityModel;
-use accessmod_core::referral::{Pair, ReferralConfig, SearchFrom, WorkerBudget, referral};
+use accessmod_core::referral::{
+    Pair, ReferralConfig, SearchFrom, WorkerBudget, pair_bytes, referral,
+    searches_from_destinations,
+};
 use accessmod_core::solver::{InputCell, SolverCell};
 use accessmod_core::store::{TileGeometry, TiledGrid};
 use schemars::JsonSchema;
@@ -182,16 +185,15 @@ pub fn prepare(
         "destinations",
         &mut warnings,
     )?;
-    // The pair matrix is held in memory until written: refuse jobs whose
-    // matrix would take more than half the budget.
-    let matrix_bytes = (origins.kept.len() as u64)
-        .saturating_mul(destinations.kept.len() as u64)
-        .saturating_mul(std::mem::size_of::<Option<Pair>>() as u64);
+    // The pair matrix is held in memory until written, and taken out of the
+    // workers' budget (`worker_budget`): refuse jobs whose matrix would take
+    // more than half the budget.
+    let matrix_bytes = pair_bytes(origins.kept.len(), destinations.kept.len());
     if matrix_bytes > settings.memory_bytes / 2 {
         return Err(Error::invalid(format!(
             "{} origins x {} destinations need {} MiB of results, more than half the \
-             memory budget; raise --memory, use nearest_only, or split the origins with \
-             a filter",
+             memory budget; raise --memory, or split the origins with a filter and \
+             run several jobs",
             origins.kept.len(),
             destinations.kept.len(),
             matrix_bytes >> 20
@@ -337,18 +339,6 @@ pub fn run(
 
     let started = Instant::now();
     let frozen = inputs.freeze()?;
-    let searches = if job.nearest_only {
-        origins.kept.len()
-    } else {
-        origins.kept.len().min(destinations.kept.len())
-    };
-    let (workers, budget) = worker_budget(
-        &plan,
-        frozen.geometry(),
-        frozen.in_memory(),
-        settings.threads,
-        searches,
-    );
     let config = ReferralConfig {
         method: job.method(),
         neighbourhood: job.neighbourhood,
@@ -357,6 +347,23 @@ pub fn run(
         nearest_only: job.nearest_only,
         search_from: job.search_from,
     };
+    let (n_origins, n_destinations) = (origins.kept.len(), destinations.kept.len());
+    let (searches, targets) = if searches_from_destinations(&config, n_origins, n_destinations) {
+        (n_destinations, n_origins)
+    } else {
+        (n_origins, n_destinations)
+    };
+    let (workers, budget) = worker_budget(
+        &plan,
+        frozen.geometry(),
+        frozen.in_memory(),
+        settings.threads,
+        searches,
+        Results {
+            matrix_bytes: pair_bytes(n_origins, n_destinations),
+            row_bytes: pair_bytes(1, targets),
+        },
+    );
     let excluded = |o: usize, d: usize| {
         !job.self_pairs
             && same_feature(
@@ -485,15 +492,25 @@ pub fn run(
     Ok((output_dir, report))
 }
 
+/// Results held while searching: the pair matrix, and one row of pairs per
+/// running search.
+#[derive(Debug, Clone, Copy)]
+struct Results {
+    matrix_bytes: u64,
+    row_bytes: u64,
+}
+
 /// Workers and per-worker tiles within the memory budget. Shared in-memory
-/// inputs are paid once; each worker needs at least the frontier band of
-/// state tiles, so fewer workers run when the budget is tight.
+/// inputs and the result matrix are paid once; each worker needs at least
+/// the frontier band of state tiles, its queue and its row of pairs, so
+/// fewer workers run when the budget is tight.
 fn worker_budget(
     plan: &ResourcePlan,
     geometry: TileGeometry,
     inputs_in_memory: bool,
     threads: usize,
     searches: usize,
+    results: Results,
 ) -> (usize, WorkerBudget) {
     let total = geometry.n_tiles() as u64;
     let state_tile = TiledGrid::<SolverCell>::tile_bytes(geometry) as u64;
@@ -503,10 +520,10 @@ fn worker_budget(
     let band = (2 * (tiles_x + tiles_y)).min(total);
     let tile_budget = plan
         .memory_budget_bytes
-        .saturating_sub(plan.fixed_bytes + plan.queue_reserve_bytes);
-    // Each worker has its own priority queue: reserve room for a frontier
-    // of 16 entries (32 bytes) per boundary cell of the grid.
-    let queue = 16 * 32 * 2 * (geometry.rows() + geometry.cols()) as u64;
+        .saturating_sub(plan.fixed_bytes + plan.queue_reserve_bytes + results.matrix_bytes);
+    // Each worker has its own priority queue (room for a frontier of 16
+    // entries of 32 bytes per boundary cell of the grid) and row of pairs.
+    let queue = 16 * 32 * 2 * (geometry.rows() + geometry.cols()) as u64 + results.row_bytes;
     let (per_worker_floor, available) = if inputs_in_memory {
         (
             band * state_tile + queue,
@@ -619,6 +636,40 @@ impl Analysis for Referral {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn result_matrix_is_taken_from_the_workers_budget() {
+        let settings = ExecutionSettings {
+            memory_bytes: 512 << 20,
+            threads: 8,
+            tmp_dir: std::env::temp_dir(),
+        };
+        let (rows, cols) = (3000, 3000);
+        let plan = crate::travel_time::solver_plan(rows, cols, &settings).expect("plan");
+        let geometry = TileGeometry::new(rows, cols, plan.tile).expect("geometry");
+        let tile = (TiledGrid::<SolverCell>::tile_bytes(geometry)
+            + TiledGrid::<InputCell>::tile_bytes(geometry)) as u64;
+        let free = Results {
+            matrix_bytes: 0,
+            row_bytes: 0,
+        };
+        let held = Results {
+            matrix_bytes: plan.memory_budget_bytes / 3,
+            row_bytes: 4 << 20,
+        };
+        let (w0, b0) = worker_budget(&plan, geometry, false, 8, 1000, free);
+        let (w1, b1) = worker_budget(&plan, geometry, false, 8, 1000, held);
+        assert!(w1 * b1.state_tiles < w0 * b0.state_tiles);
+        let used = plan.fixed_bytes
+            + plan.queue_reserve_bytes
+            + held.matrix_bytes
+            + w1 as u64 * (b1.state_tiles as u64 * tile + held.row_bytes);
+        assert!(
+            used <= plan.memory_budget_bytes,
+            "{used} > {}",
+            plan.memory_budget_bytes
+        );
+    }
 
     #[test]
     fn minimal_job_parses() {

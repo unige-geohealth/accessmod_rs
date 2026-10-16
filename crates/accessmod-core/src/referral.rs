@@ -112,8 +112,22 @@ impl InputReader for FrozenReader<'_, InputCell> {
     }
 }
 
-/// Outcome of one search: its source position and its row of pairs.
-type SearchRow = (usize, Vec<Option<Pair>>, u64);
+/// Whether searches start from the destinations (see [`SearchFrom`]).
+pub fn searches_from_destinations(
+    config: &ReferralConfig,
+    origins: usize,
+    destinations: usize,
+) -> bool {
+    config.search_from == SearchFrom::Auto && !config.nearest_only && destinations < origins
+}
+
+/// Bytes of a result matrix of `origins × destinations` pairs. Each
+/// running search also holds one row of its targets (`pair_bytes(1, n)`).
+pub fn pair_bytes(origins: usize, destinations: usize) -> u64 {
+    (origins as u64)
+        .saturating_mul(destinations as u64)
+        .saturating_mul(std::mem::size_of::<Option<Pair>>() as u64)
+}
 
 /// Run the referral analysis.
 ///
@@ -133,9 +147,7 @@ pub fn referral(
     excluded: &(dyn Fn(usize, usize) -> bool + Sync),
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<ReferralResult, SolveError> {
-    let reversed = config.search_from == SearchFrom::Auto
-        && !config.nearest_only
-        && destinations.len() < origins.len();
+    let reversed = searches_from_destinations(config, origins.len(), destinations.len());
     let (sources, targets, direction) = if reversed {
         (destinations, origins, Direction::TowardsFacilities)
     } else {
@@ -161,7 +173,16 @@ pub fn referral(
 
     let next = AtomicUsize::new(0);
     let failed = AtomicBool::new(false);
-    let rows: Mutex<Vec<SearchRow>> = Mutex::new(Vec::with_capacity(sources.len()));
+    // The result matrix, allocated once and filled in its final orientation
+    // as searches finish (a reversed search fills a column): no transpose,
+    // so the peak is the matrix plus one row per running search
+    // ([`pair_bytes`]). Every search writes its own cells: the result does
+    // not depend on scheduling.
+    let matrix = Mutex::new((
+        vec![vec![None; destinations.len()]; origins.len()],
+        0usize,
+        0u64,
+    ));
     let errors: Mutex<Vec<(usize, SolveError)>> = Mutex::new(Vec::new());
     let stop = || cancelled() || failed.load(Ordering::Relaxed);
 
@@ -198,9 +219,20 @@ pub fn referral(
                 &stop,
             )
             .map_err(|e| (s, e))?;
-            rows.lock()
-                .expect("no worker panics while holding the lock")
-                .push((s, row.0, row.1));
+            let (row, settled) = row;
+            let mut guard = matrix
+                .lock()
+                .expect("no worker panics while holding the lock");
+            let (pairs, searches, total) = &mut *guard;
+            if reversed {
+                for (o, pair) in row.into_iter().enumerate() {
+                    pairs[o][s] = pair;
+                }
+            } else {
+                pairs[s] = row;
+            }
+            *searches += 1;
+            *total += settled;
         }
     };
 
@@ -234,18 +266,7 @@ pub fn referral(
         return Err(SolveError::Cancelled);
     }
 
-    let mut rows = rows.into_inner().expect("workers finished");
-    rows.sort_by_key(|(s, _, _)| *s);
-    let settled = rows.iter().map(|(_, _, n)| n).sum();
-    let searches = rows.len();
-    let by_source: Vec<Vec<Option<Pair>>> = rows.into_iter().map(|(_, row, _)| row).collect();
-    let pairs = if reversed {
-        (0..origins.len())
-            .map(|o| (0..destinations.len()).map(|d| by_source[d][o]).collect())
-            .collect()
-    } else {
-        by_source
-    };
+    let (pairs, searches, settled) = matrix.into_inner().expect("workers finished");
     Ok(ReferralResult {
         pairs,
         reversed,

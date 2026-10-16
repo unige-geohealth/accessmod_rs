@@ -88,10 +88,12 @@ Decisions:
   floating-point summation order (about 1e-15 relative), which can flip a
   tie or a time lying exactly on the limit; `origins` forces exact forward
   searches.
-- **Memory**: results are held as an origins × destinations matrix (24
-  bytes per pair) and must fit in half the budget, otherwise validation
-  fails; each worker reserves its own queue and state tiles within
-  `--memory`.
+- **Memory**: results are held as one origins × destinations matrix (24
+  bytes per pair), filled in place as searches finish (reversed searches
+  fill columns: no transpose). It must fit in half the budget, otherwise
+  validation fails, and it is taken out of the workers' share: each worker
+  then reserves its queue, its row of pairs and its state tiles within
+  `--memory`. `nearest_only` does not shrink the matrix.
 
 ## Validation
 
