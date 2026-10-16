@@ -291,7 +291,7 @@ This repository becomes the **canonical source** of the model, without R:
    ([`geographic-coverage.md`](geographic-coverage.md)).
 2. **Referral**, done (2026-10-09) except the network output: many-to-many with early
    stop, smaller-side searches and parallel sources ([`referral.md`](referral.md)).
-3. Optimization and Scaling Up.
+3. Scaling up, done (2026-10-16) ([`scaling-up.md`](scaling-up.md)); optimization.
 4. New project format; `.am5p` import as a separate converter.
 5. UI on top of the stabilised CLI/MCP APIs: web front end served by
    `accessmod serve`, optional Tauri package, no TUI ([`ui.md`](ui.md)).

@@ -31,7 +31,7 @@ _Last updated: 2026-10-16._
 | **Geographic coverage**: capacity-based population coverage, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | ✅ `geographic-coverage run`: equal to the AM5 demo replays (table, residual, catchments; extended columns, population on barriers, zonal coverage) ([`geographic-coverage.md`](geographic-coverage.md)); 🗓 circular-buffer order | CLI + UI (results review) |
 | **Zonal statistics**: population coverage by zone and time | `amAnalysisZonal.R` | ✅ `zonal-statistics run`: equal to AM5 on the demo ([`zonal-statistics.md`](zonal-statistics.md)) | CLI + UI (charts) |
 | **Referral**: time and distance between facilities, nearest by time or distance, network | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | ✅ `referral run`: many-to-many, nearest by time and distance; times equal AM5 (after its rounding) on the demo, distances within one cell ([`referral.md`](referral.md)); 🗓 network lines output | CLI |
-| **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | 🗓 plan: Later 3 | CLI + UI (suitability tables) |
+| **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | ✅ `scaling-up run`: equal to the AM5 demo replay (facilities, table, residual, catchments) ([`scaling-up.md`](scaling-up.md)) | CLI + UI (suitability tables) |
 | **Optimization**: greedy best population coverage | `amAnalysisOptimization.R` | 🗓 plan: Later 3 | CLI |
 | Replay of saved analyses | `amAnalysisReplay.R` | 🟡 `job.json` / `job.resolved.json` replay any run; 🗓 converter from AM5 analysis configs | CLI |
 

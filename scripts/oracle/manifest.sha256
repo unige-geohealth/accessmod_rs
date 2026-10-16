@@ -39,6 +39,12 @@ f6069a162d616785cfb965b9a4b43c13d35aeeedf3f8112074caae53c45f4430  ./population-c
 340a994ba3912d13af01b73e30531a98db9f0d5f6b5410fefc7cd6d9dcdb96d4  ./referral/demo/oracle/tReferralDist-8.csv
 0510e4cc7362c88ec9de8a479a52073e300bb2f995020006c8bd1ebdca63f626  ./referral/demo/oracle/tReferralTime-16.csv
 f0ef2910d32f744a6654c4d6b9d631d0b6ba19fbfa6fa4f7aa246fe306fa2d0c  ./referral/demo/oracle/tReferralTime-8.csv
+76cd3a00f5b59655d0f120612ef7a1efe32d361d28800d269d0ac356f89841a2  ./scaling-up/demo/oracle/capacity.csv
+da1cd9087c8e5c914ca331842c1c1152507522a763e5a208229fabd6887d0c8d  ./scaling-up/demo/oracle/catchments.fgb
+5c369c7b3ada311acd4333941fbd4d9476848569f62f186a534e61b109961ed6  ./scaling-up/demo/oracle/distance_facilities.tif
+6d808cbc3f0c08a93f7a468ed9ead5f1b723291baa2fce467d90f869b338b023  ./scaling-up/demo/oracle/facilities.fgb
+b231bbe97a819509509a7e1fa5e825436e1296cc57d3817a644512965a44141e  ./scaling-up/demo/oracle/population_residual.tif
+f9c7ca975fd097e71b439a35fce27eed059abe58e1e63b6e8f203b808f58cbd2  ./scaling-up/demo/oracle/roads_thin.tif
 848319f361c4dfb05ee2a9d54ca05de69ebce4733ec007a8d0b530e2276dfc4d  ./travel-time/demo/demo-scenario.txt
 bd13cf51faf7bf4fc4d84aaebe3a656c3a2459f96f57c88f9433357c170cf2a1  ./travel-time/demo/input/dem.tif
 17857f07e8ee9d4b3a46f7d7506db1e3f7c6b859932098d4ee96c6c1f3575c49  ./travel-time/demo/input/facilities.fgb

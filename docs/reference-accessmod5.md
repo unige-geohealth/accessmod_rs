@@ -138,3 +138,18 @@ extended variant `capacity-demo-extended.json`); results in
 `P1-01_r-accessmod-unified-engine.md` (unified GRASS engine — **superseded**
 by this repository), `P2-01_road-topology-referral.md`,
 `P3-01_routing-alternatives.md`.
+
+## Scaling up
+
+| Concern | Path | Notes |
+| --- | --- | --- |
+| Loop | `tools/R/amAnalysisScalingUp.R`, `amAnalysisScalingUp` | Limits, residual init, candidates (speed not null), exclusion then suitability then evaluation per iteration; a cell reaching no one is excluded, the iteration still counts |
+| Exclusion | `amScalingUp_candidateExclude` | `r.buffer` (distance ≤ buffer, cell centres) or the layer's cells; keep inside / outside; empty layers skipped |
+| Suitability | `amScalingUp_suitability`, `amScalingUpCoef_*` | `popsum` (`r.neighbors -c`, size `round(r / res)` made odd), `dist` (`r.grow.distance`, exact, double precision), `traveltime` (whole minutes, unlimited, nulls → max), `priority`; `int(Σ / Σ weights)` |
+| Rescale | `tools/R/amGrassUtils.R`, `amRasterRescale` | Over the candidates (mask): `(v − min) · 10 000 / (max − min)`, reversed for `hvls`; 5 000 when min = max; R prints min / max with 15 digits; integer division on CELL maps |
+| Evaluation | `amScalingUp_evalCoverage`, `amScalingUp_extractBest` | Travel time from each best cell (towards), population by minute zone; capacity class by rounded range, else nearest of min / max capacity; `which.max` |
+| Thin lines | `v.to.rast` without `-d` | Start cells of line layers in `amIsotropicTravelTime` |
+
+Oracle: `scripts/oracle/scaling-up-demo.R` (replay `demo_scaling_up` with
+`rPopulation__demo_patients`, plus the thin rasterisation of the roads);
+results in [`scaling-up.md`](scaling-up.md).

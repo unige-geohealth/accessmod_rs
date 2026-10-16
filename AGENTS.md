@@ -96,9 +96,9 @@ Build, test, clippy and fmt must all pass before a commit.
 ## Layout
 
 ```
-crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity (no GDAL)
+crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity, scaling up, focal operations (no GDAL)
 crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
-crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage
+crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage, scaling-up
 crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
 xtask/                  developer tasks (`cargo xtask lut`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
@@ -123,9 +123,11 @@ determinism, memory budget, cancellation and error messages included.
 | Need | Toolkit |
 | --- | --- |
 | Rasterise lines and polygons, 3 × 3 neighbourhoods | `accessmod_core::raster` |
+| Distance to source cells, sums over a disc (`r.grow.distance`, `r.buffer`, `r.neighbors -c`) | `accessmod_core::focal` |
 | Disk-backed grids under a memory budget | `accessmod_core::store` |
 | Open aligned rasters, read windows, blocks of several bands with zones | `accessmod_io::raster` (`for_each_block`) |
-| Open a vector layer (filter, CRS, reprojection), burn features and zones, polygonise cells, write FlatGeobuf | `accessmod_io::vector` (`burn_zones`, `polygonize`, `FeatureWriter`) |
+| Open a vector layer (filter, CRS, reprojection), burn features (dense lines, or `Burn::Thin` as `v.to.rast` without `-d`) and zones, polygonise cells, write FlatGeobuf | `accessmod_io::vector` (`burn_layer`, `burn_zones`, `polygonize`, `FeatureWriter`) |
+| Residual population, band search, catchment polygon, removal (capacity analyses) | `accessmod_io::catchment` |
 | DEM grid, lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
 | Job files, path resolution, schema version, input checks | `accessmod_io::job` |
 | Memory plan and execution settings | `accessmod_io::resources` |
@@ -198,6 +200,17 @@ Things learned the hard way; check here before re-investigating.
   `band_s = 60` for parity. Residual init uses the null-aware `&&&`: people
   <= 0 give 0 even on barriers. AM5 catchment shapefiles carry a DBF date:
   export them with `ogr2ogr -nomd`.
+- Scaling up: ties between candidate cells are frequent (integer
+  suitability), so AM5 arithmetic is reproduced: 15-digit min / max / weights,
+  integer rescale of minute travel times. The
+  demo replay references `rPopulation__cor_pop`, absent from the image
+  (`rPopulation__demo_patients` is used). GRASS `v.to.rast` without `-d`
+  steps each segment along its major axis through the cells between its end
+  points (`raster::thin_line_cells`); `r.buffer` includes the distance
+  limit; `r.neighbors -c` takes `dr² + dc² <= (size / 2)²`; null cells
+  with a non-null neighbour get a sum.
+  GDAL's XYZ export (`gdal_translate -of XYZ`) converts values to single
+  precision: compare full-precision rasters, not XYZ dumps.
 
 ### Engine
 

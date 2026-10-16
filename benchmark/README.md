@@ -11,6 +11,7 @@ median of `REPEAT` runs). Figures below come from those reports
 sh benchmark/travel-time/run.sh 1000 2000 4000
 sh benchmark/referral/run.sh 1000 20 2000 50 4000 100
 sh benchmark/geographic-coverage/run.sh 1000 20 2000 50 4000 100
+sh benchmark/scaling-up/run.sh
 ```
 
 Needs Docker, the AccessMod 5 image and the oracle exports
@@ -28,6 +29,7 @@ included) against the accessmod-rs command, inputs to outputs.
 | [Travel time](travel-time/report.md), 120 min | 1.42 s | 0.24 s |
 | [Referral](referral/report.md), 90 pairs | 11.67 s | 0.23 s |
 | [Geographic coverage](geographic-coverage/report.md), with catchments | 14.55 s | 0.40 s |
+| [Scaling up](scaling-up/report.md), 10 facilities added | 39.39 s | 0.50 s |
 
 ## Synthetic landscapes, 16 M cells
 
