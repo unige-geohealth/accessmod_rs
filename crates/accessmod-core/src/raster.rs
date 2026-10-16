@@ -12,6 +12,8 @@
 //! (inclusive), clipped to the grid; spans may repeat or overlap, so the
 //! caller's update must be idempotent.
 
+use std::ops::ControlFlow;
+
 /// Index range `[first, last]`, clipped to `0 .. n`, of the half-open unit
 /// intervals `[k, k + 1)` holding a point of `[lo, hi]`, or of `[lo, hi)`
 /// when `open_hi` (the end point itself belongs to the next unit).
@@ -241,13 +243,14 @@ pub fn polygon_spans(
 /// c + 1]` left of `x`, integrated in closed form on each edge, so the
 /// result is exact up to rounding (fractions are clamped to `[0, 1]`). Rows
 /// and columns outside the grid are skipped; only rows and columns of the
-/// polygon's bounding box are visited. A polygon with a non-finite vertex
-/// covers nothing (callers reject it first).
+/// polygon's bounding box are visited; `visit` stops the walk with
+/// `ControlFlow::Break`. A polygon with a non-finite vertex covers nothing
+/// (callers reject it first).
 pub fn polygon_coverage(
     rings: &[Vec<(f64, f64)>],
     rows: usize,
     cols: usize,
-    visit: &mut impl FnMut(usize, usize, &[f64]),
+    visit: &mut impl FnMut(usize, usize, &[f64]) -> ControlFlow<()>,
 ) {
     if !rings
         .iter()
@@ -269,10 +272,15 @@ pub fn polygon_coverage(
     let (mut x_min, mut x_max) = (f64::INFINITY, f64::NEG_INFINITY);
     for (k, ring) in rings.iter().enumerate() {
         let n = ring.len();
+        // Shoelace sum relative to the first vertex: no cancellation
+        // between large products.
+        let Some(&(x0, y0)) = ring.first() else {
+            continue;
+        };
         let doubled: f64 = (0..n)
             .map(|i| {
-                let (ax, ay) = ring[i];
-                let (bx, by) = ring[(i + 1) % n];
+                let (ax, ay) = (ring[i].0 - x0, ring[i].1 - y0);
+                let (bx, by) = (ring[(i + 1) % n].0 - x0, ring[(i + 1) % n].1 - y0);
                 ax * by - bx * ay
             })
             .sum();
@@ -313,15 +321,21 @@ pub fn polygon_coverage(
     }
     let (first_col, width) = (first_col as usize, (end_col - first_col) as usize);
     edges.sort_by(|p, q| p.y_min.total_cmp(&q.y_min));
-    // Antiderivative of the covered part of [c, c + 1] left of x.
-    let covered = |u: f64, c: f64| {
-        if u <= c {
-            0.0
-        } else if u >= c + 1.0 {
-            u - c - 0.5
-        } else {
-            (u - c) * (u - c) / 2.0
+    // Mean over x in [lo, hi] of the part of [c, c + 1] left of x: the
+    // pieces below c (0), across [c, c + 1] (linear) and beyond (1), each
+    // weighted by its length; stable however short the interval.
+    let mean_covered = |lo: f64, hi: f64, c: f64| {
+        if hi <= lo {
+            return lo.clamp(c, c + 1.0) - c;
         }
+        let (a, b) = (lo.max(c), hi.min(c + 1.0));
+        let across = if b > a {
+            (b - a) / (hi - lo) * ((a + b) / 2.0 - c)
+        } else {
+            0.0
+        };
+        let beyond = (hi - lo.max(c + 1.0)).max(0.0) / (hi - lo);
+        across + beyond
     };
     let mut fractions = vec![0.0; width];
     // left[k]: area added to every column of index < k.
@@ -352,14 +366,7 @@ pub fn polygon_coverage(
             let from = lo.floor().max(first_col as f64) as usize;
             let to = (hi.floor() as i64).min((first_col + width) as i64 - 1);
             for c in from as i64..=to {
-                let cf = c as f64;
-                // A near-vertical piece: its mean x, to avoid cancellation.
-                let part = if hi - lo < 1e-9 {
-                    ((lo + hi) / 2.0).clamp(cf, cf + 1.0) - cf
-                } else {
-                    (covered(xb, cf) - covered(xa, cf)) / (xb - xa)
-                };
-                fractions[c as usize - first_col] += dy * part;
+                fractions[c as usize - first_col] += dy * mean_covered(lo, hi, c as f64);
             }
         }
         let mut carry = 0.0;
@@ -367,7 +374,9 @@ pub fn polygon_coverage(
             carry += left[k + 1];
             fractions[k] = (fractions[k] + carry).clamp(0.0, 1.0);
         }
-        visit(row, first_col, &fractions);
+        if visit(row, first_col, &fractions).is_break() {
+            return;
+        }
     }
 }
 
@@ -563,6 +572,7 @@ mod tests {
         let mut out = vec![0.0; rows * cols];
         polygon_coverage(rings, rows, cols, &mut |r, c0, fractions| {
             out[r * cols + c0..r * cols + c0 + fractions.len()].copy_from_slice(fractions);
+            ControlFlow::Continue(())
         });
         out
     }
@@ -618,5 +628,57 @@ mod tests {
         let fractions = coverage(&[quad], 10, 10);
         assert!(fractions.iter().all(|f| (0.0..=1.0).contains(f)));
         assert!((fractions.iter().sum::<f64>() - area).abs() < 1e-12);
+    }
+
+    #[test]
+    fn coverage_whatever_the_windings() {
+        let outer = vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)];
+        let hole = vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)];
+        let flip = |r: &Vec<(f64, f64)>| r.iter().rev().copied().collect::<Vec<_>>();
+        let mut want = vec![1.0; 9];
+        want[4] = 0.0;
+        for rings in [
+            [outer.clone(), flip(&hole)],
+            [flip(&outer), hole.clone()],
+            [flip(&outer), flip(&hole)],
+        ] {
+            assert_close(&coverage(&rings, 3, 3), &want);
+        }
+    }
+
+    #[test]
+    fn coverage_of_a_near_vertical_edge_across_a_column() {
+        // A quadrilateral whose east edge leans by 2ε across x = 1 (exact
+        // binary values): the cell
+        // east of it holds a triangle of area ε / 4 per unit of height.
+        let e = 2f64.powi(-33);
+        let quad = vec![(0.0, 0.0), (1.0 - e, 0.0), (1.0 + e, 1.0), (0.0, 1.0)];
+        let got = coverage(&[quad], 1, 2);
+        assert!((got[1] - e / 4.0).abs() < 1e-22, "{got:?}");
+        assert!((got[0] - (1.0 - e / 4.0)).abs() < 1e-15, "{got:?}");
+    }
+
+    #[test]
+    fn coverage_far_from_the_origin() {
+        // Pixel coordinates of a large grid: a half-cell offset square.
+        let (x, y) = (1.0e7, 2.0e6);
+        let square = vec![
+            (x + 0.5, y + 0.5),
+            (x + 1.5, y + 0.5),
+            (x + 1.5, y + 1.5),
+            (x + 0.5, y + 1.5),
+        ];
+        let mut total = 0.0;
+        let mut cells = 0;
+        polygon_coverage(&[square], usize::MAX, usize::MAX, &mut |_, _, fractions| {
+            total += fractions.iter().sum::<f64>();
+            cells += fractions
+                .iter()
+                .filter(|f| (*f - 0.25).abs() < 1e-9)
+                .count();
+            ControlFlow::Continue(())
+        });
+        assert!((total - 1.0).abs() < 1e-9);
+        assert_eq!(cells, 4);
     }
 }

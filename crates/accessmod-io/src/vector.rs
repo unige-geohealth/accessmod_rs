@@ -3,6 +3,7 @@
 //! and polygon parts in grid pixel coordinates (see
 //! `accessmod_core::raster`).
 
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
 use accessmod_core::raster::{line_spans, polygon_coverage, polygon_spans, thin_line_cells};
@@ -606,8 +607,14 @@ fn for_each_polygon(geometry: &Geometry, visit: &mut dyn FnMut(Vec<Vec<(f64, f64
 /// Sum of `band` over the polygons of `geometry` (grid CRS), each cell
 /// weighted by the exact fraction of it they cover, as `exactextractr`
 /// `sum` (`accessmod_core::raster::polygon_coverage`); NoData cells are
-/// skipped, lines and points cover nothing. Rows are read one at a time.
-pub fn covered_sum(geometry: &Geometry, grid: &GridSpec, band: &AlignedBand<'_>) -> Result<f64> {
+/// skipped, lines and points cover nothing. Rows are read one at a time;
+/// cancellation is checked before each.
+pub fn covered_sum(
+    geometry: &Geometry,
+    grid: &GridSpec,
+    band: &AlignedBand<'_>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<f64> {
     let nodata = band.nodata();
     let mut sum = 0.0;
     let mut failure = None;
@@ -625,7 +632,11 @@ pub fn covered_sum(geometry: &Geometry, grid: &GridSpec, band: &AlignedBand<'_>)
             grid.cols,
             &mut |row, first, fractions| {
                 if failure.is_some() {
-                    return;
+                    return ControlFlow::Break(());
+                }
+                if cancelled() {
+                    failure = Some(Error::Cancelled);
+                    return ControlFlow::Break(());
                 }
                 match band.read::<f64>(row..row + 1, first..first + fractions.len()) {
                     Ok(Some(window)) => {
@@ -641,6 +652,7 @@ pub fn covered_sum(geometry: &Geometry, grid: &GridSpec, band: &AlignedBand<'_>)
                     Ok(None) => {}
                     Err(e) => failure = Some(e),
                 }
+                ControlFlow::Continue(())
             },
         );
     });
@@ -676,6 +688,8 @@ pub struct GeometrySpool {
     file: crate::output::ScratchFile,
     handle: std::fs::File,
     end: u64,
+    dir: PathBuf,
+    tag: String,
 }
 
 impl GeometrySpool {
@@ -693,18 +707,24 @@ impl GeometrySpool {
             file,
             handle,
             end: 0,
+            dir: dir.to_path_buf(),
+            tag: tag.to_owned(),
         })
     }
 
     /// Append `geometry`.
     pub fn push(&mut self, geometry: &Geometry) -> Result<SpoolSlot> {
+        let wkb = geometry.wkb().map_err(Error::gdal(self.file.path()))?;
+        self.push_wkb(&wkb)
+    }
+
+    fn push_wkb(&mut self, wkb: &[u8]) -> Result<SpoolSlot> {
         use std::io::{Seek, SeekFrom, Write};
         let path = self.file.path();
-        let wkb = geometry.wkb().map_err(Error::gdal(path))?;
         self.handle
             .seek(SeekFrom::Start(self.end))
             .map_err(Error::file(path))?;
-        self.handle.write_all(&wkb).map_err(Error::file(path))?;
+        self.handle.write_all(wkb).map_err(Error::file(path))?;
         let slot = SpoolSlot {
             offset: self.end,
             len: wkb.len() as u64,
@@ -736,6 +756,21 @@ impl GeometrySpool {
     /// Bytes written so far.
     pub fn bytes(&self) -> u64 {
         self.end
+    }
+
+    /// Rewrite the geometries at `slots` (updated in place) into a new
+    /// file and drop the old one: the spool then holds only them.
+    pub fn compact<'a>(
+        &mut self,
+        slots: impl IntoIterator<Item = &'a mut SpoolSlot>,
+    ) -> Result<()> {
+        let mut fresh = Self::new(&self.dir, &self.tag)?;
+        for slot in slots {
+            let wkb = self.wkb(*slot)?;
+            *slot = fresh.push_wkb(&wkb)?;
+        }
+        *self = fresh;
+        Ok(())
     }
 }
 
@@ -823,5 +858,34 @@ mod tests {
             json_attribute(Some(FieldValue::StringValue("HC-1".into()))),
             Some(serde_json::json!("HC-1"))
         );
+    }
+
+    #[test]
+    fn spool_reads_back_and_compacts() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let mut spool = GeometrySpool::new(dir.path(), "test").expect("spool");
+        let wkt = [
+            "POINT (1 2)",
+            "POLYGON ((0 0,3 0,3 3,0 3,0 0))",
+            "LINESTRING (0 0,5 5,7 1)",
+        ];
+        let mut slots: Vec<SpoolSlot> = wkt
+            .iter()
+            .map(|w| {
+                spool
+                    .push(&Geometry::from_wkt(w).expect("wkt"))
+                    .expect("push")
+            })
+            .collect();
+        let as_wkt =
+            |spool: &mut GeometrySpool, slot| spool.get(slot).expect("get").wkt().expect("wkt");
+        assert_eq!(as_wkt(&mut spool, slots[1]), wkt[1]);
+        let before = spool.bytes();
+        // Keep the last two only, in reverse order.
+        let (_, kept) = slots.split_at_mut(1);
+        spool.compact(kept.iter_mut().rev()).expect("compact");
+        assert!(spool.bytes() < before);
+        assert_eq!(as_wkt(&mut spool, slots[2]), wkt[2]);
+        assert_eq!(as_wkt(&mut spool, slots[1]), wkt[1]);
     }
 }

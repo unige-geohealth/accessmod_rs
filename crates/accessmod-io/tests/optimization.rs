@@ -201,3 +201,48 @@ fn zone_minimum_takes_a_facility_in_every_zone() {
         "{error}"
     );
 }
+
+#[test]
+fn zero_population_candidates_drop_only_after_an_overlap() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let catchments = [
+        // 1 holds a NoData cell and an empty one: 1 person.
+        (1, cell_polygon(0.0, 0.0, 3.0, 1.0)),
+        (2, cell_polygon(4.0, 0.0, 5.0, 1.0)),
+        // 3: nobody, far from the others.
+        (3, cell_polygon(7.0, 0.0, 8.0, 1.0)),
+    ];
+    let mut job = fixture(dir.path(), 8, 1, &catchments);
+    let population = vec![1.0, -1.0, 0.0, 5.0, 2.0, 0.0, 0.0, 0.0];
+    write_raster::<f32>(
+        &dir.path().join("pop.tif"),
+        8,
+        1,
+        geo_transform(X0, Y0),
+        population,
+        Some(-1.0),
+    );
+    // No selection reduces a catchment: 3 stays, last, covering no one.
+    let out = run_job::<Optimization>(job.clone(), &settings(64 << 20, 1)).expect("run");
+    assert_eq!(column(&out, "facility_id"), ["2", "1", "3"]);
+    assert_eq!(numbers(&out, "population_covered"), [2.0, 1.0, 0.0]);
+
+    // 4 touches 2 (and is reduced by it): candidates covering no one go.
+    let mut with_neighbour = catchments.to_vec();
+    with_neighbour.push((4, cell_polygon(5.0, 0.0, 6.0, 1.0)));
+    let features: Vec<(&str, Vec<Option<FieldValue>>)> = with_neighbour
+        .iter()
+        .map(|(id, wkt)| (wkt.as_str(), vec![Some(FieldValue::Integer64Value(*id))]))
+        .collect();
+    write_features(
+        &dir.path().join("neighbour.gpkg"),
+        "catchments",
+        EPSG,
+        &[("id", OGRFieldType::OFTInteger64)],
+        &features,
+    );
+    job.catchments.path = dir.path().join("neighbour.gpkg");
+    job.output_dir = dir.path().join("neighbour");
+    let out = run_job::<Optimization>(job, &settings(64 << 20, 1)).expect("run");
+    assert_eq!(column(&out, "facility_id"), ["2", "1"]);
+}

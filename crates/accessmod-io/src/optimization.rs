@@ -32,6 +32,9 @@ use crate::zonal::{Zone, ZoneLayer, open_zones, read_zones};
 /// Ranked facilities file name.
 pub const OPTIMIZATION_FILE: &str = "optimization.csv";
 
+/// Spool bytes beyond twice the current geometries before compaction.
+const SPOOL_SLACK: u64 = 64 << 20;
+
 /// Optimization job (schema version 1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -184,6 +187,7 @@ fn open_layer(source: &FacilitySource, grid: &GridSpec, role: &str) -> Result<Ve
 #[derive(Debug, Default)]
 struct Scan {
     ids: Vec<serde_json::Value>,
+    id_bytes: usize,
     largest_wkb: u64,
     total_wkb: u64,
 }
@@ -225,6 +229,7 @@ fn scan_catchments(
         };
         scan.largest_wkb = scan.largest_wkb.max(size);
         scan.total_wkb += size;
+        scan.id_bytes += id_key(&id).len();
         scan.ids.push(id);
     }
     if issues.is_empty() {
@@ -232,6 +237,16 @@ fn scan_catchments(
     } else {
         Err(Error::Validation { issues })
     }
+}
+
+/// Zones of the facilities.
+struct FacilityZones {
+    /// Zone of each facility identifier key.
+    zone_of: BTreeMap<String, Option<usize>>,
+    /// Bytes of the keys.
+    key_bytes: usize,
+    /// Largest zone geometry, WKB bytes.
+    largest_zone_wkb: u64,
 }
 
 /// Facility points by identifier key, in the grid CRS, and the largest
@@ -242,12 +257,12 @@ fn facility_zones(
     grid: &GridSpec,
     zone_index: &[u32],
     cancelled: &dyn Fn() -> bool,
-) -> Result<(BTreeMap<String, Option<usize>>, u64)> {
+) -> Result<FacilityZones> {
     let vector = open_layer(&quota.facilities, grid, "facilities")?;
     let dataset = vector.dataset()?;
     let mut layer = vector.layer(&dataset)?;
     let id_index = vector.field_index(&layer, &quota.facilities.id_field)?;
-    let mut points: Vec<(String, Geometry)> = Vec::new();
+    let mut points: Vec<(String, f64, f64)> = Vec::new();
     let mut issues = Vec::new();
     for (k, feature) in layer.features().enumerate() {
         if cancelled() {
@@ -274,15 +289,22 @@ fn facility_zones(
             continue;
         }
         match vector.to_grid_geometry(geometry) {
-            Ok(point) => points.push((id_key(&id), point)),
+            Ok(point) => {
+                let (x, y, _) = point.get_point(0);
+                points.push((id_key(&id), x, y));
+            }
             Err(why) => issues.push(issue(problem(why))),
         }
     }
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
-    let mut zone_of: BTreeMap<String, Option<usize>> =
-        points.iter().map(|(key, _)| (key.clone(), None)).collect();
+    let mut zone_of: BTreeMap<String, Option<usize>> = points
+        .iter()
+        .map(|(key, _, _)| (key.clone(), None))
+        .collect();
+    let mut probe = Geometry::empty(OGRwkbGeometryType::wkbPoint)
+        .map_err(Error::gdal(&quota.facilities.path))?;
     let zones = open_zones(&quota.zones, grid)?;
     let dataset = zones.dataset()?;
     let mut layer = zones.layer(&dataset)?;
@@ -300,39 +322,86 @@ fn facility_zones(
         largest = largest.max(zone.wkb().map_err(Error::gdal(&quota.zones.path))?.len() as u64);
         let envelope = zone.envelope();
         let index = zone_index[k] as usize - 1;
-        for (key, point) in &points {
-            let (x, y, _) = point.get_point(0);
+        for (n, (key, x, y)) in points.iter().enumerate() {
+            if n % 4096 == 0 && cancelled() {
+                return Err(Error::Cancelled);
+            }
+            let (x, y) = (*x, *y);
             let inside_box = x >= envelope.MinX
                 && x <= envelope.MaxX
                 && y >= envelope.MinY
                 && y <= envelope.MaxY;
-            if inside_box && zone.intersects(point) {
-                zone_of.insert(key.clone(), Some(index));
+            if inside_box {
+                probe.set_point_2d(0, (x, y));
+                if zone.intersects(&probe) {
+                    zone_of.insert(key.clone(), Some(index));
+                }
             }
         }
     }
-    Ok((zone_of, largest))
+    let key_bytes = points.iter().map(|(key, _, _)| key.len()).sum();
+    Ok(FacilityZones {
+        zone_of,
+        key_bytes,
+        largest_zone_wkb: largest,
+    })
 }
 
-/// Memory plan: one record per catchment and per facility point, a few
+/// What the memory plan counts: records held per catchment, facility and
+/// zone (identifiers measured), and the largest geometries.
+#[derive(Debug, Clone, Copy, Default)]
+struct Sizes {
+    catchments: usize,
+    catchment_id_bytes: usize,
+    facilities: usize,
+    facility_id_bytes: usize,
+    zones: usize,
+    zone_text_bytes: usize,
+    largest_wkb: u64,
+    total_wkb: u64,
+}
+
+impl Sizes {
+    /// Bytes per identifier assumed before any is read.
+    const ID_GUESS: usize = 32;
+
+    /// Sizes from feature counts alone, before reading identifiers.
+    fn guess(catchments: usize, facilities: usize, zones: usize) -> Self {
+        Self {
+            catchments,
+            catchment_id_bytes: catchments * Self::ID_GUESS,
+            facilities,
+            facility_id_bytes: facilities * Self::ID_GUESS,
+            zones,
+            zone_text_bytes: zones * 2 * Self::ID_GUESS,
+            ..Self::default()
+        }
+    }
+}
+
+/// Memory plan: the records held per catchment, facility and zone, a few
 /// geometries (selected, candidate, difference, their GEOS and edge copies)
-/// and one population row.
+/// and one population row; scratch for the geometry spool.
 fn optimization_plan(
     grid: &GridSpec,
     settings: &ExecutionSettings,
-    catchments: usize,
-    facilities: usize,
-    largest_wkb: u64,
-    total_wkb: u64,
+    sizes: &Sizes,
 ) -> Result<ResourcePlan> {
-    // Identifier, zone, slot, envelope, populations: 256 bytes per
-    // catchment; a facility point with its key: 256 bytes.
-    let records = 256 * (catchments + facilities) as u64;
+    // Per catchment, at once: its record and identifier (as a JSON value,
+    // a matching key and in its duplicate group: 3 copies), spool slot and
+    // envelope, duplicate key and index, selection entry, candidate, row
+    // of the table: 512 bytes with map and vector overheads.
+    let catchments = 512 * sizes.catchments + 3 * sizes.catchment_id_bytes;
+    // Per facility: its key (twice: point list and zone map) and point.
+    let facilities = 192 * sizes.facilities + 2 * sizes.facility_id_bytes;
+    // Per zone feature: its zone index, identifier and label.
+    let zones = 160 * sizes.zones + sizes.zone_text_bytes;
     // Four geometries at once, each as WKB, GEOS and ring coordinates (with
     // the coverage edges): about 4 × 8 times their WKB size.
-    let geometries = 32 * largest_wkb;
+    let geometries = 32 * sizes.largest_wkb;
     // Fractions, offsets and the population row, per column.
     let rows = 32 * grid.cols as u64;
+    let records = (catchments + facilities + zones) as u64;
     let mut plan = ResourcePlan::for_tiles(
         grid.rows,
         grid.cols,
@@ -341,9 +410,10 @@ fn optimization_plan(
         records + geometries + rows,
         0,
     )?;
-    // The spool holds every catchment, and the reduced ones written again
-    // (at most once per selection each, bounded here by twice the input).
-    plan.scratch_bytes = 3 * total_wkb;
+    // The spool holds the current geometry of every catchment and is
+    // compacted beyond twice that plus a slack; reduced geometries may hold
+    // more vertices than the input (new intersections): twice the input.
+    plan.scratch_bytes = 4 * sizes.total_wkb + SPOOL_SLACK + sizes.largest_wkb;
     if let Some(free) = plan.free_disk_bytes
         && free < plan.scratch_bytes
     {
@@ -377,8 +447,31 @@ pub fn prepare(
         return Err(Error::Validation { issues });
     }
     let (_, grid) = GridSpec::open_raster(&job.population, "population")?;
+    open_aligned_raster(&job.population, &grid, "population")?;
     let catchment_layer = open_layer(&job.catchments, &grid, "catchments")?;
+    // Plan from feature counts first: records are held only once it fits.
+    let count = |vector: &VectorLayer| -> Result<usize> {
+        let dataset = vector.dataset()?;
+        Ok(vector.layer(&dataset)?.feature_count() as usize)
+    };
+    let mut sizes = Sizes::guess(count(&catchment_layer)?, 0, 0);
+    if let Some(quota) = &job.zone_quota {
+        let guess = Sizes::guess(
+            0,
+            count(&open_layer(&quota.facilities, &grid, "facilities")?)?,
+            count(&open_zones(&quota.zones, &grid)?)?,
+        );
+        sizes.facilities = guess.facilities;
+        sizes.facility_id_bytes = guess.facility_id_bytes;
+        sizes.zones = guess.zones;
+        sizes.zone_text_bytes = guess.zone_text_bytes;
+    }
+    optimization_plan(&grid, settings, &sizes)?.configure_gdal()?;
     let scan = scan_catchments(&catchment_layer, &job.catchments, cancelled)?;
+    sizes.catchments = scan.ids.len();
+    sizes.catchment_id_bytes = scan.id_bytes;
+    sizes.largest_wkb = scan.largest_wkb;
+    sizes.total_wkb = scan.total_wkb;
     let mut warnings = Vec::new();
     let mut catchments: Vec<CatchmentRecord> = scan
         .ids
@@ -389,15 +482,23 @@ pub fn prepare(
         })
         .collect();
     let mut zones = Vec::new();
-    let mut largest = scan.largest_wkb;
-    let mut facilities = 0;
     if let Some(quota) = &job.zone_quota {
+        optimization_plan(&grid, settings, &sizes)?;
         let zone_vector = open_zones(&quota.zones, &grid)?;
         let (read, feature_zones) = read_zones(&zone_vector, &quota.zones, cancelled)?;
         zones = read;
-        let (zone_of, largest_zone) = facility_zones(quota, &grid, &feature_zones, cancelled)?;
-        largest = largest.max(largest_zone);
-        facilities = zone_of.len();
+        sizes.zone_text_bytes = zones
+            .iter()
+            .map(|z| z.id.to_string().len() + z.label.as_ref().map_or(0, String::len))
+            .sum();
+        let FacilityZones {
+            zone_of,
+            key_bytes,
+            largest_zone_wkb,
+        } = facility_zones(quota, &grid, &feature_zones, cancelled)?;
+        sizes.largest_wkb = sizes.largest_wkb.max(largest_zone_wkb);
+        sizes.facilities = zone_of.len();
+        sizes.facility_id_bytes = key_bytes;
         let mut missing = Vec::new();
         for catchment in &mut catchments {
             match zone_of.get(&id_key(&catchment.id)) {
@@ -431,7 +532,10 @@ pub fn prepare(
         }
         let with_catchments = required_zones(&catchments, zones.len());
         let required = with_catchments.iter().filter(|&&r| r).count();
-        if required * quota.min_per_zone > job.max_facilities {
+        if required
+            .checked_mul(quota.min_per_zone)
+            .is_none_or(|needed| needed > job.max_facilities)
+        {
             return Err(Error::Validation {
                 issues: vec![format!(
                     "{required} zones hold catchments: {required} x min_per_zone {} exceeds \
@@ -441,20 +545,7 @@ pub fn prepare(
             });
         }
     }
-    let plan = optimization_plan(
-        &grid,
-        settings,
-        catchments.len(),
-        facilities,
-        largest,
-        scan.total_wkb,
-    )?;
-    plan.configure_gdal()?;
-    match open_aligned_raster(&job.population, &grid, "population") {
-        Ok(_) => {}
-        Err(Error::Validation { issues }) => return Err(Error::Validation { issues }),
-        Err(other) => return Err(other),
-    }
+    let plan = optimization_plan(&grid, settings, &sizes)?;
     if catchments.is_empty() {
         warnings.push(Warning {
             code: "no_catchment",
@@ -566,8 +657,8 @@ pub struct OptimizationRecord {
 /// Execution details of the optimization.
 #[derive(Debug, Clone, Serialize)]
 pub struct OptimizationDetails {
-    /// Bytes written to the geometry spool.
-    pub spool_bytes: u64,
+    /// Largest size of the geometry spool, bytes.
+    pub spool_peak_bytes: u64,
 }
 
 /// `run.json` of the optimization.
@@ -653,6 +744,9 @@ pub fn run(
             }
             let wkb = spool.wkb(slots[i].0)?;
             for &j in &group[n + 1..] {
+                if cancelled() {
+                    return Err(Error::Cancelled);
+                }
                 if first_of[j] == j && spool.wkb(slots[j].0)? == wkb {
                     first_of[j] = i;
                 }
@@ -676,7 +770,7 @@ pub fn run(
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        let people = covered_sum(&spool.get(slot)?, grid, &population)?;
+        let people = covered_sum(&spool.get(slot)?, grid, &population, cancelled)?;
         alive.push(Entry {
             catchment: i,
             slot,
@@ -705,6 +799,7 @@ pub fn run(
     // fewer than `max_facilities` were selected (as AccessMod 5).
     let mut contained: Vec<Entry> = Vec::new();
     let mut differences = 0u64;
+    let mut spool_peak = spool.bytes();
     let mut candidates: Vec<Candidate> = Vec::new();
     while selected.len() < job.max_facilities && !alive.is_empty() {
         if cancelled() {
@@ -754,7 +849,7 @@ pub fn run(
                 contained.push(*entry);
                 continue;
             }
-            entry.candidate.covered = covered_sum(&rest, grid, &population)?;
+            entry.candidate.covered = covered_sum(&rest, grid, &population, cancelled)?;
             entry.slot = spool.push(&rest)?;
             entry.envelope = envelope_of(rest.envelope());
         }
@@ -762,6 +857,12 @@ pub fn run(
         // that reduced some catchment.
         if any {
             alive.retain(|e| e.candidate.covered > 0.0);
+        }
+        // Keep only current geometries once the spool holds twice them.
+        spool_peak = spool_peak.max(spool.bytes());
+        let live: u64 = alive.iter().map(|e| e.slot.len()).sum();
+        if spool.bytes() > 2 * live + SPOOL_SLACK {
+            spool.compact(alive.iter_mut().map(|e| &mut e.slot))?;
         }
     }
     let stop_reason = if selected.len() >= job.max_facilities {
@@ -855,7 +956,7 @@ pub fn run(
         stop_reason,
     };
     let details = OptimizationDetails {
-        spool_bytes: spool.bytes(),
+        spool_peak_bytes: spool_peak.max(spool.bytes()),
     };
     let PreparedOptimization {
         job,
