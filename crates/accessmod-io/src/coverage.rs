@@ -8,6 +8,9 @@
 //! travel-time bands; the residual population of each band decides the
 //! catchment; the population covered is removed from the residual
 //! population before the next facility.
+//!
+//! Optional outputs: the population on barriers (people the analysis cannot
+//! reach) and, with zone polygons, the population covered per zone.
 
 use std::collections::BTreeMap;
 use std::io::{BufReader, BufWriter, Read, Write};
@@ -19,7 +22,7 @@ use accessmod_core::cost::{CellMobility, Direction, Method, Neighbourhood};
 use accessmod_core::mobility::MobilityModel;
 use accessmod_core::solver::{Facility, Flow, InputCell, SolverCell, SolverConfig, solve_until};
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
-use gdal::vector::{FieldValue, Geometry, OGRFieldType, OGRwkbGeometryType};
+use gdal::vector::{FieldValue, Geometry, LayerAccess, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +42,10 @@ use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_r
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
 use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
-use crate::vector::{FeatureWriter, VectorLayer, compare_values, number_attribute, polygonize};
+use crate::vector::{
+    FeatureWriter, VectorLayer, burn_zones, compare_values, number_attribute, polygonize,
+};
+use crate::zonal::{MAX_ZONES, Zone, ZoneLayer, open_zones, read_zones};
 
 /// Capacity table file name.
 pub const CAPACITY_FILE: &str = "capacity.csv";
@@ -47,6 +53,10 @@ pub const CAPACITY_FILE: &str = "capacity.csv";
 pub const RESIDUAL_FILE: &str = "population_residual.tif";
 /// Catchment polygons file name.
 pub const CATCHMENTS_FILE: &str = "catchments.fgb";
+/// Population on barriers file name.
+pub const BARRIERS_FILE: &str = "population_on_barriers.tif";
+/// Coverage per zone file name.
+pub const ZONES_FILE: &str = "zonal_coverage.csv";
 
 fn sixty() -> f64 {
     60.0
@@ -105,6 +115,13 @@ pub struct CoverageJob {
     /// Write the catchment polygons (`catchments.fgb`).
     #[serde(default = "yes")]
     pub catchments: bool,
+    /// Write the population on barriers (`population_on_barriers.tif`).
+    #[serde(default)]
+    pub population_on_barriers: bool,
+    /// Zone polygons: write the population covered per zone
+    /// (`zonal_coverage.csv`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zones: Option<ZoneLayer>,
     /// What to do with facilities outside the grid or on a barrier.
     #[serde(default)]
     pub facility_issues: FacilityIssues,
@@ -147,6 +164,9 @@ impl JobFile for CoverageJob {
         ] {
             absolutize(path, base);
         }
+        if let Some(zones) = &mut self.zones {
+            absolutize(&mut zones.path, base);
+        }
         self
     }
 }
@@ -157,6 +177,13 @@ impl CoverageJob {
         let mut issues = check_common(self.schema_version, &self.scenario, Some(self.limit_s));
         if self.facilities.id_field.trim().is_empty() {
             issues.push("facilities.id_field is empty".into());
+        }
+        if self
+            .zones
+            .as_ref()
+            .is_some_and(|z| z.id_field.trim().is_empty())
+        {
+            issues.push("zones.id_field is empty".into());
         }
         if !self.ignore_capacity && self.capacity_field.is_none() {
             issues.push("capacity_field is required unless ignore_capacity is set".into());
@@ -205,7 +232,8 @@ pub struct CoverageFacility {
     pub name: Option<String>,
     /// Capacity, unless ignored.
     pub capacity: Option<f64>,
-    /// Value of the order field, if ordered by a field.
+    /// Value the order sorts: the order field, or the population reached
+    /// within the order limit.
     pub order_value: Option<f64>,
     /// Cell.
     #[serde(skip)]
@@ -227,6 +255,10 @@ pub struct PreparedCoverage {
     pub loaded: LoadedFacilities,
     /// Facilities used, in layer order.
     pub facilities: Vec<CoverageFacility>,
+    /// Zones in order of first appearance (zone index = position + 1).
+    pub zones: Vec<Zone>,
+    /// Zone index of each zone feature, in layer order.
+    pub feature_zones: Vec<u32>,
     /// Input counts.
     pub summary: InputSummary,
     /// Non-blocking problems.
@@ -247,22 +279,27 @@ pub fn prepare(
 ) -> Result<PreparedCoverage> {
     let started = Instant::now();
     let mut issues = job.check();
-    issues.extend(check_files(
-        &job.output_dir,
-        [
-            ("dem".to_owned(), job.dem.as_path()),
-            ("land_cover".to_owned(), job.land_cover.as_path()),
-            ("population".to_owned(), job.population.as_path()),
-            ("facilities.path".to_owned(), job.facilities.path.as_path()),
-        ],
-    ));
+    let mut files = vec![
+        ("dem".to_owned(), job.dem.as_path()),
+        ("land_cover".to_owned(), job.land_cover.as_path()),
+        ("population".to_owned(), job.population.as_path()),
+        ("facilities.path".to_owned(), job.facilities.path.as_path()),
+    ];
+    if let Some(zones) = &job.zones {
+        files.push(("zones.path".to_owned(), zones.path.as_path()));
+    }
+    issues.extend(check_files(&job.output_dir, files));
     if !issues.is_empty() {
         return Err(Error::Validation { issues });
     }
     let (slots, scenario) = scenario_table(&job.scenario);
-    // The residual population grid (f64) shares the tile budget.
+    // The residual population grid (f64), and the zone grid (u32) when
+    // zones are set, share the tile budget.
     let geometry_probe = TileGeometry::new(1, 1, accessmod_core::store::DEFAULT_TILE)?;
-    let residual_tile = TiledGrid::<f64>::tile_bytes(geometry_probe) as u64;
+    let mut residual_tile = TiledGrid::<f64>::tile_bytes(geometry_probe) as u64;
+    if job.zones.is_some() {
+        residual_tile += TiledGrid::<u32>::tile_bytes(geometry_probe) as u64;
+    }
     let Landscape {
         grid,
         mut inputs,
@@ -282,18 +319,35 @@ pub fn prepare(
     screen_facilities(&loaded, job.facility_issues, "facilities", &mut warnings)?;
     warnings.extend(landscape_warnings(&summary, &job.scenario));
     let facilities = read_facilities(&job, &grid, &loaded, cancelled)?;
+    let (zones, feature_zones) = match &job.zones {
+        Some(source) => {
+            let vector = open_zones(source, &grid)?;
+            let count = {
+                let dataset = vector.dataset()?;
+                vector.layer(&dataset)?.feature_count() as usize
+            };
+            if count > MAX_ZONES {
+                return Err(Error::Validation {
+                    issues: vec![format!("zones: more than {MAX_ZONES} features")],
+                });
+            }
+            read_zones(&vector, source, cancelled)?
+        }
+        None => (Vec::new(), Vec::new()),
+    };
     let mut durations_s = BTreeMap::new();
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
     let started = Instant::now();
-    let fingerprints = fingerprints(
-        &[
-            ("dem", job.dem.as_path()),
-            ("land_cover", job.land_cover.as_path()),
-            ("population", job.population.as_path()),
-            ("facilities", job.facilities.path.as_path()),
-        ],
-        cancelled,
-    )?;
+    let mut files = vec![
+        ("dem", job.dem.as_path()),
+        ("land_cover", job.land_cover.as_path()),
+        ("population", job.population.as_path()),
+        ("facilities", job.facilities.path.as_path()),
+    ];
+    if let Some(zones) = &job.zones {
+        files.push(("zones", zones.path.as_path()));
+    }
+    let fingerprints = fingerprints(&files, cancelled)?;
     durations_s.insert("fingerprints", started.elapsed().as_secs_f64());
     Ok(PreparedCoverage {
         job,
@@ -302,6 +356,8 @@ pub fn prepare(
         scenario,
         loaded,
         facilities,
+        zones,
+        feature_zones,
         summary,
         warnings,
         plan,
@@ -590,8 +646,20 @@ pub struct CoverageRow {
     /// Catchment.
     #[serde(skip)]
     pub catchment: Catchment,
+    /// Residual population before this facility.
+    pub population_residual_before: f64,
+    /// Residual population after this facility.
+    pub population_residual_after: f64,
     /// Population covered so far, percent of the population off barriers.
     pub population_covered_percent: f64,
+}
+
+/// Population covered in one zone.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct ZoneTotals {
+    population: f64,
+    on_barriers: f64,
+    covered: f64,
 }
 
 /// Result counters.
@@ -599,6 +667,10 @@ pub struct CoverageRow {
 pub struct CoverageSummary {
     /// Facilities processed.
     pub facilities: usize,
+    /// Population of the raster.
+    pub population_total: f64,
+    /// Population on barriers, which no facility reaches.
+    pub population_on_barriers: f64,
     /// Population off barriers at start.
     pub population: f64,
     /// Residual population at the end.
@@ -653,9 +725,14 @@ pub fn deviations() -> Vec<Deviation> {
                       identifiers. AccessMod 5 keeps the order of its facility table.",
         },
         Deviation {
+            code: "coverage_zonal_barriers",
+            message: "Zonal coverage counts people on barriers as not covered. \
+                      AccessMod 5 subtracts the residual population, which has no value \
+                      on barriers, from the whole population: they count as covered.",
+        },
+        Deviation {
             code: "coverage_not_yet",
-            message: "Not yet available: circular-buffer order, \
-                      population on barriers map, zonal coverage table.",
+            message: "Not yet available: circular-buffer order.",
         },
     ]
 }
@@ -671,7 +748,9 @@ pub fn run(
         grid,
         mut inputs,
         scenario,
-        facilities,
+        mut facilities,
+        zones,
+        feature_zones,
         summary: input_summary,
         warnings,
         plan,
@@ -692,11 +771,24 @@ pub fn run(
     // Residual population (AccessMod 5 amInitPopResidual, `pop > 0 &&& speed
     // > 0 ? pop : 0` with the null-aware `&&&`): no value without
     // population, 0 for people <= 0 (barriers included), the people off
-    // barriers, no value for people on barriers.
+    // barriers, no value for people on barriers. The population on barriers
+    // (amMapPopOnBarrier) is every value where the cell cannot be entered.
     let started = Instant::now();
     let (population_ds, alignment) = open_aligned_raster(&job.population, &grid, "population")?;
     let population = AlignedBand::new(&population_ds, &job.population, alignment, &grid)?;
-    let mut total = 0.0;
+    let barriers_tif = if job.population_on_barriers {
+        Some(GeoTiff::create::<f64>(
+            &staging.path().join(BARRIERS_FILE),
+            &grid,
+            3,
+            settings.threads,
+            FLOAT_NODATA,
+        )?)
+    } else {
+        None
+    };
+    let mut barriers_block = Vec::with_capacity(BLOCK * BLOCK);
+    let (mut total, mut population_total, mut on_barriers) = (0.0, 0.0, 0.0);
     for_each_block(
         &grid,
         (BLOCK, BLOCK),
@@ -708,11 +800,20 @@ pub fn run(
             for i in 0..block.len() {
                 let (row, col) = (block.rows.start + i / width, block.cols.start + i % width);
                 let Some(people) = block.value(0, i) else {
+                    barriers_block.push(FLOAT_NODATA);
                     continue;
                 };
+                population_total += people;
+                let passable = inputs.get(row, col)?.is_passable();
+                if passable {
+                    barriers_block.push(FLOAT_NODATA);
+                } else {
+                    on_barriers += people;
+                    barriers_block.push(people);
+                }
                 let value = if people <= 0.0 {
                     0.0
-                } else if inputs.get(row, col)?.is_passable() {
+                } else if passable {
                     people
                 } else {
                     continue;
@@ -720,9 +821,18 @@ pub fn run(
                 total += value;
                 residual.set(row, col, value)?;
             }
-            Ok(())
+            match &barriers_tif {
+                Some(tif) => tif.write(block.rows.clone(), block.cols.clone(), &mut barriers_block),
+                None => {
+                    barriers_block.clear();
+                    Ok(())
+                }
+            }
         },
     )?;
+    if let Some(tif) = barriers_tif {
+        tif.close()?;
+    }
     durations_s.insert("residual", started.elapsed().as_secs_f64());
 
     let mut spool = CellSpool::new(&settings.tmp_dir)?;
@@ -759,6 +869,9 @@ pub fn run(
                     cancelled,
                 )?;
                 values.push(bands.iter().map(|b| b.population).sum());
+            }
+            for (facility, value) in facilities.iter_mut().zip(&values) {
+                facility.order_value = Some(*value);
             }
             (values, *descending)
         }
@@ -812,6 +925,7 @@ pub fn run(
             cancelled,
         )?;
         reached_cells += spool.count;
+        let residual_before = remaining;
         let capacity = if job.ignore_capacity {
             None
         } else {
@@ -866,6 +980,8 @@ pub fn run(
             order: k + 1,
             facility: facility.clone(),
             catchment: result,
+            population_residual_before: residual_before,
+            population_residual_after: remaining,
             population_covered_percent: percent,
         });
     }
@@ -873,6 +989,54 @@ pub fn run(
         writer.close()?;
     }
     durations_s.insert("coverage", started.elapsed().as_secs_f64());
+
+    // Coverage per zone (amAnalysisCapacity zonalCoverage): population,
+    // people on barriers and population covered (start minus residual).
+    if let Some(source) = &job.zones {
+        let started = Instant::now();
+        let mut zone_grid = TiledGrid::new(
+            geometry,
+            0u32,
+            plan.resident_tiles,
+            &settings.tmp_dir,
+            "zones",
+        )?;
+        let vector = open_zones(source, &grid)?;
+        let mut feature = 0;
+        burn_zones(&vector, &grid, &mut zone_grid, cancelled, |_| {
+            feature += 1;
+            Ok(feature_zones.get(feature - 1).copied())
+        })?;
+        let mut totals = vec![ZoneTotals::default(); zones.len() + 1];
+        for_each_block(
+            &grid,
+            (BLOCK, BLOCK),
+            &[&population],
+            Some(&mut zone_grid),
+            cancelled,
+            |block| {
+                let width = block.cols.len();
+                for i in 0..block.len() {
+                    let zone = block.zone(i);
+                    let Some(people) = block.value(0, i).filter(|_| zone > 0) else {
+                        continue;
+                    };
+                    let (row, col) = (block.rows.start + i / width, block.cols.start + i % width);
+                    let entry = &mut totals[zone as usize];
+                    entry.population += people;
+                    let left = residual.get(row, col)?;
+                    if !inputs.get(row, col)?.is_passable() {
+                        entry.on_barriers += people;
+                    } else if !left.is_nan() {
+                        entry.covered += people.max(0.0) - left;
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        write_zone_table(&staging.path().join(ZONES_FILE), &zones, &totals[1..])?;
+        durations_s.insert("zones", started.elapsed().as_secs_f64());
+    }
 
     // Outputs.
     let started = Instant::now();
@@ -908,6 +1072,8 @@ pub fn run(
 
     let summary = CoverageSummary {
         facilities: rows.len(),
+        population_total,
+        population_on_barriers: on_barriers,
         population: total,
         population_residual: remaining,
         population_covered_percent: rows.last().map_or(0.0, |r| r.population_covered_percent),
@@ -940,7 +1106,8 @@ fn write_capacity_table(path: &Path, job: &CoverageJob, rows: &[CoverageRow]) ->
         "order,facility_id,name,capacity,order_value,travel_time_limit_s,\
          population_within_limit,population_band_correlation,catchment_travel_time_s,\
          population_catchment,capacity_realised,capacity_residual,\
-         population_catchment_not_covered,population_covered_percent,catchment_case",
+         population_catchment_not_covered,population_residual_before,\
+         population_residual_after,population_covered_percent,catchment_case",
     )?;
     let number = |v: Option<f64>| v.map(|x| format!("{x}")).unwrap_or_default();
     for row in rows {
@@ -963,8 +1130,41 @@ fn write_capacity_table(path: &Path, job: &CoverageJob, rows: &[CoverageRow]) ->
             number(Some(c.capacity_realised)),
             number(Some(c.capacity_residual)),
             number(c.population_not_covered()),
+            number(Some(row.population_residual_before)),
+            number(Some(row.population_residual_after)),
             number(Some(row.population_covered_percent)),
             c.case.map(|k| format!("{k:?}")).unwrap_or_default(),
+        ])?;
+    }
+    csv.finish()
+}
+
+/// Zones by identifier (numbers numerically), as AccessMod 5 merges them.
+fn write_zone_table(path: &Path, zones: &[Zone], totals: &[ZoneTotals]) -> Result<()> {
+    let mut csv = CsvWriter::create(
+        path,
+        "zone_id,label,population,population_on_barriers,population_covered,\
+         population_covered_percent",
+    )?;
+    let mut order: Vec<usize> = (0..zones.len()).collect();
+    order.sort_by(|&a, &b| compare_values(&zones[a].id, &zones[b].id));
+    for k in order {
+        let (zone, t) = (&zones[k], &totals[k]);
+        let percent = if t.population > 0.0 {
+            format!("{}", t.covered / t.population * 100.0)
+        } else {
+            String::new()
+        };
+        csv.record(&[
+            csv_field(&zone.id),
+            zone.label
+                .as_ref()
+                .map(|l| csv_field(&serde_json::Value::String(l.clone())))
+                .unwrap_or_default(),
+            format!("{}", t.population),
+            format!("{}", t.on_barriers),
+            format!("{}", t.covered),
+            percent,
         ])?;
     }
     csv.finish()

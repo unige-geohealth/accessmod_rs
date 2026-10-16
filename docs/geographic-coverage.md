@@ -16,7 +16,12 @@ against the AccessMod 5 demo replay `replay/examples/loop_capacity_stat`.
    minutes; residual population summed per minute band; catchment by the
    cases A–E of `amCatchmentAnalyst` (inner ring of whole bands, part of
    the outer band); covered population removed; catchment polygon.
-4. Table `tCapacityStat`, residual population raster, catchments.
+4. Table `tCapacityStat` (optionally with the extended columns: total
+   population, off and on barriers, residual before and after each
+   facility), residual population raster, catchments.
+5. Options: population on barriers (`amMapPopOnBarrier`: population where
+   the merged land cover has no value) and zonal coverage (`tZonalStat`:
+   per zone, population sum minus residual sum).
 
 ## accessmod-rs approach
 
@@ -42,31 +47,47 @@ travel-time fields (`dem`, `land_cover`, `scenario`, `method`, `direction`,
 `capacity_field` and `name_field`, `order` (`{"field": {"field":
 "capacity", "descending": true}}` or `{"population": {"limit_s": 7200,
 "descending": true}}`), `band_s` (60), `ignore_capacity`,
-`remove_covered` (true), `catchments` (true). Ties in the order follow the
-facility identifiers.
+`remove_covered` (true), `catchments` (true), `population_on_barriers`
+(false), `zones` (`{"path", "id_field", "label_field"}`, as
+`zonal-statistics`). Ties in the order follow the facility identifiers.
 
 Outputs: `capacity.csv` (one row per facility in processing order:
-capacity, population within the limit, band correlation, catchment travel
-time, population of the catchment, capacity realised and residual,
-population not covered, cumulated covered percent, case),
-`population_residual.tif`, `catchments.fgb`, `job.resolved.json`,
-`run.json`.
+capacity, order value (the field, or the population reached within the
+order limit), population within the limit, band correlation, catchment
+travel time, population of the catchment, capacity realised and residual,
+population not covered (clamped at 0; AccessMod 5 rounds it to 6
+decimals), residual population before and after the facility, cumulated
+covered percent, case), `population_residual.tif`, `catchments.fgb`,
+`population_on_barriers.tif` (option), `zonal_coverage.csv` (with
+`zones`: per zone population, population on barriers, population covered
+and percent, by zone identifier), `job.resolved.json`, `run.json` (totals:
+`population_total`, `population_on_barriers`, `population` off barriers,
+residual, covered percent).
 
 ## Comparison with AccessMod 5
 
 `scripts/oracle/capacity-demo.R` replays `loop_capacity_stat` on the demo
 (10 facilities, capacity descending, anisotropic towards facilities,
-120 min); `tests/oracle_coverage.rs`:
+120 min), and an extended variant (`capacity-demo-extended.json`: order by
+the population within 120 min, population on barriers, extended columns,
+zonal coverage of the demo zones); `tests/oracle_coverage.rs`:
 
 | Output | Result |
 | --- | --- |
 | `capacity.csv` | every value equal to 1e-9 (catchment times × 60), same cases |
 | residual population | same NoData mask, values equal to 5e-16 |
 | catchments | same area for all 10 facilities |
+| extended: `capacity.csv` | same order and values to 1e-9, order values and residual before and after included |
+| extended: totals in `run.json` | equal to `amPopTotal`, `amPopTotalNotOnBarrier`, `amPopTotalOnBarrier` |
+| extended: population on barriers | same NoData mask and values |
+| extended: `zonal_coverage.csv` | population equal; covered + on barriers equal to `amPopCovered` (deviation below) |
 
 ## Deviations and gaps
 
 - `dem_nodata_barrier`, as travel time.
 - `coverage_order_ties`: equal order values follow facility identifiers.
-- Not yet: circular-buffer order, population-on-barrier map, zonal
-  coverage table (use `zonal-statistics` on the residual population).
+- `coverage_zonal_barriers`: zonal coverage counts people on barriers as
+  not covered, in their own column. AccessMod 5 subtracts the residual
+  (no value on barriers) from the whole population, so they count as
+  covered.
+- Not yet: circular-buffer order.

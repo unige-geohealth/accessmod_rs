@@ -80,7 +80,7 @@ docker run --rm --platform "$PLATFORM" \
     || { echo "error: zonal export failed, see $out/zonal-statistics-demo.log" >&2; exit 1; }
 
 # Geographic coverage on the demo project (scripts/oracle/capacity-demo.R).
-rm -rf "$out/capacity/demo"
+rm -rf "$out/capacity/demo" "$out/capacity/demo-extended"
 docker run --rm --platform "$PLATFORM" -e TZ=UTC \
     -v "$root/scripts/oracle:/scripts:ro" -v "$out:/out" \
     --entrypoint sh "$IMAGE" \

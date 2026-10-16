@@ -114,9 +114,12 @@ Oracle: `scripts/oracle/zonal-statistics-demo.sh`; results in
 | Concern | Path | Notes |
 | --- | --- | --- |
 | Loop | `tools/R/amAnalysisCapacity.R`, `amCapacityAnalysis` | Order, residual init (`amInitPopResidual` in `amAnalysisScalingUp.R`), one travel time per facility rounded up to minutes |
-| Catchment | `tools/R/amAnalysisCatchment.R`, `amCatchmentAnalyst` | Bands from `amGetRasterStatZonal` (NA bands dropped), cases A–E, inner and outer rings |
+| Catchment | `tools/R/amAnalysisCatchment.R`, `amCatchmentAnalyst` | Bands from `amGetRasterStatZonal` (NA bands dropped), cases A–E, inner and outer rings; extended columns (`amPopTotal`, residual before and after) |
+| Population on barriers | `tools/R/amGrassUtils.R`, `amMapPopOnBarrier` | Population where the merged land cover (else speed, else friction) is null |
+| Zonal coverage | `tools/R/amAnalysisCapacity.R`, `zonalCoverage` | `v.to.rast use=attr`; per zone population sum minus residual sum (people on barriers count as covered) |
 
-Oracle: `scripts/oracle/capacity-demo.R` (replay `loop_capacity_stat`); results in
+Oracle: `scripts/oracle/capacity-demo.R` (replay `loop_capacity_stat`, and its
+extended variant `capacity-demo-extended.json`); results in
 [`geographic-coverage.md`](geographic-coverage.md).
 
 ## Existing test data

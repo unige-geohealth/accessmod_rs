@@ -2,6 +2,10 @@
 # image: fredmoser/accessmod:5.9.2-beta.6 (linux/arm64)
 # image-id: sha256:01458355a315db8ba60b380dd1af4e973d40aa8e85df76668dec2d34049654d8
 6eb3c606b971a2827e74787ef251aeab8551d368d058bda543684b832823030c  ./bicycle-lut/r.walk.accessmod
+4b41bdde99abb72f1af3373bfb38c813eaed1a6c05a9ec9333e1786d161b2261  ./capacity/demo-extended/oracle/capacity.csv
+f0ae0b6a0fb6db2f7ce06215a3ecdd1dfe501b833c9d5e43d5ba633bcd5e5e03  ./capacity/demo-extended/oracle/population_on_barriers.tif
+8d584fa9a3530e8599d04c392d37ec9e5718684fdfccda2b29d3c9ec26f8a962  ./capacity/demo-extended/oracle/population_residual.tif
+00562c3ee0f7a0166606a56e383bf4959e0b3c1e46f42fd1dfd3f7cc824acdc4  ./capacity/demo-extended/oracle/zonal.csv
 5ffe05e38e8d1a428cd0c67d31f479c7d2263c9e6d8ddb2eb3112bd243c87138  ./capacity/demo/oracle/capacity.csv
 4835f5b0d7c068786d7d992f06c206c6395eb93f8f4424531e13bea7fb0f31c1  ./capacity/demo/oracle/catchments.fgb
 4831168c2e6b2b043e962bde2fe86bfd159755fdee4017b5c5455cd9c31620dd  ./capacity/demo/oracle/population_residual.tif

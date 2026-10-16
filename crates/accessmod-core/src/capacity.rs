@@ -70,10 +70,12 @@ pub struct Catchment {
 
 impl Catchment {
     /// Population of the catchment bands not covered (the part of the outer
-    /// band left).
+    /// band left). Never negative: the capacity realised is a sum of the
+    /// same bands in another order, so rounding can put it a few ulps above
+    /// (AccessMod 5 rounds to 6 decimals instead).
     pub fn population_not_covered(&self) -> Option<f64> {
         self.population_catchment
-            .map(|population| population - self.capacity_realised)
+            .map(|population| (population - self.capacity_realised).max(0.0))
     }
 }
 

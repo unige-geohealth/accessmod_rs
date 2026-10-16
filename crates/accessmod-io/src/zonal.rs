@@ -29,7 +29,7 @@ use crate::vector::{VectorLayer, burn_zones, compare_values, json_attribute};
 pub const ZONAL_FILE: &str = "zonal_statistics.csv";
 
 /// Zones a job may hold (zone indices are 32-bit, 0 is "no zone").
-const MAX_ZONES: usize = u32::MAX as usize - 1;
+pub(crate) const MAX_ZONES: usize = u32::MAX as usize - 1;
 
 /// Zonal statistics job (schema version 1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -241,7 +241,7 @@ fn zonal_plan(
     ResourcePlan::for_tiles(grid.rows, grid.cols, settings, per_tile, buffer_bytes, 0)
 }
 
-fn open_zones(source: &ZoneLayer, grid: &GridSpec) -> Result<VectorLayer> {
+pub(crate) fn open_zones(source: &ZoneLayer, grid: &GridSpec) -> Result<VectorLayer> {
     VectorLayer::open(
         &source.path,
         source.layer.as_deref(),
@@ -253,7 +253,7 @@ fn open_zones(source: &ZoneLayer, grid: &GridSpec) -> Result<VectorLayer> {
 
 /// Zones by identifier, in order of first appearance, and the zone of each
 /// feature.
-fn read_zones(
+pub(crate) fn read_zones(
     vector: &VectorLayer,
     source: &ZoneLayer,
     cancelled: &dyn Fn() -> bool,
