@@ -95,19 +95,24 @@ pub struct ScalingUpJob {
     /// Must be 1.
     pub schema_version: u32,
     /// Digital elevation model; it defines the grid.
+    #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
+    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Population raster (people per cell): the population the covered
     /// percent refers to.
+    #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
     pub population: PathBuf,
     /// Population to cover at start (e.g. the residual of a coverage);
     /// `population` when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("x-accessmod-class" = ["rPopulationResidual", "rPopulation"]))]
     pub population_residual: Option<PathBuf>,
     /// Existing facilities, kept: they count in the `facilities` layer of
     /// the rules.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
     pub facilities: Option<FacilitySource>,
     /// Mobility of each land-cover class. Classes not listed are barriers.
     pub scenario: Vec<ScenarioEntry>,
@@ -227,6 +232,7 @@ pub enum Keep {
 #[serde(deny_unknown_fields)]
 pub struct Exclusion {
     /// Layer: `facilities`, a raster or a vector layer.
+    #[schemars(extend("x-accessmod-class" = ["rExclusion", "vExclusion"]))]
     pub layer: Layer,
     /// Distance from the layer's cells, metres (cell centre to cell
     /// centre, inclusive); 0: the layer's cells.
@@ -253,6 +259,7 @@ pub enum Factor {
     /// Population summed over a moving window (`popsum`).
     Population {
         /// `population` (residual) or a raster.
+        #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
         layer: Layer,
         /// Width of the window, metres: `round(window_m / cell)` cells,
         /// made odd, circular (AccessMod 5 option `r`, in km); 0: the cell.
@@ -266,6 +273,7 @@ pub enum Factor {
     /// Euclidean distance to the layer (`dist`).
     Distance {
         /// `facilities`, a raster or a vector layer.
+        #[schemars(extend("x-accessmod-class" = ["vRoad", "vBarrier", "vFacility"]))]
         layer: Layer,
         /// Weight.
         weight: f64,
@@ -275,6 +283,7 @@ pub enum Factor {
     /// Travel time from the layer, whole minutes, unlimited (`traveltime`).
     TravelTime {
         /// `facilities` or a vector layer.
+        #[schemars(extend("x-accessmod-class" = ["vRoad", "vBarrier", "vFacility"]))]
         layer: Layer,
         /// Travel-time method.
         method: MethodName,
@@ -292,6 +301,7 @@ pub enum Factor {
     /// Values of a raster (`priority`).
     Priority {
         /// A raster.
+        #[schemars(extend("x-accessmod-class" = ["rPriority"]))]
         layer: Layer,
         /// Weight.
         weight: f64,
@@ -1928,6 +1938,7 @@ fn write_facilities(
 pub struct ScalingUp;
 
 impl Analysis for ScalingUp {
+    const NAME: &'static str = "scaling-up";
     type Job = ScalingUpJob;
     type Prepared = PreparedScalingUp;
     type Report = ScalingUpReport;

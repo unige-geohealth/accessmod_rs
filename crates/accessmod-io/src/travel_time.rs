@@ -518,6 +518,7 @@ fn summarise(
 pub struct TravelTime;
 
 impl Analysis for TravelTime {
+    const NAME: &'static str = "travel-time";
     type Job = TravelTimeJob;
     type Prepared = Prepared;
     type Report = RunReport;

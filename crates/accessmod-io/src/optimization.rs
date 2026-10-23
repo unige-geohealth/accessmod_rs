@@ -42,9 +42,11 @@ pub struct OptimizationJob {
     /// Must be 1.
     pub schema_version: u32,
     /// Population raster (people per cell); defines the grid.
+    #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
     pub population: PathBuf,
     /// Catchment polygons (`catchments.fgb` of a geographic coverage);
     /// `id_field` holds the identifier of each catchment's facility.
+    #[schemars(extend("x-accessmod-class" = ["vCatchment", "vCatchmentNew"]))]
     pub catchments: FacilitySource,
     /// Facilities to select (> 0).
     pub max_facilities: usize,
@@ -61,8 +63,10 @@ pub struct OptimizationJob {
 #[serde(deny_unknown_fields)]
 pub struct ZoneQuotaJob {
     /// Zones.
+    #[schemars(extend("x-accessmod-class" = ["vZone"]))]
     pub zones: ZoneLayer,
     /// Facility points; `id_field` matches the catchments' identifiers.
+    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
     pub facilities: FacilitySource,
     /// Facilities per zone (> 0); zones times this minimum must not exceed
     /// `max_facilities`.
@@ -986,6 +990,7 @@ pub fn run(
 pub struct Optimization;
 
 impl Analysis for Optimization {
+    const NAME: &'static str = "optimization";
     type Job = OptimizationJob;
     type Prepared = PreparedOptimization;
     type Report = OptimizationReport;

@@ -1,0 +1,188 @@
+[
+  {
+    "class": "rDem",
+    "importable": true,
+    "kind": "raster",
+    "label": "dem"
+  },
+  {
+    "class": "rLandCover",
+    "importable": true,
+    "kind": "raster",
+    "label": "land cover"
+  },
+  {
+    "class": "rLandCoverMerged",
+    "importable": true,
+    "kind": "raster",
+    "label": "land cover merged"
+  },
+  {
+    "class": "rPopulation",
+    "importable": true,
+    "kind": "raster",
+    "label": "population"
+  },
+  {
+    "class": "rPopulationResidual",
+    "importable": true,
+    "kind": "raster",
+    "label": "population residual"
+  },
+  {
+    "class": "rTravelTime",
+    "importable": false,
+    "kind": "raster",
+    "label": "travel time"
+  },
+  {
+    "class": "rNearest",
+    "importable": false,
+    "kind": "raster",
+    "label": "cost allocation"
+  },
+  {
+    "class": "rTravelTimeImported",
+    "importable": true,
+    "kind": "raster",
+    "label": "imported travel time"
+  },
+  {
+    "class": "rPopulationOnBarrier",
+    "importable": false,
+    "kind": "raster",
+    "label": "population on barrier"
+  },
+  {
+    "class": "rPriority",
+    "importable": true,
+    "kind": "raster",
+    "label": "priority"
+  },
+  {
+    "class": "rExclusion",
+    "importable": true,
+    "kind": "raster",
+    "label": "exclusion"
+  },
+  {
+    "class": "vBarrier",
+    "importable": true,
+    "kind": "vector",
+    "label": "barrier"
+  },
+  {
+    "class": "vRoad",
+    "importable": true,
+    "kind": "vector",
+    "label": "road"
+  },
+  {
+    "class": "vFacility",
+    "importable": true,
+    "kind": "vector",
+    "label": "facility"
+  },
+  {
+    "class": "vFacilityNew",
+    "importable": false,
+    "kind": "vector",
+    "label": "facility scaling up"
+  },
+  {
+    "class": "vZone",
+    "importable": true,
+    "kind": "vector",
+    "label": "zone for stat"
+  },
+  {
+    "class": "vExclusion",
+    "importable": true,
+    "kind": "vector",
+    "label": "exclusion"
+  },
+  {
+    "class": "vCatchment",
+    "importable": true,
+    "kind": "vector",
+    "label": "catchment"
+  },
+  {
+    "class": "vCatchmentNew",
+    "importable": true,
+    "kind": "vector",
+    "label": "catchment scaling up"
+  },
+  {
+    "class": "vReferralNetwork",
+    "importable": false,
+    "kind": "vector",
+    "label": "referral network"
+  },
+  {
+    "class": "tLandCover",
+    "importable": true,
+    "kind": "table",
+    "label": "land cover"
+  },
+  {
+    "class": "tScenario",
+    "importable": true,
+    "kind": "table",
+    "label": "scenario"
+  },
+  {
+    "class": "tCapacity",
+    "importable": true,
+    "kind": "table",
+    "label": "capacity"
+  },
+  {
+    "class": "tReferral",
+    "importable": false,
+    "kind": "table",
+    "label": "referral"
+  },
+  {
+    "class": "tReferralDist",
+    "importable": false,
+    "kind": "table",
+    "label": "referral nearest by dist"
+  },
+  {
+    "class": "tReferralTime",
+    "importable": false,
+    "kind": "table",
+    "label": "referral nearest by time"
+  },
+  {
+    "class": "tCapacityStat",
+    "importable": false,
+    "kind": "table",
+    "label": "result geographic coverage analysis"
+  },
+  {
+    "class": "tCapacityStatNew",
+    "importable": false,
+    "kind": "table",
+    "label": "result scaling up analysis"
+  },
+  {
+    "class": "tOptimization",
+    "importable": false,
+    "kind": "table",
+    "label": "optimization"
+  },
+  {
+    "class": "tZonalStat",
+    "importable": false,
+    "kind": "table",
+    "label": "zonal coverage"
+  },
+  {
+    "class": "tPopDistribAdjustSummary",
+    "importable": false,
+    "kind": "table",
+    "label": "population adjustment summary"
+  }
+]

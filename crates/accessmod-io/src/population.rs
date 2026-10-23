@@ -42,12 +42,16 @@ pub struct AdjustPopulationJob {
     /// Must be 1.
     pub schema_version: u32,
     /// Digital elevation model; defines the grid. Its values are not used.
+    #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Population raster (people per cell), on the DEM lattice.
+    #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
     pub population: PathBuf,
     /// Land cover (usually merged); NoData cells are barriers.
+    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Zones within which population is redistributed.
+    #[schemars(extend("x-accessmod-class" = ["vZone"]))]
     pub zones: ZoneSource,
     /// Output directory; must not exist or be empty.
     pub output_dir: PathBuf,
@@ -614,6 +618,7 @@ pub fn run(
 pub struct AdjustPopulation;
 
 impl Analysis for AdjustPopulation {
+    const NAME: &'static str = "adjust-population-distribution";
     type Job = AdjustPopulationJob;
     type Prepared = PreparedPopulation;
     type Report = PopulationReport;

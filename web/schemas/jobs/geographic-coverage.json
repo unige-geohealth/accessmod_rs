@@ -1,0 +1,408 @@
+{
+  "$defs": {
+    "CoverageOrder": {
+      "description": "Processing order of the facilities. Ties keep the order of the facility\nidentifiers (numbers numerically).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "By the values of a numeric field (AccessMod 5 \"table order\").",
+          "properties": {
+            "field": {
+              "additionalProperties": false,
+              "properties": {
+                "descending": {
+                  "default": false,
+                  "description": "Largest first.",
+                  "type": "boolean"
+                },
+                "field": {
+                  "description": "Field name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "field"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "By the population each facility reaches within `limit_s` before any\nremoval (AccessMod 5 \"travel time\" order).",
+          "properties": {
+            "population": {
+              "additionalProperties": false,
+              "properties": {
+                "descending": {
+                  "default": false,
+                  "description": "Largest first.",
+                  "type": "boolean"
+                },
+                "limit_s": {
+                  "description": "Limit of the pre-analysis, seconds.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "limit_s"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "population"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Direction": {
+      "description": "Direction of travel relative to the facilities.",
+      "oneOf": [
+        {
+          "const": "from_facilities",
+          "description": "Travel from the facilities to every cell.",
+          "type": "string"
+        },
+        {
+          "const": "towards_facilities",
+          "description": "Travel from every cell to the facilities. The solver still expands\nfrom the facilities; only the slope sign of each edge is inverted.",
+          "type": "string"
+        }
+      ]
+    },
+    "FacilityIssues": {
+      "description": "Handling of facilities outside the grid, on a barrier or without a\nusable geometry.",
+      "oneOf": [
+        {
+          "const": "error",
+          "description": "Fail validation, listing every problem facility.",
+          "type": "string"
+        },
+        {
+          "const": "skip",
+          "description": "Skip them and list them in the warnings.",
+          "type": "string"
+        }
+      ]
+    },
+    "FacilitySource": {
+      "additionalProperties": false,
+      "description": "Facility point layer.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the facility identifier.",
+          "type": "string"
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset (GeoPackage, Shapefile, GeoJSON, …).",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter selecting facilities, e.g.\n`\"type = 'hospital'\"`; all features when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    },
+    "MethodName": {
+      "description": "Travel-time method name.",
+      "oneOf": [
+        {
+          "const": "isotropic",
+          "description": "Scenario speed only; slope and mode ignored.",
+          "type": "string"
+        },
+        {
+          "const": "anisotropic",
+          "description": "Mobility model with slope and transport mode.",
+          "type": "string"
+        }
+      ]
+    },
+    "MobilityModel": {
+      "description": "Named, frozen mobility model. Any change to an equation or constant\ncreates a new variant; existing variants never change.",
+      "oneOf": [
+        {
+          "const": "accessmod5-v1",
+          "description": "AccessMod 5 kernel as of `5.9.2-beta.6`.",
+          "type": "string"
+        }
+      ]
+    },
+    "Neighbourhood": {
+      "description": "Neighbours reachable in one step: 8 (cardinal and diagonal) or 16 (plus knight moves).",
+      "enum": [
+        8,
+        16
+      ],
+      "type": "integer"
+    },
+    "ScenarioEntry": {
+      "additionalProperties": false,
+      "description": "Mobility of one land-cover class.",
+      "properties": {
+        "class": {
+          "description": "Land-cover class value.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "label": {
+          "description": "Optional human label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/TransportMode",
+          "description": "Transport mode."
+        },
+        "speed_kmh": {
+          "description": "Flat-ground speed, km/h, > 0 (≤ 100 for bicycling).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "class",
+        "mode",
+        "speed_kmh"
+      ],
+      "type": "object"
+    },
+    "TransportMode": {
+      "description": "Transport mode of a land-cover class in a scenario.",
+      "oneOf": [
+        {
+          "const": "walking",
+          "description": "Tobler's hiking function.",
+          "type": "string"
+        },
+        {
+          "const": "bicycling",
+          "description": "Physical cycling model with a downhill safety envelope (LUT).",
+          "type": "string"
+        },
+        {
+          "const": "motorized",
+          "description": "Constant speed, slope ignored.",
+          "type": "string"
+        }
+      ]
+    },
+    "ZoneLayer": {
+      "additionalProperties": false,
+      "description": "Zone polygons.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the zone identifier; features sharing it form one zone.",
+          "type": "string"
+        },
+        "label_field": {
+          "description": "Field holding the zone label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset with polygons.",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Geographic coverage job (schema version 1).",
+  "properties": {
+    "band_s": {
+      "default": 60.0,
+      "description": "Width of the travel-time bands, seconds (`band = ceil(t / band_s)`);\nAccessMod 5 uses minutes.",
+      "format": "double",
+      "type": "number"
+    },
+    "capacity_field": {
+      "description": "Field holding the capacity (people a facility can serve); not used\nwith `ignore_capacity`.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "catchments": {
+      "default": true,
+      "description": "Write the catchment polygons (`catchments.fgb`).",
+      "type": "boolean"
+    },
+    "dem": {
+      "description": "Digital elevation model; it defines the grid.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rDem"
+      ]
+    },
+    "direction": {
+      "$ref": "#/$defs/Direction",
+      "description": "Direction of travel."
+    },
+    "facilities": {
+      "$ref": "#/$defs/FacilitySource",
+      "description": "Facility point layer.",
+      "x-accessmod-class": [
+        "vFacility"
+      ]
+    },
+    "facility_issues": {
+      "$ref": "#/$defs/FacilityIssues",
+      "default": "error",
+      "description": "What to do with facilities outside the grid or on a barrier."
+    },
+    "ignore_capacity": {
+      "default": false,
+      "description": "Cover all the population each facility reaches (case E).",
+      "type": "boolean"
+    },
+    "land_cover": {
+      "description": "Land-cover raster with integer classes, on the DEM lattice.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rLandCover",
+        "rLandCoverMerged"
+      ]
+    },
+    "limit_s": {
+      "description": "Inclusive travel-time limit, seconds.",
+      "format": "double",
+      "type": "number"
+    },
+    "method": {
+      "$ref": "#/$defs/MethodName",
+      "description": "Travel-time method."
+    },
+    "mobility_model": {
+      "$ref": "#/$defs/MobilityModel",
+      "default": "accessmod5-v1",
+      "description": "Named mobility model (anisotropic method)."
+    },
+    "name_field": {
+      "description": "Field holding the facility name, copied to the table.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "neighbourhood": {
+      "$ref": "#/$defs/Neighbourhood",
+      "description": "Neighbours reachable in one step: 8 or 16."
+    },
+    "order": {
+      "$ref": "#/$defs/CoverageOrder",
+      "description": "Order in which facilities take their population."
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "population": {
+      "description": "Population raster (people per cell), on the DEM lattice.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rPopulation",
+        "rPopulationResidual"
+      ]
+    },
+    "population_on_barriers": {
+      "default": false,
+      "description": "Write the population on barriers (`population_on_barriers.tif`).",
+      "type": "boolean"
+    },
+    "remove_covered": {
+      "default": true,
+      "description": "Remove the population covered before the next facility.",
+      "type": "boolean"
+    },
+    "scenario": {
+      "description": "Mobility of each land-cover class. Classes not listed are barriers.",
+      "items": {
+        "$ref": "#/$defs/ScenarioEntry"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "zones": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ZoneLayer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Zone polygons: write the population covered per zone\n(`zonal_coverage.csv`).",
+      "x-accessmod-class": [
+        "vZone"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "dem",
+    "land_cover",
+    "population",
+    "facilities",
+    "order",
+    "scenario",
+    "method",
+    "direction",
+    "neighbourhood",
+    "limit_s",
+    "output_dir"
+  ],
+  "title": "CoverageJob",
+  "type": "object"
+}

@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "ZoneSource": {
+      "additionalProperties": false,
+      "description": "Zone polygons.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the zone identifier, written to `zones.csv`.",
+          "type": "string"
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset with polygons.",
+          "type": "string"
+        },
+        "population_field": {
+          "description": "Field holding the known population of each zone; when omitted, each\nzone keeps the population of the raster.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Adjust population distribution job (schema version 1).",
+  "properties": {
+    "dem": {
+      "description": "Digital elevation model; defines the grid. Its values are not used.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rDem"
+      ]
+    },
+    "land_cover": {
+      "description": "Land cover (usually merged); NoData cells are barriers.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rLandCover",
+        "rLandCoverMerged"
+      ]
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "population": {
+      "description": "Population raster (people per cell), on the DEM lattice.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rPopulation",
+        "rPopulationResidual"
+      ]
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "zones": {
+      "$ref": "#/$defs/ZoneSource",
+      "description": "Zones within which population is redistributed.",
+      "x-accessmod-class": [
+        "vZone"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "dem",
+    "population",
+    "land_cover",
+    "zones",
+    "output_dir"
+  ],
+  "title": "AdjustPopulationJob",
+  "type": "object"
+}

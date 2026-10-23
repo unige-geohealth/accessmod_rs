@@ -1,0 +1,229 @@
+{
+  "$defs": {
+    "ClassLabel": {
+      "additionalProperties": false,
+      "description": "Label of a class.",
+      "properties": {
+        "class": {
+          "description": "Class value.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "label": {
+          "description": "Label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "class",
+        "label"
+      ],
+      "type": "object"
+    },
+    "Reclass": {
+      "additionalProperties": false,
+      "description": "Class change.",
+      "properties": {
+        "from": {
+          "description": "Class in the raster.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "to": {
+          "description": "Class in the merged land cover.",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "StackItem": {
+      "description": "One item of the stack.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Raster of integer classes on the DEM lattice (stack land cover).",
+          "properties": {
+            "labels": {
+              "description": "Labels of the raster's classes (before `reclass`).",
+              "items": {
+                "$ref": "#/$defs/ClassLabel"
+              },
+              "type": "array"
+            },
+            "path": {
+              "description": "Raster with integer classes, on the DEM lattice and in its CRS.",
+              "type": "string",
+              "x-accessmod-class": [
+                "rLandCover",
+                "rLandCoverMerged"
+              ]
+            },
+            "reclass": {
+              "description": "Class changes applied while merging, e.g. to resolve a conflict\n(AccessMod 5 \"quick correction\").",
+              "items": {
+                "$ref": "#/$defs/Reclass"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "land_cover",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Road lines with a class attribute (stack road).",
+          "properties": {
+            "add_1000": {
+              "default": true,
+              "description": "Add 1000 to classes below 1000, as AccessMod 5 does by default.",
+              "type": "boolean"
+            },
+            "class_field": {
+              "description": "Integer field holding the road class.",
+              "type": "string"
+            },
+            "classes": {
+              "description": "Classes to use (values of `class_field`), highest priority first;\nall classes in ascending order when omitted.",
+              "items": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "label_field": {
+              "description": "Field holding the class label.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "layer": {
+              "description": "Layer name; the first layer when omitted.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "path": {
+              "description": "Vector dataset with line features.",
+              "type": "string",
+              "x-accessmod-class": [
+                "vRoad"
+              ]
+            },
+            "type": {
+              "const": "road",
+              "type": "string"
+            },
+            "where": {
+              "description": "Optional OGR SQL attribute filter, e.g. `\"surface = 'paved'\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "path",
+            "class_field"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Barrier lines or polygons (stack barrier).",
+          "properties": {
+            "layer": {
+              "description": "Layer name; the first layer when omitted.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "path": {
+              "description": "Vector dataset with line or polygon features.",
+              "type": "string",
+              "x-accessmod-class": [
+                "vBarrier"
+              ]
+            },
+            "type": {
+              "const": "barrier",
+              "type": "string"
+            },
+            "where": {
+              "description": "Optional OGR SQL attribute filter.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Merge land cover job (schema version 1).",
+  "properties": {
+    "clean_bridges": {
+      "default": true,
+      "description": "Remove one-cell diagonal bridges created by roads across barriers\nand write `bridges.tif` (AccessMod 5 default: on).",
+      "type": "boolean"
+    },
+    "dem": {
+      "description": "Digital elevation model; defines the grid (CRS, resolution, origin,\nextent). Its values are not used.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rDem"
+      ]
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stack": {
+      "description": "Stack items. A cell takes the class of the first non-barrier item\ncovering it; a barrier anywhere in the stack empties the cell.",
+      "items": {
+        "$ref": "#/$defs/StackItem"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "dem",
+    "stack",
+    "output_dir"
+  ],
+  "title": "MergeLandCoverJob",
+  "type": "object"
+}

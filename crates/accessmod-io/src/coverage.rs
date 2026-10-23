@@ -72,12 +72,16 @@ pub struct CoverageJob {
     /// Must be 1.
     pub schema_version: u32,
     /// Digital elevation model; it defines the grid.
+    #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
+    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Population raster (people per cell), on the DEM lattice.
+    #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
     pub population: PathBuf,
     /// Facility point layer.
+    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
     pub facilities: FacilitySource,
     /// Field holding the capacity (people a facility can serve); not used
     /// with `ignore_capacity`.
@@ -120,6 +124,7 @@ pub struct CoverageJob {
     /// Zone polygons: write the population covered per zone
     /// (`zonal_coverage.csv`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("x-accessmod-class" = ["vZone"]))]
     pub zones: Option<ZoneLayer>,
     /// What to do with facilities outside the grid or on a barrier.
     #[serde(default)]
@@ -945,6 +950,7 @@ fn write_zone_table(
 pub struct GeographicCoverage;
 
 impl Analysis for GeographicCoverage {
+    const NAME: &'static str = "geographic-coverage";
     type Job = CoverageJob;
     type Prepared = PreparedCoverage;
     type Report = CoverageReport;

@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "ZoneLayer": {
+      "additionalProperties": false,
+      "description": "Zone polygons.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the zone identifier; features sharing it form one zone.",
+          "type": "string"
+        },
+        "label_field": {
+          "description": "Field holding the zone label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset with polygons.",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Zonal statistics job (schema version 1).",
+  "properties": {
+    "dem": {
+      "description": "Digital elevation model; defines the grid. Its values are not used.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rDem"
+      ]
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "population": {
+      "description": "Population raster (people per cell), on the DEM lattice.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rPopulation",
+        "rPopulationResidual"
+      ]
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "time_limits_s": {
+      "description": "Travel-time limits, seconds (> 0); duplicates are removed and the\nlimits sorted.",
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "travel_time": {
+      "description": "Travel time, seconds (`travel_time_seconds.tif` of a travel-time run),\non the DEM lattice; NoData cells are not reached.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rTravelTime",
+        "rTravelTimeImported"
+      ]
+    },
+    "zones": {
+      "$ref": "#/$defs/ZoneLayer",
+      "description": "Zones.",
+      "x-accessmod-class": [
+        "vZone"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "dem",
+    "travel_time",
+    "population",
+    "zones",
+    "time_limits_s",
+    "output_dir"
+  ],
+  "title": "ZonalStatisticsJob",
+  "type": "object"
+}

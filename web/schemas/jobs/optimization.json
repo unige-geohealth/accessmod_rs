@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "FacilitySource": {
+      "additionalProperties": false,
+      "description": "Facility point layer.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the facility identifier.",
+          "type": "string"
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset (GeoPackage, Shapefile, GeoJSON, …).",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter selecting facilities, e.g.\n`\"type = 'hospital'\"`; all features when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    },
+    "ZoneLayer": {
+      "additionalProperties": false,
+      "description": "Zone polygons.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the zone identifier; features sharing it form one zone.",
+          "type": "string"
+        },
+        "label_field": {
+          "description": "Field holding the zone label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset with polygons.",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    },
+    "ZoneQuotaJob": {
+      "additionalProperties": false,
+      "description": "A minimum number of facilities per zone: each catchment belongs to the\nzone holding its facility.",
+      "properties": {
+        "facilities": {
+          "$ref": "#/$defs/FacilitySource",
+          "description": "Facility points; `id_field` matches the catchments' identifiers.",
+          "x-accessmod-class": [
+            "vFacility"
+          ]
+        },
+        "min_per_zone": {
+          "description": "Facilities per zone (> 0); zones times this minimum must not exceed\n`max_facilities`.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "zones": {
+          "$ref": "#/$defs/ZoneLayer",
+          "description": "Zones.",
+          "x-accessmod-class": [
+            "vZone"
+          ]
+        }
+      },
+      "required": [
+        "zones",
+        "facilities",
+        "min_per_zone"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Optimization job (schema version 1).",
+  "properties": {
+    "catchments": {
+      "$ref": "#/$defs/FacilitySource",
+      "description": "Catchment polygons (`catchments.fgb` of a geographic coverage);\n`id_field` holds the identifier of each catchment's facility.",
+      "x-accessmod-class": [
+        "vCatchment",
+        "vCatchmentNew"
+      ]
+    },
+    "max_facilities": {
+      "description": "Facilities to select (> 0).",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "population": {
+      "description": "Population raster (people per cell); defines the grid.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rPopulation",
+        "rPopulationResidual"
+      ]
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "zone_quota": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ZoneQuotaJob"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Minimum number of facilities per zone; none when omitted."
+    }
+  },
+  "required": [
+    "schema_version",
+    "population",
+    "catchments",
+    "max_facilities",
+    "output_dir"
+  ],
+  "title": "OptimizationJob",
+  "type": "object"
+}

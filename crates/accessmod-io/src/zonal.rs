@@ -38,13 +38,17 @@ pub struct ZonalStatisticsJob {
     /// Must be 1.
     pub schema_version: u32,
     /// Digital elevation model; defines the grid. Its values are not used.
+    #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Travel time, seconds (`travel_time_seconds.tif` of a travel-time run),
     /// on the DEM lattice; NoData cells are not reached.
+    #[schemars(extend("x-accessmod-class" = ["rTravelTime", "rTravelTimeImported"]))]
     pub travel_time: PathBuf,
     /// Population raster (people per cell), on the DEM lattice.
+    #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
     pub population: PathBuf,
     /// Zones.
+    #[schemars(extend("x-accessmod-class" = ["vZone"]))]
     pub zones: ZoneLayer,
     /// Travel-time limits, seconds (> 0); duplicates are removed and the
     /// limits sorted.
@@ -529,6 +533,7 @@ pub fn run(
 pub struct ZonalStatistics;
 
 impl Analysis for ZonalStatistics {
+    const NAME: &'static str = "zonal-statistics";
     type Job = ZonalStatisticsJob;
     type Prepared = PreparedZonal;
     type Report = ZonalReport;

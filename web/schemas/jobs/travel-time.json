@@ -1,0 +1,259 @@
+{
+  "$defs": {
+    "Direction": {
+      "description": "Direction of travel relative to the facilities.",
+      "oneOf": [
+        {
+          "const": "from_facilities",
+          "description": "Travel from the facilities to every cell.",
+          "type": "string"
+        },
+        {
+          "const": "towards_facilities",
+          "description": "Travel from every cell to the facilities. The solver still expands\nfrom the facilities; only the slope sign of each edge is inverted.",
+          "type": "string"
+        }
+      ]
+    },
+    "FacilityIssues": {
+      "description": "Handling of facilities outside the grid, on a barrier or without a\nusable geometry.",
+      "oneOf": [
+        {
+          "const": "error",
+          "description": "Fail validation, listing every problem facility.",
+          "type": "string"
+        },
+        {
+          "const": "skip",
+          "description": "Skip them and list them in the warnings.",
+          "type": "string"
+        }
+      ]
+    },
+    "FacilitySource": {
+      "additionalProperties": false,
+      "description": "Facility point layer.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the facility identifier.",
+          "type": "string"
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset (GeoPackage, Shapefile, GeoJSON, …).",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter selecting facilities, e.g.\n`\"type = 'hospital'\"`; all features when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    },
+    "MethodName": {
+      "description": "Travel-time method name.",
+      "oneOf": [
+        {
+          "const": "isotropic",
+          "description": "Scenario speed only; slope and mode ignored.",
+          "type": "string"
+        },
+        {
+          "const": "anisotropic",
+          "description": "Mobility model with slope and transport mode.",
+          "type": "string"
+        }
+      ]
+    },
+    "MobilityModel": {
+      "description": "Named, frozen mobility model. Any change to an equation or constant\ncreates a new variant; existing variants never change.",
+      "oneOf": [
+        {
+          "const": "accessmod5-v1",
+          "description": "AccessMod 5 kernel as of `5.9.2-beta.6`.",
+          "type": "string"
+        }
+      ]
+    },
+    "Neighbourhood": {
+      "description": "Neighbours reachable in one step: 8 (cardinal and diagonal) or 16 (plus knight moves).",
+      "enum": [
+        8,
+        16
+      ],
+      "type": "integer"
+    },
+    "OutputOptions": {
+      "additionalProperties": false,
+      "description": "Optional outputs.",
+      "properties": {
+        "direction": {
+          "default": false,
+          "description": "Write `direction.tif` (step code that reached each cell).",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "ScenarioEntry": {
+      "additionalProperties": false,
+      "description": "Mobility of one land-cover class.",
+      "properties": {
+        "class": {
+          "description": "Land-cover class value.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "label": {
+          "description": "Optional human label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/TransportMode",
+          "description": "Transport mode."
+        },
+        "speed_kmh": {
+          "description": "Flat-ground speed, km/h, > 0 (≤ 100 for bicycling).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "class",
+        "mode",
+        "speed_kmh"
+      ],
+      "type": "object"
+    },
+    "TransportMode": {
+      "description": "Transport mode of a land-cover class in a scenario.",
+      "oneOf": [
+        {
+          "const": "walking",
+          "description": "Tobler's hiking function.",
+          "type": "string"
+        },
+        {
+          "const": "bicycling",
+          "description": "Physical cycling model with a downhill safety envelope (LUT).",
+          "type": "string"
+        },
+        {
+          "const": "motorized",
+          "description": "Constant speed, slope ignored.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Travel-time job (schema version 1).",
+  "properties": {
+    "dem": {
+      "description": "Digital elevation model (GeoTIFF or any GDAL raster). It defines the\ngrid: CRS, resolution, origin and extent. Always required.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rDem"
+      ]
+    },
+    "direction": {
+      "$ref": "#/$defs/Direction",
+      "description": "Direction of travel."
+    },
+    "facilities": {
+      "$ref": "#/$defs/FacilitySource",
+      "description": "Facility point layer.",
+      "x-accessmod-class": [
+        "vFacility"
+      ]
+    },
+    "facility_issues": {
+      "$ref": "#/$defs/FacilityIssues",
+      "default": "error",
+      "description": "What to do with facilities outside the grid or on a barrier."
+    },
+    "land_cover": {
+      "description": "Land-cover raster with integer classes, on the DEM lattice.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rLandCover",
+        "rLandCoverMerged"
+      ]
+    },
+    "limit_s": {
+      "description": "Inclusive travel-time limit, seconds; cells beyond are not reached.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "method": {
+      "$ref": "#/$defs/MethodName",
+      "description": "Travel-time method."
+    },
+    "mobility_model": {
+      "$ref": "#/$defs/MobilityModel",
+      "default": "accessmod5-v1",
+      "description": "Named mobility model (anisotropic method)."
+    },
+    "neighbourhood": {
+      "$ref": "#/$defs/Neighbourhood",
+      "description": "Neighbours reachable in one step: 8 or 16."
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "outputs": {
+      "$ref": "#/$defs/OutputOptions",
+      "default": {
+        "direction": false
+      },
+      "description": "Optional outputs."
+    },
+    "scenario": {
+      "description": "Mobility of each land-cover class. Classes not listed are barriers.",
+      "items": {
+        "$ref": "#/$defs/ScenarioEntry"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "dem",
+    "land_cover",
+    "facilities",
+    "scenario",
+    "method",
+    "direction",
+    "neighbourhood",
+    "output_dir"
+  ],
+  "title": "TravelTimeJob",
+  "type": "object"
+}

@@ -27,10 +27,13 @@ pub struct TravelTimeJob {
     pub schema_version: u32,
     /// Digital elevation model (GeoTIFF or any GDAL raster). It defines the
     /// grid: CRS, resolution, origin and extent. Always required.
+    #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
+    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Facility point layer.
+    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
     pub facilities: FacilitySource,
     /// Mobility of each land-cover class. Classes not listed are barriers.
     pub scenario: Vec<ScenarioEntry>,

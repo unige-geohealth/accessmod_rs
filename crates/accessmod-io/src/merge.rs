@@ -57,6 +57,7 @@ pub struct MergeLandCoverJob {
     pub schema_version: u32,
     /// Digital elevation model; defines the grid (CRS, resolution, origin,
     /// extent). Its values are not used.
+    #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Stack items. A cell takes the class of the first non-barrier item
     /// covering it; a barrier anywhere in the stack empties the cell.
@@ -86,6 +87,7 @@ pub enum StackItem {
 #[serde(deny_unknown_fields)]
 pub struct LandCoverItem {
     /// Raster with integer classes, on the DEM lattice and in its CRS.
+    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
     pub path: PathBuf,
     /// Labels of the raster's classes (before `reclass`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -102,6 +104,7 @@ pub struct LandCoverItem {
 #[serde(deny_unknown_fields)]
 pub struct RoadItem {
     /// Vector dataset with line features.
+    #[schemars(extend("x-accessmod-class" = ["vRoad"]))]
     pub path: PathBuf,
     /// Layer name; the first layer when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -128,6 +131,7 @@ pub struct RoadItem {
 #[serde(deny_unknown_fields)]
 pub struct BarrierItem {
     /// Vector dataset with line or polygon features.
+    #[schemars(extend("x-accessmod-class" = ["vBarrier"]))]
     pub path: PathBuf,
     /// Layer name; the first layer when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1172,6 +1176,7 @@ fn write_outputs(
 pub struct MergeLandCover;
 
 impl Analysis for MergeLandCover {
+    const NAME: &'static str = "merge-land-cover";
     type Job = MergeLandCoverJob;
     type Prepared = PreparedMerge;
     type Report = MergeReport;

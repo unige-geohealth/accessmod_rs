@@ -1,0 +1,643 @@
+{
+  "$defs": {
+    "CapacityEntry": {
+      "additionalProperties": false,
+      "description": "A facility class.",
+      "properties": {
+        "capacity": {
+          "description": "Capacity of a new facility of this class.",
+          "format": "double",
+          "type": "number"
+        },
+        "label": {
+          "description": "Class name.",
+          "type": "string"
+        },
+        "max": {
+          "description": "Largest population reached for this class.",
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "description": "Smallest population reached for this class.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "capacity",
+        "label"
+      ],
+      "type": "object"
+    },
+    "Direction": {
+      "description": "Direction of travel relative to the facilities.",
+      "oneOf": [
+        {
+          "const": "from_facilities",
+          "description": "Travel from the facilities to every cell.",
+          "type": "string"
+        },
+        {
+          "const": "towards_facilities",
+          "description": "Travel from every cell to the facilities. The solver still expands\nfrom the facilities; only the slope sign of each edge is inverted.",
+          "type": "string"
+        }
+      ]
+    },
+    "Exclusion": {
+      "additionalProperties": false,
+      "description": "An exclusion rule (AccessMod 5 exclusion table).",
+      "properties": {
+        "buffer_m": {
+          "default": 0.0,
+          "description": "Distance from the layer's cells, metres (cell centre to cell\ncentre, inclusive); 0: the layer's cells.",
+          "format": "double",
+          "type": "number"
+        },
+        "keep": {
+          "$ref": "#/$defs/Keep",
+          "description": "Candidates kept."
+        },
+        "layer": {
+          "$ref": "#/$defs/Layer",
+          "description": "Layer: `facilities`, a raster or a vector layer.",
+          "x-accessmod-class": [
+            "rExclusion",
+            "vExclusion"
+          ]
+        }
+      },
+      "required": [
+        "layer",
+        "keep"
+      ],
+      "type": "object"
+    },
+    "FacilityIssues": {
+      "description": "Handling of facilities outside the grid, on a barrier or without a\nusable geometry.",
+      "oneOf": [
+        {
+          "const": "error",
+          "description": "Fail validation, listing every problem facility.",
+          "type": "string"
+        },
+        {
+          "const": "skip",
+          "description": "Skip them and list them in the warnings.",
+          "type": "string"
+        }
+      ]
+    },
+    "FacilitySource": {
+      "additionalProperties": false,
+      "description": "Facility point layer.",
+      "properties": {
+        "id_field": {
+          "description": "Field holding the facility identifier.",
+          "type": "string"
+        },
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset (GeoPackage, Shapefile, GeoJSON, …).",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter selecting facilities, e.g.\n`\"type = 'hospital'\"`; all features when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "id_field"
+      ],
+      "type": "object"
+    },
+    "Factor": {
+      "description": "A suitability factor (AccessMod 5 suitability table).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Population summed over a moving window (`popsum`).",
+          "properties": {
+            "factor": {
+              "const": "population",
+              "type": "string"
+            },
+            "layer": {
+              "$ref": "#/$defs/Layer",
+              "description": "`population` (residual) or a raster.",
+              "x-accessmod-class": [
+                "rPopulation",
+                "rPopulationResidual"
+              ]
+            },
+            "prefer": {
+              "$ref": "#/$defs/Prefer",
+              "description": "Favoured values."
+            },
+            "weight": {
+              "description": "Weight.",
+              "format": "double",
+              "type": "number"
+            },
+            "window_m": {
+              "default": 0.0,
+              "description": "Width of the window, metres: `round(window_m / cell)` cells,\nmade odd, circular (AccessMod 5 option `r`, in km); 0: the cell.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "factor",
+            "layer",
+            "weight",
+            "prefer"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Euclidean distance to the layer (`dist`).",
+          "properties": {
+            "factor": {
+              "const": "distance",
+              "type": "string"
+            },
+            "layer": {
+              "$ref": "#/$defs/Layer",
+              "description": "`facilities`, a raster or a vector layer.",
+              "x-accessmod-class": [
+                "vRoad",
+                "vBarrier",
+                "vFacility"
+              ]
+            },
+            "prefer": {
+              "$ref": "#/$defs/Prefer",
+              "description": "Favoured values."
+            },
+            "weight": {
+              "description": "Weight.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "factor",
+            "layer",
+            "weight",
+            "prefer"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Travel time from the layer, whole minutes, unlimited (`traveltime`).",
+          "properties": {
+            "direction": {
+              "$ref": "#/$defs/Direction",
+              "default": "towards_facilities",
+              "description": "Direction of travel."
+            },
+            "factor": {
+              "const": "travel_time",
+              "type": "string"
+            },
+            "layer": {
+              "$ref": "#/$defs/Layer",
+              "description": "`facilities` or a vector layer.",
+              "x-accessmod-class": [
+                "vRoad",
+                "vBarrier",
+                "vFacility"
+              ]
+            },
+            "method": {
+              "$ref": "#/$defs/MethodName",
+              "description": "Travel-time method."
+            },
+            "neighbourhood": {
+              "$ref": "#/$defs/Neighbourhood",
+              "default": 8,
+              "description": "Neighbours reachable in one step."
+            },
+            "prefer": {
+              "$ref": "#/$defs/Prefer",
+              "description": "Favoured values."
+            },
+            "weight": {
+              "description": "Weight.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "factor",
+            "layer",
+            "method",
+            "weight",
+            "prefer"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Values of a raster (`priority`).",
+          "properties": {
+            "factor": {
+              "const": "priority",
+              "type": "string"
+            },
+            "layer": {
+              "$ref": "#/$defs/Layer",
+              "description": "A raster.",
+              "x-accessmod-class": [
+                "rPriority"
+              ]
+            },
+            "prefer": {
+              "$ref": "#/$defs/Prefer",
+              "description": "Favoured values."
+            },
+            "weight": {
+              "description": "Weight.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "factor",
+            "layer",
+            "weight",
+            "prefer"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Keep": {
+      "description": "Cells kept by an exclusion rule.",
+      "oneOf": [
+        {
+          "const": "inside",
+          "description": "Within `buffer_m` of the layer.",
+          "type": "string"
+        },
+        {
+          "const": "outside",
+          "description": "Farther than `buffer_m` from the layer.",
+          "type": "string"
+        }
+      ]
+    },
+    "Layer": {
+      "description": "A layer used by a rule.",
+      "oneOf": [
+        {
+          "const": "facilities",
+          "description": "The facilities: existing ones and those added so far.",
+          "type": "string"
+        },
+        {
+          "const": "population",
+          "description": "The residual population (population factor only).",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A raster on the DEM lattice: its cells with a value.",
+          "properties": {
+            "raster": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "raster"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A vector layer: its points, lines (thin) and polygons.",
+          "properties": {
+            "vector": {
+              "$ref": "#/$defs/VectorSource"
+            }
+          },
+          "required": [
+            "vector"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MethodName": {
+      "description": "Travel-time method name.",
+      "oneOf": [
+        {
+          "const": "isotropic",
+          "description": "Scenario speed only; slope and mode ignored.",
+          "type": "string"
+        },
+        {
+          "const": "anisotropic",
+          "description": "Mobility model with slope and transport mode.",
+          "type": "string"
+        }
+      ]
+    },
+    "MobilityModel": {
+      "description": "Named, frozen mobility model. Any change to an equation or constant\ncreates a new variant; existing variants never change.",
+      "oneOf": [
+        {
+          "const": "accessmod5-v1",
+          "description": "AccessMod 5 kernel as of `5.9.2-beta.6`.",
+          "type": "string"
+        }
+      ]
+    },
+    "Neighbourhood": {
+      "description": "Neighbours reachable in one step: 8 (cardinal and diagonal) or 16 (plus knight moves).",
+      "enum": [
+        8,
+        16
+      ],
+      "type": "integer"
+    },
+    "Prefer": {
+      "description": "Which values a factor favours.",
+      "oneOf": [
+        {
+          "const": "high",
+          "description": "High values are most suitable.",
+          "type": "string"
+        },
+        {
+          "const": "low",
+          "description": "Low values are most suitable.",
+          "type": "string"
+        }
+      ]
+    },
+    "ScenarioEntry": {
+      "additionalProperties": false,
+      "description": "Mobility of one land-cover class.",
+      "properties": {
+        "class": {
+          "description": "Land-cover class value.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "label": {
+          "description": "Optional human label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/TransportMode",
+          "description": "Transport mode."
+        },
+        "speed_kmh": {
+          "description": "Flat-ground speed, km/h, > 0 (≤ 100 for bicycling).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "class",
+        "mode",
+        "speed_kmh"
+      ],
+      "type": "object"
+    },
+    "TransportMode": {
+      "description": "Transport mode of a land-cover class in a scenario.",
+      "oneOf": [
+        {
+          "const": "walking",
+          "description": "Tobler's hiking function.",
+          "type": "string"
+        },
+        {
+          "const": "bicycling",
+          "description": "Physical cycling model with a downhill safety envelope (LUT).",
+          "type": "string"
+        },
+        {
+          "const": "motorized",
+          "description": "Constant speed, slope ignored.",
+          "type": "string"
+        }
+      ]
+    },
+    "VectorSource": {
+      "additionalProperties": false,
+      "description": "A vector layer.",
+      "properties": {
+        "layer": {
+          "description": "Layer name; the first layer when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Vector dataset.",
+          "type": "string"
+        },
+        "where": {
+          "description": "Optional OGR SQL attribute filter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Scaling-up job (schema version 1).",
+  "properties": {
+    "band_s": {
+      "default": 60.0,
+      "description": "Width of the travel-time bands, seconds; AccessMod 5 uses minutes.",
+      "format": "double",
+      "type": "number"
+    },
+    "capacities": {
+      "description": "Facility classes: the population a new facility reaches selects its\ncapacity.",
+      "items": {
+        "$ref": "#/$defs/CapacityEntry"
+      },
+      "type": "array"
+    },
+    "catchments": {
+      "default": true,
+      "description": "Write the catchment polygons (`catchments.fgb`).",
+      "type": "boolean"
+    },
+    "dem": {
+      "description": "Digital elevation model; it defines the grid.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rDem"
+      ]
+    },
+    "direction": {
+      "$ref": "#/$defs/Direction",
+      "default": "towards_facilities",
+      "description": "Direction of travel."
+    },
+    "exclusions": {
+      "default": [],
+      "description": "Exclusion rules, applied in order at each iteration.",
+      "items": {
+        "$ref": "#/$defs/Exclusion"
+      },
+      "type": "array"
+    },
+    "facilities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FacilitySource"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Existing facilities, kept: they count in the `facilities` layer of\nthe rules.",
+      "x-accessmod-class": [
+        "vFacility"
+      ]
+    },
+    "facility_issues": {
+      "$ref": "#/$defs/FacilityIssues",
+      "default": "error",
+      "description": "What to do with existing facilities outside the grid or on a barrier."
+    },
+    "land_cover": {
+      "description": "Land-cover raster with integer classes, on the DEM lattice.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rLandCover",
+        "rLandCoverMerged"
+      ]
+    },
+    "limit_s": {
+      "description": "Inclusive travel-time limit of the catchments, seconds.",
+      "format": "double",
+      "type": "number"
+    },
+    "max_coverage_percent": {
+      "default": 100.0,
+      "description": "Stop once this percent of the population is covered.",
+      "format": "double",
+      "type": "number"
+    },
+    "max_duration_s": {
+      "description": "Stop after this many seconds (results then depend on the machine).",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "max_facilities": {
+      "description": "Facilities to add at most (iterations).",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "method": {
+      "$ref": "#/$defs/MethodName",
+      "description": "Travel-time method of the candidate evaluations and catchments."
+    },
+    "mobility_model": {
+      "$ref": "#/$defs/MobilityModel",
+      "default": "accessmod5-v1",
+      "description": "Named mobility model (anisotropic method)."
+    },
+    "neighbourhood": {
+      "$ref": "#/$defs/Neighbourhood",
+      "description": "Neighbours reachable in one step: 8 or 16."
+    },
+    "output_dir": {
+      "description": "Output directory; must not exist or be empty.",
+      "type": "string"
+    },
+    "population": {
+      "description": "Population raster (people per cell): the population the covered\npercent refers to.",
+      "type": "string",
+      "x-accessmod-class": [
+        "rPopulation",
+        "rPopulationResidual"
+      ]
+    },
+    "population_residual": {
+      "description": "Population to cover at start (e.g. the residual of a coverage);\n`population` when omitted.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-accessmod-class": [
+        "rPopulationResidual",
+        "rPopulation"
+      ]
+    },
+    "scenario": {
+      "description": "Mobility of each land-cover class. Classes not listed are barriers.",
+      "items": {
+        "$ref": "#/$defs/ScenarioEntry"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "description": "Must be 1.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "suitability": {
+      "description": "Suitability factors, combined in order.",
+      "items": {
+        "$ref": "#/$defs/Factor"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "dem",
+    "land_cover",
+    "population",
+    "scenario",
+    "method",
+    "neighbourhood",
+    "limit_s",
+    "capacities",
+    "suitability",
+    "max_facilities",
+    "output_dir"
+  ],
+  "title": "ScalingUpJob",
+  "type": "object"
+}
