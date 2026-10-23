@@ -45,7 +45,7 @@ const MIGRATIONS: &[&str] = &[
         tags TEXT NOT NULL,
         job TEXT NOT NULL,
         status TEXT NOT NULL
-            CHECK (status IN ('running', 'done', 'failed', 'cancelled', 'interrupted')),
+            CHECK (status IN ('queued', 'running', 'done', 'failed', 'cancelled', 'interrupted')),
         output_dir TEXT NOT NULL,
         outcome TEXT,
         error TEXT,

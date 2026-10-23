@@ -25,6 +25,11 @@
       "description": "State of a run.",
       "oneOf": [
         {
+          "const": "queued",
+          "description": "Waiting for its turn.",
+          "type": "string"
+        },
+        {
           "const": "running",
           "description": "In progress.",
           "type": "string"

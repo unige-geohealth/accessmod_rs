@@ -11,8 +11,8 @@ use rusqlite::{OptionalExtension, params};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{DatasetRecord, Id, Origin, Project, RUNS_DIR, check_relative, decode, json, now};
-use crate::analysis::{Analysis, Monitor, Visit, for_each};
+use super::{Id, Origin, Project, RUNS_DIR, check_relative, decode, json, now};
+use crate::analysis::{Analysis, ForAnalysis, Monitor, by_name};
 use crate::error::{Error, Result};
 use crate::job::JobFile;
 use crate::resources::ExecutionSettings;
@@ -21,6 +21,8 @@ use crate::resources::ExecutionSettings;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
+    /// Waiting for its turn.
+    Queued,
     /// In progress.
     Running,
     /// Finished; outputs registered.
@@ -34,8 +36,10 @@ pub enum RunStatus {
 }
 
 impl RunStatus {
-    fn code(self) -> &'static str {
+    /// Name in JSON and in the database (`queued`, `running`, …).
+    pub fn name(self) -> &'static str {
         match self {
+            RunStatus::Queued => "queued",
             RunStatus::Running => "running",
             RunStatus::Done => "done",
             RunStatus::Failed => "failed",
@@ -46,6 +50,7 @@ impl RunStatus {
 
     fn from_code(code: &str) -> Option<Self> {
         [
+            RunStatus::Queued,
             RunStatus::Running,
             RunStatus::Done,
             RunStatus::Failed,
@@ -53,7 +58,7 @@ impl RunStatus {
             RunStatus::Interrupted,
         ]
         .into_iter()
-        .find(|s| s.code() == code)
+        .find(|s| s.name() == code)
     }
 }
 
@@ -93,15 +98,6 @@ pub struct RunRecord {
     pub datasets: Vec<Id>,
 }
 
-/// A run started, its job ready for [`Analysis::prepare`].
-#[derive(Debug)]
-pub struct StartedRun<A: Analysis> {
-    /// The run.
-    pub id: Id,
-    /// Job with absolute paths.
-    pub job: A::Job,
-}
-
 /// Job document for analysis `A` with `output_dir` set: typed, every path
 /// checked to stay in the project, then made absolute against `root`.
 fn project_job<A: Analysis>(
@@ -134,19 +130,20 @@ impl Project {
         project_job::<A>(document, &format!("{RUNS_DIR}/new"), &self.root).map(|(_, job)| job)
     }
 
-    /// Record a new run of `A` on `document`: its outputs go to `runs/<id>`
-    /// and are tagged `tags` (the analysis name and run number when empty).
+    /// Queue a run of `A` on `document`: its outputs will go to `runs/<id>`,
+    /// tagged `tags` (the analysis name and run number when empty). The job
+    /// and the tags are checked now; [`Project::execute`] runs it.
     pub fn start_run<A: Analysis>(
         &self,
         document: &serde_json::Value,
         tags: &[String],
-    ) -> Result<StartedRun<A>> {
+    ) -> Result<Id> {
         // Fail early, before a run is recorded.
         self.check_job::<A>(document)?;
         self.db
             .execute(
                 "INSERT INTO runs (analysis, tags, job, status, output_dir, started)
-                 VALUES (?1, '[]', ?2, 'running', '', ?3)",
+                 VALUES (?1, '[]', ?2, 'queued', '', ?3)",
                 params![A::NAME, json(document)?, now()],
             )
             .map_err(self.db_error())?;
@@ -157,16 +154,13 @@ impl Project {
         } else {
             super::normalize_tags(tags)
         };
-        let prepared = (|| {
-            for output in A::OUTPUTS {
-                if let Some(class) = output.class {
-                    self.free_tags(class, &tags, None)?;
-                }
-            }
-            project_job::<A>(document, &output_dir, &self.root)
-        })();
-        let (stored, job) = match prepared {
-            Ok(ready) => ready,
+        let checked = A::OUTPUTS
+            .iter()
+            .filter_map(|output| output.class)
+            .try_for_each(|class| self.free_tags(class, &tags, None).map(drop))
+            .and_then(|()| project_job::<A>(document, &output_dir, &self.root));
+        let stored = match checked {
+            Ok((stored, _)) => stored,
             Err(error) => {
                 self.close_run(id, RunStatus::Failed, None, Some(&error))?;
                 return Err(error);
@@ -178,11 +172,51 @@ impl Project {
                 params![json(&tags)?, json(&stored)?, output_dir, id],
             )
             .map_err(self.db_error())?;
-        Ok(StartedRun { id, job })
+        Ok(id)
+    }
+
+    /// Run queued run `id` of `A`: prepare, run, register its outputs. A
+    /// failed run is recorded and its error returned; a run cancelled before
+    /// it starts is recorded as cancelled.
+    pub fn execute<A: Analysis>(
+        &self,
+        id: Id,
+        settings: &ExecutionSettings,
+        monitor: Monitor<'_>,
+    ) -> Result<RunRecord> {
+        let record = self.run_record(id)?;
+        if record.analysis != A::NAME || record.status != RunStatus::Queued {
+            return Err(Error::invalid(format!(
+                "run {id} is a {} run, {:?}: it cannot run as {}",
+                record.analysis,
+                record.status,
+                A::NAME
+            )));
+        }
+        let outcome = if monitor.is_cancelled() {
+            Err(Error::Cancelled)
+        } else {
+            self.db
+                .execute(
+                    "UPDATE runs SET status = 'running', started = ?1 WHERE id = ?2",
+                    params![now(), id],
+                )
+                .map_err(self.db_error())?;
+            project_job::<A>(&record.job, &record.output_dir, &self.root)
+                .and_then(|(_, job)| A::prepare(job, settings, monitor))
+                .and_then(|prepared| A::run(prepared, settings, monitor))
+        };
+        let finished = self.finish_run::<A>(
+            id,
+            outcome.as_ref().map(|(_, report)| report),
+            settings,
+            monitor,
+        )?;
+        outcome.map(|_| finished)
     }
 
     /// Record the end of run `id`: on success, register its outputs.
-    pub fn finish_run<A: Analysis>(
+    fn finish_run<A: Analysis>(
         &self,
         id: Id,
         result: std::result::Result<&A::Report, &Error>,
@@ -197,7 +231,7 @@ impl Project {
                     .iter()
                     .filter_map(|o| o.class.map(|class| (o.file, class)))
                     .filter(|(file, _)| self.root.join(&record.output_dir).join(file).is_file())
-                    .map(|(file, class)| {
+                    .try_for_each(|(file, class)| {
                         self.register(
                             &format!("{}/{file}", record.output_dir),
                             class,
@@ -209,17 +243,13 @@ impl Project {
                             settings,
                             monitor.cancelled(),
                         )
-                    })
-                    .collect::<Result<Vec<DatasetRecord>>>();
-                match registered {
-                    Ok(_) => {
-                        self.close_run(id, RunStatus::Done, Some(&A::outcome(report)), None)?
-                    }
-                    Err(error) => {
-                        self.close_run(id, RunStatus::Failed, None, Some(&error))?;
-                        return Err(error);
-                    }
+                        .map(drop)
+                    });
+                if let Err(error) = registered {
+                    self.close_run(id, RunStatus::Failed, None, Some(&error))?;
+                    return Err(error);
                 }
+                self.close_run(id, RunStatus::Done, Some(&A::outcome(report)), None)?;
             }
             Err(error) => {
                 let status = if error.kind() == crate::error::ErrorKind::Cancelled {
@@ -251,14 +281,32 @@ impl Project {
         self.db
             .execute(
                 "UPDATE runs SET status = ?1, outcome = ?2, error = ?3, finished = ?4 WHERE id = ?5",
-                params![status.code(), outcome, error, now(), id],
+                params![status.name(), outcome, error, now(), id],
             )
             .map_err(self.db_error())?;
         Ok(())
     }
 
-    /// Run analysis `A` on `document` in this project: start, prepare, run,
-    /// finish. A failed run is recorded and its error returned.
+    /// Cancel run `id` while it is queued; `false` when it is no longer
+    /// queued (a running run stops through its monitor).
+    pub fn cancel_queued(&self, id: Id) -> Result<bool> {
+        let error = json(&RunError {
+            kind: crate::error::ErrorKind::Cancelled.name().to_owned(),
+            issues: vec!["cancelled before it started".into()],
+        })?;
+        let changed = self
+            .db
+            .execute(
+                "UPDATE runs SET status = 'cancelled', error = ?1, finished = ?2
+                 WHERE id = ?3 AND status = 'queued'",
+                params![error, now(), id],
+            )
+            .map_err(self.db_error())?;
+        Ok(changed == 1)
+    }
+
+    /// Run analysis `A` on `document` now: [`Project::start_run`] then
+    /// [`Project::execute`].
     pub fn run<A: Analysis>(
         &self,
         document: &serde_json::Value,
@@ -266,16 +314,44 @@ impl Project {
         settings: &ExecutionSettings,
         monitor: Monitor<'_>,
     ) -> Result<RunRecord> {
-        let started = self.start_run::<A>(document, tags)?;
-        let outcome = A::prepare(started.job, settings, monitor)
-            .and_then(|prepared| A::run(prepared, settings, monitor));
-        let record = self.finish_run::<A>(
-            started.id,
-            outcome.as_ref().map(|(_, report)| report),
-            settings,
-            monitor,
-        )?;
-        outcome.map(|_| record)
+        let id = self.start_run::<A>(document, tags)?;
+        self.execute::<A>(id, settings, monitor)
+    }
+
+    /// [`Project::start_run`] of the analysis named `analysis`.
+    pub fn start_named(
+        &self,
+        analysis: &str,
+        document: &serde_json::Value,
+        tags: &[String],
+    ) -> Result<Id> {
+        struct Start<'a>(&'a Project, &'a serde_json::Value, &'a [String]);
+        impl ForAnalysis for Start<'_> {
+            type Output = Result<Id>;
+            fn call<A: Analysis>(self) -> Result<Id> {
+                self.0.start_run::<A>(self.1, self.2)
+            }
+        }
+        by_name(analysis, Start(self, document, tags)).unwrap_or_else(|| Err(unknown(analysis)))
+    }
+
+    /// [`Project::execute`] of queued run `id`, whatever its analysis.
+    pub fn execute_queued(
+        &self,
+        id: Id,
+        settings: &ExecutionSettings,
+        monitor: Monitor<'_>,
+    ) -> Result<RunRecord> {
+        struct Execute<'a>(&'a Project, Id, &'a ExecutionSettings, Monitor<'a>);
+        impl ForAnalysis for Execute<'_> {
+            type Output = Result<RunRecord>;
+            fn call<A: Analysis>(self) -> Result<RunRecord> {
+                self.0.execute::<A>(self.1, self.2, self.3)
+            }
+        }
+        let analysis = self.run_record(id)?.analysis;
+        by_name(&analysis, Execute(self, id, settings, monitor))
+            .unwrap_or_else(|| Err(unknown(&analysis)))
     }
 
     /// [`Project::run`] of the analysis named `analysis`.
@@ -287,40 +363,8 @@ impl Project {
         settings: &ExecutionSettings,
         monitor: Monitor<'_>,
     ) -> Result<RunRecord> {
-        struct Runner<'a> {
-            project: &'a Project,
-            analysis: &'a str,
-            document: &'a serde_json::Value,
-            tags: &'a [String],
-            settings: &'a ExecutionSettings,
-            monitor: Monitor<'a>,
-            result: Option<Result<RunRecord>>,
-        }
-        impl Visit for Runner<'_> {
-            fn visit<A: Analysis>(&mut self) {
-                if A::NAME == self.analysis {
-                    self.result = Some(self.project.run::<A>(
-                        self.document,
-                        self.tags,
-                        self.settings,
-                        self.monitor,
-                    ));
-                }
-            }
-        }
-        let mut runner = Runner {
-            project: self,
-            analysis,
-            document,
-            tags,
-            settings,
-            monitor,
-            result: None,
-        };
-        for_each(&mut runner);
-        runner
-            .result
-            .unwrap_or_else(|| Err(Error::invalid(format!("no analysis named {analysis:?}"))))
+        let id = self.start_named(analysis, document, tags)?;
+        self.execute_queued(id, settings, monitor)
     }
 
     /// Runs, by identifier.
@@ -409,4 +453,8 @@ impl Project {
             datasets,
         })
     }
+}
+
+fn unknown(analysis: &str) -> Error {
+    Error::invalid(format!("no analysis named {analysis:?}"))
 }

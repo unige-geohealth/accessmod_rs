@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use accessmod_io::class::DataClass;
 use accessmod_io::error::Error;
-use accessmod_io::project::{DatasetRecord, ImportOptions, Project, RunRecord, RunStatus};
+use accessmod_io::project::{DatasetRecord, ImportOptions, Project, RunRecord};
 use serde::Serialize;
 
 use crate::exec::{ExecArgs, fail, monitored, settings};
@@ -158,13 +158,7 @@ fn dataset_line(d: &DatasetRecord) -> String {
 }
 
 fn run_line(r: &RunRecord) -> String {
-    let status = match r.status {
-        RunStatus::Running => "running",
-        RunStatus::Done => "done",
-        RunStatus::Failed => "failed",
-        RunStatus::Cancelled => "cancelled",
-        RunStatus::Interrupted => "interrupted",
-    };
+    let status = r.status.name();
     let detail = r
         .outcome
         .clone()

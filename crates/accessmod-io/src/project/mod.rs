@@ -34,7 +34,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use import::{ImportOptions, resampling};
-pub use runs::{RunError, RunRecord, RunStatus, StartedRun};
+pub use runs::{RunError, RunRecord, RunStatus};
 
 use crate::analysis::Cancelled;
 use crate::class::{DataClass, Kind};
@@ -413,7 +413,8 @@ impl Project {
         }
         self.db
             .execute(
-                "UPDATE runs SET status = 'interrupted', finished = ?1 WHERE status = 'running'",
+                "UPDATE runs SET status = 'interrupted', finished = ?1
+                 WHERE status IN ('queued', 'running')",
                 [now()],
             )
             .map_err(self.db_error())?;

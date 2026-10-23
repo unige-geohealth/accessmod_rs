@@ -161,6 +161,39 @@ pub fn for_each(visitor: &mut impl Visit) {
     visitor.visit::<crate::optimization::Optimization>();
 }
 
+/// A computation over one analysis type; see [`by_name`].
+pub trait ForAnalysis {
+    /// What it returns.
+    type Output;
+    /// Run it for analysis `A`.
+    fn call<A: Analysis>(self) -> Self::Output;
+}
+
+/// Run `f` for the analysis named `name`; `None` when there is none.
+pub fn by_name<F: ForAnalysis>(name: &str, f: F) -> Option<F::Output> {
+    struct ByName<'a, F: ForAnalysis> {
+        name: &'a str,
+        f: Option<F>,
+        output: Option<F::Output>,
+    }
+    impl<F: ForAnalysis> Visit for ByName<'_, F> {
+        fn visit<A: Analysis>(&mut self) {
+            if A::NAME == self.name
+                && let Some(f) = self.f.take()
+            {
+                self.output = Some(f.call::<A>());
+            }
+        }
+    }
+    let mut visitor = ByName {
+        name,
+        f: Some(f),
+        output: None,
+    };
+    for_each(&mut visitor);
+    visitor.output
+}
+
 /// Name and job schema of every analysis, in [`for_each`] order.
 pub fn job_schemas() -> Vec<(&'static str, serde_json::Value)> {
     struct Schemas(Vec<(&'static str, serde_json::Value)>);

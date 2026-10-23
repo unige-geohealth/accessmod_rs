@@ -429,10 +429,17 @@ fn saved_jobs_round_trip() {
 fn recover_cleans_interrupted_work() {
     let dir = tempfile::tempdir().expect("tempdir");
     let project = project_with_inputs(dir.path());
-    let started = project
+    // One run queued, one running when the process stopped.
+    project
         .start_run::<TravelTime>(&travel_time_job(), &[])
-        .expect("start");
-    drop(started);
+        .expect("queue");
+    project
+        .start_run::<TravelTime>(&travel_time_job(), &[])
+        .expect("queue");
+    assert_eq!(
+        project.run_record(1).expect("run").status,
+        RunStatus::Queued
+    );
     project.recover().expect("recover");
     assert_eq!(
         project.run_record(1).expect("run").status,
@@ -479,4 +486,45 @@ fn creation_needs_an_empty_directory_and_a_valid_dem() {
     )
     .expect_err("no dem");
     assert!(!dir.path().join("new").exists(), "{err}");
+}
+
+#[test]
+fn queued_runs_execute_later_or_cancel() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let first = project
+        .start_named("travel-time", &travel_time_job(), &[])
+        .expect("queue");
+    let second = project
+        .start_named("travel-time", &travel_time_job(), &[])
+        .expect("queue");
+    assert!(project.cancel_queued(second).expect("cancel"));
+    assert!(!project.cancel_queued(second).expect("already cancelled"));
+    assert_eq!(
+        project.run_record(second).expect("run").status,
+        RunStatus::Cancelled
+    );
+    let done = project
+        .execute_queued(first, &settings, Monitor::QUIET)
+        .expect("execute");
+    assert_eq!(done.status, RunStatus::Done);
+    assert!(
+        project
+            .execute_queued(second, &settings, Monitor::QUIET)
+            .is_err()
+    );
+    // Cancelled while waiting: recorded as cancelled, nothing written.
+    let third = project
+        .start_named("travel-time", &travel_time_job(), &[])
+        .expect("queue");
+    let err = project
+        .execute_queued(third, &settings, Monitor::new(&|| true, &|_| {}))
+        .expect_err("cancelled");
+    assert_eq!(err.kind(), accessmod_io::error::ErrorKind::Cancelled);
+    assert_eq!(
+        project.run_record(third).expect("run").status,
+        RunStatus::Cancelled
+    );
+    assert!(!project.root().join(format!("runs/{third}")).exists());
 }
