@@ -10,3 +10,4 @@ echo "$out" | awk '/test result/ {p+=$4; f+=$6; i+=$8} END {print "tests: " p " 
 cargo xtask layers
 cargo xtask lut --check 2>&1 | tail -1
 cargo xtask schemas --check
+cargo xtask i18n --check

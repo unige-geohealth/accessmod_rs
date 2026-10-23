@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api/client";
 import { useBounds, useClasses, useDatasets } from "../api/queries";
-import { t } from "../app/i18n";
+import { className, t } from "../app/i18n";
 import { navigate } from "../app/route";
 import type { Api } from "../generated/types";
 import { MapView } from "../map/MapView";
@@ -66,7 +66,7 @@ export function DataScreen({ project, selected }: { project: string; selected: s
                 onClick={() => select(d.id)}
               >
                 <td>{d.id}</td>
-                <td>{d.class}</td>
+                <td title={d.class}>{className(d.class)}</td>
                 <td>{d.tags.join(" ")}</td>
                 <td className="muted small">{summary(d)}</td>
                 <td className="muted small">{bytes(d.bytes)}</td>
@@ -148,7 +148,7 @@ function Import({ project }: { project: string }) {
             ?.filter((c) => c.importable && c.class !== "rDem")
             .map((c) => (
               <option key={c.class} value={c.class}>
-                {c.label} ({c.class})
+                {className(c.class)} ({c.class})
               </option>
             ))}
         </select>

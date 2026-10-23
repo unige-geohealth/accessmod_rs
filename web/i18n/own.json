@@ -1,0 +1,65 @@
+{
+  "app.title": { "en": "AccessMod", "fr": "AccessMod", "es": "AccessMod", "pt": "AccessMod" },
+  "analysis.adjust-population-distribution": {
+    "en": "Adjust population distribution",
+    "fr": "Ajuster la distribution de la population",
+    "es": "Ajustar la distribución de la población",
+    "pt": "Ajustar a distribuição da população"
+  },
+  "project.new": { "en": "New project", "fr": "Nouveau projet", "es": "Nuevo proyecto", "pt": "Novo projeto" },
+  "project.name": { "en": "Name", "fr": "Nom", "es": "Nombre", "pt": "Nome" },
+  "project.description": { "en": "Description", "fr": "Description", "es": "Descripción", "pt": "Descrição" },
+  "project.dem": {
+    "en": "DEM (file on this computer)",
+    "fr": "MNT (fichier sur cet ordinateur)",
+    "es": "MDE (archivo en este ordenador)",
+    "pt": "MDE (arquivo neste computador)"
+  },
+  "project.create": { "en": "Create", "fr": "Créer", "es": "Crear", "pt": "Criar" },
+  "project.open": { "en": "Open", "fr": "Ouvrir", "es": "Abrir", "pt": "Abrir" },
+  "project.none": {
+    "en": "No project yet: create one from a DEM.",
+    "fr": "Aucun projet : créez-en un à partir d'un MNT.",
+    "es": "Ningún proyecto: cree uno a partir de un MDE.",
+    "pt": "Nenhum projeto: crie um a partir de um MDE."
+  },
+  "data.import": { "en": "Import a dataset", "fr": "Importer des données", "es": "Importar datos", "pt": "Importar dados" },
+  "data.file": {
+    "en": "File on this computer",
+    "fr": "Fichier sur cet ordinateur",
+    "es": "Archivo en este ordenador",
+    "pt": "Arquivo neste computador"
+  },
+  "data.class": { "en": "Class", "fr": "Classe", "es": "Clase", "pt": "Classe" },
+  "data.tags": { "en": "Tags", "fr": "Étiquettes", "es": "Etiquetas", "pt": "Etiquetas" },
+  "data.layer": {
+    "en": "Layer (vector files)",
+    "fr": "Couche (fichiers vectoriels)",
+    "es": "Capa (archivos vectoriales)",
+    "pt": "Camada (arquivos vetoriais)"
+  },
+  "data.empty": { "en": "No dataset.", "fr": "Aucune donnée.", "es": "Ningún dato.", "pt": "Nenhum dado." },
+  "data.remove": { "en": "Remove", "fr": "Supprimer", "es": "Eliminar", "pt": "Remover" },
+  "data.preview": { "en": "Preview", "fr": "Aperçu", "es": "Vista previa", "pt": "Pré-visualização" },
+  "job.saved": { "en": "Saved jobs", "fr": "Paramètres enregistrés", "es": "Parámetros guardados", "pt": "Parâmetros salvos" },
+  "job.new": { "en": "New", "fr": "Nouveau", "es": "Nuevo", "pt": "Novo" },
+  "job.name": { "en": "Job name", "fr": "Nom des paramètres", "es": "Nombre de los parámetros", "pt": "Nome dos parâmetros" },
+  "job.save": { "en": "Save", "fr": "Enregistrer", "es": "Guardar", "pt": "Salvar" },
+  "job.validate": { "en": "Validate", "fr": "Valider", "es": "Validar", "pt": "Validar" },
+  "job.run": { "en": "Run", "fr": "Lancer", "es": "Ejecutar", "pt": "Executar" },
+  "job.tags": { "en": "Output tags", "fr": "Étiquettes des résultats", "es": "Etiquetas de los resultados", "pt": "Etiquetas dos resultados" },
+  "job.undo": { "en": "Undo", "fr": "Annuler", "es": "Deshacer", "pt": "Desfazer" },
+  "job.redo": { "en": "Redo", "fr": "Rétablir", "es": "Rehacer", "pt": "Refazer" },
+  "job.valid": { "en": "Valid", "fr": "Valide", "es": "Válido", "pt": "Válido" },
+  "job.queued": {
+    "en": "Run queued: follow it in Logs.",
+    "fr": "Calcul en file d'attente : suivez-le dans Logs.",
+    "es": "Cálculo en cola: sígalo en Logs.",
+    "pt": "Cálculo na fila: acompanhe-o em Logs."
+  },
+  "logs.empty": { "en": "No run yet.", "fr": "Aucun calcul.", "es": "Ningún cálculo.", "pt": "Nenhum cálculo." },
+  "map.basemap": { "en": "Online basemap", "fr": "Fond de carte en ligne", "es": "Mapa base en línea", "pt": "Mapa base online" },
+  "map.value": { "en": "Value", "fr": "Valeur", "es": "Valor", "pt": "Valor" },
+  "common.loading": { "en": "Loading…", "fr": "Chargement…", "es": "Cargando…", "pt": "Carregando…" },
+  "common.error": { "en": "Error", "fr": "Erreur", "es": "Error", "pt": "Erro" }
+}

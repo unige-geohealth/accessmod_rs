@@ -33,14 +33,14 @@ test("create a project, import data, run an accessibility analysis", async ({ pa
     await page.getByLabel("Class").selectOption(cls);
     await page.getByLabel("Tags").fill(tags);
     await page.getByRole("button", { name: "Import a dataset" }).click();
-    await expect(page.locator("tr", { hasText: cls })).toBeVisible();
+    await expect(page.locator(`tr:has(td[title="${cls}"])`)).toBeVisible();
   };
   await importDataset("land_cover.tif", "rLandCoverMerged", "base");
   await importDataset("facilities.gpkg", "vFacility", "health centres");
-  await page.locator("tr", { hasText: "rLandCoverMerged" }).click();
+  await page.locator(`tr:has(td[title="rLandCoverMerged"])`).click();
   await page.waitForTimeout(1500);
   await shot(page, "1-data-land-cover");
-  await page.locator("tr", { hasText: "vFacility" }).click();
+  await page.locator(`tr:has(td[title="vFacility"])`).click();
   await page.waitForTimeout(1500);
   await shot(page, "2-data-facilities");
 
@@ -80,7 +80,15 @@ test("create a project, import data, run an accessibility analysis", async ({ pa
   await expect(page.locator(".status.done")).toBeVisible({ timeout: 60_000 });
   await shot(page, "4-logs");
   await page.locator(".sidebar").getByRole("button", { name: "Data" }).click();
-  await page.locator("tr", { hasText: "rTravelTime" }).click();
+  await page.locator(`tr:has(td[title="rTravelTime"])`).click();
   await page.waitForTimeout(2000);
   await shot(page, "5-travel-time");
+
+  // The interface in French (AccessMod 5 dictionary).
+  await page.locator(".sidebar").getByRole("button", { name: "Settings" }).click();
+  await page.getByLabel("Language").selectOption("fr");
+  await expect(page.locator(".sidebar").getByRole("button", { name: "Données" })).toBeVisible();
+  await page.locator(".sidebar").getByRole("button", { name: "Données" }).click();
+  await expect(page.locator("tr", { hasText: "structure" })).toBeVisible();
+  await shot(page, "6-french");
 });

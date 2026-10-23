@@ -1,68 +1,60 @@
-// User-visible text. English only for now; keys and vocabulary follow the
-// AccessMod 5 dictionary (www/dictionary/main.json, classes.json), which an
-// xtask will convert into catalogues for en, fr, es and pt.
+// User-visible text, from the catalogue `cargo xtask i18n` builds out of the
+// AccessMod 5 dictionary (en, fr, es, pt). Keys and vocabulary follow it.
+import catalog from "../i18n/catalog.json";
+import { createStore, useStore } from "../state/store";
 
-const en = {
-  "app.title": "AccessMod",
-  "section.projects": "Project",
-  "section.data": "Data",
-  "section.analysis": "Analysis",
-  "section.toolbox": "Toolbox",
-  "section.logs": "Logs",
-  "section.settings": "Settings",
-  "section.about": "About",
-  "analysis.travel-time": "Accessibility",
-  "analysis.geographic-coverage": "Geographic coverage",
-  "analysis.referral": "Referral",
-  "analysis.zonal-statistics": "Zonal statistics",
-  "analysis.scaling-up": "Scaling up",
-  "analysis.optimization": "Optimization",
-  "analysis.merge-land-cover": "Merge land cover",
-  "analysis.adjust-population-distribution": "Adjust population distribution",
-  "project.new": "New project",
-  "project.name": "Name",
-  "project.description": "Description",
-  "project.dem": "DEM (file on this computer)",
-  "project.create": "Create",
-  "project.open": "Open",
-  "project.none": "No project yet: create one from a DEM.",
-  "data.import": "Import a dataset",
-  "data.file": "File on this computer",
-  "data.class": "Class",
-  "data.tags": "Tags",
-  "data.layer": "Layer (vector files)",
-  "data.empty": "No dataset.",
-  "data.remove": "Remove",
-  "data.preview": "Preview",
-  "job.saved": "Saved jobs",
-  "job.new": "New",
-  "job.name": "Job name",
-  "job.save": "Save",
-  "job.validate": "Validate",
-  "job.run": "Run",
-  "job.tags": "Output tags",
-  "job.undo": "Undo",
-  "job.redo": "Redo",
-  "job.valid": "Valid",
-  "job.queued": "Run queued: follow it in Logs.",
-  "logs.empty": "No run yet.",
-  "logs.cancel": "Cancel",
-  "map.basemap": "Online basemap",
-  "map.value": "Value",
-  "common.loading": "Loading…",
-  "common.error": "Error",
-} as const;
+export type Language = keyof typeof catalog.messages;
+export type Key = keyof typeof catalog.messages.en;
 
-export type Key = keyof typeof en;
+/** Languages of the catalogue, in its order. */
+export const LANGUAGES: readonly Language[] = catalog.languages.filter(
+  (l): l is Language => l in catalog.messages,
+);
+
+const STORAGE = "accessmod.language";
+
+function initialLanguage(): Language {
+  try {
+    const saved = window.localStorage.getItem(STORAGE);
+    const found = LANGUAGES.find((l) => l === saved);
+    if (found) return found;
+  } catch {
+    // Storage may be unavailable (private window): the default applies.
+  }
+  const browser = typeof navigator === "undefined" ? "en" : navigator.language.slice(0, 2);
+  return LANGUAGES.find((l) => l === browser) ?? "en";
+}
+
+/** The language of the interface: a per-viewer preference. */
+export const languageStore = createStore<Language, Language>(initialLanguage(), (_, next) => next);
+
+languageStore.subscribe(() => {
+  try {
+    window.localStorage.setItem(STORAGE, languageStore.getState());
+  } catch {
+    // Not persisted: the choice holds for this page only.
+  }
+});
+
+export function useLanguage(): Language {
+  return useStore(languageStore, (s) => s);
+}
 
 export function t(key: Key): string {
-  return en[key];
+  const messages: Record<string, string> = catalog.messages[languageStore.getState()];
+  return messages[key] ?? catalog.messages.en[key];
 }
 
 /** Display name of an analysis. */
 export function analysisName(name: string): string {
-  const key = `analysis.${name}` as Key;
-  return key in en ? en[key] : name;
+  const key = `analysis.${name}`;
+  return key in catalog.messages.en ? t(key as Key) : name;
+}
+
+/** Display name of a data class (AccessMod 5 identifier). */
+export function className(code: string): string {
+  const names: Record<string, string> = catalog.classes[languageStore.getState()];
+  return names[code] ?? code;
 }
 
 /** Analysis screens and toolbox tools, in AccessMod 5 order. */

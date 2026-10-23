@@ -5,16 +5,19 @@ import { AnalysisScreen } from "../views/Analysis";
 import { DataScreen } from "../views/Data";
 import { LogsScreen } from "../views/Logs";
 import { ProjectsScreen } from "../views/Projects";
-import { analysisName, t } from "./i18n";
+import { SettingsScreen } from "../views/Settings";
+import { analysisName, t, useLanguage } from "./i18n";
 import { navigate, type Route, type Section, useRoute } from "./route";
 
 const PROJECT_SECTIONS: Section[] = ["data", "analysis", "toolbox", "logs"];
 
 export function App() {
   const route = useRoute();
+  // Every text follows the language: a change renders the whole tree again.
+  const language = useLanguage();
   useEvents(route.project);
   return (
-    <div className="shell">
+    <div className="shell" key={language} lang={language}>
       <nav className="sidebar">
         <div className="brand">{t("app.title")}</div>
         <NavLink route={route} target={{ project: null, section: "projects", item: null }} />
@@ -31,6 +34,10 @@ export function App() {
           </>
         )}
         <div className="spacer" />
+        <NavLink
+          route={route}
+          target={{ project: route.project, section: "settings", item: null }}
+        />
         <NavLink route={route} target={{ project: route.project, section: "about", item: null }} />
       </nav>
       <main className="content">
@@ -61,7 +68,9 @@ function ProjectName({ slug }: { slug: string }) {
 function Screen({ route }: { route: Route }) {
   const project = route.project;
   if (project === null) {
-    return route.section === "about" ? <About /> : <ProjectsScreen />;
+    if (route.section === "about") return <About />;
+    if (route.section === "settings") return <SettingsScreen />;
+    return <ProjectsScreen />;
   }
   switch (route.section) {
     case "projects":
@@ -82,6 +91,7 @@ function Screen({ route }: { route: Route }) {
     case "logs":
       return <LogsScreen project={project} />;
     case "settings":
+      return <SettingsScreen />;
     case "about":
       return <About />;
   }
