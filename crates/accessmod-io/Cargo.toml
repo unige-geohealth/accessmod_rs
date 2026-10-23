@@ -11,6 +11,7 @@ accessmod-core.workspace = true
 gdal = "0.19"
 # GDALPolygonize, not wrapped by the gdal crate (same version as gdal uses).
 gdal-sys = "0.12"
+png = "0.18.1"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 schemars.workspace = true
 serde.workspace = true

@@ -26,6 +26,7 @@ pub mod referral;
 pub mod report;
 pub mod resources;
 pub mod scaling_up;
+pub mod tiles;
 pub mod travel_time;
 pub mod vector;
 pub mod zonal;

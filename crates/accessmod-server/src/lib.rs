@@ -24,6 +24,7 @@ pub mod auth;
 pub mod commands;
 pub mod error;
 pub mod events;
+pub mod maps;
 pub mod routes;
 pub mod runner;
 pub mod state;
@@ -53,6 +54,19 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route(
             "/api/projects/{project}/datasets/{id}",
             get(routes::dataset),
+        )
+        .route("/api/projects/{project}/bounds", get(maps::bounds))
+        .route(
+            "/api/projects/{project}/datasets/{id}/tiles/{z}/{x}/{y}",
+            get(maps::tile),
+        )
+        .route(
+            "/api/projects/{project}/datasets/{id}/features",
+            get(maps::features),
+        )
+        .route(
+            "/api/projects/{project}/datasets/{id}/value",
+            get(maps::value),
         )
         .route("/api/projects/{project}/jobs", get(routes::jobs))
         .route("/api/projects/{project}/jobs/{id}", get(routes::job))

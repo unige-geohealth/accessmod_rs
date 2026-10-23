@@ -49,6 +49,8 @@ pub const DB_FILE: &str = "project.sqlite";
 pub const DATASETS_DIR: &str = "datasets";
 /// Directory of runs.
 pub const RUNS_DIR: &str = "runs";
+/// Directory of disposable caches (preview tiles).
+pub const CACHE_DIR: &str = "cache";
 /// Lock file: imports and runs hold it shared, recovery exclusive.
 pub const LOCK_FILE: &str = ".lock";
 /// Suffix of files being deleted.
@@ -405,6 +407,11 @@ impl Project {
     /// Project directory.
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Directory of disposable caches; anything in it may be deleted.
+    pub fn cache_dir(&self) -> PathBuf {
+        self.root.join(CACHE_DIR)
     }
 
     fn db_error(&self) -> impl FnOnce(rusqlite::Error) -> Error + '_ {

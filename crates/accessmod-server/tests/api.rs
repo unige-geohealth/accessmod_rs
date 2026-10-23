@@ -350,3 +350,83 @@ async fn events_are_a_stream() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()["content-type"], "text/event-stream");
 }
+
+#[tokio::test]
+async fn map_previews_tiles_features_values_and_bounds() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let (status, bounds) = s
+        .call("GET", &format!("/api/projects/{slug}/bounds"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{bounds}");
+    let b: Vec<f64> = bounds
+        .as_array()
+        .expect("bounds")
+        .iter()
+        .filter_map(Value::as_f64)
+        .collect();
+    let (lon, lat) = ((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0);
+    let (x, y) = accessmod_io::tiles::tile_at(lon, lat, 12);
+
+    let request = Request::builder()
+        .uri(format!(
+            "/api/projects/{slug}/datasets/2/tiles/12/{x}/{y}.png"
+        ))
+        .body(Body::empty())
+        .expect("request");
+    let response = s.app.clone().oneshot(request).await.expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "image/png");
+    let png = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    assert!(png.starts_with(b"\x89PNG"));
+    let cached = s
+        .dir
+        .path()
+        .join("data/projects")
+        .join(&slug)
+        .join("cache/tiles");
+    assert!(cached.exists(), "the tile is cached");
+
+    let (status, value) = s
+        .call(
+            "GET",
+            &format!("/api/projects/{slug}/datasets/2/value?lon={lon}&lat={lat}"),
+            None,
+        )
+        .await;
+    assert_eq!(
+        (status, value["value"].clone()),
+        (StatusCode::OK, json!(1.0))
+    );
+    let (status, features) = s
+        .call(
+            "GET",
+            &format!("/api/projects/{slug}/datasets/3/features"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(features["features"][0]["properties"]["hf_id"], 7);
+    // A raster has no features; a vector no tiles.
+    let (status, _) = s
+        .call(
+            "GET",
+            &format!("/api/projects/{slug}/datasets/2/features"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = s
+        .call(
+            "GET",
+            &format!("/api/projects/{slug}/datasets/3/tiles/1/0/0"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
