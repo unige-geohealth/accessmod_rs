@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "An analysis and the JSON Schema of its job.",
+  "properties": {
+    "name": {
+      "description": "Name, e.g. `travel-time`.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "JSON Schema of its job document."
+    }
+  },
+  "required": [
+    "name",
+    "schema"
+  ],
+  "title": "AnalysisInfo",
+  "type": "object"
+}

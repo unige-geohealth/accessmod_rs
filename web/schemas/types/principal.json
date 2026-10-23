@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The user behind a request.",
+  "properties": {
+    "admin": {
+      "description": "Server administrator.",
+      "type": "boolean"
+    },
+    "user": {
+      "description": "User name; `local` on the desktop.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "user",
+    "admin"
+  ],
+  "title": "Principal",
+  "type": "object"
+}

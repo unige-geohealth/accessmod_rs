@@ -1,0 +1,259 @@
+{
+  "$defs": {
+    "Progress": {
+      "description": "Progress of a running analysis, reported through a [`Monitor`].\n\nStages are stable identifiers, the keys of `durations_s` in `run.json`\n(`load_inputs`, `solve`, `write_outputs`, …), so an interface can\ntranslate them. Progress never changes results.",
+      "properties": {
+        "done": {
+          "description": "Units done in the stage (cells, searches, facilities, iterations).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stage": {
+          "description": "Stage identifier.",
+          "type": "string"
+        },
+        "total": {
+          "description": "Units in the stage, when known.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "stage",
+        "done"
+      ],
+      "type": "object"
+    },
+    "RunError": {
+      "description": "Why a run failed.",
+      "properties": {
+        "issues": {
+          "description": "Every problem found.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "description": "`validation`, `io`, `computation`, `cancelled` or `internal`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "issues"
+      ],
+      "type": "object"
+    },
+    "RunRecord": {
+      "description": "A run of the project.",
+      "properties": {
+        "analysis": {
+          "description": "Analysis name.",
+          "type": "string"
+        },
+        "datasets": {
+          "description": "Datasets it wrote.",
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why it failed (failed and cancelled runs)."
+        },
+        "finished": {
+          "description": "End, seconds since the Unix epoch.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Identifier.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "job": {
+          "description": "Job document, paths relative to the project."
+        },
+        "outcome": {
+          "description": "One line summarising the result (done runs).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "output_dir": {
+          "description": "Output directory, relative to the project.",
+          "type": "string"
+        },
+        "started": {
+          "description": "Start, seconds since the Unix epoch.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus",
+          "description": "State."
+        },
+        "tags": {
+          "description": "Tags of the datasets it writes.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "analysis",
+        "tags",
+        "job",
+        "status",
+        "output_dir",
+        "started",
+        "datasets"
+      ],
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "State of a run.",
+      "oneOf": [
+        {
+          "const": "queued",
+          "description": "Waiting for its turn.",
+          "type": "string"
+        },
+        {
+          "const": "running",
+          "description": "In progress.",
+          "type": "string"
+        },
+        {
+          "const": "done",
+          "description": "Finished; outputs registered.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "Stopped by an error.",
+          "type": "string"
+        },
+        {
+          "const": "cancelled",
+          "description": "Cancelled by the user.",
+          "type": "string"
+        },
+        {
+          "const": "interrupted",
+          "description": "Stopped by a crash or restart; outputs are incomplete.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "An event, sent as JSON with its `type` as the SSE event name.",
+  "oneOf": [
+    {
+      "description": "A run was queued, started, finished, failed or was cancelled.",
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "type": "string"
+        },
+        "run": {
+          "$ref": "#/$defs/RunRecord",
+          "description": "The run as it is now."
+        },
+        "type": {
+          "const": "run",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "project",
+        "run"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Progress of a running run.",
+      "properties": {
+        "progress": {
+          "$ref": "#/$defs/Progress",
+          "description": "Stage and counts."
+        },
+        "project": {
+          "description": "Project slug.",
+          "type": "string"
+        },
+        "run": {
+          "description": "Run identifier.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "type": {
+          "const": "progress",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "project",
+        "run",
+        "progress"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Datasets or saved jobs of a project changed.",
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "type": "string"
+        },
+        "type": {
+          "const": "catalogue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "project"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Projects were created, renamed or deleted.",
+      "properties": {
+        "type": {
+          "const": "projects",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Event"
+}

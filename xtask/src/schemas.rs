@@ -105,6 +105,25 @@ fn types() -> Vec<(&'static str, Value)> {
         ("dataset", schema::<project::DatasetRecord>()),
         ("saved-job", schema::<project::SavedJob>()),
         ("run", schema::<project::RunRecord>()),
+        ("event", schema::<accessmod_server::events::Event>()),
+        (
+            "project-entry",
+            schema::<accessmod_server::routes::ProjectEntry>(),
+        ),
+        (
+            "created-project",
+            schema::<accessmod_server::commands::CreatedProject>(),
+        ),
+        (
+            "analysis-info",
+            schema::<accessmod_server::routes::AnalysisInfo>(),
+        ),
+        (
+            "command-info",
+            schema::<accessmod_server::commands::CommandInfo>(),
+        ),
+        ("principal", schema::<accessmod_server::auth::Principal>()),
+        ("tile-style", schema::<accessmod_io::tiles::Style>()),
     ]
 }
 

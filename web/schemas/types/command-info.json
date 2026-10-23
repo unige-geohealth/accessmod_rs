@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "Requirement": {
+      "description": "What a command or query needs.",
+      "oneOf": [
+        {
+          "description": "Any signed-in user (create a project, list analyses).",
+          "properties": {
+            "scope": {
+              "const": "user",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A role on the project named in the request.",
+          "properties": {
+            "role": {
+              "$ref": "#/$defs/Role"
+            },
+            "scope": {
+              "const": "project",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope",
+            "role"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A server administrator (manage accounts).",
+          "properties": {
+            "scope": {
+              "const": "admin",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Role": {
+      "description": "Rights on a project, ordered: each includes the previous ones.",
+      "oneOf": [
+        {
+          "const": "viewer",
+          "description": "Read datasets, jobs, runs and previews.",
+          "type": "string"
+        },
+        {
+          "const": "editor",
+          "description": "Import, tag, save jobs, start and cancel runs.",
+          "type": "string"
+        },
+        {
+          "const": "owner",
+          "description": "Rename and delete the project, manage its members.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Listing entry of a command.",
+  "properties": {
+    "description": {
+      "description": "What it does.",
+      "type": "string"
+    },
+    "id": {
+      "description": "Identifier.",
+      "type": "string"
+    },
+    "params": {
+      "description": "JSON Schema of its parameters."
+    },
+    "requirement": {
+      "$ref": "#/$defs/Requirement",
+      "description": "Who may run it."
+    }
+  },
+  "required": [
+    "id",
+    "description",
+    "requirement",
+    "params"
+  ],
+  "title": "CommandInfo",
+  "type": "object"
+}

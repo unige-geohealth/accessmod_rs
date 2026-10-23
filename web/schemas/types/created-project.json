@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "GridInfo": {
+      "description": "The grid every raster of a project lies on.",
+      "properties": {
+        "cols": {
+          "description": "Columns.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "crs_wkt": {
+          "description": "CRS as WKT.",
+          "type": "string"
+        },
+        "geo_transform": {
+          "description": "GDAL geotransform.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array"
+        },
+        "rows": {
+          "description": "Rows.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cols",
+        "rows",
+        "geo_transform",
+        "crs_wkt"
+      ],
+      "type": "object"
+    },
+    "ProjectInfo": {
+      "description": "Name, grid and DEM of a project.",
+      "properties": {
+        "created": {
+          "description": "Creation time, seconds since the Unix epoch.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "dem": {
+          "description": "Dataset holding the DEM, which defines the grid.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "description": {
+          "description": "Free description.",
+          "type": "string"
+        },
+        "grid": {
+          "$ref": "#/$defs/GridInfo",
+          "description": "The project grid."
+        },
+        "name": {
+          "description": "Name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "created",
+        "dem",
+        "grid"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A created project.",
+  "properties": {
+    "info": {
+      "$ref": "#/$defs/ProjectInfo",
+      "description": "The project."
+    },
+    "slug": {
+      "description": "Slug, used in every project path.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "slug",
+    "info"
+  ],
+  "title": "CreatedProject",
+  "type": "object"
+}

@@ -63,7 +63,7 @@ const RULES: &[Rule] = &[
     },
     Rule {
         name: "xtask",
-        workspace: &["accessmod-core", "accessmod-io"],
+        workspace: &["accessmod-core", "accessmod-io", "accessmod-server"],
         forbidden: &[],
         reason: "developer tasks",
     },

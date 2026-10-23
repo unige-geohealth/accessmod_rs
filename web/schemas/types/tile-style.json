@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "How cell values become colours.",
+  "oneOf": [
+    {
+      "description": "Integer classes, one stable colour each (land cover, cost allocation).",
+      "properties": {
+        "kind": {
+          "const": "classes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "Continuous values on a ramp from `min` to `max`.",
+      "properties": {
+        "kind": {
+          "const": "ramp",
+          "type": "string"
+        },
+        "max": {
+          "description": "Value of the last colour.",
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "description": "Value of the first colour.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "min",
+        "max"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Style"
+}
