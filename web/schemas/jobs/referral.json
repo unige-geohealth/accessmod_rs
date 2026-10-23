@@ -165,7 +165,8 @@
       "$ref": "#/$defs/FacilitySource",
       "description": "Facilities travel goes to (may be the same layer as the origins).",
       "x-accessmod-class": [
-        "vFacility"
+        "vFacility",
+        "vFacilityNew"
       ]
     },
     "facility_issues": {
@@ -177,7 +178,6 @@
       "description": "Land-cover raster with integer classes, on the DEM lattice.",
       "type": "string",
       "x-accessmod-class": [
-        "rLandCover",
         "rLandCoverMerged"
       ]
     },
@@ -211,7 +211,8 @@
       "$ref": "#/$defs/FacilitySource",
       "description": "Facilities travel starts from.",
       "x-accessmod-class": [
-        "vFacility"
+        "vFacility",
+        "vFacilityNew"
       ]
     },
     "output_dir": {

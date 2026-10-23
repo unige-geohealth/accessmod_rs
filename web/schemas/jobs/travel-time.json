@@ -181,7 +181,8 @@
       "$ref": "#/$defs/FacilitySource",
       "description": "Facility point layer.",
       "x-accessmod-class": [
-        "vFacility"
+        "vFacility",
+        "vFacilityNew"
       ]
     },
     "facility_issues": {
@@ -193,7 +194,6 @@
       "description": "Land-cover raster with integer classes, on the DEM lattice.",
       "type": "string",
       "x-accessmod-class": [
-        "rLandCover",
         "rLandCoverMerged"
       ]
     },

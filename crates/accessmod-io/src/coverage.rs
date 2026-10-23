@@ -76,13 +76,13 @@ pub struct CoverageJob {
     #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
-    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
+    #[schemars(extend("x-accessmod-class" = ["rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Population raster (people per cell), on the DEM lattice.
     #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
     pub population: PathBuf,
     /// Facility point layer.
-    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
+    #[schemars(extend("x-accessmod-class" = ["vFacility", "vFacilityNew"]))]
     pub facilities: FacilitySource,
     /// Field holding the capacity (people a facility can serve); not used
     /// with `ignore_capacity`.

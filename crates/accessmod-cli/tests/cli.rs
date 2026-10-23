@@ -395,3 +395,12 @@ fn project_init_import_run_and_list() {
     assert_eq!(list.as_array().map(Vec::len), Some(1));
     assert_eq!(list[0]["file"], "runs/1/travel_time_seconds.tif");
 }
+
+#[test]
+fn every_registered_analysis_has_a_command_with_its_schema() {
+    for (name, schema) in accessmod_io::analysis::job_schemas() {
+        let output = accessmod(&[name, "schema"]);
+        assert!(output.status.success(), "accessmod {name} schema failed");
+        assert_eq!(stdout_json(&output), schema, "{name}");
+    }
+}

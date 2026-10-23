@@ -4,8 +4,10 @@
 //!
 //! Job fields that designate a dataset carry the classes they accept in
 //! their JSON Schema, as `x-accessmod-class` (see [`SCHEMA_KEY`]): on a path
-//! string, or on a layer object whose `path` is the dataset. Internal
-//! AccessMod 5 classes (stacks, speed, friction, bridges) are left out.
+//! string, or on a layer object whose `path` is the dataset; the lists follow
+//! the selectors of the AccessMod 5 screens. Every class `classes.json`
+//! marks non-internal is here; internal ones (stacks, speed, friction,
+//! bridges) are left out.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,6 +25,8 @@ pub enum Kind {
     Vector,
     /// Rows without geometry.
     Table,
+    /// Analysis parameters (a job document).
+    Config,
 }
 
 macro_rules! classes {
@@ -94,7 +98,13 @@ classes! {
     ReferralNetwork = "vReferralNetwork", Vector, "referral network", false;
     LandCoverTable = "tLandCover", Table, "land cover", true;
     Scenario = "tScenario", Table, "scenario", true;
+    ScenarioProcessed = "tScenarioOut", Table, "scenario processed", false;
+    ExclusionTable = "tExclusion", Table, "exclusion", true;
+    ExclusionTableProcessed = "tExclusionOut", Table, "exclusion processed", false;
     Capacity = "tCapacity", Table, "capacity", true;
+    CapacityProcessed = "tCapacityOut", Table, "capacity processed", false;
+    Suitability = "tSuitability", Table, "suitability", true;
+    SuitabilityProcessed = "tSuitabilityOut", Table, "suitability processed", false;
     Referral = "tReferral", Table, "referral", false;
     ReferralNearestDistance = "tReferralDist", Table, "referral nearest by dist", false;
     ReferralNearestTime = "tReferralTime", Table, "referral nearest by time", false;
@@ -103,6 +113,7 @@ classes! {
     OptimizationResult = "tOptimization", Table, "optimization", false;
     ZonalCoverage = "tZonalStat", Table, "zonal coverage", false;
     PopulationAdjustmentSummary = "tPopDistribAdjustSummary", Table, "population adjustment summary", false;
+    AnalysisParameters = "lAnalysisParameters", Config, "analysis parameters", false;
 }
 
 /// Every `x-accessmod-class` list in `schema`, with the JSON pointer of the
@@ -158,6 +169,7 @@ mod tests {
                 Kind::Raster => 'r',
                 Kind::Vector => 'v',
                 Kind::Table => 't',
+                Kind::Config => 'l',
             };
             assert!(class.code().starts_with(prefix), "{}", class.code());
         }

@@ -99,7 +99,7 @@ pub struct ScalingUpJob {
     #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
-    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
+    #[schemars(extend("x-accessmod-class" = ["rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Population raster (people per cell): the population the covered
     /// percent refers to.
@@ -113,7 +113,7 @@ pub struct ScalingUpJob {
     /// Existing facilities, kept: they count in the `facilities` layer of
     /// the rules.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
+    #[schemars(extend("x-accessmod-class" = ["vFacility", "vFacilityNew"]))]
     pub facilities: Option<FacilitySource>,
     /// Mobility of each land-cover class. Classes not listed are barriers.
     pub scenario: Vec<ScenarioEntry>,
@@ -1472,19 +1472,24 @@ pub fn run(
             0.0
         }
     };
+    // Time spent reporting progress does not count towards `max_duration_s`:
+    // a slow progress sink must not change which facilities are added.
+    let mut reporting = std::time::Duration::ZERO;
     for iteration in 1..=job.max_facilities {
+        let report_started = Instant::now();
         monitor.advance(
             "iterations",
             u64::from(iteration - 1),
             Some(u64::from(job.max_facilities)),
         );
+        reporting += report_started.elapsed();
         if covered_percent(remaining) >= job.max_coverage_percent {
             result.stop = Some(StopReason::Coverage);
             break;
         }
         if job
             .max_duration_s
-            .is_some_and(|d| started.elapsed().as_secs_f64() >= d)
+            .is_some_and(|d| started.elapsed().saturating_sub(reporting).as_secs_f64() >= d)
         {
             result.stop = Some(StopReason::Duration);
             break;

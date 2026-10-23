@@ -132,10 +132,46 @@
     "label": "scenario"
   },
   {
+    "class": "tScenarioOut",
+    "importable": false,
+    "kind": "table",
+    "label": "scenario processed"
+  },
+  {
+    "class": "tExclusion",
+    "importable": true,
+    "kind": "table",
+    "label": "exclusion"
+  },
+  {
+    "class": "tExclusionOut",
+    "importable": false,
+    "kind": "table",
+    "label": "exclusion processed"
+  },
+  {
     "class": "tCapacity",
     "importable": true,
     "kind": "table",
     "label": "capacity"
+  },
+  {
+    "class": "tCapacityOut",
+    "importable": false,
+    "kind": "table",
+    "label": "capacity processed"
+  },
+  {
+    "class": "tSuitability",
+    "importable": true,
+    "kind": "table",
+    "label": "suitability"
+  },
+  {
+    "class": "tSuitabilityOut",
+    "importable": false,
+    "kind": "table",
+    "label": "suitability processed"
   },
   {
     "class": "tReferral",
@@ -184,5 +220,11 @@
     "importable": false,
     "kind": "table",
     "label": "population adjustment summary"
+  },
+  {
+    "class": "lAnalysisParameters",
+    "importable": false,
+    "kind": "config",
+    "label": "analysis parameters"
   }
 ]

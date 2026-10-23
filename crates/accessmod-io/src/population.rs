@@ -46,10 +46,10 @@ pub struct AdjustPopulationJob {
     #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Population raster (people per cell), on the DEM lattice.
-    #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
+    #[schemars(extend("x-accessmod-class" = ["rPopulation"]))]
     pub population: PathBuf,
     /// Land cover (usually merged); NoData cells are barriers.
-    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
+    #[schemars(extend("x-accessmod-class" = ["rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Zones within which population is redistributed.
     #[schemars(extend("x-accessmod-class" = ["vZone"]))]

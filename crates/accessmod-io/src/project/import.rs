@@ -66,6 +66,7 @@ impl Project {
                     cancelled,
                 ),
                 Kind::Table => copy_table(source, target),
+                Kind::Config => Err(config_is_a_job()),
             },
             cancelled,
         )
@@ -157,7 +158,12 @@ fn summarise(
             .map(Summary::Raster),
         Kind::Vector => vector_summary(path).map(Summary::Vector),
         Kind::Table => table_summary(path).map(Summary::Table),
+        Kind::Config => Err(config_is_a_job()),
     }
+}
+
+fn config_is_a_job() -> Error {
+    Error::invalid("analysis parameters are saved jobs of the project, not datasets")
 }
 
 /// Overview resampling of a raster class.

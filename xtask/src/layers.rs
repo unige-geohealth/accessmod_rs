@@ -2,7 +2,7 @@
 //!
 //! Each workspace crate lists the workspace crates it may depend on and the
 //! external crates it must never reach, directly or transitively (normal and
-//! build dependencies; dev-dependencies are free). A new workspace crate
+//! build dependencies of every target platform; dev-dependencies are free). A new workspace crate
 //! must be registered in [`RULES`].
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -90,21 +90,25 @@ pub fn run(args: &[String]) -> Result<(), String> {
     }
 }
 
-/// Workspace dependency graph (normal and build edges, host platform).
+/// Workspace dependency graph: normal and build edges, every target
+/// platform, between package identifiers (two versions of a crate stay
+/// apart).
 struct Graph {
-    /// Workspace members by name.
-    members: BTreeSet<String>,
-    /// Package name -> names of its direct dependencies.
+    /// Workspace members: name -> package identifier.
+    members: BTreeMap<String, String>,
+    /// Package identifier -> name.
+    names: BTreeMap<String, String>,
+    /// Package identifier -> identifiers of its direct dependencies.
     edges: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Graph {
     fn load() -> Result<Self, String> {
-        let host = host_triple()?;
+        // No `--filter-platform`: a dependency behind any target's `cfg`
+        // counts.
         let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
             .current_dir(workspace_root())
-            .args(["metadata", "--format-version", "1", "--filter-platform"])
-            .arg(&host)
+            .args(["metadata", "--format-version", "1"])
             .output()
             .map_err(|e| format!("cannot run cargo metadata: {e}"))?;
         if !output.status.success() {
@@ -119,24 +123,23 @@ impl Graph {
     }
 
     fn from_metadata(metadata: &Value) -> Result<Self, String> {
-        let names: BTreeMap<&str, &str> = array(metadata, "packages")?
+        let names: BTreeMap<String, String> = array(metadata, "packages")?
             .iter()
-            .filter_map(|p| Some((p["id"].as_str()?, p["name"].as_str()?)))
+            .filter_map(|p| Some((p["id"].as_str()?.to_owned(), p["name"].as_str()?.to_owned())))
             .collect();
-        let name_of = |id: &str| {
-            names
-                .get(id)
-                .map(|n| (*n).to_owned())
-                .ok_or_else(|| format!("unknown package id {id}"))
-        };
-        let members = array(metadata, "workspace_members")?
+        let mut members = BTreeMap::new();
+        for id in array(metadata, "workspace_members")?
             .iter()
             .filter_map(Value::as_str)
-            .map(name_of)
-            .collect::<Result<BTreeSet<_>, _>>()?;
+        {
+            let name = names
+                .get(id)
+                .ok_or_else(|| format!("unknown package id {id}"))?;
+            members.insert(name.clone(), id.to_owned());
+        }
         let mut edges: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for node in array(&metadata["resolve"], "nodes")? {
-            let from = name_of(node["id"].as_str().unwrap_or_default())?;
+            let from = node["id"].as_str().unwrap_or_default().to_owned();
             let targets = edges.entry(from).or_default();
             for dep in node["deps"].as_array().into_iter().flatten() {
                 let runtime = dep["dep_kinds"]
@@ -145,17 +148,25 @@ impl Graph {
                     .flatten()
                     .any(|k| k["kind"].as_str() != Some("dev"));
                 if runtime {
-                    targets.insert(name_of(dep["pkg"].as_str().unwrap_or_default())?);
+                    targets.insert(dep["pkg"].as_str().unwrap_or_default().to_owned());
                 }
             }
         }
-        Ok(Self { members, edges })
+        Ok(Self {
+            members,
+            names,
+            edges,
+        })
     }
 
-    /// Every crate reachable from `name`, `name` excluded.
-    fn reachable(&self, name: &str) -> BTreeSet<String> {
+    fn name<'a>(&'a self, id: &'a str) -> &'a str {
+        self.names.get(id).map_or(id, String::as_str)
+    }
+
+    /// Names of every package reachable from package `id`, `id` excluded.
+    fn reachable(&self, id: &str) -> BTreeSet<String> {
         let mut seen = BTreeSet::new();
-        let mut stack = vec![name.to_owned()];
+        let mut stack = vec![id.to_owned()];
         while let Some(current) = stack.pop() {
             for next in self.edges.get(&current).into_iter().flatten() {
                 if seen.insert(next.clone()) {
@@ -163,29 +174,31 @@ impl Graph {
                 }
             }
         }
-        seen
+        seen.iter().map(|id| self.name(id).to_owned()).collect()
     }
 }
 
 /// Violations of [`RULES`] in `graph`, one message each.
 fn check(graph: &Graph) -> Vec<String> {
     let mut violations = Vec::new();
-    for member in &graph.members {
+    let member_ids: BTreeSet<&String> = graph.members.values().collect();
+    for (member, id) in &graph.members {
         let Some(rule) = RULES.iter().find(|r| r.name == member) else {
             violations.push(format!(
                 "{member}: not registered in xtask/src/layers.rs (RULES)"
             ));
             continue;
         };
-        for dep in graph.edges.get(member).into_iter().flatten() {
-            if graph.members.contains(dep) && !rule.workspace.contains(&dep.as_str()) {
+        for dep in graph.edges.get(id).into_iter().flatten() {
+            let name = graph.name(dep);
+            if member_ids.contains(dep) && !rule.workspace.contains(&name) {
                 violations.push(format!(
-                    "{member} depends on {dep}, which its layer does not allow ({})",
+                    "{member} depends on {name}, which its layer does not allow ({})",
                     rule.reason
                 ));
             }
         }
-        let reachable = graph.reachable(member);
+        let reachable = graph.reachable(id);
         for forbidden in rule.forbidden.iter().flat_map(|group| group.iter()) {
             if reachable.contains(*forbidden) {
                 violations.push(format!(
@@ -204,31 +217,36 @@ fn array<'a>(value: &'a Value, key: &str) -> Result<&'a Vec<Value>, String> {
         .ok_or_else(|| format!("cargo metadata: no `{key}` array"))
 }
 
-fn host_triple() -> Result<String, String> {
-    let output = Command::new(std::env::var("RUSTC").unwrap_or_else(|_| "rustc".into()))
-        .arg("-vV")
-        .output()
-        .map_err(|e| format!("cannot run rustc -vV: {e}"))?;
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .find_map(|line| line.strip_prefix("host: "))
-        .map(str::to_owned)
-        .ok_or_else(|| "rustc -vV printed no host triple".into())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// A graph whose package identifiers are the names.
     fn graph(members: &[&str], edges: &[(&str, &str)]) -> Graph {
         let mut map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut names = BTreeMap::new();
         for (from, to) in edges {
             map.entry((*from).into()).or_default().insert((*to).into());
+            names.insert((*from).to_owned(), (*from).to_owned());
+            names.insert((*to).to_owned(), (*to).to_owned());
         }
         Graph {
-            members: members.iter().map(|m| (*m).into()).collect(),
+            members: members.iter().map(|m| ((*m).into(), (*m).into())).collect(),
+            names,
             edges: map,
         }
+    }
+
+    #[test]
+    fn versions_of_one_crate_stay_apart() {
+        // io uses tokio-free `helper 1`; `helper 2` (not reached) needs tokio.
+        let mut g = graph(
+            &["accessmod-io"],
+            &[("accessmod-io", "helper 1.0"), ("helper 2.0", "tokio")],
+        );
+        g.names.insert("helper 1.0".into(), "helper".into());
+        g.names.insert("helper 2.0".into(), "helper".into());
+        assert!(check(&g).is_empty(), "{:?}", check(&g));
     }
 
     #[test]

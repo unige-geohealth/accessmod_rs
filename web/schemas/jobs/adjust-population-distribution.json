@@ -56,7 +56,6 @@
       "description": "Land cover (usually merged); NoData cells are barriers.",
       "type": "string",
       "x-accessmod-class": [
-        "rLandCover",
         "rLandCoverMerged"
       ]
     },
@@ -68,8 +67,7 @@
       "description": "Population raster (people per cell), on the DEM lattice.",
       "type": "string",
       "x-accessmod-class": [
-        "rPopulation",
-        "rPopulationResidual"
+        "rPopulation"
       ]
     },
     "schema_version": {

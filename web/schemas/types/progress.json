@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Progress of a running analysis, reported through a [`Monitor`].\n\nStages are stable identifiers, the keys of `durations_s` in `run.json`\n(`load_inputs`, `solve`, `write_outputs`, …), so an interface can\ntranslate them. Progress never changes results.",
+  "properties": {
+    "done": {
+      "description": "Units done in the stage (cells, searches, facilities, iterations).",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stage": {
+      "description": "Stage identifier.",
+      "type": "string"
+    },
+    "total": {
+      "description": "Units in the stage, when known.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "stage",
+    "done"
+  ],
+  "title": "Progress",
+  "type": "object"
+}

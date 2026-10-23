@@ -41,13 +41,13 @@ pub struct ReferralJob {
     #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
-    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
+    #[schemars(extend("x-accessmod-class" = ["rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Facilities travel starts from.
-    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
+    #[schemars(extend("x-accessmod-class" = ["vFacility", "vFacilityNew"]))]
     pub origins: FacilitySource,
     /// Facilities travel goes to (may be the same layer as the origins).
-    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
+    #[schemars(extend("x-accessmod-class" = ["vFacility", "vFacilityNew"]))]
     pub destinations: FacilitySource,
     /// Mobility of each land-cover class. Classes not listed are barriers.
     pub scenario: Vec<ScenarioEntry>,

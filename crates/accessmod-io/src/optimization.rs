@@ -47,7 +47,7 @@ pub struct OptimizationJob {
     pub population: PathBuf,
     /// Catchment polygons (`catchments.fgb` of a geographic coverage);
     /// `id_field` holds the identifier of each catchment's facility.
-    #[schemars(extend("x-accessmod-class" = ["vCatchment", "vCatchmentNew"]))]
+    #[schemars(extend("x-accessmod-class" = ["vCatchment"]))]
     pub catchments: FacilitySource,
     /// Facilities to select (> 0).
     pub max_facilities: usize,
@@ -67,7 +67,7 @@ pub struct ZoneQuotaJob {
     #[schemars(extend("x-accessmod-class" = ["vZone"]))]
     pub zones: ZoneLayer,
     /// Facility points; `id_field` matches the catchments' identifiers.
-    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
+    #[schemars(extend("x-accessmod-class" = ["vFacility", "vFacilityNew"]))]
     pub facilities: FacilitySource,
     /// Facilities per zone (> 0); zones times this minimum must not exceed
     /// `max_facilities`.
@@ -816,11 +816,6 @@ pub fn run(
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        monitor.advance(
-            "selection",
-            selected.len() as u64,
-            Some(job.max_facilities as u64),
-        );
         monitor.advance(
             "selection",
             selected.len() as u64,

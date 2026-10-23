@@ -88,7 +88,7 @@ pub enum StackItem {
 #[serde(deny_unknown_fields)]
 pub struct LandCoverItem {
     /// Raster with integer classes, on the DEM lattice and in its CRS.
-    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
+    #[schemars(extend("x-accessmod-class" = ["rLandCover"]))]
     pub path: PathBuf,
     /// Labels of the raster's classes (before `reclass`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

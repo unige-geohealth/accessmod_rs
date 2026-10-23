@@ -1,0 +1,521 @@
+{
+  "$defs": {
+    "DataClass": {
+      "description": "A data class, serialised with its AccessMod 5 identifier.",
+      "oneOf": [
+        {
+          "const": "rDem",
+          "description": "dem",
+          "type": "string"
+        },
+        {
+          "const": "rLandCover",
+          "description": "land cover",
+          "type": "string"
+        },
+        {
+          "const": "rLandCoverMerged",
+          "description": "land cover merged",
+          "type": "string"
+        },
+        {
+          "const": "rPopulation",
+          "description": "population",
+          "type": "string"
+        },
+        {
+          "const": "rPopulationResidual",
+          "description": "population residual",
+          "type": "string"
+        },
+        {
+          "const": "rTravelTime",
+          "description": "travel time",
+          "type": "string"
+        },
+        {
+          "const": "rNearest",
+          "description": "cost allocation",
+          "type": "string"
+        },
+        {
+          "const": "rTravelTimeImported",
+          "description": "imported travel time",
+          "type": "string"
+        },
+        {
+          "const": "rPopulationOnBarrier",
+          "description": "population on barrier",
+          "type": "string"
+        },
+        {
+          "const": "rPriority",
+          "description": "priority",
+          "type": "string"
+        },
+        {
+          "const": "rExclusion",
+          "description": "exclusion",
+          "type": "string"
+        },
+        {
+          "const": "vBarrier",
+          "description": "barrier",
+          "type": "string"
+        },
+        {
+          "const": "vRoad",
+          "description": "road",
+          "type": "string"
+        },
+        {
+          "const": "vFacility",
+          "description": "facility",
+          "type": "string"
+        },
+        {
+          "const": "vFacilityNew",
+          "description": "facility scaling up",
+          "type": "string"
+        },
+        {
+          "const": "vZone",
+          "description": "zone for stat",
+          "type": "string"
+        },
+        {
+          "const": "vExclusion",
+          "description": "exclusion",
+          "type": "string"
+        },
+        {
+          "const": "vCatchment",
+          "description": "catchment",
+          "type": "string"
+        },
+        {
+          "const": "vCatchmentNew",
+          "description": "catchment scaling up",
+          "type": "string"
+        },
+        {
+          "const": "vReferralNetwork",
+          "description": "referral network",
+          "type": "string"
+        },
+        {
+          "const": "tLandCover",
+          "description": "land cover",
+          "type": "string"
+        },
+        {
+          "const": "tScenario",
+          "description": "scenario",
+          "type": "string"
+        },
+        {
+          "const": "tScenarioOut",
+          "description": "scenario processed",
+          "type": "string"
+        },
+        {
+          "const": "tExclusion",
+          "description": "exclusion",
+          "type": "string"
+        },
+        {
+          "const": "tExclusionOut",
+          "description": "exclusion processed",
+          "type": "string"
+        },
+        {
+          "const": "tCapacity",
+          "description": "capacity",
+          "type": "string"
+        },
+        {
+          "const": "tCapacityOut",
+          "description": "capacity processed",
+          "type": "string"
+        },
+        {
+          "const": "tSuitability",
+          "description": "suitability",
+          "type": "string"
+        },
+        {
+          "const": "tSuitabilityOut",
+          "description": "suitability processed",
+          "type": "string"
+        },
+        {
+          "const": "tReferral",
+          "description": "referral",
+          "type": "string"
+        },
+        {
+          "const": "tReferralDist",
+          "description": "referral nearest by dist",
+          "type": "string"
+        },
+        {
+          "const": "tReferralTime",
+          "description": "referral nearest by time",
+          "type": "string"
+        },
+        {
+          "const": "tCapacityStat",
+          "description": "result geographic coverage analysis",
+          "type": "string"
+        },
+        {
+          "const": "tCapacityStatNew",
+          "description": "result scaling up analysis",
+          "type": "string"
+        },
+        {
+          "const": "tOptimization",
+          "description": "optimization",
+          "type": "string"
+        },
+        {
+          "const": "tZonalStat",
+          "description": "zonal coverage",
+          "type": "string"
+        },
+        {
+          "const": "tPopDistribAdjustSummary",
+          "description": "population adjustment summary",
+          "type": "string"
+        },
+        {
+          "const": "lAnalysisParameters",
+          "description": "analysis parameters",
+          "type": "string"
+        }
+      ]
+    },
+    "Origin": {
+      "description": "Where a dataset comes from.",
+      "oneOf": [
+        {
+          "description": "Imported from a file.",
+          "properties": {
+            "layer": {
+              "description": "Layer read (vectors).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "description": "Source file as given.",
+              "type": "string"
+            },
+            "type": {
+              "const": "import",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Written by a run.",
+          "properties": {
+            "file": {
+              "description": "File in the run's output directory.",
+              "type": "string"
+            },
+            "run": {
+              "description": "The run.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": {
+              "const": "run",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "run",
+            "file"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Preview": {
+      "description": "Overviews and statistics of a raster.",
+      "properties": {
+        "overviews": {
+          "description": "Overview factors written to the `.ovr` file (2, 4, …); empty for a\nraster small enough to draw directly.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "stats": {
+          "$ref": "#/$defs/RasterStats",
+          "description": "Statistics of band 1."
+        }
+      },
+      "required": [
+        "overviews",
+        "stats"
+      ],
+      "type": "object"
+    },
+    "RasterStats": {
+      "description": "Summary of band 1 of a raster. NoData and non-finite cells are not\nvalid.",
+      "properties": {
+        "cells": {
+          "description": "Cells of the raster.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "histogram": {
+          "description": "Valid cells in [`HISTOGRAM_BINS`] equal bins over `[min, max]` (the\nlast bin includes `max`); empty without valid cells.",
+          "items": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "max": {
+          "description": "Largest value; none without valid cells.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean": {
+          "description": "Mean value; none without valid cells.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "description": "Smallest value; none without valid cells.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "valid_cells": {
+          "description": "Cells with a value.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "values": {
+          "description": "Distinct values in ascending order, for an integer raster with at\nmost [`MAX_DISTINCT`] of them (classes); none otherwise.",
+          "items": {
+            "$ref": "#/$defs/ValueCount"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "cells",
+        "valid_cells",
+        "histogram"
+      ],
+      "type": "object"
+    },
+    "Summary": {
+      "description": "What a dataset holds.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Preview",
+          "description": "Raster: overviews and statistics.",
+          "properties": {
+            "kind": {
+              "const": "raster",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/VectorSummary",
+          "description": "Vector layer.",
+          "properties": {
+            "kind": {
+              "const": "vector",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/TableSummary",
+          "description": "Table.",
+          "properties": {
+            "kind": {
+              "const": "table",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TableSummary": {
+      "description": "Content of a table dataset.",
+      "properties": {
+        "columns": {
+          "description": "Columns of the header.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rows": {
+          "description": "Data rows (header excluded).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rows",
+        "columns"
+      ],
+      "type": "object"
+    },
+    "ValueCount": {
+      "description": "Count of one distinct value.",
+      "properties": {
+        "count": {
+          "description": "Cells holding it.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "value": {
+          "description": "Cell value.",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "value",
+        "count"
+      ],
+      "type": "object"
+    },
+    "VectorSummary": {
+      "description": "Content of a vector dataset.",
+      "properties": {
+        "features": {
+          "description": "Features.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fields": {
+          "description": "Attribute fields, in order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "geometry": {
+          "description": "OGR geometry type of the layer, e.g. `Point`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "features",
+        "geometry",
+        "fields"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A dataset of the catalogue.",
+  "properties": {
+    "bytes": {
+      "description": "Size of the file, bytes.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "class": {
+      "$ref": "#/$defs/DataClass",
+      "description": "Data class."
+    },
+    "created": {
+      "description": "Creation time, seconds since the Unix epoch.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "file": {
+      "description": "File, relative to the project.",
+      "type": "string"
+    },
+    "id": {
+      "description": "Identifier.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "origin": {
+      "$ref": "#/$defs/Origin",
+      "description": "Where it comes from."
+    },
+    "sha256": {
+      "description": "SHA-256 of the file.",
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/Summary",
+      "description": "What it holds, for lists and legends."
+    },
+    "tags": {
+      "description": "Tags (AccessMod 5): with the class, they name the dataset uniquely.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "class",
+    "tags",
+    "file",
+    "origin",
+    "sha256",
+    "bytes",
+    "summary",
+    "created"
+  ],
+  "title": "DatasetRecord",
+  "type": "object"
+}

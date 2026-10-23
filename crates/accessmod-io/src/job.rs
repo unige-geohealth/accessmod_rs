@@ -30,10 +30,10 @@ pub struct TravelTimeJob {
     #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
     /// Land-cover raster with integer classes, on the DEM lattice.
-    #[schemars(extend("x-accessmod-class" = ["rLandCover", "rLandCoverMerged"]))]
+    #[schemars(extend("x-accessmod-class" = ["rLandCoverMerged"]))]
     pub land_cover: PathBuf,
     /// Facility point layer.
-    #[schemars(extend("x-accessmod-class" = ["vFacility"]))]
+    #[schemars(extend("x-accessmod-class" = ["vFacility", "vFacilityNew"]))]
     pub facilities: FacilitySource,
     /// Mobility of each land-cover class. Classes not listed are barriers.
     pub scenario: Vec<ScenarioEntry>,

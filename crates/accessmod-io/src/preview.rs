@@ -63,7 +63,8 @@ pub struct ValueCount {
     pub count: u64,
 }
 
-/// Summary of band 1 of a raster. NoData and NaN cells are not valid.
+/// Summary of band 1 of a raster. NoData and non-finite cells are not
+/// valid.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RasterStats {
     /// Cells of the raster.
@@ -160,29 +161,70 @@ fn remove_if_exists(path: &Path) -> Result<()> {
     }
 }
 
-/// Run `f` with the overview creation options set for this thread only.
+/// Run `f` with the overview creation options set for this thread only;
+/// the previous values come back on every return path.
 fn with_overview_options<T>(threads: usize, f: impl FnOnce() -> Result<T>) -> Result<T> {
-    let options = [
+    let _guard = ConfigGuard::set(&[
         ("COMPRESS_OVERVIEW", "DEFLATE".to_owned()),
         ("BIGTIFF_OVERVIEW", "IF_SAFER".to_owned()),
         ("GDAL_NUM_THREADS", threads.max(1).to_string()),
-    ];
-    for (key, value) in &options {
-        gdal::config::set_thread_local_config_option(key, value).map_err(Error::gdal(*key))?;
-    }
-    let result = f();
-    for (key, _) in &options {
-        gdal::config::clear_thread_local_config_option(key).map_err(Error::gdal(*key))?;
-    }
-    result
+    ])?;
+    f()
 }
 
-/// GDAL progress callback: stop when the flag behind `arg` is raised.
+/// Thread-local GDAL options set for a scope, restored when dropped.
+struct ConfigGuard {
+    previous: Vec<(&'static str, Option<String>)>,
+}
+
+impl ConfigGuard {
+    fn set(options: &[(&'static str, String)]) -> Result<Self> {
+        let mut guard = Self {
+            previous: Vec::new(),
+        };
+        for (key, value) in options {
+            let before = gdal::config::get_thread_local_config_option(key, "")
+                .ok()
+                .filter(|v| !v.is_empty());
+            // On failure, dropping `guard` restores the options already set.
+            gdal::config::set_thread_local_config_option(key, value).map_err(Error::gdal(*key))?;
+            guard.previous.push((key, before));
+        }
+        Ok(guard)
+    }
+}
+
+impl Drop for ConfigGuard {
+    fn drop(&mut self) {
+        for (key, before) in self.previous.drain(..).rev() {
+            let _ = match before {
+                Some(value) => gdal::config::set_thread_local_config_option(key, &value),
+                None => gdal::config::clear_thread_local_config_option(key),
+            };
+        }
+    }
+}
+
+/// State shared with [`keep_going`] through GDAL.
+struct CallbackState<'a> {
+    cancelled: Cancelled<'a>,
+    /// Panic of the cancellation check, re-raised once GDAL has returned.
+    panic: Option<Box<dyn std::any::Any + Send>>,
+}
+
+/// GDAL progress callback: stop when cancellation is requested. A panic of
+/// the check never crosses the C frames: it stops GDAL and is kept.
 extern "C" fn keep_going(_complete: f64, _message: *const c_char, arg: *mut c_void) -> c_int {
-    // SAFETY: `arg` is the `&Cancelled` passed by `write_overviews`, alive
-    // for the whole GDALBuildOverviews call.
-    let cancelled = unsafe { &*(arg as *const Cancelled<'_>) };
-    c_int::from(!cancelled())
+    // SAFETY: `arg` is the `CallbackState` passed by `write_overviews`, alive
+    // and not otherwise borrowed for the whole GDALBuildOverviews call.
+    let state = unsafe { &mut *arg.cast::<CallbackState<'_>>() };
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (state.cancelled)())) {
+        Ok(cancelled) => c_int::from(!cancelled),
+        Err(payload) => {
+            state.panic = Some(payload);
+            0
+        }
+    }
 }
 
 fn write_overviews(
@@ -198,10 +240,13 @@ fn write_overviews(
         .collect::<Result<_>>()?;
     let mut bands: Vec<c_int> = vec![1];
     let method = CString::new(resampling.gdal_name()).expect("method names have no NUL byte");
-    let mut flag: Cancelled<'_> = cancelled;
+    let mut state = CallbackState {
+        cancelled,
+        panic: None,
+    };
     // SAFETY: the dataset handle is valid while `dataset` lives; `levels`,
-    // `bands`, `method` and `flag` outlive the call; `keep_going` only reads
-    // `flag`.
+    // `bands`, `method` and `state` outlive the call; only `keep_going` uses
+    // `state` during it.
     let status = unsafe {
         gdal_sys::GDALBuildOverviews(
             dataset.c_dataset(),
@@ -211,9 +256,12 @@ fn write_overviews(
             bands.len() as c_int,
             bands.as_mut_ptr(),
             Some(keep_going),
-            (&mut flag as *mut Cancelled<'_>).cast::<c_void>(),
+            (&mut state as *mut CallbackState<'_>).cast::<c_void>(),
         )
     };
+    if let Some(payload) = state.panic.take() {
+        std::panic::resume_unwind(payload);
+    }
     if cancelled() {
         return Err(Error::Cancelled);
     }
@@ -255,20 +303,35 @@ pub fn statistics(path: &Path, cancelled: Cancelled<'_>) -> Result<RasterStats> 
         .map_err(Error::gdal(path))
     };
 
-    // Pass 1: range, sum, distinct values.
+    // Pass 1: range, mean, distinct values. The mean is a compensated sum
+    // over the count; an incremental mean takes over if the sum overflows.
     let mut valid = 0u64;
-    let (mut min, mut max, mut sum) = (f64::INFINITY, f64::NEG_INFINITY, 0.0f64);
+    let (mut min, mut max, mut mean) = (f64::INFINITY, f64::NEG_INFINITY, 0.0f64);
+    let (mut sum, mut compensation) = (0.0f64, 0.0f64);
     let mut distinct: Option<BTreeMap<i64, u64>> = integer.then(BTreeMap::new);
     for_each_chunk(0..rows, 0..cols, cancelled, |r, c| {
         for value in read(r, c)? {
-            let Some(v) = valid_value(value, nodata) else {
+            let Some(v) = finite_value(value, nodata) else {
                 continue;
             };
             valid += 1;
             min = min.min(v);
             max = max.max(v);
-            sum += v;
+            mean += (v - mean) / valid as f64;
+            // Neumaier summation.
+            let t = sum + v;
+            compensation += if sum.abs() >= v.abs() {
+                (sum - t) + v
+            } else {
+                (v - t) + sum
+            };
+            sum = t;
             if let Some(map) = &mut distinct {
+                // Only values read exactly as f64 count as classes.
+                if v.abs() > EXACT_INTEGER_LIMIT {
+                    distinct = None;
+                    continue;
+                }
                 *map.entry(v as i64).or_insert(0) += 1;
                 if map.len() > MAX_DISTINCT {
                     distinct = None;
@@ -294,7 +357,7 @@ pub fn statistics(path: &Path, cancelled: Cancelled<'_>) -> Result<RasterStats> 
     let width = max - min;
     for_each_chunk(0..rows, 0..cols, cancelled, |r, c| {
         for value in read(r, c)? {
-            if let Some(v) = valid_value(value, nodata) {
+            if let Some(v) = finite_value(value, nodata) {
                 histogram[histogram_bin(v, min, width)] += 1;
             }
         }
@@ -306,7 +369,14 @@ pub fn statistics(path: &Path, cancelled: Cancelled<'_>) -> Result<RasterStats> 
         valid_cells: valid,
         min: Some(min),
         max: Some(max),
-        mean: Some(sum / valid as f64),
+        mean: Some({
+            let total = sum + compensation;
+            if total.is_finite() {
+                total / valid as f64
+            } else {
+                mean
+            }
+        }),
         histogram,
         values: distinct.map(|map| {
             map.into_iter()
@@ -314,6 +384,14 @@ pub fn statistics(path: &Path, cancelled: Cancelled<'_>) -> Result<RasterStats> 
                 .collect()
         }),
     })
+}
+
+/// Integers up to this magnitude are exact in f64 (2^53).
+const EXACT_INTEGER_LIMIT: f64 = 9_007_199_254_740_992.0;
+
+/// A finite value that is not NoData; infinities count as missing, as NaN.
+fn finite_value(value: f64, nodata: Option<f64>) -> Option<f64> {
+    valid_value(value, nodata).filter(|v| v.is_finite())
 }
 
 /// Bin of `value` in [`HISTOGRAM_BINS`] equal bins from `min` over `width`.

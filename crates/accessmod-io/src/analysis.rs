@@ -148,8 +148,8 @@ pub trait Visit {
 }
 
 /// Call `visitor` with every analysis, in a fixed order (toolbox first,
-/// then analyses, as in AccessMod 5). The CLI, the server and the schema
-/// export share this list.
+/// then analyses, as in AccessMod 5). The schema export, projects and the
+/// server use this list; a CLI test checks every analysis has its command.
 pub fn for_each(visitor: &mut impl Visit) {
     visitor.visit::<crate::merge::MergeLandCover>();
     visitor.visit::<crate::population::AdjustPopulation>();

@@ -550,6 +550,7 @@ impl Project {
             Kind::Raster => "tif",
             Kind::Vector => "fgb",
             Kind::Table => "csv",
+            Kind::Config => "json",
         };
         let file = format!("{DATASETS_DIR}/{id}.{extension}");
         self.db

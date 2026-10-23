@@ -112,3 +112,46 @@ fn cancelled_overviews_leave_nothing_behind() {
     );
     assert!(!overview_path(&path).exists());
 }
+
+#[test]
+fn infinities_are_not_valid_values() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("inf.tif");
+    let data = vec![1.0f64, f64::INFINITY, 3.0, f64::NEG_INFINITY, 1e308, 1e308];
+    write_raster(&path, 3, 2, geo_transform(X0, Y0), data, None);
+    let stats = statistics(&path, &|| false).expect("stats");
+    assert_eq!(stats.valid_cells, 4);
+    assert_eq!((stats.min, stats.max), (Some(1.0), Some(1e308)));
+    let mean = stats.mean.expect("mean");
+    assert!(mean.is_finite() && (mean - 5e307).abs() < 1e293, "{mean}");
+    assert_eq!(stats.histogram.iter().sum::<u64>(), 4);
+}
+
+#[test]
+fn huge_integers_are_not_classes() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("ids.tif");
+    let data = vec![1i64, 2, (1 << 60) + 1, 3];
+    write_raster(&path, 2, 2, geo_transform(X0, Y0), data, None);
+    let stats = statistics(&path, &|| false).expect("stats");
+    assert_eq!(stats.valid_cells, 4);
+    assert_eq!(stats.values, None);
+}
+
+#[test]
+#[should_panic(expected = "check failed")]
+fn a_panicking_check_does_not_cross_gdal() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("dem.tif");
+    write_raster(
+        &path,
+        1024,
+        1024,
+        geo_transform(X0, Y0),
+        vec![1.5f32; 1024 * 1024],
+        None,
+    );
+    let _ = accessmod_io::preview::build_overviews(&path, Resampling::Average, 1, &|| {
+        panic!("check failed")
+    });
+}

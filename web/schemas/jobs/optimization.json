@@ -81,7 +81,8 @@
           "$ref": "#/$defs/FacilitySource",
           "description": "Facility points; `id_field` matches the catchments' identifiers.",
           "x-accessmod-class": [
-            "vFacility"
+            "vFacility",
+            "vFacilityNew"
           ]
         },
         "min_per_zone": {
@@ -114,8 +115,7 @@
       "$ref": "#/$defs/FacilitySource",
       "description": "Catchment polygons (`catchments.fgb` of a geographic coverage);\n`id_field` holds the identifier of each catchment's facility.",
       "x-accessmod-class": [
-        "vCatchment",
-        "vCatchmentNew"
+        "vCatchment"
       ]
     },
     "max_facilities": {

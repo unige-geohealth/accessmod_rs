@@ -59,8 +59,7 @@
               "description": "Raster with integer classes, on the DEM lattice and in its CRS.",
               "type": "string",
               "x-accessmod-class": [
-                "rLandCover",
-                "rLandCoverMerged"
+                "rLandCover"
               ]
             },
             "reclass": {

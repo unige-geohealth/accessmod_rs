@@ -4,7 +4,9 @@
 //!
 //! - `jobs/<analysis>.json`: job document of each analysis;
 //! - `data-classes.json`: every data class with its kind, label and whether
-//!   it is importable.
+//!   it is importable;
+//! - `types/<type>.json`: documents the server and the CLI exchange
+//!   (progress, catalogue entries, runs).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -85,7 +87,25 @@ fn files() -> BTreeMap<PathBuf, String> {
         })
         .collect();
     files.insert(PathBuf::from("data-classes.json"), pretty(&json!(classes)));
+    for (name, schema) in types() {
+        files.insert(PathBuf::from(format!("types/{name}.json")), pretty(&schema));
+    }
     files
+}
+
+/// Schemas of the exchanged documents, by file name.
+fn types() -> Vec<(&'static str, Value)> {
+    use accessmod_io::{analysis, project};
+    fn schema<T: schemars::JsonSchema>() -> Value {
+        serde_json::to_value(schemars::schema_for!(T)).unwrap_or_default()
+    }
+    vec![
+        ("progress", schema::<analysis::Progress>()),
+        ("project-info", schema::<project::ProjectInfo>()),
+        ("dataset", schema::<project::DatasetRecord>()),
+        ("saved-job", schema::<project::SavedJob>()),
+        ("run", schema::<project::RunRecord>()),
+    ]
 }
 
 fn pretty(value: &Value) -> String {
