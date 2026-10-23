@@ -12,6 +12,11 @@ export const runsStore = createStore(NO_RUNS, updateRuns);
 
 const NAMES = ["run", "progress", "catalogue", "projects"] as const;
 
+/** The server dropped events for this client: reload everything shown. */
+function resync() {
+  void queryClient.invalidateQueries();
+}
+
 function handle(event: Api.Event) {
   runsStore.dispatch({ type: "event", event });
   switch (event.type) {
@@ -48,10 +53,9 @@ export function useEvents(project: string | null) {
       }
     };
     for (const name of NAMES) source.addEventListener(name, listener);
+    source.addEventListener("resync", resync);
     // After a reconnection, events may have been missed: refresh.
-    source.onopen = () => {
-      void queryClient.invalidateQueries();
-    };
+    source.onopen = resync;
     return () => source.close();
   }, [project]);
 }

@@ -70,10 +70,20 @@ fn check_tile(z: u32, x: u32, y: u32) -> Result<()> {
     Ok(())
 }
 
+/// A rendered tile.
+#[derive(Debug)]
+pub struct Tile {
+    /// PNG image.
+    pub png: Vec<u8>,
+    /// Whether no cell has a value (fully transparent).
+    pub empty: bool,
+}
+
 /// Tile `z/x/y` of band 1 of `path` as a PNG (transparent where NoData).
-pub fn raster_tile(path: &Path, z: u32, x: u32, y: u32, style: Style) -> Result<Vec<u8>> {
+pub fn raster_tile(path: &Path, z: u32, x: u32, y: u32, style: Style) -> Result<Tile> {
     check_tile(z, x, y)?;
     let values = warp_tile(path, z, x, y)?;
+    let empty = values.iter().all(Option::is_none);
     let mut rgba = Vec::with_capacity(TILE * TILE * 4);
     for value in values {
         rgba.extend_from_slice(&match value {
@@ -81,7 +91,10 @@ pub fn raster_tile(path: &Path, z: u32, x: u32, y: u32, style: Style) -> Result<
             None => [0, 0, 0, 0],
         });
     }
-    encode_png(&rgba)
+    Ok(Tile {
+        png: encode_png(&rgba)?,
+        empty,
+    })
 }
 
 /// Values of tile `z/x/y`, row-major; `None` where NoData or outside.

@@ -24,8 +24,10 @@ export function LogsScreen({ project }: { project: string }) {
       <table className="table">
         <tbody>
           {list.map((record) => {
-            // Live state from events wins over the listed record (derived).
-            const process: RunProcess | undefined = live[record.id];
+            // Live state from events, while the server lists the run as queued or
+            // running; a finished record always wins (derived, never stored).
+            const active = record.status === "queued" || record.status === "running";
+            const process: RunProcess | undefined = active ? live[record.id] : undefined;
             const status = process?.status ?? record.status;
             const run = process?.run ?? record;
             const share = process ? fraction(process) : null;

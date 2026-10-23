@@ -73,7 +73,8 @@ pub struct EventsQuery {
     pub project: Option<String>,
 }
 
-/// `GET /api/events`: the event stream.
+/// `GET /api/events`: the event stream. Besides [`Event`]s, a `resync`
+/// event tells a client that fell behind to reload its queries.
 pub async fn stream(
     State(state): State<AppState>,
     principal: Principal,
@@ -85,8 +86,10 @@ pub async fn stream(
     }
     let filter = query.project;
     let events = BroadcastStream::new(state.subscribe()).filter_map(move |event| {
-        // A lagging client misses events (`Lagged`); it reloads on the next.
-        let event = event.ok()?;
+        // A lagging client missed events: tell it to reload what it shows.
+        let Ok(event) = event else {
+            return Some(Ok(SseEvent::default().event("resync").data("{}")));
+        };
         let wanted = match (&filter, event.project()) {
             (Some(wanted), Some(project)) => wanted == project,
             _ => true,
@@ -113,13 +116,14 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 pub struct ProgressEvents {
     events: broadcast::Sender<Event>,
     project: String,
-    run: Id,
+    /// The run, as running: published with the first stage.
+    run: RunRecord,
     last: Mutex<Option<(String, Instant)>>,
 }
 
 impl ProgressEvents {
-    /// Events of run `run` of `project`.
-    pub fn new(events: broadcast::Sender<Event>, project: &str, run: Id) -> Self {
+    /// Events of run `run` (as running) of `project`.
+    pub fn new(events: broadcast::Sender<Event>, project: &str, run: RunRecord) -> Self {
         Self {
             events,
             project: project.to_owned(),
@@ -140,12 +144,19 @@ impl ProgressEvents {
                     }
                     *at = now;
                 }
+                None => {
+                    *last = Some((progress.stage.clone(), now));
+                    let _ = self.events.send(Event::Run {
+                        project: self.project.clone(),
+                        run: self.run.clone(),
+                    });
+                }
                 _ => *last = Some((progress.stage.clone(), now)),
             }
         }
         let _ = self.events.send(Event::Progress {
             project: self.project.clone(),
-            run: self.run,
+            run: self.run.id,
             progress: progress.clone(),
         });
     }

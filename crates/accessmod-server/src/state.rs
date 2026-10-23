@@ -57,7 +57,8 @@ impl AppState {
             }
         }
         let (events, _) = broadcast::channel(1024);
-        let runner = Runner::start(projects, config.settings.clone(), events.clone());
+        let runner = Runner::start(projects, config.settings.clone(), events.clone())
+            .map_err(|e| ApiError::Internal(format!("cannot start the run worker: {e}")))?;
         Ok(Self {
             inner: Arc::new(Inner {
                 config,

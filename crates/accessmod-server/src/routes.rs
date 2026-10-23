@@ -4,6 +4,7 @@ use accessmod_io::analysis::{Monitor, job_schemas};
 use accessmod_io::class::DataClass;
 use accessmod_io::project::{DatasetRecord, Id, ProjectInfo, RunRecord, SavedJob};
 use axum::Json;
+use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,12 @@ use crate::auth::{Principal, Requirement, Role};
 use crate::commands::{self, CommandInfo};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
+
+/// A JSON request body; malformed JSON is a `bad_request` error document.
+fn json_body(body: &[u8]) -> ApiResult<Value> {
+    serde_json::from_slice(body)
+        .map_err(|e| ApiError::BadRequest(format!("invalid JSON body: {e}")))
+}
 
 /// `GET /api/health`.
 pub async fn health() -> Json<Value> {
@@ -70,8 +77,9 @@ pub async fn command(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<String>,
-    Json(params): Json<Value>,
+    body: Bytes,
 ) -> ApiResult<Json<Value>> {
+    let params = json_body(&body)?;
     state
         .blocking(move |state| commands::run(&state, &principal, &id, params))
         .await
@@ -239,8 +247,9 @@ pub async fn validate(
     State(state): State<AppState>,
     principal: Principal,
     Path((slug, name)): Path<(String, String)>,
-    Json(document): Json<Value>,
+    body: Bytes,
 ) -> ApiResult<Json<Value>> {
+    let document = json_body(&body)?;
     with_project(&state, principal, slug, Role::Viewer, move |state, p| {
         Ok(p.validate_named(&name, &document, &state.config().settings, Monitor::QUIET)?)
     })

@@ -440,11 +440,20 @@ fn start_run(state: &AppState, _: &Principal, params: StartRun) -> ApiResult<Run
     let project = state.open(&params.project)?;
     let id = project.start_named(&params.analysis, &params.document, &params.tags)?;
     let record = project.run_record(id)?;
-    state.runner().enqueue(&params.project, id);
+    // Announce the queued run before the worker may start it, so its events
+    // arrive in order.
     state.publish(Event::Run {
         project: params.project.clone(),
         run: record.clone(),
     });
+    if let Err(e) = state.runner().enqueue(&params.project, id) {
+        project.mark_failed(id, &e)?;
+        state.publish(Event::Run {
+            project: params.project.clone(),
+            run: project.run_record(id)?,
+        });
+        return Err(ApiError::Internal(e));
+    }
     Ok(record)
 }
 

@@ -38,7 +38,9 @@ fn a_tile_shows_the_raster_and_nothing_around() {
     // A zoom where the 30 km raster spans a few tiles.
     let z = 10;
     let (x, y) = tile_at(lon, lat, z);
-    let tile = pixels(&raster_tile(&path, z, x, y, Style::Classes).expect("tile"));
+    let rendered = raster_tile(&path, z, x, y, Style::Classes).expect("tile");
+    assert!(!rendered.empty);
+    let tile = pixels(&rendered.png);
     let class7 = colour(7.0, Style::Classes);
     assert!(tile.contains(&class7), "the raster is drawn");
     assert!(
@@ -47,7 +49,9 @@ fn a_tile_shows_the_raster_and_nothing_around() {
     );
 
     // Far away: fully transparent.
-    let far = pixels(&raster_tile(&path, z, (x + 50) % 1024, y, Style::Classes).expect("tile"));
+    let far = raster_tile(&path, z, (x + 50) % 1024, y, Style::Classes).expect("tile");
+    assert!(far.empty);
+    let far = pixels(&far.png);
     assert!(far.iter().all(|p| p[3] == 0));
 
     assert_eq!(value_at(&path, lon, lat).expect("value"), Some(7.0));

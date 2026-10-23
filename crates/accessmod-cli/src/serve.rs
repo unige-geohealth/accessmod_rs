@@ -29,6 +29,11 @@ pub struct Args {
     /// non-loopback address).
     #[arg(long)]
     pub no_local_paths: bool,
+    /// Listen on a network address although the server has no accounts
+    /// yet: anyone who can reach it can use every project. For tests on a
+    /// trusted network only.
+    #[arg(long)]
+    pub insecure_network: bool,
     #[command(flatten)]
     pub exec: ExecArgs,
 }
@@ -49,8 +54,16 @@ pub fn run(args: Args) -> Result<(), Failure> {
     let data_dir = args.data.unwrap_or_else(default_data_dir);
     let local_paths = !args.no_local_paths && args.host.is_loopback();
     if !args.host.is_loopback() {
+        if !args.insecure_network {
+            eprintln!(
+                "error: {} is a network address and this server has no accounts yet; listen on \
+                 127.0.0.1, or pass --insecure-network on a trusted network",
+                args.host
+            );
+            return Err(Failure { code: 2 });
+        }
         tracing::warn!(
-            "listening on {}: anyone on the network can use this server (no accounts yet)",
+            "listening on {} without accounts: anyone on the network can use this server",
             args.host
         );
     }

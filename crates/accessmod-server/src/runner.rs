@@ -39,11 +39,11 @@ impl Runner {
         projects: PathBuf,
         settings: ExecutionSettings,
         events: broadcast::Sender<Event>,
-    ) -> Self {
+    ) -> std::io::Result<Self> {
         let (tasks, queue) = mpsc::channel::<Task>();
         let flags: Flags = Arc::default();
         let worker_flags = flags.clone();
-        let spawned = std::thread::Builder::new()
+        std::thread::Builder::new()
             .name("accessmod-runner".into())
             .spawn(move || {
                 for task in queue {
@@ -54,26 +54,24 @@ impl Runner {
                     execute(&projects, &settings, &events, &task, &flag);
                     lock(&worker_flags).remove(&(task.project, task.run));
                 }
-            });
-        if let Err(e) = spawned {
-            tracing::error!("cannot start the run worker: {e}");
-        }
-        Self { tasks, flags }
+            })?;
+        Ok(Self { tasks, flags })
     }
 
-    /// Queue run `run` of `project` (already recorded as queued).
-    pub fn enqueue(&self, project: &str, run: Id) {
-        lock(&self.flags).insert((project.to_owned(), run), Arc::default());
-        if self
-            .tasks
-            .send(Task {
-                project: project.to_owned(),
-                run,
-            })
-            .is_err()
-        {
-            tracing::error!("the run worker has stopped; run {run} of {project} stays queued");
+    /// Queue run `run` of `project` (already recorded as queued); fails when
+    /// the worker has stopped.
+    pub fn enqueue(&self, project: &str, run: Id) -> Result<(), String> {
+        let key = (project.to_owned(), run);
+        lock(&self.flags).insert(key.clone(), Arc::default());
+        let task = Task {
+            project: project.to_owned(),
+            run,
+        };
+        if self.tasks.send(task).is_err() {
+            lock(&self.flags).remove(&key);
+            return Err("the run worker has stopped".into());
         }
+        Ok(())
     }
 
     /// Ask run `run` of `project` to stop; `false` when it is not queued or
@@ -118,16 +116,18 @@ fn execute(
         }
     };
     // Cancelled while queued: nothing to do (already recorded).
-    match project.run_record(task.run) {
-        Ok(record) if record.status == RunStatus::Queued => {}
+    let queued = match project.run_record(task.run) {
+        Ok(record) if record.status == RunStatus::Queued => record,
         _ => return,
-    }
-    let progress = ProgressEvents::new(events.clone(), &task.project, task.run);
+    };
+    // The first stage announces the run as running (the claim happens in
+    // `execute_queued`, right before it).
+    let mut running = queued;
+    running.status = RunStatus::Running;
+    let progress = ProgressEvents::new(events.clone(), &task.project, running);
     let report = |p: &Progress| progress.report(p);
     let cancelled = || flag.load(Ordering::Relaxed);
     let monitor = Monitor::new(&cancelled, &report);
-    // The run turns `running` inside `execute_queued`; clients see it from
-    // its progress events, and its end from the run event below.
     let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         project.execute_queued(task.run, settings, monitor)
     }));

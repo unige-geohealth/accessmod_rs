@@ -81,41 +81,48 @@ pub async fn tile(
         parse_coordinate(&x)?,
         parse_coordinate(&y)?,
     );
+    for bound in [query.min, query.max].into_iter().flatten() {
+        if !bound.is_finite() {
+            return Err(ApiError::BadRequest("ramp bounds must be finite".into()));
+        }
+    }
+    // Only the default style is cached: custom ramps cannot fill the disk.
+    let custom = query.min.is_some() || query.max.is_some();
     let png = state
         .blocking(move |state| {
             let project = state.open(&slug)?;
             let record = dataset(&project, id, Kind::Raster)?;
             let style = style(&record, &query);
-            let style_key = match style {
-                Style::Classes => "classes".to_owned(),
-                Style::Ramp { min, max } => format!("ramp-{min}-{max}"),
-            };
             // Keyed by content: a dataset never changes under its sha256.
             let sha = record.sha256.get(..16).unwrap_or(&record.sha256);
             let cached: PathBuf = project
                 .cache_dir()
                 .join("tiles")
-                .join(format!("{id}-{sha}-{style_key}"))
+                .join(format!("{id}-{sha}"))
                 .join(z.to_string())
                 .join(x.to_string())
                 .join(format!("{y}.png"));
-            if let Ok(bytes) = std::fs::read(&cached) {
+            if !custom && let Ok(bytes) = std::fs::read(&cached) {
                 return Ok(bytes);
             }
             let path = project.resolve(std::path::Path::new(&record.file))?;
-            let png = tiles::raster_tile(&path, z, x, y, style)?;
+            let tile = tiles::raster_tile(&path, z, x, y, style)?;
+            // Empty tiles (outside the data) are cheap to render: not cached.
             // The cache is disposable: a failed write only costs a re-render.
-            if let Some(dir) = cached.parent()
+            if !custom
+                && !tile.empty
+                && let Some(dir) = cached.parent()
                 && std::fs::create_dir_all(dir).is_ok()
             {
                 let partial = cached.with_extension(format!("png.{}", std::process::id()));
-                if std::fs::write(&partial, &png).is_ok() {
+                if std::fs::write(&partial, &tile.png).is_ok() {
                     let _ = std::fs::rename(&partial, &cached);
                 }
             }
-            Ok(png)
+            Ok(tile.png)
         })
         .await?;
+
     Ok((
         [
             (header::CONTENT_TYPE, "image/png"),

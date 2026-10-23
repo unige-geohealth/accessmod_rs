@@ -218,12 +218,16 @@ async fn project_import_validate_and_run_with_events() {
 
     // Events: queued, progress stages, then the finished run.
     let mut stages = Vec::new();
+    let mut states = Vec::new();
     let finished = tokio::time::timeout(Duration::from_secs(60), async {
         loop {
             match events.recv().await {
                 Ok(Event::Progress { progress, .. }) => stages.push(progress.stage),
-                Ok(Event::Run { run, .. }) if run.id == id && run.status.name() != "queued" => {
-                    return run;
+                Ok(Event::Run { run, .. }) if run.id == id => {
+                    states.push(run.status.name());
+                    if !["queued", "running"].contains(&run.status.name()) {
+                        return run;
+                    }
                 }
                 Ok(_) => {}
                 Err(e) => panic!("events: {e}"),
@@ -234,6 +238,7 @@ async fn project_import_validate_and_run_with_events() {
     .expect("the run finishes");
     assert_eq!(finished.status.name(), "done", "{:?}", finished.error);
     assert!(stages.iter().any(|s| s == "solve"), "{stages:?}");
+    assert_eq!(states, ["queued", "running", "done"], "events in order");
     assert_eq!(finished.datasets.len(), 2);
 
     let (_, record) = s
@@ -429,4 +434,25 @@ async fn map_previews_tiles_features_values_and_bounds() {
         )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn malformed_bodies_get_json_errors() {
+    let s = server(true);
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/commands/project.create")
+        .header("content-type", "application/json")
+        .body(Body::from("{not json"))
+        .expect("request");
+    let response = s.app.clone().oneshot(request).await.expect("response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).expect("a JSON error document");
+    assert_eq!(body["kind"], "bad_request");
 }

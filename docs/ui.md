@@ -390,7 +390,22 @@ Each slice passes every check and is usable on its own.
    JSON Schema for every analysis and tool, runs with progress and
    cancellation, run history. Playwright on the demo project.
 5. **Country server**: accounts, roles, admission control, quotas,
-   resumable uploads; national fixture and time budgets.
+   resumable uploads; national fixture and time budgets. From the server
+   review (2026-10-23), still open:
+   - authentication and project roles (`serve` refuses a network address
+     without `--insecure-network` until then); local paths as an explicit
+     setting rather than inferred from the address;
+   - a durable run queue: workers claim queued rows with a lease and a
+     heartbeat, so recovery never interrupts live work of another process,
+     and skipped recoveries are retried;
+   - admission control for every expensive request (validation, imports,
+     GeoJSON, tiles), not only runs; bounded queues;
+   - vector tiles (MVT) by bounding box instead of whole-layer GeoJSON;
+     paged listings returning summaries, full documents on detail routes;
+   - event sequence numbers with `Last-Event-ID` (clients already reload on
+     `resync` and on reconnection);
+   - HTTP statuses: 201 and 202 for created and queued resources, 404 for
+     tiles outside the world; a missing local file is a client error.
 6. **Bespoke screens**, ordered by user feedback: Accessibility scenario
    table, merge land cover stack, facility selection, coverage and zonal
    results, facility relocation.
