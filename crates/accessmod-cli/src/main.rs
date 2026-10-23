@@ -8,6 +8,7 @@ mod doctor;
 mod exec;
 mod inspect;
 mod project;
+mod serve;
 mod travel_time;
 
 use std::process::ExitCode;
@@ -39,6 +40,8 @@ struct Cli {
 enum Command {
     /// Check GDAL/PROJ, drivers, scratch directory, memory and disk.
     Doctor(doctor::Args),
+    /// Serve the web interface and its API (desktop: http://127.0.0.1:5099).
+    Serve(serve::Args),
     /// Projects: datasets on one grid, saved jobs and runs.
     Project {
         #[command(subcommand)]
@@ -133,6 +136,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Doctor(args) => doctor::run(&args),
+        Command::Serve(args) => serve::run(args),
         Command::Project { command } => project::run(command, &cancel),
         Command::Dataset { command } => match command {
             inspect::Command::Inspect { path, json } => inspect::run(&path, json),

@@ -11,7 +11,7 @@
           "type": "array"
         },
         "kind": {
-          "description": "`validation`, `io`, `computation` or `cancelled`.",
+          "description": "`validation`, `io`, `computation`, `cancelled` or `internal`.",
           "type": "string"
         }
       },

@@ -65,7 +65,7 @@ impl RunStatus {
 /// Why a run failed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RunError {
-    /// `validation`, `io`, `computation` or `cancelled`.
+    /// `validation`, `io`, `computation`, `cancelled` or `internal`.
     pub kind: String,
     /// Every problem found.
     pub issues: Vec<String>,
@@ -287,6 +287,22 @@ impl Project {
         Ok(())
     }
 
+    /// Record run `id` as failed by an internal error (a panic caught by
+    /// the caller), whatever its state.
+    pub fn mark_failed(&self, id: Id, message: &str) -> Result<()> {
+        let error = json(&RunError {
+            kind: "internal".to_owned(),
+            issues: vec![message.to_owned()],
+        })?;
+        self.db
+            .execute(
+                "UPDATE runs SET status = 'failed', error = ?1, finished = ?2 WHERE id = ?3",
+                params![error, now(), id],
+            )
+            .map_err(self.db_error())?;
+        Ok(())
+    }
+
     /// Cancel run `id` while it is queued; `false` when it is no longer
     /// queued (a running run stops through its monitor).
     pub fn cancel_queued(&self, id: Id) -> Result<bool> {
@@ -352,6 +368,35 @@ impl Project {
         let analysis = self.run_record(id)?.analysis;
         by_name(&analysis, Execute(self, id, settings, monitor))
             .unwrap_or_else(|| Err(unknown(&analysis)))
+    }
+
+    /// Validate `document` as a job of `analysis` against the inputs, without
+    /// computing: the document `validate --json` prints.
+    pub fn validate_named(
+        &self,
+        analysis: &str,
+        document: &serde_json::Value,
+        settings: &ExecutionSettings,
+        monitor: Monitor<'_>,
+    ) -> Result<serde_json::Value> {
+        struct Validate<'a>(
+            &'a Project,
+            &'a serde_json::Value,
+            &'a ExecutionSettings,
+            Monitor<'a>,
+        );
+        impl ForAnalysis for Validate<'_> {
+            type Output = Result<serde_json::Value>;
+            fn call<A: Analysis>(self) -> Result<serde_json::Value> {
+                let job = self.0.check_job::<A>(self.1)?;
+                let prepared = A::prepare(job, self.2, self.3)?;
+                let mut document = A::validation(&prepared);
+                document["status"] = serde_json::Value::from("valid");
+                Ok(document)
+            }
+        }
+        by_name(analysis, Validate(self, document, settings, monitor))
+            .unwrap_or_else(|| Err(unknown(analysis)))
     }
 
     /// [`Project::run`] of the analysis named `analysis`.

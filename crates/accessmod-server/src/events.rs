@@ -1,0 +1,152 @@
+//! Server-sent events: run states and progress, catalogue changes.
+
+use std::convert::Infallible;
+use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
+
+use accessmod_io::analysis::Progress;
+use accessmod_io::project::{Id, RunRecord};
+use axum::extract::{Query, State};
+use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast;
+use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
+
+use crate::auth::{Principal, Requirement, Role};
+use crate::error::ApiResult;
+use crate::state::AppState;
+
+/// An event, sent as JSON with its `type` as the SSE event name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Event {
+    /// A run was queued, started, finished, failed or was cancelled.
+    Run {
+        /// Project slug.
+        project: String,
+        /// The run as it is now.
+        run: RunRecord,
+    },
+    /// Progress of a running run.
+    Progress {
+        /// Project slug.
+        project: String,
+        /// Run identifier.
+        run: Id,
+        /// Stage and counts.
+        progress: Progress,
+    },
+    /// Datasets or saved jobs of a project changed.
+    Catalogue {
+        /// Project slug.
+        project: String,
+    },
+    /// Projects were created, renamed or deleted.
+    Projects,
+}
+
+impl Event {
+    fn name(&self) -> &'static str {
+        match self {
+            Event::Run { .. } => "run",
+            Event::Progress { .. } => "progress",
+            Event::Catalogue { .. } => "catalogue",
+            Event::Projects => "projects",
+        }
+    }
+
+    fn project(&self) -> Option<&str> {
+        match self {
+            Event::Run { project, .. }
+            | Event::Progress { project, .. }
+            | Event::Catalogue { project } => Some(project),
+            Event::Projects => None,
+        }
+    }
+}
+
+/// Query of `GET /api/events`.
+#[derive(Debug, Deserialize)]
+pub struct EventsQuery {
+    /// Only events of this project (and project list changes).
+    pub project: Option<String>,
+}
+
+/// `GET /api/events`: the event stream.
+pub async fn stream(
+    State(state): State<AppState>,
+    principal: Principal,
+    Query(query): Query<EventsQuery>,
+) -> ApiResult<Sse<impl Stream<Item = Result<SseEvent, Infallible>>>> {
+    if let Some(project) = &query.project {
+        principal.authorize(Requirement::Project(Role::Viewer), Some(project))?;
+        state.project_dir(project)?;
+    }
+    let filter = query.project;
+    let events = BroadcastStream::new(state.subscribe()).filter_map(move |event| {
+        // A lagging client misses events (`Lagged`); it reloads on the next.
+        let event = event.ok()?;
+        let wanted = match (&filter, event.project()) {
+            (Some(wanted), Some(project)) => wanted == project,
+            _ => true,
+        };
+        if !wanted
+            || principal
+                .authorize(Requirement::Project(Role::Viewer), event.project())
+                .is_err()
+        {
+            return None;
+        }
+        let data = serde_json::to_string(&event).ok()?;
+        Some(Ok(SseEvent::default().event(event.name()).data(data)))
+    });
+    Ok(Sse::new(events).keep_alive(KeepAlive::default()))
+}
+
+/// Least time between two progress events of one stage.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+
+/// Progress of one run turned into events: each stage when it starts, then
+/// counts at most every [`PROGRESS_INTERVAL`].
+#[derive(Debug)]
+pub struct ProgressEvents {
+    events: broadcast::Sender<Event>,
+    project: String,
+    run: Id,
+    last: Mutex<Option<(String, Instant)>>,
+}
+
+impl ProgressEvents {
+    /// Events of run `run` of `project`.
+    pub fn new(events: broadcast::Sender<Event>, project: &str, run: Id) -> Self {
+        Self {
+            events,
+            project: project.to_owned(),
+            run,
+            last: Mutex::new(None),
+        }
+    }
+
+    /// Report `progress`; never blocks on clients.
+    pub fn report(&self, progress: &Progress) {
+        let now = Instant::now();
+        {
+            let mut last = self.last.lock().unwrap_or_else(PoisonError::into_inner);
+            match &mut *last {
+                Some((stage, at)) if *stage == progress.stage => {
+                    if now.duration_since(*at) < PROGRESS_INTERVAL {
+                        return;
+                    }
+                    *at = now;
+                }
+                _ => *last = Some((progress.stage.clone(), now)),
+            }
+        }
+        let _ = self.events.send(Event::Progress {
+            project: self.project.clone(),
+            run: self.run,
+            progress: progress.clone(),
+        });
+    }
+}

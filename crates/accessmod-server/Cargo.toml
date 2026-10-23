@@ -1,0 +1,29 @@
+[package]
+name = "accessmod-server"
+description = "accessmod serve: JSON API, events and web front end over projects and analyses"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+accessmod-io.workspace = true
+axum = "0.8"
+schemars.workspace = true
+serde.workspace = true
+serde_json = "1"
+thiserror.workspace = true
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "sync", "signal", "net", "time"] }
+tokio-stream = { version = "0.1.19", features = ["sync"] }
+tower-http = { version = "0.7.1", features = ["fs"] }
+tracing = "0.1"
+
+[dev-dependencies]
+accessmod-io = { workspace = true, features = ["fixtures"] }
+gdal = "0.19"
+http-body-util = "0.1.5"
+tempfile = "3"
+tower = { version = "0.5.3", features = ["util"] }
+
+[lints]
+workspace = true

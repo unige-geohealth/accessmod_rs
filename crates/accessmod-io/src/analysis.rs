@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::class::DataClass;
 use crate::error::Result;
@@ -21,14 +21,14 @@ pub type Cancelled<'a> = &'a (dyn Fn() -> bool + Sync);
 /// Stages are stable identifiers, the keys of `durations_s` in `run.json`
 /// (`load_inputs`, `solve`, `write_outputs`, …), so an interface can
 /// translate them. Progress never changes results.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Progress {
     /// Stage identifier.
     pub stage: String,
     /// Units done in the stage (cells, searches, facilities, iterations).
     pub done: u64,
     /// Units in the stage, when known.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total: Option<u64>,
 }
 
