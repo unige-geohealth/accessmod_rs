@@ -25,6 +25,18 @@ cargo build --release -p accessmod-cli     # needs GDAL ≥ 3.5 and PROJ
 The [tutorial](docs/tutorial/README.md) walks through inputs, jobs, outputs
 and figures on a small synthetic landscape (travel time, then referral).
 
+### Web interface (early)
+
+```sh
+npm --prefix web ci && npm --prefix web run build   # needs Node 24
+./target/release/accessmod serve --web-dir web/dist # http://127.0.0.1:5099
+```
+
+Create a project from `docs/tutorial/data/dem.tif`, import
+`land_cover.tif` as *land cover merged* and `facilities.gpkg` as *facility*,
+then run *Analysis › Accessibility*. Projects live in `~/AccessMod`
+(`--data` or `ACCESSMOD_DATA` to change). Design: [`docs/ui.md`](docs/ui.md).
+
 ## AccessMod 5 vs accessmod-rs
 
 Median of 3 runs on an Apple M1 Pro, AccessMod 5 in its Docker image

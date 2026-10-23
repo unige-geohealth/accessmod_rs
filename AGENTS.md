@@ -98,6 +98,7 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo xtask lut [--check]  # regenerate (or verify) the bicycle LUT
+sh scripts/check.sh        # the whole gate, as before a commit
 sh scripts/oracle/export.sh # export AccessMod 5 oracle artefacts into _oracle/ (Docker)
 cargo run -p accessmod-cli -- doctor --json
 cargo run -p accessmod-cli -- travel-time run --job job.json --json
@@ -109,16 +110,16 @@ sh benchmark/travel-time/run.sh 1000 2000   # benchmark vs AccessMod 5 (Docker),
 sh benchmark/referral/run.sh 1000 20         # idem; also benchmark/geographic-coverage/, scaling-up/, optimization/
 ```
 
-Interface (milestone 3, as the slices land):
+Interface (milestone 3):
 
 ```sh
 cargo xtask schemas [--check]               # JSON Schemas into web/schemas/ (committed)
 cargo xtask layers                          # crate dependency rules (core: no GDAL, …)
-cargo run -p accessmod-cli -- serve --open  # API + front end (built with --features web, or --web-dir)
+cargo run -p accessmod-cli -- serve --web-dir web/dist  # API + built front end, http://127.0.0.1:5099
 npm --prefix web ci
 npm --prefix web run dev                    # Vite dev server, proxies /api to `serve`
 npm --prefix web run check                  # tsc --noEmit, Biome, Vitest
-npm --prefix web run e2e                    # Playwright on the demo project
+npm --prefix web run build && npm --prefix web run e2e  # Playwright: serve + tutorial data, end to end
 ```
 
 The workspace needs GDAL ≥ 3.5 and PROJ installed (`gdal-config` on `PATH`).
@@ -277,6 +278,15 @@ Things learned the hard way; check here before re-investigating.
   filter by running `SELECT * FROM "layer" WHERE …` with `execute_sql`.
 
 ### Tooling
+
+- Web: types come from `web/schemas` (`cargo xtask schemas`, then
+  `npm run gen:types`, run by `dev`, `build` and `check`); never edit
+  `web/src/generated`. The e2e test starts `accessmod serve` itself on a
+  fresh data directory (port 5198) and needs `npm run build` first; its
+  screenshots land in `web/test-results/`.
+- `sh scripts/check.sh` runs the whole Rust gate (fmt, clippy, tests,
+  layers, LUT, schemas) and stops on the first failure. Never pipe a gate
+  into `tail` before deciding to commit: the exit status is lost.
 
 - The toolchain is pinned to Rust 1.92: `sysinfo` is held at 0.38 (0.39
   needs 1.95). Raising the toolchain is a user decision.
