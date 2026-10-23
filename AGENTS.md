@@ -165,8 +165,10 @@ determinism, memory budget, cancellation and error messages included.
 | Job files, path resolution, schema version, input checks | `accessmod_io::job` |
 | Memory plan and execution settings | `accessmod_io::resources` |
 | Staging directory, GeoTIFF blocks, CSV, `finish` | `accessmod_io::output` |
+| Raster overviews in an external `.ovr`, statistics (range, histogram, classes) | `accessmod_io::preview` |
+| Data classes (AccessMod 5 identifiers), `x-accessmod-class` on job fields | `accessmod_io::class` |
 | `run.json` (`Report`, `Execution`), fingerprints, warnings | `accessmod_io::report` |
-| `prepare` / `run` contract driven by the CLI and `accessmod serve` | `accessmod_io::analysis::Analysis` |
+| `prepare` / `run` contract driven by the CLI and `accessmod serve`, progress (`Monitor`), registry of analyses (`for_each`) | `accessmod_io::analysis` |
 | Test inputs, oracle paths, running a job | `accessmod_io::fixtures` (feature `fixtures`), `accessmod-core/tests/common` |
 | Project: SQLite metadata, datasets (classes, tags, statistics), saved jobs, runs (milestone 3) | `accessmod_io::project` |
 

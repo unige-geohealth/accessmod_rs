@@ -317,10 +317,10 @@ Design, state rules and slices are in [`ui.md`](ui.md). In short:
   user) and country server (e.g. a ministry of health; local accounts,
   roles per project, admission control on memory).
 - Contracts: progress sink in `Analysis`, expected dataset class on job
-  fields, overviews and statistics written with rasters, `cargo xtask
+  fields, preview data (`.ovr` overviews and statistics), `cargo xtask
   schemas` (JSON Schemas turned into TypeScript types), `cargo xtask
   layers` (crate dependency rules).
-- Project layer: metadata in SQLite, data in files (GeoTIFF with overviews,
+- Project layer: metadata in SQLite, data in files (GeoTIFF with `.ovr` overviews,
   GeoPackage for edited vectors, FlatGeobuf for outputs); jobs reference
   project datasets only and export as plain `job.json` for the CLI.
 - `accessmod serve` (`accessmod-server`): every action is a command in one

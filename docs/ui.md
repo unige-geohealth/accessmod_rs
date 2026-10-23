@@ -141,11 +141,13 @@ draft, run, cancel, manage users) is a command in one registry:
   5 class (`x-accessmod-class` in the JSON Schema, e.g. `rLandCover`,
   `vFacility`), so a form offers only matching datasets and validation checks
   the class.
-- **Preview data written with outputs**: rasters get overviews (a
-  cloud-optimised GeoTIFF layout) and summary statistics (min, max,
-  histogram) when imported or written by a run, so previews and legends
-  never scan a whole grid. Outputs stay byte-identical whatever `--memory`
-  and `--threads`.
+- **Preview data** (`accessmod_io::preview`): when a raster enters a
+  project (import or run output), its overviews go to an external
+  `<raster>.ovr`, which GDAL reads with the raster, and its statistics
+  (range, mean, histogram, distinct classes) to the catalogue. The raster
+  itself is never rewritten, so canonical outputs keep their bytes and
+  analysis timings are unchanged; previews and legends never scan a whole
+  grid.
 - **Cheap checks**: `validate` runs `prepare`, which may read whole inputs.
   Measure it on a national grid; if it is too slow for checks while editing,
   split a metadata-only `check` (CRS, lattice, fields, classes) from
@@ -162,7 +164,7 @@ Metadata in SQLite, data in files:
   projects/<id>/
     project.sqlite        project, grid (from the DEM), datasets (class, tags,
                           origin, fingerprint, statistics), saved jobs, runs
-    datasets/<id>.tif     rasters: tiled GeoTIFF with overviews
+    datasets/<id>.tif     rasters: tiled GeoTIFF (+ .ovr overviews)
     datasets/<id>.gpkg    vectors being edited (facility relocation, selections)
     datasets/<id>.fgb     vectors fixed once written (run outputs)
     runs/<id>/            outputs, job.resolved.json, run.json
@@ -183,7 +185,7 @@ Metadata in SQLite, data in files:
 - Run outputs are registered as datasets, as in AccessMod 5 (a travel time
   becomes an input of zonal statistics).
 - **Import**: a raster on the project lattice is converted to tiled GeoTIFF
-  with overviews; a misaligned raster needs an explicit resampling step
+  with `.ovr` overviews; a misaligned raster needs an explicit resampling step
   whose method is recorded, never an implicit one. Vectors are converted to
   the project CRS.
 - CLI: `accessmod project init|info`, `accessmod dataset import|list|tag`,
@@ -276,7 +278,7 @@ engine already handles them under a memory budget; the interface must too.
 
 | Case | Problem | Answer |
 | --- | --- | --- |
-| 400 M-cell raster preview | a tile at low zoom would read the whole grid | overviews written with the raster |
+| 400 M-cell raster preview | a tile at low zoom would read the whole grid | `.ovr` overviews built on entry |
 | Colour ramps, legends | a histogram on the fly takes minutes | statistics stored with the dataset |
 | 100,000 points, national roads | GeoJSON weighs hundreds of MB | vector tiles from the spatial index |
 | Attribute table of 100,000 rows | too heavy to send whole | paged, sorted and filtered on the server; Tabulator in remote mode |
@@ -374,7 +376,7 @@ One binary and one data directory on a small server, run as a service
 Each slice passes every check and is usable on its own.
 
 1. **Contracts**: progress sink in `Analysis`, dataset classes on job fields,
-   overviews and statistics written with rasters, `cargo xtask schemas`,
+   preview data (`.ovr` overviews, statistics), `cargo xtask schemas`,
    `cargo xtask layers`.
 2. **Project layer** (SQLite metadata, datasets, saved jobs, runs) and its
    CLI; run outputs registered as datasets.
