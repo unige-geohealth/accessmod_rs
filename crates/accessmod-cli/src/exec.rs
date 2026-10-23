@@ -92,25 +92,13 @@ pub fn settings(args: &ExecArgs) -> Result<ExecutionSettings, Failure> {
     Ok(settings)
 }
 
-fn kind_name(kind: ErrorKind) -> &'static str {
-    match kind {
-        ErrorKind::Validation => "validation",
-        ErrorKind::Io => "io",
-        ErrorKind::Computation => "computation",
-        ErrorKind::Cancelled => "cancelled",
-    }
-}
-
 /// Report `error` on stderr (and stdout as JSON) and return its exit code.
 pub fn fail(error: &Error, json: bool) -> Failure {
     let kind = error.kind();
-    let issues: Vec<String> = match error {
-        Error::Validation { issues } => issues.clone(),
-        other => vec![other.to_string()],
-    };
+    let issues = error.issues();
     match kind {
         ErrorKind::Validation => {
-            eprintln!("error: invalid job");
+            eprintln!("error: invalid input");
             for issue in &issues {
                 eprintln!("  - {issue}");
             }
@@ -121,7 +109,7 @@ pub fn fail(error: &Error, json: bool) -> Failure {
     if json {
         print_json(&json!({
             "status": "error",
-            "kind": kind_name(kind),
+            "kind": kind.name(),
             "exit_code": kind.exit_code(),
             "issues": issues,
         }));
@@ -182,12 +170,8 @@ pub fn validate<A: Analysis>(job: A::Job, exec: &ExecArgs, cancel: &Cancel) -> R
 pub fn execute<A: Analysis>(job: A::Job, exec: &ExecArgs, cancel: &Cancel) -> Result<(), Failure> {
     let settings = settings(exec)?;
     let prepared = prepare::<A>(job, &settings, exec.json, cancel)?;
-    let log = ProgressLog::default();
-    let report_progress = |p: &Progress| log.report(p);
-    let cancelled = || cancel.requested();
-    let monitor = Monitor::new(&cancelled, &report_progress);
-    let (output_dir, report) =
-        A::run(prepared, &settings, monitor).map_err(|e| fail(&e, exec.json))?;
+    let (output_dir, report) = monitored(cancel, |monitor| A::run(prepared, &settings, monitor))
+        .map_err(|e| fail(&e, exec.json))?;
     tracing::info!("wrote {}: {}", output_dir.display(), A::outcome(&report));
     print_report(&report, &output_dir, exec.json);
     Ok(())
@@ -199,14 +183,19 @@ fn prepare<A: Analysis>(
     json: bool,
     cancel: &Cancel,
 ) -> Result<A::Prepared, Failure> {
-    let log = ProgressLog::default();
-    let report_progress = |p: &Progress| log.report(p);
-    let cancelled = || cancel.requested();
-    let monitor = Monitor::new(&cancelled, &report_progress);
-    let prepared = A::prepare(job, settings, monitor).map_err(|e| fail(&e, json))?;
+    let prepared = monitored(cancel, |monitor| A::prepare(job, settings, monitor))
+        .map_err(|e| fail(&e, json))?;
     log_warnings(A::warnings(&prepared));
     tracing::info!("{}", A::describe(&prepared));
     Ok(prepared)
+}
+
+/// Run `f` with a monitor over Ctrl-C, its progress logged on stderr.
+pub fn monitored<T>(cancel: &Cancel, f: impl FnOnce(Monitor<'_>) -> T) -> T {
+    let log = ProgressLog::default();
+    let report = |p: &Progress| log.report(p);
+    let cancelled = || cancel.requested();
+    f(Monitor::new(&cancelled, &report))
 }
 
 /// Least time between two progress lines of one stage.

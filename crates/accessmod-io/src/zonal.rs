@@ -6,7 +6,7 @@
 //! zone, and a cell in several zones belongs to the first in layer order.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
@@ -15,10 +15,11 @@ use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::job::{JobFile, absolutize, check_files, check_schema_version};
+use crate::job::{JobFile, check_files, check_schema_version};
 use crate::output::{self, BLOCK, CsvWriter, Staging, csv_field};
 use crate::raster::{AlignedBand, for_each_block, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
@@ -77,7 +78,7 @@ pub struct ZoneLayer {
 }
 
 impl JobFile for ZonalStatisticsJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
         for path in [
             &mut self.dem,
             &mut self.travel_time,
@@ -85,9 +86,8 @@ impl JobFile for ZonalStatisticsJob {
             &mut self.zones.path,
             &mut self.output_dir,
         ] {
-            absolutize(path, base);
+            f(path);
         }
-        self
     }
 }
 
@@ -540,6 +540,10 @@ pub struct ZonalStatistics;
 
 impl Analysis for ZonalStatistics {
     const NAME: &'static str = "zonal-statistics";
+    const OUTPUTS: &'static [Output] = &[Output {
+        file: ZONAL_FILE,
+        class: Some(DataClass::ZonalCoverage),
+    }];
     type Job = ZonalStatisticsJob;
     type Prepared = PreparedZonal;
     type Report = ZonalReport;

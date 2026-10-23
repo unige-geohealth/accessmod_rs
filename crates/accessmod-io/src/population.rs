@@ -8,7 +8,7 @@
 //! burnt on the grid by cell centre; a cell in several zones belongs to the
 //! first one in layer order.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 use accessmod_core::population::{Target, ZoneTotals};
@@ -17,10 +17,11 @@ use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::job::{JobFile, absolutize, check_files, check_schema_version};
+use crate::job::{JobFile, check_files, check_schema_version};
 use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_field};
 use crate::raster::{AlignedBand, for_each_block, open_aligned_raster, open_class_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
@@ -78,7 +79,7 @@ pub struct ZoneSource {
 }
 
 impl JobFile for AdjustPopulationJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
         for path in [
             &mut self.dem,
             &mut self.population,
@@ -86,9 +87,8 @@ impl JobFile for AdjustPopulationJob {
             &mut self.zones.path,
             &mut self.output_dir,
         ] {
-            absolutize(path, base);
+            f(path);
         }
-        self
     }
 }
 
@@ -626,6 +626,16 @@ pub struct AdjustPopulation;
 
 impl Analysis for AdjustPopulation {
     const NAME: &'static str = "adjust-population-distribution";
+    const OUTPUTS: &'static [Output] = &[
+        Output {
+            file: POPULATION_FILE,
+            class: Some(DataClass::Population),
+        },
+        Output {
+            file: ZONES_FILE,
+            class: Some(DataClass::PopulationAdjustmentSummary),
+        },
+    ];
     type Job = AdjustPopulationJob;
     type Prepared = PreparedPopulation;
     type Report = PopulationReport;

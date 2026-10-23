@@ -28,6 +28,16 @@ impl ErrorKind {
             Self::Cancelled => 130,
         }
     }
+
+    /// Name in JSON documents: `validation`, `io`, `computation`, `cancelled`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Validation => "validation",
+            Self::Io => "io",
+            Self::Computation => "computation",
+            Self::Cancelled => "cancelled",
+        }
+    }
 }
 
 /// Error of the I/O boundary.
@@ -58,6 +68,15 @@ pub enum Error {
         #[source]
         source: std::io::Error,
     },
+    /// Project database failure.
+    #[error("{path}: {source}")]
+    Database {
+        /// Database file.
+        path: PathBuf,
+        /// SQLite error.
+        #[source]
+        source: rusqlite::Error,
+    },
     /// Scratch storage failure.
     #[error(transparent)]
     Store(#[from] StoreError),
@@ -74,10 +93,20 @@ impl Error {
     pub fn kind(&self) -> ErrorKind {
         match self {
             Self::Validation { .. } => ErrorKind::Validation,
-            Self::Gdal { .. } | Self::File { .. } | Self::Store(_) => ErrorKind::Io,
+            Self::Gdal { .. } | Self::File { .. } | Self::Database { .. } | Self::Store(_) => {
+                ErrorKind::Io
+            }
             Self::Solve(SolveError::Store(_)) => ErrorKind::Io,
             Self::Solve(SolveError::Cancelled) | Self::Cancelled => ErrorKind::Cancelled,
             Self::Solve(_) => ErrorKind::Computation,
+        }
+    }
+
+    /// Every problem: the validation issues, or the error message.
+    pub fn issues(&self) -> Vec<String> {
+        match self {
+            Self::Validation { issues } => issues.clone(),
+            other => vec![other.to_string()],
         }
     }
 
@@ -91,6 +120,11 @@ impl Error {
     pub(crate) fn gdal(path: impl Into<PathBuf>) -> impl FnOnce(gdal::errors::GdalError) -> Self {
         let path = path.into();
         move |source| Self::Gdal { path, source }
+    }
+
+    pub(crate) fn database(path: impl Into<PathBuf>) -> impl FnOnce(rusqlite::Error) -> Self {
+        let path = path.into();
+        move |source| Self::Database { path, source }
     }
 
     pub(crate) fn file(path: impl Into<PathBuf>) -> impl FnOnce(std::io::Error) -> Self {

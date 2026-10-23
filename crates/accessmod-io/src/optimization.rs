@@ -18,10 +18,11 @@ use gdal::vector::{Envelope, Geometry, LayerAccess, OGRwkbGeometryType, geometry
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::job::{FacilitySource, JobFile, absolutize, check_files, check_schema_version};
+use crate::job::{FacilitySource, JobFile, check_files, check_schema_version};
 use crate::output::{self, CsvWriter, Staging, csv_field};
 use crate::raster::{AlignedBand, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
@@ -74,15 +75,14 @@ pub struct ZoneQuotaJob {
 }
 
 impl JobFile for OptimizationJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
-        absolutize(&mut self.population, base);
-        absolutize(&mut self.catchments.path, base);
-        absolutize(&mut self.output_dir, base);
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
+        f(&mut self.population);
+        f(&mut self.catchments.path);
+        f(&mut self.output_dir);
         if let Some(quota) = &mut self.zone_quota {
-            absolutize(&mut quota.zones.path, base);
-            absolutize(&mut quota.facilities.path, base);
+            f(&mut quota.zones.path);
+            f(&mut quota.facilities.path);
         }
-        self
     }
 }
 
@@ -1008,6 +1008,10 @@ pub struct Optimization;
 
 impl Analysis for Optimization {
     const NAME: &'static str = "optimization";
+    const OUTPUTS: &'static [Output] = &[Output {
+        file: OPTIMIZATION_FILE,
+        class: Some(DataClass::OptimizationResult),
+    }];
     type Job = OptimizationJob;
     type Prepared = PreparedOptimization;
     type Report = OptimizationReport;

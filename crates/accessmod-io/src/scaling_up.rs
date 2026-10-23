@@ -35,18 +35,19 @@ use gdal::vector::{FieldValue, Geometry, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
 use crate::catchment::{
     CATCHMENT_COLUMNS, CellSpool, PopulationTotals, ResidualStep, catchment_fields,
     catchment_polygon, init_residual, remove_covered, search_bands, table_number,
 };
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::facilities::{LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::InputSummary;
 use crate::job::{
-    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, absolutize, check_common,
-    check_files, scenario_table,
+    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, check_common, check_files,
+    scenario_table,
 };
 use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_field};
 use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_raster};
@@ -377,32 +378,31 @@ impl Factor {
 }
 
 impl JobFile for ScalingUpJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
         for path in [
             &mut self.dem,
             &mut self.land_cover,
             &mut self.population,
             &mut self.output_dir,
         ] {
-            absolutize(path, base);
+            f(path);
         }
         if let Some(path) = &mut self.population_residual {
-            absolutize(path, base);
+            f(path);
         }
         if let Some(source) = &mut self.facilities {
-            absolutize(&mut source.path, base);
+            f(&mut source.path);
         }
         for exclusion in &mut self.exclusions {
             if let Some(path) = exclusion.layer.path_mut() {
-                absolutize(path, base);
+                f(path);
             }
         }
         for factor in &mut self.suitability {
             if let Some(path) = factor.layer_mut().path_mut() {
-                absolutize(path, base);
+                f(path);
             }
         }
-        self
     }
 }
 
@@ -1951,6 +1951,24 @@ pub struct ScalingUp;
 
 impl Analysis for ScalingUp {
     const NAME: &'static str = "scaling-up";
+    const OUTPUTS: &'static [Output] = &[
+        Output {
+            file: CAPACITY_FILE,
+            class: Some(DataClass::ScalingUpResult),
+        },
+        Output {
+            file: FACILITIES_FILE,
+            class: Some(DataClass::FacilityNew),
+        },
+        Output {
+            file: RESIDUAL_FILE,
+            class: Some(DataClass::PopulationResidual),
+        },
+        Output {
+            file: CATCHMENTS_FILE,
+            class: Some(DataClass::CatchmentNew),
+        },
+    ];
     type Job = ScalingUpJob;
     type Prepared = PreparedScalingUp;
     type Report = ScalingUpReport;

@@ -284,3 +284,114 @@ fn adjust_population_distribution_schema_and_validation() {
         Some(4)
     );
 }
+
+#[test]
+fn project_init_import_run_and_list() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fixture(dir.path());
+    let d = dir.path().to_str().expect("utf-8");
+    let project = format!("{d}/p");
+    let init = accessmod(&[
+        "project",
+        "init",
+        &project,
+        "--dem",
+        &format!("{d}/dem.tif"),
+        "--name",
+        "Test",
+        "--json",
+    ]);
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+    assert_eq!(stdout_json(&init)["grid"]["cols"], 4);
+
+    for (file, class, tags) in [
+        ("lc.tif", "rLandCover", "base"),
+        ("hf.gpkg", "vFacility", "hf"),
+    ] {
+        let import = accessmod(&[
+            "dataset",
+            "import",
+            &format!("{d}/{file}"),
+            "--class",
+            class,
+            "--tags",
+            tags,
+            "--project",
+            &project,
+            "--json",
+        ]);
+        assert!(
+            import.status.success(),
+            "{}",
+            String::from_utf8_lossy(&import.stderr)
+        );
+        assert_eq!(stdout_json(&import)["class"], class);
+    }
+    let bad = accessmod(&[
+        "dataset",
+        "import",
+        &format!("{d}/lc.tif"),
+        "--class",
+        "rLandCover",
+        "--tags",
+        "base",
+        "--project",
+        &project,
+        "--json",
+    ]);
+    assert_eq!(
+        bad.status.code(),
+        Some(2),
+        "duplicate tags are a validation error"
+    );
+
+    let job = serde_json::json!({
+        "schema_version": 1,
+        "dem": "datasets/1.tif",
+        "land_cover": "datasets/2.tif",
+        "facilities": {"path": "datasets/3.fgb", "id_field": "code"},
+        "scenario": [{"class": 1, "mode": "motorized", "speed_kmh": 5}],
+        "method": "isotropic",
+        "direction": "from_facilities",
+        "neighbourhood": 8
+    });
+    let job_path = format!("{d}/job.json");
+    std::fs::write(&job_path, job.to_string()).expect("write job");
+    let run = accessmod(&[
+        "project",
+        "run",
+        "travel-time",
+        "--job",
+        &job_path,
+        "--project",
+        &project,
+        "--json",
+        "--memory",
+        "64M",
+    ]);
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let record = stdout_json(&run);
+    assert_eq!(record["status"], "done");
+    assert_eq!(record["datasets"], serde_json::json!([4, 5]));
+
+    let list = accessmod(&[
+        "dataset",
+        "list",
+        "--class",
+        "rTravelTime",
+        "--project",
+        &project,
+        "--json",
+    ]);
+    let list = stdout_json(&list);
+    assert_eq!(list.as_array().map(Vec::len), Some(1));
+    assert_eq!(list[0]["file"], "runs/1/travel_time_seconds.tif");
+}

@@ -105,7 +105,7 @@ written to a temporary directory and moved in place only when complete:
 overwritten; delete it to run again.
 
 Add `--json` to get a machine-readable report on stdout (messages always go
-to stderr). Exit codes: 0 success, 2 invalid job, 3 file error,
+to stderr). Exit codes: 0 success, 2 invalid job or input, 3 file error,
 4 computation error, 130 cancelled.
 
 ## 5. The outputs

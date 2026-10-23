@@ -9,7 +9,8 @@ use accessmod_core::solver::{Flow, InputCell, SolveStats, SolverCell, SolverConf
 use accessmod_core::store::{DEFAULT_TILE, StoreStats, TileGeometry, TiledGrid};
 use serde::Serialize;
 
-use crate::analysis::{Analysis, Monitor, PROGRESS_CELLS};
+use crate::analysis::{Analysis, Monitor, Output, PROGRESS_CELLS};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityIssue, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
@@ -535,6 +536,28 @@ pub struct TravelTime;
 
 impl Analysis for TravelTime {
     const NAME: &'static str = "travel-time";
+    const OUTPUTS: &'static [Output] = &[
+        Output {
+            file: output::TRAVEL_TIME_FILE,
+            class: Some(DataClass::TravelTime),
+        },
+        Output {
+            file: output::NEAREST_FILE,
+            class: Some(DataClass::CostAllocation),
+        },
+        Output {
+            file: output::DISTANCE_FILE,
+            class: None,
+        },
+        Output {
+            file: output::DIRECTION_FILE,
+            class: None,
+        },
+        Output {
+            file: "nearest_facility.json",
+            class: None,
+        },
+    ];
     type Job = TravelTimeJob;
     type Prepared = Prepared;
     type Report = RunReport;

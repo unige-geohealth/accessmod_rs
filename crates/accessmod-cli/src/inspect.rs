@@ -1,6 +1,6 @@
 //! `accessmod dataset inspect`: describe a raster or vector dataset.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use accessmod_io::grid::{RasterFrame, check_projected_metric};
 use gdal::Dataset;
@@ -20,6 +20,8 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    #[command(flatten)]
+    Catalogue(crate::project::DatasetCommand),
 }
 
 fn crs(srs: Option<&SpatialRef>) -> serde_json::Value {
@@ -37,8 +39,7 @@ fn crs(srs: Option<&SpatialRef>) -> serde_json::Value {
     }
 }
 
-pub fn run(command: &Command) -> Result<(), Failure> {
-    let Command::Inspect { path, json } = command;
+pub fn run(path: &Path, json: bool) -> Result<(), Failure> {
     let dataset = Dataset::open(path).map_err(|e| {
         eprintln!("error: {}: {e}", path.display());
         Failure { code: 3 }
@@ -102,7 +103,7 @@ pub fn run(command: &Command) -> Result<(), Failure> {
         report["layers"] = json!(layers);
     }
 
-    if *json {
+    if json {
         print_json(&report);
     } else {
         eprintln!(

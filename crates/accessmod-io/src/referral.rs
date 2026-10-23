@@ -2,7 +2,7 @@
 //! (`docs/referral.md`).
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 use accessmod_core::cost::{CellMobility, Method, Neighbourhood};
@@ -16,14 +16,15 @@ use accessmod_core::store::{TileGeometry, TiledGrid};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityRecord, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::InputSummary;
 use crate::job::{
-    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, absolutize, check_common,
-    check_files, scenario_table,
+    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, check_common, check_files,
+    scenario_table,
 };
 use crate::output::{self, CsvWriter, Staging, csv_field};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
@@ -80,7 +81,7 @@ pub struct ReferralJob {
 }
 
 impl JobFile for ReferralJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
         for path in [
             &mut self.dem,
             &mut self.land_cover,
@@ -88,9 +89,8 @@ impl JobFile for ReferralJob {
             &mut self.destinations.path,
             &mut self.output_dir,
         ] {
-            absolutize(path, base);
+            f(path);
         }
-        self
     }
 }
 
@@ -583,6 +583,20 @@ pub struct Referral;
 
 impl Analysis for Referral {
     const NAME: &'static str = "referral";
+    const OUTPUTS: &'static [Output] = &[
+        Output {
+            file: "referral.csv",
+            class: Some(DataClass::Referral),
+        },
+        Output {
+            file: "nearest_by_time.csv",
+            class: Some(DataClass::ReferralNearestTime),
+        },
+        Output {
+            file: "nearest_by_distance.csv",
+            class: Some(DataClass::ReferralNearestDistance),
+        },
+    ];
     type Job = ReferralJob;
     type Prepared = PreparedReferral;
     type Report = ReferralReport;

@@ -176,6 +176,17 @@ impl GeoTiff {
         threads: usize,
         nodata: f64,
     ) -> Result<Self> {
+        Self::create_with::<T>(path, grid, predictor, threads, Some(nodata))
+    }
+
+    /// [`GeoTiff::create`] with an optional NoData value.
+    pub fn create_with<T: GdalType>(
+        path: &Path,
+        grid: &GridSpec,
+        predictor: u8,
+        threads: usize,
+        nodata: Option<f64>,
+    ) -> Result<Self> {
         let driver = DriverManager::get_driver_by_name("GTiff").map_err(Error::gdal(path))?;
         let mut options = RasterCreationOptions::new();
         for (key, value) in [
@@ -202,7 +213,7 @@ impl GeoTiff {
             .map_err(Error::gdal(path))?;
         dataset
             .rasterband(1)
-            .and_then(|mut band| band.set_no_data_value(Some(nodata)))
+            .and_then(|mut band| band.set_no_data_value(nodata))
             .map_err(Error::gdal(path))?;
         Ok(Self {
             dataset,

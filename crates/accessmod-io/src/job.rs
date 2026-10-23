@@ -124,9 +124,15 @@ pub struct OutputOptions {
 
 /// A job document: JSON, versioned, with paths relative to its file.
 pub trait JobFile: Sized + DeserializeOwned + JsonSchema {
+    /// Call `f` with every path of the job: datasets and output directory.
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf));
+
     /// Paths made absolute against `base` (when relative); see
     /// [`absolutize`].
-    fn resolve_paths(self, base: &Path) -> Self;
+    fn resolve_paths(mut self, base: &Path) -> Self {
+        self.for_each_path(&mut |path| absolutize(path, base));
+        self
+    }
 
     /// Parse a job from JSON.
     fn from_json(text: &str) -> Result<Self> {
@@ -192,16 +198,15 @@ pub fn check_files<'a>(
 }
 
 impl JobFile for TravelTimeJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
         for path in [
             &mut self.dem,
             &mut self.land_cover,
             &mut self.facilities.path,
             &mut self.output_dir,
         ] {
-            absolutize(path, base);
+            f(path);
         }
-        self
     }
 }
 

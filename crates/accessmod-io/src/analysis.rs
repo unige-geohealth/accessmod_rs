@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use schemars::JsonSchema;
 use serde::Serialize;
 
+use crate::class::DataClass;
 use crate::error::Result;
 use crate::job::JobFile;
 use crate::report::Warning;
@@ -85,6 +86,15 @@ impl<'a> Monitor<'a> {
     }
 }
 
+/// A file written by an analysis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Output {
+    /// File name in the output directory.
+    pub file: &'static str,
+    /// Class it enters a project as; `None`: kept with the run only.
+    pub class: Option<DataClass>,
+}
+
 /// Cells between two progress reports of a cell-by-cell stage.
 pub const PROGRESS_CELLS: u64 = 1 << 16;
 
@@ -92,6 +102,9 @@ pub const PROGRESS_CELLS: u64 = 1 << 16;
 pub trait Analysis {
     /// Stable name: CLI command, API path, schema file (`travel-time`).
     const NAME: &'static str;
+    /// Files the analysis may write in its output directory; optional
+    /// outputs may be absent.
+    const OUTPUTS: &'static [Output];
     /// Job document.
     type Job: JobFile + Serialize;
     /// Inputs validated and loaded, ready to run.

@@ -25,18 +25,19 @@ use gdal::vector::{FieldValue, LayerAccess, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
 use crate::catchment::{
     CATCHMENT_COLUMNS, CellSpool, PopulationTotals, ResidualStep, catchment_fields,
     catchment_polygon, init_residual, remove_covered, search_bands, table_number,
 };
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::facilities::{LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::InputSummary;
 use crate::job::{
-    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, absolutize, check_common,
-    check_files, scenario_table,
+    FacilityIssues, FacilitySource, JobFile, MethodName, ScenarioEntry, check_common, check_files,
+    scenario_table,
 };
 use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_field};
 use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_raster};
@@ -158,7 +159,7 @@ pub enum CoverageOrder {
 }
 
 impl JobFile for CoverageJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
         for path in [
             &mut self.dem,
             &mut self.land_cover,
@@ -166,12 +167,11 @@ impl JobFile for CoverageJob {
             &mut self.facilities.path,
             &mut self.output_dir,
         ] {
-            absolutize(path, base);
+            f(path);
         }
         if let Some(zones) = &mut self.zones {
-            absolutize(&mut zones.path, base);
+            f(&mut zones.path);
         }
-        self
     }
 }
 
@@ -961,6 +961,28 @@ pub struct GeographicCoverage;
 
 impl Analysis for GeographicCoverage {
     const NAME: &'static str = "geographic-coverage";
+    const OUTPUTS: &'static [Output] = &[
+        Output {
+            file: CAPACITY_FILE,
+            class: Some(DataClass::CoverageResult),
+        },
+        Output {
+            file: RESIDUAL_FILE,
+            class: Some(DataClass::PopulationResidual),
+        },
+        Output {
+            file: CATCHMENTS_FILE,
+            class: Some(DataClass::Catchment),
+        },
+        Output {
+            file: BARRIERS_FILE,
+            class: Some(DataClass::PopulationOnBarrier),
+        },
+        Output {
+            file: ZONES_FILE,
+            class: Some(DataClass::ZonalCoverage),
+        },
+    ];
     type Job = CoverageJob;
     type Prepared = PreparedCoverage;
     type Report = CoverageReport;

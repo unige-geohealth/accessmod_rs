@@ -7,6 +7,7 @@
 mod doctor;
 mod exec;
 mod inspect;
+mod project;
 mod travel_time;
 
 use std::process::ExitCode;
@@ -38,7 +39,12 @@ struct Cli {
 enum Command {
     /// Check GDAL/PROJ, drivers, scratch directory, memory and disk.
     Doctor(doctor::Args),
-    /// Describe raster and vector datasets.
+    /// Projects: datasets on one grid, saved jobs and runs.
+    Project {
+        #[command(subcommand)]
+        command: project::Command,
+    },
+    /// Describe datasets; import and manage them in a project.
     Dataset {
         #[command(subcommand)]
         command: inspect::Command,
@@ -127,7 +133,11 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Doctor(args) => doctor::run(&args),
-        Command::Dataset { command } => inspect::run(&command),
+        Command::Project { command } => project::run(command, &cancel),
+        Command::Dataset { command } => match command {
+            inspect::Command::Inspect { path, json } => inspect::run(&path, json),
+            inspect::Command::Catalogue(command) => project::dataset(command, &cancel),
+        },
         Command::TravelTime { command } => travel_time::run(command, &cancel),
         Command::Referral { command } => exec::job_command::<Referral>(command, &cancel),
         Command::MergeLandCover { command } => {

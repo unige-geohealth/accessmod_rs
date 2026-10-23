@@ -188,8 +188,11 @@ Metadata in SQLite, data in files:
   with `.ovr` overviews; a misaligned raster needs an explicit resampling step
   whose method is recorded, never an implicit one. Vectors are converted to
   the project CRS.
-- CLI: `accessmod project init|info`, `accessmod dataset import|list|tag`,
-  `accessmod job export`.
+- CLI (done): `accessmod project init|info|run|runs|recover`, `accessmod
+  dataset import|list|tag|remove`. A run in a project gives the same bytes as
+  the plain CLI on the same inputs (checked on the tutorial). Tags follow
+  AccessMod 5: any character but letters and digits separates them, so
+  `travel_time` is two tags; with its class, a tag set names one dataset.
 - `.am5p` import: a separate converter, after the first testable slice.
 
 ### Client: `web/`

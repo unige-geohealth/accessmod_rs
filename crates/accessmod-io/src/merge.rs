@@ -16,10 +16,11 @@ use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor};
+use crate::analysis::{Analysis, Monitor, Output};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::job::{JobFile, absolutize, check_files, check_schema_version, repeated};
+use crate::job::{JobFile, check_files, check_schema_version, repeated};
 use crate::output::{self, BLOCK, CsvWriter, GeoTiff, Staging, csv_field};
 use crate::raster::{
     AlignedBand, CHUNK_COLS, STRIP_ROWS, for_each_window, integer_nodata, open_class_raster,
@@ -188,13 +189,12 @@ impl StackItem {
 }
 
 impl JobFile for MergeLandCoverJob {
-    fn resolve_paths(mut self, base: &Path) -> Self {
-        absolutize(&mut self.dem, base);
-        absolutize(&mut self.output_dir, base);
+    fn for_each_path(&mut self, f: &mut dyn FnMut(&mut PathBuf)) {
+        f(&mut self.dem);
+        f(&mut self.output_dir);
         for item in &mut self.stack {
-            absolutize(item.path_mut(), base);
+            f(item.path_mut());
         }
-        self
     }
 }
 
@@ -1183,6 +1183,20 @@ pub struct MergeLandCover;
 
 impl Analysis for MergeLandCover {
     const NAME: &'static str = "merge-land-cover";
+    const OUTPUTS: &'static [Output] = &[
+        Output {
+            file: MERGED_FILE,
+            class: Some(DataClass::LandCoverMerged),
+        },
+        Output {
+            file: CLASSES_FILE,
+            class: Some(DataClass::LandCoverTable),
+        },
+        Output {
+            file: BRIDGES_FILE,
+            class: None,
+        },
+    ];
     type Job = MergeLandCoverJob;
     type Prepared = PreparedMerge;
     type Report = MergeReport;

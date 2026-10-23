@@ -49,12 +49,12 @@ _Last updated: 2026-10-16._
 
 | AccessMod 5 feature | Where in AM5 | accessmod-rs | Interface |
 | --- | --- | --- | --- |
-| Project = GRASS location built from the DEM | `amProjectCreateFromDem` | 🟡 no project yet: the DEM of each job defines the grid, other rasters must lie on its lattice (stricter than AM5, which resamples on import); 🗓 project layer with explicit resampling on import (plan: milestone 3) | CLI |
+| Project = GRASS location built from the DEM | `amProjectCreateFromDem` | ✅ `project init`: the DEM defines the grid; imported rasters must lie on its lattice (stricter than AM5, which resamples on import); 🗓 explicit resampling on import | CLI |
 | Raster import with CRS / extent checks | `amUploadRaster.R` | ✅ validation at run time (CRS, resolution, origin, overlap); no implicit resampling or reprojection | CLI |
 | Vector import (facilities) | `amUploadVector.R` | ✅ any GDAL point layer, explicit reprojection | CLI |
 | Vector import (roads, barriers, zones) | idem | ✅ roads and barriers (any GDAL line or polygon layer, explicit reprojection); 🗓 zones with zonal statistics | CLI |
 | Table import (scenarios, capacities) | `amUploadTable.R` | 🟡 scenario in the job JSON; 🗓 CSV scenarios and capacity tables | CLI + UI (table editing) |
-| Data catalogue: tags, filter, rename, archive, delete | `modules/amManageData` | ➖ engine works on plain files; 🗓 project layer and UI (plan: milestone 3) | CLI + UI |
+| Data catalogue: tags, filter, rename, archive, delete | `modules/amManageData` | ✅ `dataset import|list|tag|remove` (classes and tags as AM5); run outputs registered as datasets; 🗓 UI | CLI + UI |
 | Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 separate converter (plan: milestone 3) | CLI |
 | Data export | `amExport.R` | ✅ outputs are GeoTIFF and JSON directly | CLI |
 | Dataset inspection | data module | ✅ `dataset inspect` | CLI |
