@@ -378,17 +378,20 @@ One binary and one data directory on a small server, run as a service
 
 Each slice passes every check and is usable on its own.
 
-1. **Contracts**: progress sink in `Analysis`, dataset classes on job fields,
-   preview data (`.ovr` overviews, statistics), `cargo xtask schemas`,
-   `cargo xtask layers`.
-2. **Project layer** (SQLite metadata, datasets, saved jobs, runs) and its
-   CLI; run outputs registered as datasets.
-3. **Server**: `accessmod-server`, `serve`, command registry with the
-   implicit local user, generic API, runner, events, tiles; API tests.
-4. **Web shell, first testable slice**: AccessMod 5 navigation, project open
-   and new, catalogue with import and map preview, a form generated from the
-   JSON Schema for every analysis and tool, runs with progress and
-   cancellation, run history. Playwright on the demo project.
+1. **Contracts** (done 2026-10-23): progress sink in `Analysis`, dataset
+   classes on job fields, preview data (`.ovr` overviews, statistics),
+   `cargo xtask schemas`, `cargo xtask layers`.
+2. **Project layer** (done 2026-10-23): SQLite metadata, datasets, saved
+   jobs, runs, and its CLI; run outputs registered as datasets.
+3. **Server** (done 2026-10-23): `accessmod-server`, `serve`, command
+   registry with the implicit local user, generic API, runner, events,
+   tiles; API tests.
+4. **Web shell, first testable slice** (done 2026-10-23; the four languages
+   and the generated parity checklist are still to do): AccessMod 5
+   navigation, project open and new, catalogue with import and map
+   preview, a form generated from the JSON Schema for every analysis and
+   tool, runs with progress and cancellation, run history. Playwright on
+   the tutorial data.
 5. **Country server**: accounts, roles, admission control, quotas,
    resumable uploads; national fixture and time budgets. From the server
    review (2026-10-23), still open:
