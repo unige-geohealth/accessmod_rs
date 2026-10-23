@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use accessmod_core::cost::CellMobility;
-use accessmod_core::solver::{InputCell, SolveStats, SolverCell, SolverConfig, solve};
+use accessmod_core::solver::{Flow, InputCell, SolveStats, SolverCell, SolverConfig, solve_until};
 use accessmod_core::store::{DEFAULT_TILE, StoreStats, TileGeometry, TiledGrid};
 use serde::Serialize;
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor, PROGRESS_CELLS};
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityIssue, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
@@ -90,9 +90,11 @@ fn facility_issue_text(issue: &FacilityIssue) -> String {
 pub fn prepare(
     job: TravelTimeJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<Prepared> {
+    let cancelled = monitor.cancelled();
     let mut durations_s = BTreeMap::new();
+    monitor.stage("load_inputs");
     let started = Instant::now();
     let mut issues = job.check();
     issues.extend(check_files(
@@ -126,6 +128,7 @@ pub fn prepare(
     )?;
     warnings.extend(landscape_warnings(&summary, &job.scenario));
 
+    monitor.stage("fingerprints");
     let fingerprint_started = Instant::now();
     let fingerprints = fingerprints(
         &[
@@ -398,8 +401,9 @@ pub type RunReport = Report<RunRecord, SolverStores>;
 pub fn run(
     mut prepared: Prepared,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, RunReport)> {
+    let cancelled = monitor.cancelled();
     let job = &prepared.job;
     let staging = Staging::create(&job.output_dir)?;
     let geometry = prepared.inputs.geometry();
@@ -417,19 +421,31 @@ pub fn run(
         cell: prepared.grid.cell,
         limit_s: job.limit_s,
     };
+    monitor.stage("solve");
     let started = Instant::now();
-    let stats: SolveStats = solve(
+    // Every passable cell may be settled: the total is an upper bound.
+    let passable = prepared.summary.passable;
+    let mut settled = 0u64;
+    let stats: SolveStats = solve_until(
         &mut prepared.inputs,
         &prepared.scenario,
         &prepared.facilities.solver_facilities(),
         &config,
         &mut state,
         cancelled,
+        &mut |_, _, _| {
+            settled += 1;
+            if settled.is_multiple_of(PROGRESS_CELLS) {
+                monitor.advance("solve", settled, Some(passable));
+            }
+            Flow::Continue
+        },
     )?;
     prepared
         .durations_s
         .insert("solve", started.elapsed().as_secs_f64());
 
+    monitor.stage("write_outputs");
     let started = Instant::now();
     output::write_rasters(
         staging.path(),
@@ -526,17 +542,17 @@ impl Analysis for TravelTime {
     fn prepare(
         job: TravelTimeJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<Prepared> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: Prepared,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, RunReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &Prepared) -> &[Warning] {

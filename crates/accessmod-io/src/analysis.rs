@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::error::Result;
@@ -13,6 +14,79 @@ use crate::resources::ExecutionSettings;
 
 /// Cancellation flag polled by long operations.
 pub type Cancelled<'a> = &'a (dyn Fn() -> bool + Sync);
+
+/// Progress of a running analysis, reported through a [`Monitor`].
+///
+/// Stages are stable identifiers, the keys of `durations_s` in `run.json`
+/// (`load_inputs`, `solve`, `write_outputs`, …), so an interface can
+/// translate them. Progress never changes results.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct Progress {
+    /// Stage identifier.
+    pub stage: String,
+    /// Units done in the stage (cells, searches, facilities, iterations).
+    pub done: u64,
+    /// Units in the stage, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+}
+
+/// What a running analysis polls and reports: cancellation and progress.
+/// Both callbacks may be called from several threads.
+#[derive(Clone, Copy)]
+pub struct Monitor<'a> {
+    cancelled: Cancelled<'a>,
+    progress: &'a (dyn Fn(&Progress) + Sync),
+}
+
+impl std::fmt::Debug for Monitor<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Monitor").finish_non_exhaustive()
+    }
+}
+
+impl<'a> Monitor<'a> {
+    /// Never cancelled; progress is dropped.
+    pub const QUIET: Monitor<'static> = Monitor {
+        cancelled: &|| false,
+        progress: &|_| {},
+    };
+
+    /// A monitor over `cancelled` and `progress`.
+    pub fn new(cancelled: Cancelled<'a>, progress: &'a (dyn Fn(&Progress) + Sync)) -> Self {
+        Self {
+            cancelled,
+            progress,
+        }
+    }
+
+    /// The cancellation flag, for toolkit functions that poll it.
+    pub fn cancelled(&self) -> Cancelled<'a> {
+        self.cancelled
+    }
+
+    /// Whether cancellation was requested.
+    pub fn is_cancelled(&self) -> bool {
+        (self.cancelled)()
+    }
+
+    /// A stage starts.
+    pub fn stage(&self, stage: &str) {
+        self.advance(stage, 0, None);
+    }
+
+    /// `done` units of `total` (when known) of `stage` are done.
+    pub fn advance(&self, stage: &str, done: u64, total: Option<u64>) {
+        (self.progress)(&Progress {
+            stage: stage.to_owned(),
+            done,
+            total,
+        });
+    }
+}
+
+/// Cells between two progress reports of a cell-by-cell stage.
+pub const PROGRESS_CELLS: u64 = 1 << 16;
 
 /// An analysis: job, validation, execution, report.
 pub trait Analysis {
@@ -30,7 +104,7 @@ pub trait Analysis {
     fn prepare(
         job: Self::Job,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<Self::Prepared>;
 
     /// Compute and write every output atomically; returns the output
@@ -38,7 +112,7 @@ pub trait Analysis {
     fn run(
         prepared: Self::Prepared,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, Self::Report)>;
 
     /// Non-blocking problems found while preparing.

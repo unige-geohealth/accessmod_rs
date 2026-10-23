@@ -133,7 +133,8 @@ pub fn pair_bytes(origins: usize, destinations: usize) -> u64 {
 ///
 /// `origins` and `destinations` must be passable cells (checked by the
 /// solver). `workers` threads run searches concurrently; `cancelled` is
-/// polled by every search.
+/// polled by every search; `progress` gets the searches done and
+/// their total after each search.
 #[allow(clippy::too_many_arguments)] // reason: explicit inputs of one analysis
 pub fn referral(
     inputs: &Frozen<InputCell>,
@@ -146,6 +147,7 @@ pub fn referral(
     scratch_dir: &Path,
     excluded: &(dyn Fn(usize, usize) -> bool + Sync),
     cancelled: &(dyn Fn() -> bool + Sync),
+    progress: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<ReferralResult, SolveError> {
     let reversed = searches_from_destinations(config, origins.len(), destinations.len());
     let (sources, targets, direction) = if reversed {
@@ -233,6 +235,7 @@ pub fn referral(
             }
             *searches += 1;
             *total += settled;
+            progress(*searches, sources.len());
         }
     };
 

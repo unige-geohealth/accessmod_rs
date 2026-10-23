@@ -4,12 +4,13 @@ use std::path::Path;
 
 use accessmod_core::cost::{Direction, Neighbourhood};
 use accessmod_core::mobility::TransportMode;
+use accessmod_io::analysis::Monitor;
 use accessmod_io::coverage::{
     BARRIERS_FILE, CAPACITY_FILE, CATCHMENTS_FILE, CoverageJob, CoverageOrder, GeographicCoverage,
     RESIDUAL_FILE, ZONES_FILE, prepare, run,
 };
 use accessmod_io::fixtures::{
-    EPSG, X0, Y0, cell_polygon, geo_transform, grid, never, read, read_valid, run_job, settings,
+    EPSG, X0, Y0, cell_polygon, geo_transform, grid, read, read_valid, run_job, settings,
     write_features, write_raster,
 };
 use accessmod_io::job::{
@@ -201,9 +202,10 @@ fn outputs_do_not_depend_on_memory() {
         job
     };
     let tight_budget = 40 << 20;
-    let tight = prepare(with_dir("a"), &settings(tight_budget, 1), &never).expect("prepare");
+    let tight =
+        prepare(with_dir("a"), &settings(tight_budget, 1), Monitor::QUIET).expect("prepare");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), &never).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), Monitor::QUIET).expect("run a");
     assert!(
         report_a.execution.details.residual_store.tile_writes > 0,
         "scratch not exercised"

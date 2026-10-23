@@ -1,6 +1,7 @@
 //! Referral: pairs equal full searches, side swap, workers, frozen backends.
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use accessmod_core::cost::{CellMobility, CellSize, Direction, Method, Neighbourhood};
 use accessmod_core::mobility::{MobilityModel, TransportMode};
@@ -105,7 +106,9 @@ fn run(
         state_tiles: 64,
         input_tiles: 2,
     };
-    referral(
+    // Progress: one report per search, counting up to the total.
+    let reports = Mutex::new(Vec::new());
+    let pairs = referral(
         inputs,
         &scenario(),
         &case.origins,
@@ -116,9 +119,16 @@ fn run(
         &scratch_dir(),
         &|_, _| false,
         &|| false,
+        &|done, total| reports.lock().expect("reports").push((done, total)),
     )
     .expect("referral")
-    .pairs
+    .pairs;
+    let reports = reports.into_inner().expect("reports");
+    let total = reports.first().map_or(0, |r| r.1);
+    assert!(total == case.origins.len() || total == case.destinations.len());
+    let expected: Vec<(usize, usize)> = (1..=total).map(|d| (d, total)).collect();
+    assert_eq!(reports, expected);
+    pairs
 }
 
 fn any_case() -> impl Strategy<Value = Case> {
@@ -267,6 +277,7 @@ fn run_excluding(
         &scratch_dir(),
         excluded,
         &|| false,
+        &|_, _| {},
     )
     .expect("referral")
     .pairs

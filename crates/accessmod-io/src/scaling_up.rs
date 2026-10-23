@@ -35,7 +35,7 @@ use gdal::vector::{FieldValue, Geometry, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::catchment::{
     CATCHMENT_COLUMNS, CellSpool, PopulationTotals, ResidualStep, catchment_fields,
     catchment_polygon, init_residual, remove_covered, search_bands, table_number,
@@ -628,8 +628,10 @@ fn window_cells(window_m: f64, resolution_m: f64) -> usize {
 pub fn prepare(
     job: ScalingUpJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedScalingUp> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("load_inputs");
     let started = Instant::now();
     let mut issues = job.check();
     issues.extend(check_files(
@@ -717,6 +719,7 @@ pub fn prepare(
     }
     let mut durations_s = BTreeMap::new();
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let fingerprints = fingerprints(&job.files(), cancelled)?;
     durations_s.insert("fingerprints", started.elapsed().as_secs_f64());
@@ -1219,8 +1222,9 @@ fn for_each_suitability(
 pub fn run(
     prepared: PreparedScalingUp,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, ScalingUpReport)> {
+    let cancelled = monitor.cancelled();
     let PreparedScalingUp {
         job,
         grid,
@@ -1240,6 +1244,7 @@ pub fn run(
     let new_f64 = |fill: f64, name: &'static str| TiledGrid::new(geometry, fill, tiles, tmp, name);
 
     // Residual population and totals.
+    monitor.stage("setup");
     let started = Instant::now();
     let mut residual = new_f64(f64::NAN, "residual")?;
     let residual_path = job.population_residual.as_ref().unwrap_or(&job.population);
@@ -1430,6 +1435,7 @@ pub fn run(
     durations_s.insert("setup", started.elapsed().as_secs_f64());
 
     // Iterations.
+    monitor.stage("iterations");
     let started = Instant::now();
     let config = job.solver_config(&grid);
     let limit_band = (job.limit_s / job.band_s).ceil() as u32;
@@ -1467,6 +1473,11 @@ pub fn run(
         }
     };
     for iteration in 1..=job.max_facilities {
+        monitor.advance(
+            "iterations",
+            u64::from(iteration - 1),
+            Some(u64::from(job.max_facilities)),
+        );
         if covered_percent(remaining) >= job.max_coverage_percent {
             result.stop = Some(StopReason::Coverage);
             break;
@@ -1773,6 +1784,7 @@ pub fn run(
     durations_s.insert("iterations", started.elapsed().as_secs_f64());
 
     // Outputs.
+    monitor.stage("write_outputs");
     let started = Instant::now();
     write_residual(
         &staging.path().join(RESIDUAL_FILE),
@@ -1946,17 +1958,17 @@ impl Analysis for ScalingUp {
     fn prepare(
         job: ScalingUpJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedScalingUp> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedScalingUp,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, ScalingUpReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedScalingUp) -> &[Warning] {

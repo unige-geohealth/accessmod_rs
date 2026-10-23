@@ -16,7 +16,7 @@ use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{JobFile, absolutize, check_files, check_schema_version, repeated};
@@ -317,8 +317,10 @@ pub struct PreparedMerge {
 pub fn prepare(
     job: MergeLandCoverJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedMerge> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("validate");
     let started = Instant::now();
     let mut issues = job.check();
     let stack_files = job.stack.iter().enumerate().map(|(i, item)| {
@@ -385,6 +387,7 @@ pub fn prepare(
     let mut durations_s = BTreeMap::new();
     durations_s.insert("validate", started.elapsed().as_secs_f64());
 
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let files: Vec<(&'static str, &Path)> = std::iter::once(("dem", job.dem.as_path()))
         .chain(job.stack.iter().map(|item| ("stack_item", item.path())))
@@ -808,8 +811,9 @@ pub fn deviations() -> Vec<Deviation> {
 pub fn run(
     mut prepared: PreparedMerge,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, MergeReport)> {
+    let cancelled = monitor.cancelled();
     let staging = Staging::create(&prepared.job.output_dir)?;
     let grid = &prepared.grid;
     let geometry = TileGeometry::new(grid.rows, grid.cols, prepared.plan.tile)?;
@@ -821,6 +825,7 @@ pub fn run(
         "merge",
     )?;
 
+    monitor.stage("paint");
     let started = Instant::now();
     for (item, plan) in prepared.job.stack.iter().zip(prepared.items.iter_mut()) {
         let at = format!("stack item {} ({})", plan.position, plan.kind);
@@ -849,6 +854,7 @@ pub fn run(
         .durations_s
         .insert("paint", started.elapsed().as_secs_f64());
 
+    monitor.stage("write_outputs");
     let started = Instant::now();
     let mut result = write_outputs(
         staging.path(),
@@ -1184,17 +1190,17 @@ impl Analysis for MergeLandCover {
     fn prepare(
         job: MergeLandCoverJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedMerge> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedMerge,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, MergeReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedMerge) -> &[Warning] {

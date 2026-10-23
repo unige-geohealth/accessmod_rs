@@ -4,6 +4,7 @@ use std::path::Path;
 
 use accessmod_core::cost::{Direction, Neighbourhood};
 use accessmod_core::mobility::TransportMode;
+use accessmod_io::analysis::Monitor;
 use accessmod_io::fixtures::{
     EPSG, X0, Y0, cell_polygon, geo_transform, grid, read, run_job, settings, write_features,
     write_raster,
@@ -209,9 +210,10 @@ fn outputs_do_not_depend_on_memory() {
         job
     };
     let tight_budget = 40 << 20;
-    let tight = prepare(with_dir("a"), &settings(tight_budget, 1), &|| false).expect("prepare");
+    let tight =
+        prepare(with_dir("a"), &settings(tight_budget, 1), Monitor::QUIET).expect("prepare");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), &|| false).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), Monitor::QUIET).expect("run a");
     assert_eq!(report_a.run.result.facilities_added, 4);
     assert!(
         report_a.execution.details.residual_store.tile_writes > 0,

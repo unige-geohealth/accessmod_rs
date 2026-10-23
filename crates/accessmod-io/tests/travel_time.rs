@@ -5,10 +5,10 @@ use std::path::Path;
 
 use accessmod_core::cost::{Direction, Neighbourhood};
 use accessmod_core::mobility::{MobilityModel, TransportMode};
+use accessmod_io::analysis::Monitor;
 use accessmod_io::error::ErrorKind;
 use accessmod_io::fixtures::{
-    EPSG, X0, Y0, geo_transform, grid, never, read, run_job, settings, to_wgs84, write_layer,
-    write_raster,
+    EPSG, X0, Y0, geo_transform, grid, read, run_job, settings, to_wgs84, write_layer, write_raster,
 };
 use accessmod_io::job::{
     FacilityIssues, FacilitySource, MethodName, OutputOptions, SCHEMA_VERSION, ScenarioEntry,
@@ -207,8 +207,8 @@ fn misaligned_land_cover_is_rejected() {
         vec![1; 15],
         Some(0.0),
     );
-    let err =
-        prepare(fixture.job.clone(), &settings(256 << 20, 1), &never).expect_err("misaligned");
+    let err = prepare(fixture.job.clone(), &settings(256 << 20, 1), Monitor::QUIET)
+        .expect_err("misaligned");
     assert_eq!(err.kind(), ErrorKind::Validation);
     assert!(err.to_string().contains("lattice"), "{err}");
 }
@@ -235,13 +235,14 @@ fn larger_land_cover_on_the_lattice_is_windowed() {
 fn facility_problems_fail_or_warn() {
     // Second facility is outside the grid (row 5 of a 3-row grid).
     let fixture = Fixture::new(5, 3, &[(1, 0), (5, 1)]);
-    let err = prepare(fixture.job.clone(), &settings(256 << 20, 1), &never).expect_err("outside");
+    let err =
+        prepare(fixture.job.clone(), &settings(256 << 20, 1), Monitor::QUIET).expect_err("outside");
     assert_eq!(err.kind(), ErrorKind::Validation);
     assert!(err.to_string().contains("outside the DEM grid"), "{err}");
 
     let mut job = fixture.job.clone();
     job.facility_issues = FacilityIssues::Skip;
-    let prepared = prepare(job, &settings(256 << 20, 1), &never).expect("skip mode");
+    let prepared = prepare(job, &settings(256 << 20, 1), Monitor::QUIET).expect("skip mode");
     assert_eq!(prepared.facilities.kept.len(), 1);
     assert!(
         prepared
@@ -260,7 +261,8 @@ fn facilities_in_another_crs_are_reprojected() {
     };
     std::fs::remove_file(fixture.path().join("hf.gpkg")).expect("remove");
     write_points(&fixture.path().join("hf.gpkg"), 4326, &[(7, lon, lat)]);
-    let prepared = prepare(fixture.job.clone(), &settings(256 << 20, 1), &never).expect("prepare");
+    let prepared =
+        prepare(fixture.job.clone(), &settings(256 << 20, 1), Monitor::QUIET).expect("prepare");
     assert!(prepared.facilities.reprojected);
     let f = &prepared.facilities.kept[0];
     assert_eq!((f.row, f.col), (1, 2));
@@ -277,7 +279,8 @@ fn non_empty_output_dir_is_rejected() {
     let fixture = Fixture::new(5, 3, &[(1, 0)]);
     std::fs::create_dir(&fixture.job.output_dir).expect("mkdir");
     std::fs::write(fixture.job.output_dir.join("keep.txt"), "x").expect("write");
-    let err = prepare(fixture.job.clone(), &settings(256 << 20, 1), &never).expect_err("non-empty");
+    let err = prepare(fixture.job.clone(), &settings(256 << 20, 1), Monitor::QUIET)
+        .expect_err("non-empty");
     assert_eq!(err.kind(), ErrorKind::Validation);
 }
 
@@ -285,8 +288,8 @@ fn non_empty_output_dir_is_rejected() {
 fn cancellation_leaves_nothing_behind() {
     let fixture = Fixture::new(5, 3, &[(1, 0)]);
     let settings = settings(256 << 20, 1);
-    let prepared = prepare(fixture.job.clone(), &settings, &never).expect("prepare");
-    let err = run(prepared, &settings, &|| true).expect_err("cancelled");
+    let prepared = prepare(fixture.job.clone(), &settings, Monitor::QUIET).expect("prepare");
+    let err = run(prepared, &settings, Monitor::new(&|| true, &|_| {})).expect_err("cancelled");
     assert_eq!(err.kind(), ErrorKind::Cancelled);
     assert!(!fixture.job.output_dir.exists());
     let leftovers = std::fs::read_dir(fixture.path())
@@ -314,8 +317,8 @@ fn wide_grids_cross_read_and_write_chunks() {
     );
     let mut job = fixture.job.clone();
     job.facility_issues = FacilityIssues::Skip;
-    let err =
-        prepare(job.clone(), &settings(256 << 20, 1), &never).expect_err("facility on barrier");
+    let err = prepare(job.clone(), &settings(256 << 20, 1), Monitor::QUIET)
+        .expect_err("facility on barrier");
     assert_eq!(err.kind(), ErrorKind::Validation, "{err}");
 
     // Move the facility onto covered land.
@@ -337,4 +340,24 @@ fn wide_grids_cross_read_and_write_chunks() {
     );
     let second_row_last = cols + last;
     assert!(time[second_row_last] > time[last]);
+}
+
+#[test]
+fn progress_reports_each_stage_in_order() {
+    let fixture = Fixture::new(5, 3, &[(1, 0)]);
+    let settings = settings(256 << 20, 1);
+    let reports = std::sync::Mutex::new(Vec::new());
+    let record = |p: &accessmod_io::analysis::Progress| {
+        reports.lock().expect("reports").push(p.clone());
+    };
+    let monitor = Monitor::new(&|| false, &record);
+    let prepared = prepare(fixture.job.clone(), &settings, monitor).expect("prepare");
+    run(prepared, &settings, monitor).expect("run");
+    let reports = reports.into_inner().expect("reports");
+    let mut stages: Vec<&str> = reports.iter().map(|p| p.stage.as_str()).collect();
+    stages.dedup();
+    assert_eq!(
+        stages,
+        ["load_inputs", "fingerprints", "solve", "write_outputs"]
+    );
 }

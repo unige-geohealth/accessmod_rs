@@ -15,7 +15,7 @@ use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{JobFile, absolutize, check_files, check_schema_version};
@@ -154,8 +154,10 @@ pub struct PreparedZonal {
 pub fn prepare(
     job: ZonalStatisticsJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedZonal> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("validate");
     let started = Instant::now();
     let mut issues = job.check();
     issues.extend(check_files(
@@ -205,6 +207,7 @@ pub fn prepare(
     }
     let mut durations_s = BTreeMap::new();
     durations_s.insert("validate", started.elapsed().as_secs_f64());
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let fingerprints = fingerprints(
         &[
@@ -388,8 +391,9 @@ pub fn deviations() -> Vec<Deviation> {
 pub fn run(
     mut prepared: PreparedZonal,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, ZonalReport)> {
+    let cancelled = monitor.cancelled();
     let job = &prepared.job;
     let grid = &prepared.grid;
     let staging = Staging::create(&job.output_dir)?;
@@ -402,6 +406,7 @@ pub fn run(
         "zones",
     )?;
 
+    monitor.stage("zones");
     let started = Instant::now();
     let vector = open_zones(&job.zones, grid)?;
     let mut feature = 0usize;
@@ -413,6 +418,7 @@ pub fn run(
         .durations_s
         .insert("zones", started.elapsed().as_secs_f64());
 
+    monitor.stage("statistics");
     let started = Instant::now();
     let (time_ds, time_alignment) = open_aligned_raster(&job.travel_time, grid, "travel time")?;
     let (population_ds, population_alignment) =
@@ -541,17 +547,17 @@ impl Analysis for ZonalStatistics {
     fn prepare(
         job: ZonalStatisticsJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedZonal> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedZonal,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, ZonalReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedZonal) -> &[Warning] {

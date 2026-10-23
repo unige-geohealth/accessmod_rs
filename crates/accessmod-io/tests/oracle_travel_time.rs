@@ -7,7 +7,8 @@
 use std::path::Path;
 
 use accessmod_core::cost::Neighbourhood;
-use accessmod_io::fixtures::{never, oracle_available, oracle_dir, read_with_nodata, settings};
+use accessmod_io::analysis::Monitor;
+use accessmod_io::fixtures::{oracle_available, oracle_dir, read_with_nodata, settings};
 use accessmod_io::job::{
     FacilityIssues, FacilitySource, MethodName, OutputOptions, SCHEMA_VERSION, ScenarioEntry,
     TravelTimeJob,
@@ -97,14 +98,14 @@ fn compare(case: &Case, dir: &Path, tmp: &Path) -> Comparison {
         output_dir: tmp.join(&case.name),
     };
     let settings = settings(256 << 20, 1);
-    let prepared = prepare(job, &settings, &never).expect("prepare");
+    let prepared = prepare(job, &settings, Monitor::QUIET).expect("prepare");
     let ids: Vec<i64> = prepared
         .facilities
         .kept
         .iter()
         .map(|f| f.id.as_i64().expect("integer cat"))
         .collect();
-    let (out, _) = run(prepared, &settings, &never).expect("run");
+    let (out, _) = run(prepared, &settings, Monitor::QUIET).expect("run");
 
     let (ours, ours_nodata) = read_with_nodata::<f64>(&out.join(TRAVEL_TIME_FILE));
     let (our_nearest, _) = read_with_nodata::<u32>(&out.join(NEAREST_FILE));

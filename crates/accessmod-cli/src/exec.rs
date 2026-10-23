@@ -3,8 +3,10 @@
 //! printed by `run --json`.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
-use accessmod_io::analysis::Analysis;
+use accessmod_io::analysis::{Analysis, Monitor, Progress};
 use accessmod_io::error::{Error, ErrorKind};
 use accessmod_io::job::JobFile;
 use accessmod_io::report::Warning;
@@ -180,8 +182,12 @@ pub fn validate<A: Analysis>(job: A::Job, exec: &ExecArgs, cancel: &Cancel) -> R
 pub fn execute<A: Analysis>(job: A::Job, exec: &ExecArgs, cancel: &Cancel) -> Result<(), Failure> {
     let settings = settings(exec)?;
     let prepared = prepare::<A>(job, &settings, exec.json, cancel)?;
+    let log = ProgressLog::default();
+    let report_progress = |p: &Progress| log.report(p);
+    let cancelled = || cancel.requested();
+    let monitor = Monitor::new(&cancelled, &report_progress);
     let (output_dir, report) =
-        A::run(prepared, &settings, &|| cancel.requested()).map_err(|e| fail(&e, exec.json))?;
+        A::run(prepared, &settings, monitor).map_err(|e| fail(&e, exec.json))?;
     tracing::info!("wrote {}: {}", output_dir.display(), A::outcome(&report));
     print_report(&report, &output_dir, exec.json);
     Ok(())
@@ -193,8 +199,55 @@ fn prepare<A: Analysis>(
     json: bool,
     cancel: &Cancel,
 ) -> Result<A::Prepared, Failure> {
-    let prepared = A::prepare(job, settings, &|| cancel.requested()).map_err(|e| fail(&e, json))?;
+    let log = ProgressLog::default();
+    let report_progress = |p: &Progress| log.report(p);
+    let cancelled = || cancel.requested();
+    let monitor = Monitor::new(&cancelled, &report_progress);
+    let prepared = A::prepare(job, settings, monitor).map_err(|e| fail(&e, json))?;
     log_warnings(A::warnings(&prepared));
     tracing::info!("{}", A::describe(&prepared));
     Ok(prepared)
+}
+
+/// Least time between two progress lines of one stage.
+const PROGRESS_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Logs progress on stderr: each stage when it starts, then its counts at
+/// most every [`PROGRESS_INTERVAL`].
+#[derive(Debug, Default)]
+struct ProgressLog {
+    /// Current stage and when its last line was written.
+    state: Mutex<Option<(String, Instant)>>,
+}
+
+impl ProgressLog {
+    fn report(&self, progress: &Progress) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        let now = Instant::now();
+        match &mut *state {
+            Some((stage, last)) if *stage == progress.stage => {
+                if progress.done > 0 && now.duration_since(*last) >= PROGRESS_INTERVAL {
+                    *last = now;
+                    tracing::info!("{}", progress_line(progress));
+                }
+            }
+            _ => {
+                *state = Some((progress.stage.clone(), now));
+                tracing::info!("{}", progress_line(progress));
+            }
+        }
+    }
+}
+
+/// `solve: 1200 of 4800 (25 %)`, `solve: 1200`, or `solve` alone.
+fn progress_line(progress: &Progress) -> String {
+    match (progress.done, progress.total) {
+        (0, _) => progress.stage.clone(),
+        (done, Some(total)) if total > 0 => format!(
+            "{}: {done} of {total} ({:.0} %)",
+            progress.stage,
+            done as f64 * 100.0 / total as f64
+        ),
+        (done, _) => format!("{}: {done}", progress.stage),
+    }
 }

@@ -18,7 +18,7 @@ use gdal::vector::{Envelope, Geometry, LayerAccess, OGRwkbGeometryType, geometry
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{FacilitySource, JobFile, absolutize, check_files, check_schema_version};
@@ -437,8 +437,10 @@ fn optimization_plan(
 pub fn prepare(
     job: OptimizationJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedOptimization> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("validate");
     let started = Instant::now();
     let mut issues = job.check();
     issues.extend(check_files(
@@ -558,6 +560,7 @@ pub fn prepare(
     }
     let mut durations_s = BTreeMap::new();
     durations_s.insert("validate", started.elapsed().as_secs_f64());
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let fingerprints = fingerprints(&job.inputs(), cancelled)?;
     durations_s.insert("fingerprints", started.elapsed().as_secs_f64());
@@ -695,13 +698,15 @@ pub fn deviations(quota: bool) -> Vec<Deviation> {
 pub fn run(
     mut prepared: PreparedOptimization,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, OptimizationReport)> {
+    let cancelled = monitor.cancelled();
     let job = &prepared.job;
     let grid = &prepared.grid;
     let staging = Staging::create(&job.output_dir)?;
 
     // Catchments to the spool, in the grid CRS; duplicates share a slot.
+    monitor.stage("read");
     let started = Instant::now();
     let mut spool = GeometrySpool::new(&settings.tmp_dir, "optimization")?;
     let vector = open_layer(&job.catchments, grid, "catchments")?;
@@ -763,6 +768,7 @@ pub fn run(
         .insert("read", started.elapsed().as_secs_f64());
 
     // Population of each catchment.
+    monitor.stage("population");
     let started = Instant::now();
     let (population_ds, alignment) = open_aligned_raster(&job.population, grid, "population")?;
     let population = AlignedBand::new(&population_ds, &job.population, alignment, grid)?;
@@ -791,6 +797,7 @@ pub fn run(
         .insert("population", started.elapsed().as_secs_f64());
 
     // Greedy selection.
+    monitor.stage("selection");
     let started = Instant::now();
     let mut quota = job.zone_quota.as_ref().map(|q| {
         ZoneQuota::new(
@@ -809,6 +816,16 @@ pub fn run(
         if cancelled() {
             return Err(Error::Cancelled);
         }
+        monitor.advance(
+            "selection",
+            selected.len() as u64,
+            Some(job.max_facilities as u64),
+        );
+        monitor.advance(
+            "selection",
+            selected.len() as u64,
+            Some(job.max_facilities as u64),
+        );
         candidates.clear();
         candidates.extend(alive.iter().map(|e| e.candidate));
         let pick = select(&candidates, quota.as_ref()).expect("candidates are left");
@@ -998,17 +1015,17 @@ impl Analysis for Optimization {
     fn prepare(
         job: OptimizationJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedOptimization> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedOptimization,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, OptimizationReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedOptimization) -> &[Warning] {

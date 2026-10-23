@@ -17,7 +17,7 @@ use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{JobFile, absolutize, check_files, check_schema_version};
@@ -140,8 +140,10 @@ pub struct PreparedPopulation {
 pub fn prepare(
     job: AdjustPopulationJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedPopulation> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("validate");
     let started = Instant::now();
     let mut issues = job.check();
     issues.extend(check_files(
@@ -200,6 +202,7 @@ pub fn prepare(
     }
     let mut durations_s = std::collections::BTreeMap::new();
     durations_s.insert("validate", started.elapsed().as_secs_f64());
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let fingerprints = fingerprints(
         &[
@@ -392,8 +395,9 @@ pub fn deviations() -> Vec<Deviation> {
 pub fn run(
     mut prepared: PreparedPopulation,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, PopulationReport)> {
+    let cancelled = monitor.cancelled();
     let job = &prepared.job;
     let grid = &prepared.grid;
     let staging = Staging::create(&job.output_dir)?;
@@ -407,6 +411,7 @@ pub fn run(
     )?;
 
     // Zones on the grid, by cell centre; the first zone keeps a shared cell.
+    monitor.stage("zones");
     let started = Instant::now();
     let vector = open_zones(&job.zones, grid)?;
     let mut next = 0u32;
@@ -428,6 +433,7 @@ pub fn run(
     let bands = [&population, &land_cover];
 
     // Pass 1: totals per zone.
+    monitor.stage("totals");
     let started = Instant::now();
     let mut summary = PopulationSummary {
         zones: prepared.targets.len(),
@@ -473,6 +479,7 @@ pub fn run(
         .insert("totals", started.elapsed().as_secs_f64());
 
     // Pass 2: adjusted population, written block by block.
+    monitor.stage("write_outputs");
     let started = Instant::now();
     let tif = GeoTiff::create::<f64>(
         &staging.path().join(POPULATION_FILE),
@@ -626,17 +633,17 @@ impl Analysis for AdjustPopulation {
     fn prepare(
         job: AdjustPopulationJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedPopulation> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedPopulation,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, PopulationReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedPopulation) -> &[Warning] {

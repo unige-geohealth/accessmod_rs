@@ -2,10 +2,10 @@
 
 use std::path::Path;
 
+use accessmod_io::analysis::Monitor;
 use accessmod_io::error::ErrorKind;
 use accessmod_io::fixtures::{
-    EPSG, X0, Y0, cell_polygon, geo_transform, never, read, run_job, settings, write_layer,
-    write_raster,
+    EPSG, X0, Y0, cell_polygon, geo_transform, read, run_job, settings, write_layer, write_raster,
 };
 use accessmod_io::job::SCHEMA_VERSION;
 use accessmod_io::output::FLOAT_NODATA;
@@ -94,8 +94,8 @@ fn fixture(dir: &Path, known: bool) -> AdjustPopulationJob {
 fn barrier_population_moves_within_its_zone() {
     let dir = tempfile::tempdir().expect("tmp");
     let job = fixture(dir.path(), false);
-    let prepared = prepare(job, &settings(256 << 20, 1), &never).expect("prepare");
-    let (out, report) = run(prepared, &settings(256 << 20, 1), &never).expect("run");
+    let prepared = prepare(job, &settings(256 << 20, 1), Monitor::QUIET).expect("prepare");
+    let (out, report) = run(prepared, &settings(256 << 20, 1), Monitor::QUIET).expect("run");
     let n = FLOAT_NODATA;
     // 40 people, 30 off barriers: ratio 4/3 on each 10-people cell.
     let a = 10.0 * (40.0 / 30.0);
@@ -139,12 +139,12 @@ fn zone_problems_are_validation_errors() {
     let dir = tempfile::tempdir().expect("tmp");
     let mut job = fixture(dir.path(), false);
     job.zones.population_field = Some("missing".into());
-    let err = prepare(job.clone(), &settings(256 << 20, 1), &never).expect_err("no field");
+    let err = prepare(job.clone(), &settings(256 << 20, 1), Monitor::QUIET).expect_err("no field");
     assert_eq!(err.kind(), ErrorKind::Validation);
     assert!(err.to_string().contains("no field \"missing\""), "{err}");
     job.zones.population_field = None;
     job.zones.id_field = "fid_missing".into();
-    assert!(prepare(job, &settings(256 << 20, 1), &never).is_err());
+    assert!(prepare(job, &settings(256 << 20, 1), Monitor::QUIET).is_err());
 }
 
 #[test]
@@ -203,9 +203,9 @@ fn outputs_do_not_depend_on_memory() {
     // 21.5 MiB: the 16 MiB GDAL cache floor and block buffers leave part
     // of the 165 zone tiles resident.
     let tight_budget = 43 << 19;
-    let tight = prepare(job("a"), &settings(tight_budget, 1), &never).expect("prepare");
+    let tight = prepare(job("a"), &settings(tight_budget, 1), Monitor::QUIET).expect("prepare");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), &never).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), Monitor::QUIET).expect("run a");
     assert!(
         report_a.execution.details.store.tile_writes > 0,
         "scratch not exercised"
@@ -252,14 +252,14 @@ fn missing_known_populations_leave_the_zone_out() {
         &features,
     );
     job.zones.path = path;
-    let prepared = prepare(job, &settings(256 << 20, 1), &never).expect("prepare");
+    let prepared = prepare(job, &settings(256 << 20, 1), Monitor::QUIET).expect("prepare");
     assert!(
         prepared
             .warnings
             .iter()
             .any(|w| w.code == "known_population_missing")
     );
-    let (out, report) = run(prepared, &settings(256 << 20, 1), &never).expect("run");
+    let (out, report) = run(prepared, &settings(256 << 20, 1), Monitor::QUIET).expect("run");
     let n = FLOAT_NODATA;
     assert_eq!(
         read::<f64>(&out.join(POPULATION_FILE)),

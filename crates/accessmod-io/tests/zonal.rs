@@ -2,9 +2,9 @@
 
 use std::path::Path;
 
+use accessmod_io::analysis::Monitor;
 use accessmod_io::fixtures::{
-    EPSG, X0, Y0, cell_polygon, geo_transform, never, run_job, settings, write_features,
-    write_raster,
+    EPSG, X0, Y0, cell_polygon, geo_transform, run_job, settings, write_features, write_raster,
 };
 use accessmod_io::job::SCHEMA_VERSION;
 use accessmod_io::output::FLOAT_NODATA;
@@ -144,9 +144,9 @@ fn outputs_do_not_depend_on_memory() {
     };
     // 21.5 MiB: part of the 165 zone tiles resident.
     let tight_budget = 43 << 19;
-    let tight = prepare(job("a"), &settings(tight_budget, 1), &never).expect("prepare");
+    let tight = prepare(job("a"), &settings(tight_budget, 1), Monitor::QUIET).expect("prepare");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), &never).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(tight_budget, 1), Monitor::QUIET).expect("run a");
     assert!(
         report_a.execution.details.store.tile_writes > 0,
         "scratch not exercised"

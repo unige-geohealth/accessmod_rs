@@ -16,7 +16,7 @@ use accessmod_core::store::{TileGeometry, TiledGrid};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityRecord, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
@@ -149,8 +149,10 @@ pub struct PreparedReferral {
 pub fn prepare(
     job: ReferralJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedReferral> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("load_inputs");
     let started = Instant::now();
     let mut issues = job.check();
     issues.extend(check_files(
@@ -205,6 +207,7 @@ pub fn prepare(
     }
     warnings.extend(landscape_warnings(&summary, &job.scenario));
 
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let mut files = vec![
         ("dem", job.dem.as_path()),
@@ -324,8 +327,9 @@ fn same_feature(
 pub fn run(
     prepared: PreparedReferral,
     settings: &ExecutionSettings,
-    cancelled: &(dyn Fn() -> bool + Sync),
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, ReferralReport)> {
+    let cancelled = monitor.cancelled();
     let PreparedReferral {
         job,
         grid,
@@ -341,6 +345,7 @@ pub fn run(
     } = prepared;
     let staging = Staging::create(&job.output_dir)?;
 
+    monitor.stage("solve");
     let started = Instant::now();
     let frozen = inputs.freeze()?;
     let config = ReferralConfig {
@@ -389,9 +394,11 @@ pub fn run(
         &settings.tmp_dir,
         &excluded,
         cancelled,
+        &|done, total| monitor.advance("solve", done as u64, Some(total as u64)),
     )?;
     durations_s.insert("solve", started.elapsed().as_secs_f64());
 
+    monitor.stage("write_outputs");
     let started = Instant::now();
     let dir = staging.path();
     let pairs_csv = |name: &str| {
@@ -583,17 +590,17 @@ impl Analysis for Referral {
     fn prepare(
         job: ReferralJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedReferral> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedReferral,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, ReferralReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedReferral) -> &[Warning] {

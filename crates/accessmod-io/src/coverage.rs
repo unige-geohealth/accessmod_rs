@@ -25,7 +25,7 @@ use gdal::vector::{FieldValue, LayerAccess, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Cancelled};
+use crate::analysis::{Analysis, Monitor};
 use crate::catchment::{
     CATCHMENT_COLUMNS, CellSpool, PopulationTotals, ResidualStep, catchment_fields,
     catchment_polygon, init_residual, remove_covered, search_bands, table_number,
@@ -279,8 +279,10 @@ pub struct PreparedCoverage {
 pub fn prepare(
     job: CoverageJob,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<PreparedCoverage> {
+    let cancelled = monitor.cancelled();
+    monitor.stage("load_inputs");
     let started = Instant::now();
     let mut issues = job.check();
     let mut files = vec![
@@ -350,6 +352,7 @@ pub fn prepare(
     };
     let mut durations_s = BTreeMap::new();
     durations_s.insert("load_inputs", started.elapsed().as_secs_f64());
+    monitor.stage("fingerprints");
     let started = Instant::now();
     let mut files = vec![
         ("dem", job.dem.as_path()),
@@ -562,8 +565,9 @@ pub fn deviations() -> Vec<Deviation> {
 pub fn run(
     prepared: PreparedCoverage,
     settings: &ExecutionSettings,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, CoverageReport)> {
+    let cancelled = monitor.cancelled();
     let PreparedCoverage {
         job,
         grid,
@@ -590,6 +594,7 @@ pub fn run(
     )?;
 
     // Residual population and population on barriers.
+    monitor.stage("residual");
     let started = Instant::now();
     let (population_ds, alignment) = open_aligned_raster(&job.population, &grid, "population")?;
     let population = AlignedBand::new(&population_ds, &job.population, alignment, &grid)?;
@@ -625,6 +630,7 @@ pub fn run(
     let state_tiles = plan.resident_tiles;
 
     // Processing order.
+    monitor.stage("order");
     let started = Instant::now();
     let mut order: Vec<usize> = (0..facilities.len()).collect();
     let (values, descending): (Vec<f64>, bool) = match &job.order {
@@ -674,6 +680,7 @@ pub fn run(
     durations_s.insert("order", started.elapsed().as_secs_f64());
 
     // Facilities one after the other.
+    monitor.stage("coverage");
     let started = Instant::now();
     let config = job.solver_config(&grid, job.limit_s);
     let limit_band = (job.limit_s / job.band_s).ceil() as u32;
@@ -697,6 +704,7 @@ pub fn run(
     let mut reached_cells = 0u64;
     let mut rows = Vec::with_capacity(order.len());
     for (k, &index) in order.iter().enumerate() {
+        monitor.advance("coverage", k as u64, Some(order.len() as u64));
         let facility = &facilities[index];
         let bands = search_bands(
             &mut inputs,
@@ -761,6 +769,7 @@ pub fn run(
     // residual off barriers (people <= 0 start with a residual of 0, so they
     // add their value, as in AccessMod 5).
     if let Some(source) = &job.zones {
+        monitor.stage("zones");
         let started = Instant::now();
         let mut zone_grid = TiledGrid::new(
             geometry,
@@ -812,6 +821,7 @@ pub fn run(
     }
 
     // Outputs.
+    monitor.stage("write_outputs");
     let started = Instant::now();
     let tif = GeoTiff::create::<f64>(
         &staging.path().join(RESIDUAL_FILE),
@@ -958,17 +968,17 @@ impl Analysis for GeographicCoverage {
     fn prepare(
         job: CoverageJob,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<PreparedCoverage> {
-        prepare(job, settings, cancelled)
+        prepare(job, settings, monitor)
     }
 
     fn run(
         prepared: PreparedCoverage,
         settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
+        monitor: Monitor<'_>,
     ) -> Result<(PathBuf, CoverageReport)> {
-        run(prepared, settings, cancelled)
+        run(prepared, settings, monitor)
     }
 
     fn warnings(prepared: &PreparedCoverage) -> &[Warning] {

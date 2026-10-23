@@ -3,10 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
+use accessmod_io::analysis::Monitor;
 use accessmod_io::error::{Error, ErrorKind};
 use accessmod_io::fixtures::{
-    EPSG, X0, Y0, geo_transform, grid, never, read, run_job, settings, to_wgs84, write_layer,
-    write_raster,
+    EPSG, X0, Y0, geo_transform, grid, read, run_job, settings, to_wgs84, write_layer, write_raster,
 };
 use accessmod_io::job::SCHEMA_VERSION;
 use accessmod_io::merge::{
@@ -222,7 +222,7 @@ fn class_conflicts_are_rejected_and_reclass_resolves_them() {
     if let StackItem::LandCover(lc) = &mut job.stack[1] {
         lc.reclass = vec![Reclass { from: 2, to: 3 }];
     }
-    let err = prepare(job.clone(), &settings(256 << 20, 2), &never).expect_err("conflict");
+    let err = prepare(job.clone(), &settings(256 << 20, 2), Monitor::QUIET).expect_err("conflict");
     assert_eq!(err.kind(), ErrorKind::Validation);
     let text = err.to_string();
     assert!(
@@ -252,7 +252,7 @@ fn missing_fields_and_bad_filters_are_validation_errors() {
         layer: None,
         filter: Some("no_such_field = 1".into()),
     }));
-    let err = prepare(job, &settings(256 << 20, 2), &never).expect_err("invalid");
+    let err = prepare(job, &settings(256 << 20, 2), Monitor::QUIET).expect_err("invalid");
     let Error::Validation { issues } = err else {
         panic!("validation error expected");
     };
@@ -333,9 +333,10 @@ fn outputs_do_not_depend_on_memory() {
     // 23 MiB: the 16 MiB GDAL cache floor and buffers leave about 80 of
     // the 165 tiles resident.
     let minimum = 23 << 20;
-    let tight = prepare(job("a"), &settings(minimum, 2), &never).expect("prepare at minimum");
+    let tight =
+        prepare(job("a"), &settings(minimum, 2), Monitor::QUIET).expect("prepare at minimum");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
-    let (out_a, report_a) = run(tight, &settings(minimum, 2), &never).expect("run a");
+    let (out_a, report_a) = run(tight, &settings(minimum, 2), Monitor::QUIET).expect("run a");
     assert!(
         report_a.execution.details.store.tile_writes > 0,
         "scratch not exercised"
@@ -385,14 +386,14 @@ fn layers_in_another_crs_are_reprojected_and_outside_features_counted() {
         layer: None,
         filter: None,
     });
-    let prepared = prepare(job, &settings(256 << 20, 2), &never).expect("prepare");
+    let prepared = prepare(job, &settings(256 << 20, 2), Monitor::QUIET).expect("prepare");
     assert!(
         prepared
             .warnings
             .iter()
             .any(|w| w.code == "stack_item_reprojected")
     );
-    let (out, report) = run(prepared, &settings(256 << 20, 2), &never).expect("run");
+    let (out, report) = run(prepared, &settings(256 << 20, 2), Monitor::QUIET).expect("run");
     let merged = read::<i32>(&out.join(MERGED_FILE));
     assert_eq!((merged[4], merged[6 + 4]), (MERGED_NODATA, MERGED_NODATA));
     assert_eq!(report.run.result.barrier_cells, 2);

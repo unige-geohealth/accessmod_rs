@@ -11,7 +11,7 @@ use gdal::spatial_ref::SpatialRef;
 use gdal::vector::{Feature, FieldValue, Geometry, LayerAccess, LayerOptions, OGRwkbGeometryType};
 use gdal::{Dataset, DriverManager};
 
-use crate::analysis::Analysis;
+use crate::analysis::{Analysis, Monitor};
 use crate::error::Result;
 use crate::grid::GridSpec;
 use crate::raster::valid_value;
@@ -157,8 +157,8 @@ pub fn never() -> bool {
 
 /// Prepare and run `job`; the output directory.
 pub fn run_job<A: Analysis>(job: A::Job, settings: &ExecutionSettings) -> Result<PathBuf> {
-    let prepared = A::prepare(job, settings, &never)?;
-    A::run(prepared, settings, &never).map(|(dir, _)| dir)
+    let prepared = A::prepare(job, settings, Monitor::QUIET)?;
+    A::run(prepared, settings, Monitor::QUIET).map(|(dir, _)| dir)
 }
 
 /// `_oracle/<relative>` of the workspace (AccessMod 5 exports).
