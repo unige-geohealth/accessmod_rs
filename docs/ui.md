@@ -392,6 +392,13 @@ Each slice passes every check and is usable on its own.
    preview, a form generated from the JSON Schema for every analysis and
    tool, runs with progress and cancellation, run history. Playwright on
    the tutorial data.
+   From the web review (2026-10-23), still open: drafts typed with the
+   generated job types (one union per analysis); instant schema checks
+   (Ajv) with errors on their controls and Run disabled while invalid;
+   attribute fields fed by another dataset field (`capacity_field` from
+   `facilities`), declared in the schema; drafts saved automatically
+   (debounced, from the message handler); component tests rendering all
+   eight job forms; texts of summaries translated.
 5. **Country server**: accounts, roles, admission control, quotas,
    resumable uploads; national fixture and time budgets. From the server
    review (2026-10-23), still open:

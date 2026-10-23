@@ -8,6 +8,9 @@ export type Path = readonly (string | number)[];
 
 /** Key of the classes a dataset field accepts (Rust `class::SCHEMA_KEY`). */
 export const CLASS_KEY = "x-accessmod-class";
+/** Key of the layers that are no dataset a field also accepts (Rust
+ * `class::DYNAMIC_KEY`). */
+export const DYNAMIC_KEY = "x-accessmod-dynamic";
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -86,8 +89,26 @@ export type Variant =
   | { kind: "tagged"; label: string; key: string; value: string; schema: Schema }
   | { kind: "external"; label: string; tag: string; schema: Schema };
 
-/** Alternatives of an enum with data (serde tagged, external or unit). */
+/** Alternatives of an enum with data (serde tagged, external or unit).
+ * On a dataset field, only those the field accepts: constants listed in
+ * [`DYNAMIC_KEY`], and `raster` / `vector` payloads matching its classes. */
 export function variants(root: Schema, schema: Schema): Variant[] | null {
+  const all = allVariants(root, schema);
+  const s = resolve(root, schema);
+  const classes = s[CLASS_KEY];
+  if (all === null || !Array.isArray(classes)) return all;
+  const dynamic = Array.isArray(s[DYNAMIC_KEY]) ? (s[DYNAMIC_KEY] as unknown[]) : null;
+  const accepts = (prefix: string) =>
+    classes.some((c) => typeof c === "string" && c.startsWith(prefix));
+  return all.filter((v) => {
+    if (v.kind === "constant") return dynamic === null || dynamic.includes(v.value);
+    if (v.kind === "external" && v.tag === "raster") return accepts("r");
+    if (v.kind === "external" && v.tag === "vector") return accepts("v");
+    return true;
+  });
+}
+
+function allVariants(root: Schema, schema: Schema): Variant[] | null {
   const s = resolve(root, schema);
   const alternatives = schemas(s.oneOf ?? s.anyOf);
   if (alternatives.length === 0 || nullable(root, s) !== null || enumOptions(root, s) !== null) {

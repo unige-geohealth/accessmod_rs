@@ -233,7 +233,7 @@ pub enum Keep {
 #[serde(deny_unknown_fields)]
 pub struct Exclusion {
     /// Layer: `facilities`, a raster or a vector layer.
-    #[schemars(extend("x-accessmod-class" = ["rExclusion", "vExclusion"]))]
+    #[schemars(extend("x-accessmod-class" = ["rExclusion", "vExclusion"], "x-accessmod-dynamic" = ["facilities"]))]
     pub layer: Layer,
     /// Distance from the layer's cells, metres (cell centre to cell
     /// centre, inclusive); 0: the layer's cells.
@@ -260,7 +260,7 @@ pub enum Factor {
     /// Population summed over a moving window (`popsum`).
     Population {
         /// `population` (residual) or a raster.
-        #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"]))]
+        #[schemars(extend("x-accessmod-class" = ["rPopulation", "rPopulationResidual"], "x-accessmod-dynamic" = ["population"]))]
         layer: Layer,
         /// Width of the window, metres: `round(window_m / cell)` cells,
         /// made odd, circular (AccessMod 5 option `r`, in km); 0: the cell.
@@ -274,7 +274,7 @@ pub enum Factor {
     /// Euclidean distance to the layer (`dist`).
     Distance {
         /// `facilities`, a raster or a vector layer.
-        #[schemars(extend("x-accessmod-class" = ["vRoad", "vBarrier", "vFacility"]))]
+        #[schemars(extend("x-accessmod-class" = ["vRoad", "vBarrier", "vFacility"], "x-accessmod-dynamic" = ["facilities"]))]
         layer: Layer,
         /// Weight.
         weight: f64,
@@ -284,7 +284,7 @@ pub enum Factor {
     /// Travel time from the layer, whole minutes, unlimited (`traveltime`).
     TravelTime {
         /// `facilities` or a vector layer.
-        #[schemars(extend("x-accessmod-class" = ["vRoad", "vBarrier", "vFacility"]))]
+        #[schemars(extend("x-accessmod-class" = ["vRoad", "vBarrier", "vFacility"], "x-accessmod-dynamic" = ["facilities"]))]
         layer: Layer,
         /// Travel-time method.
         method: MethodName,
@@ -302,7 +302,7 @@ pub enum Factor {
     /// Values of a raster (`priority`).
     Priority {
         /// A raster.
-        #[schemars(extend("x-accessmod-class" = ["rPriority"]))]
+        #[schemars(extend("x-accessmod-class" = ["rPriority"], "x-accessmod-dynamic" = []))]
         layer: Layer,
         /// Weight.
         weight: f64,

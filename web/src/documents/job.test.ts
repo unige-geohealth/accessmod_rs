@@ -43,3 +43,12 @@ describe("job draft", () => {
     expect(h.present.document).toEqual({});
   });
 });
+
+describe("late saves", () => {
+  it("keep the edits made meanwhile", () => {
+    let s = updateJob(EMPTY_JOB, { type: "new", analysis: "t", document: { a: 1 } });
+    s = updateJob(s, { type: "set", path: ["a"], value: 2 });
+    s = updateJob(s, { type: "revised", id: 9, revision: 1 });
+    expect(s).toMatchObject({ document: { a: 2 }, dirty: true, saved: { id: 9, revision: 1 } });
+  });
+});

@@ -15,6 +15,11 @@ use serde::{Deserialize, Serialize};
 /// Key of the JSON Schema extension listing the classes a field accepts.
 pub const SCHEMA_KEY: &str = "x-accessmod-class";
 
+/// Key of the extension listing which layers that are no dataset a field
+/// also accepts (`facilities`, `population`: the facilities and the residual
+/// population of a run, as AccessMod 5 offers them).
+pub const DYNAMIC_KEY: &str = "x-accessmod-dynamic";
+
 /// Storage of a class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -4,13 +4,15 @@ import { runsStore } from "../api/events";
 import { useRunList } from "../api/queries";
 import { analysisName, t } from "../app/i18n";
 import { navigate } from "../app/route";
-import { fraction, type RunProcess } from "../state/runs";
+import { fraction, showRun } from "../state/runs";
 import { useStore } from "../state/store";
 import { Issues, Loading, when } from "./common";
 
 export function LogsScreen({ project }: { project: string }) {
   const runs = useRunList(project);
-  const live = useStore(runsStore, (s) => s.runs);
+  // Parts of the state, never new objects (selectors).
+  const live = useStore(runsStore, (s) => s.runs[project]);
+  const progress = useStore(runsStore, (s) => s.progress[project]);
   const cancel = useMutation({
     mutationFn: (id: number) => api.command("run.cancel", { project, id }),
   });
@@ -24,14 +26,12 @@ export function LogsScreen({ project }: { project: string }) {
       <table className="table">
         <tbody>
           {list.map((record) => {
-            // Live state from events, while the server lists the run as queued or
-            // running; a finished record always wins (derived, never stored).
-            const active = record.status === "queued" || record.status === "running";
-            const process: RunProcess | undefined = active ? live[record.id] : undefined;
-            const status = process?.status ?? record.status;
-            const run = process?.run ?? record;
-            const share = process ? fraction(process) : null;
-            const stage = process?.status === "running" ? process.progress?.stage : undefined;
+            // The listed record, updated by events while active (derived).
+            const shown = showRun(record, live, progress);
+            const run = shown.run;
+            const status = run.status;
+            const share = fraction(shown.progress);
+            const stage = shown.progress?.stage;
             return (
               <tr key={record.id}>
                 <td>#{run.id}</td>

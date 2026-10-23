@@ -19,6 +19,9 @@ export type JobMessage =
   | { type: "new"; analysis: string; document: Json }
   | { type: "load"; job: Api.SavedJob }
   | { type: "saved"; job: Api.SavedJob }
+  /** A save of an older state of this draft succeeded: only the saved job
+   * and its revision change; the current edits stay. */
+  | { type: "revised"; id: number; revision: number }
   | { type: "set"; path: Path; value: Json | undefined }
   | { type: "remove"; path: Path }
   | { type: "append"; path: Path; value: Json }
@@ -51,6 +54,8 @@ export function updateJob(state: JobDraft, message: JobMessage): JobDraft {
         saved: { id: message.job.id, revision: message.job.revision },
         dirty: false,
       };
+    case "revised":
+      return { ...state, saved: { id: message.id, revision: message.revision } };
     case "set":
       return {
         ...state,

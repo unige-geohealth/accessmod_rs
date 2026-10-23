@@ -21,13 +21,23 @@ export interface Route {
 
 export const HOME: Route = { project: null, section: "projects", item: null };
 
+/** A path segment, or `null` when it is not valid percent-encoding. */
+function decode(part: string): string | null {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return null;
+  }
+}
+
 export function parseRoute(hash: string): Route {
   const parts = hash
     .replace(/^#\/?/, "")
     .split("/")
     .filter((p) => p.length > 0)
-    .map(decodeURIComponent);
-  const [project, section, item] = parts;
+    .map(decode);
+  if (parts.some((p) => p === null)) return HOME;
+  const [project, section, item] = parts as string[];
   if (project === undefined) return HOME;
   const known = SECTIONS.find((s) => s === section);
   return { project, section: known ?? "data", item: item ?? null };

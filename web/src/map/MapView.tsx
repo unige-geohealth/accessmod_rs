@@ -23,12 +23,15 @@ export function MapView({
   project,
   bounds,
   dataset,
+  features,
   basemap,
   onClick,
 }: {
   project: string;
   bounds: [number, number, number, number] | undefined;
   dataset: Api.Dataset | null;
+  /** Features of a vector dataset, loaded by the caller. */
+  features: GeoJSON.FeatureCollection | null;
   basemap: boolean;
   onClick: (lon: number, lat: number) => void;
 }) {
@@ -84,14 +87,13 @@ export function MapView({
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    let cancelled = false;
     const clear = () => {
       for (const id of ["data", "data-line", "data-point"]) {
         if (m.getLayer(id)) m.removeLayer(id);
       }
       if (m.getSource("data")) m.removeSource("data");
     };
-    const show = async () => {
+    const show = () => {
       clear();
       if (!dataset) return;
       const kind = dataset.summary.kind;
@@ -107,9 +109,7 @@ export function MapView({
           source: "data",
           paint: { "raster-opacity": 0.85, "raster-resampling": "nearest" },
         });
-      } else if (kind === "vector") {
-        const features = await api.features(project, dataset.id);
-        if (cancelled) return;
+      } else if (kind === "vector" && features !== null) {
         m.addSource("data", { type: "geojson", data: features });
         m.addLayer({
           id: "data",
@@ -139,15 +139,12 @@ export function MapView({
         });
       }
     };
-    const run = () => {
-      void show();
-    };
-    if (m.isStyleLoaded()) run();
-    else m.once("load", run);
+    if (m.isStyleLoaded()) show();
+    else m.once("load", show);
     return () => {
-      cancelled = true;
+      m.off("load", show);
     };
-  }, [project, dataset]);
+  }, [project, dataset, features]);
 
   return <div className="map" ref={container} />;
 }

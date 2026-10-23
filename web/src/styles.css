@@ -222,6 +222,11 @@ button.link {
   padding: 0 0 6px;
 }
 
+.warning {
+  color: #b45309;
+  font-weight: 600;
+}
+
 .probe {
   font-weight: 600;
   color: var(--accent);

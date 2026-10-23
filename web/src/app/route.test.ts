@@ -10,5 +10,6 @@ describe("route", () => {
     expect(parseRoute("")).toEqual(HOME);
     expect(parseRoute("#/demo")).toEqual({ project: "demo", section: "data", item: null });
     expect(parseRoute("#/demo/unknown")).toEqual({ project: "demo", section: "data", item: null });
+    expect(parseRoute("#/%E0%A4%A/data")).toEqual(HOME);
   });
 });

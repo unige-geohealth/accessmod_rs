@@ -13,11 +13,17 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const response = await fetch(path, {
     method,
     headers: body === undefined ? {} : { "content-type": "application/json" },
     body: body === undefined ? null : JSON.stringify(body),
+    signal: signal ?? null,
   });
   const text = await response.text();
   const value: unknown = text.length > 0 ? JSON.parse(text) : null;
@@ -47,21 +53,24 @@ export const api = {
   datasets: (slug: string) => request<Api.Dataset[]>("GET", `${project(slug)}/datasets`),
   jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),
   runs: (slug: string) => request<Api.RunRecord[]>("GET", `${project(slug)}/runs`),
-  features: (slug: string, id: number) =>
+  features: (slug: string, id: number, signal?: AbortSignal) =>
     request<GeoJSON.FeatureCollection & { truncated: boolean }>(
       "GET",
       `${project(slug)}/datasets/${id}/features`,
+      undefined,
+      signal,
     ),
   value: (slug: string, id: number, lon: number, lat: number) =>
     request<{ value: number | null }>(
       "GET",
       `${project(slug)}/datasets/${id}/value?lon=${lon}&lat=${lat}`,
     ),
-  validate: (slug: string, analysis: string, document: Json) =>
+  validate: (slug: string, analysis: string, document: Json, signal?: AbortSignal) =>
     request<Record<string, unknown>>(
       "POST",
       `${project(slug)}/analyses/${encodeURIComponent(analysis)}/validate`,
       document,
+      signal,
     ),
   command: <T>(id: string, params: Record<string, unknown>) =>
     request<T>("POST", `/api/commands/${id}`, params),

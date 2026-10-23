@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api/client";
 import { useBounds, useClasses, useDatasets } from "../api/queries";
@@ -28,19 +28,27 @@ export function DataScreen({ project, selected }: { project: string; selected: s
   const datasets = useDatasets(project);
   const bounds = useBounds(project);
   const [basemap, setBasemap] = useState(false);
-  const [probe, setProbe] = useState<string | null>(null);
+  // A value read on the map, with the dataset it belongs to: shown only
+  // while that dataset is selected (a late answer cannot mislabel another).
+  const [probe, setProbe] = useState<{ dataset: number; text: string } | null>(null);
   const current = datasets.data?.find((d) => String(d.id) === selected) ?? null;
-  const select = (id: number) => {
-    setProbe(null);
-    navigate({ project, section: "data", item: String(id) });
-  };
+  const vector = current?.summary.kind === "vector" ? current : null;
+  const features = useQuery({
+    queryKey: ["features", project, vector?.id],
+    queryFn: ({ signal }) => api.features(project, vector?.id ?? 0, signal),
+    enabled: vector !== null,
+    staleTime: 60_000,
+  });
+  const select = (id: number) => navigate({ project, section: "data", item: String(id) });
   const onMapClick = (lon: number, lat: number) => {
     if (current?.summary.kind !== "raster") return;
-    void api.value(project, current.id, lon, lat).then(
-      (r) => setProbe(r.value === null ? "no value" : String(r.value)),
+    const dataset = current.id;
+    void api.value(project, dataset, lon, lat).then(
+      (r) => setProbe({ dataset, text: r.value === null ? "—" : String(r.value) }),
       () => setProbe(null),
     );
   };
+  const probeText = probe !== null && probe.dataset === current?.id ? probe.text : null;
   return (
     <section className="split">
       <div className="left">
@@ -63,7 +71,12 @@ export function DataScreen({ project, selected }: { project: string; selected: s
               <tr
                 key={d.id}
                 className={d === current ? "selected" : ""}
+                tabIndex={0}
+                aria-selected={d === current}
                 onClick={() => select(d.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") select(d.id);
+                }}
               >
                 <td>{d.id}</td>
                 <td title={d.class}>{className(d.class)}</td>
@@ -79,11 +92,19 @@ export function DataScreen({ project, selected }: { project: string; selected: s
       <div className="right">
         <div className="map-bar">
           <span>
-            {current ? `${current.class} · ${current.tags.join(" ")}` : t("data.preview")}
+            {current
+              ? `${className(current.class)} · ${current.tags.join(" ")}`
+              : t("data.preview")}
           </span>
-          {probe !== null && (
+          {features.data?.truncated && (
+            <span className="warning">
+              {features.data.features.length} /{" "}
+              {vector?.summary.kind === "vector" ? vector.summary.features : "?"}
+            </span>
+          )}
+          {probeText !== null && (
             <span className="probe">
-              {t("map.value")}: {probe}
+              {t("map.value")}: {probeText}
             </span>
           )}
           <label className="inline">
@@ -99,6 +120,7 @@ export function DataScreen({ project, selected }: { project: string; selected: s
           project={project}
           bounds={bounds.data}
           dataset={current}
+          features={vector ? (features.data ?? null) : null}
           basemap={basemap}
           onClick={onMapClick}
         />

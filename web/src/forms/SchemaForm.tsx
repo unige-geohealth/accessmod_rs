@@ -59,6 +59,12 @@ export function SchemaForm({
   );
 }
 
+/** Identifier of the control editing `path`, for its label. */
+const controlId = (path: Path) => `f-${path.join("-")}`;
+
+/** Kinds edited by one control (the others hold sub-fields). */
+const CONTROLS = new Set(["string", "number", "integer", "boolean", "enum", "variants"]);
+
 const label = (name: string) => name.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
 
 function description(ctx: Context, schema: Schema): string | undefined {
@@ -163,12 +169,23 @@ function Field({
   inherited: Inherited;
 }) {
   const remove = required ? null : () => ctx.dispatch({ type: "set", path, value: undefined });
+  const inner = nullable(ctx.root, schema) ?? schema;
+  const controlled = CONTROLS.has(fieldKind(ctx.root, inner));
   return (
     <div className="field">
       <div className="field-label" title={description(ctx, schema)}>
-        <span>{label(name)}</span>
+        {controlled ? (
+          <label htmlFor={controlId(path)}>{label(name)}</label>
+        ) : (
+          <span>{label(name)}</span>
+        )}
         {remove && (
-          <button type="button" className="link small" onClick={remove}>
+          <button
+            type="button"
+            className="link small"
+            aria-label={`remove ${label(name)}`}
+            onClick={remove}
+          >
             remove
           </button>
         )}
@@ -211,11 +228,20 @@ function Input({
     }
     case "string":
       if (classes !== null) {
-        return <DatasetSelect ctx={ctx} classes={classes} value={value} onChange={set} />;
+        return (
+          <DatasetSelect
+            id={controlId(path)}
+            ctx={ctx}
+            classes={classes}
+            value={value}
+            onChange={set}
+          />
+        );
       }
       if (inherited.fields !== null) {
         return (
           <select
+            id={controlId(path)}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => set(e.target.value)}
           >
@@ -230,6 +256,7 @@ function Input({
       }
       return (
         <input
+          id={controlId(path)}
           type="text"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => set(e.target.value)}
@@ -239,6 +266,7 @@ function Input({
     case "integer":
       return (
         <input
+          id={controlId(path)}
           type="number"
           step={kind === "integer" ? 1 : "any"}
           value={typeof value === "number" ? value : ""}
@@ -247,14 +275,24 @@ function Input({
       );
     case "boolean":
       return (
-        <input type="checkbox" checked={value === true} onChange={(e) => set(e.target.checked)} />
+        <input
+          id={controlId(path)}
+          type="checkbox"
+          checked={value === true}
+          onChange={(e) => set(e.target.checked)}
+        />
       );
     case "enum": {
       const options = enumOptions(ctx.root, schema) ?? [];
       // Options by position: numbers stay numbers in the document.
-      const current = options.findIndex((o) => o === value);
+      const current =
+        typeof value === "string" || typeof value === "number" ? options.indexOf(value) : -1;
       return (
-        <select value={current} onChange={(e) => set(options[Number(e.target.value)])}>
+        <select
+          id={controlId(path)}
+          value={current}
+          onChange={(e) => set(options[Number(e.target.value)])}
+        >
           {current < 0 && <option value={-1}>—</option>}
           {options.map((o, i) => (
             <option key={String(o)} value={i}>
@@ -294,11 +332,13 @@ function Input({
 }
 
 function DatasetSelect({
+  id,
   ctx,
   classes,
   value,
   onChange,
 }: {
+  id: string;
   ctx: Context;
   classes: string[];
   value: Json | undefined;
@@ -307,6 +347,7 @@ function DatasetSelect({
   const choices = ctx.datasets.filter((d) => classes.includes(d.class));
   return (
     <select
+      id={id}
       value={typeof value === "string" ? value : ""}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -338,6 +379,7 @@ function VariantInput({
   return (
     <div className="group">
       <select
+        id={controlId(path)}
         value={index}
         onChange={(e) => {
           const next = list[Number(e.target.value)];

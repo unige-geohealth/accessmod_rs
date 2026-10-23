@@ -56,15 +56,11 @@ describe("schema model", () => {
         : undefined;
     expect(layer && datasetClasses(su, layer[1])).toEqual(["rPriority"]);
     const layerVariants = layer ? variants(su, layer[1]) : null;
-    expect(layerVariants?.map((v) => `${v.kind}:${v.label}`)).toEqual([
-      "constant:facilities",
-      "constant:population",
-      "external:raster",
-      "external:vector",
-    ]);
+    // A priority factor takes a raster only.
+    expect(layerVariants?.map((v) => `${v.kind}:${v.label}`)).toEqual(["external:raster"]);
     if (layerVariants) {
-      expect(variantOf(layerVariants, { raster: "datasets/2.tif" })).toBe(2);
-      expect(variantOf(layerVariants, "population")).toBe(1);
+      expect(variantOf(layerVariants, { raster: "datasets/2.tif" })).toBe(0);
+      expect(variantOf(layerVariants, "population")).toBe(-1);
     }
   });
 
@@ -84,5 +80,29 @@ describe("schema model", () => {
     expect(doc.a[1]?.b).toBe(2);
     expect(removeIn(next, ["a", 0])).toEqual({ a: [{ b: 5 }] });
     expect(setIn({ x: 1, y: 2 }, ["x"], undefined)).toEqual({ y: 2 });
+  });
+});
+
+describe("layer fields", () => {
+  const factorVariants = () => {
+    const factor = (prop(su, "suitability") as { items: Schema }).items;
+    return variants(su, factor) ?? [];
+  };
+  const layerOf = (label: string) => {
+    const v = factorVariants().find((f) => f.label === label);
+    if (v?.kind !== "tagged") throw new Error(label);
+    const layer = properties(su, v.schema).find(([n]) => n === "layer");
+    if (!layer) throw new Error("layer");
+    return layer[1];
+  };
+  it("offer only the layers each factor takes", () => {
+    const labels = (label: string) => variants(su, layerOf(label))?.map((v) => v.label);
+    expect(labels("priority")).toEqual(["raster"]);
+    expect(labels("population")).toEqual(["population", "raster"]);
+    expect(labels("distance")).toEqual(["facilities", "vector"]);
+  });
+  it("default to an accepted layer", () => {
+    expect(defaultValue(su, layerOf("population"))).toBe("population");
+    expect(defaultValue(su, layerOf("priority"))).toEqual({ raster: "" });
   });
 });

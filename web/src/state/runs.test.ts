@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { fraction, NO_RUNS, updateRuns } from "./runs";
+import { fraction, NO_RUNS, showRun, updateRuns } from "./runs";
 
 const record = (id: number, status: Api.RunStatus): Api.RunRecord => ({
   id,
@@ -12,59 +12,52 @@ const record = (id: number, status: Api.RunStatus): Api.RunRecord => ({
   started: 0,
   datasets: [],
 });
+const event = (e: Api.Event) => ({ type: "event" as const, event: e });
 
 describe("runs", () => {
-  it("follows a run from queued to done through events", () => {
-    let s = updateRuns(NO_RUNS, { type: "open", project: "p" });
-    s = updateRuns(s, {
-      type: "event",
-      event: { type: "run", project: "p", run: record(1, "queued") },
-    });
-    expect(s.runs[1]?.status).toBe("queued");
-    s = updateRuns(s, {
-      type: "event",
-      event: {
+  it("follows a run through events, per project", () => {
+    let s = updateRuns(NO_RUNS, event({ type: "run", project: "p", run: record(1, "queued") }));
+    s = updateRuns(
+      s,
+      event({
         type: "progress",
         project: "p",
         run: 1,
         progress: { stage: "solve", done: 5, total: 10 },
-      },
-    });
-    const running = s.runs[1];
-    expect(running?.status).toBe("running");
-    expect(running && fraction(running)).toBe(0.5);
-    s = updateRuns(s, {
-      type: "event",
-      event: { type: "run", project: "p", run: record(1, "done") },
-    });
-    expect(s.runs[1]?.status).toBe("done");
+      }),
+    );
+    let shown = showRun(record(1, "queued"), s.runs.p, s.progress.p);
+    expect(shown.run.status).toBe("running");
+    expect(fraction(shown.progress)).toBe(0.5);
+    s = updateRuns(s, event({ type: "run", project: "p", run: record(1, "done") }));
+    shown = showRun(record(1, "running"), s.runs.p, s.progress.p);
+    expect(shown).toEqual({ run: record(1, "done"), progress: null });
     // Late progress does not revive a finished run.
-    const after = updateRuns(s, {
-      type: "event",
-      event: { type: "progress", project: "p", run: 1, progress: { stage: "solve", done: 9 } },
-    });
-    expect(after).toBe(s);
+    const late = updateRuns(
+      s,
+      event({ type: "progress", project: "p", run: 1, progress: { stage: "x", done: 1 } }),
+    );
+    expect(late).toBe(s);
+    // Other projects are apart.
+    expect(s.runs.q).toBeUndefined();
   });
 
-  it("ignores other projects and keeps live progress on reload", () => {
-    let s = updateRuns(NO_RUNS, { type: "open", project: "p" });
-    const other = updateRuns(s, {
-      type: "event",
-      event: { type: "run", project: "q", run: record(2, "queued") },
-    });
-    expect(other).toBe(s);
-    s = updateRuns(s, { type: "loaded", project: "p", runs: [record(3, "running")] });
-    s = updateRuns(s, {
-      type: "event",
-      event: {
+  it("shows progress of runs started before the page", () => {
+    const s = updateRuns(
+      NO_RUNS,
+      event({
         type: "progress",
         project: "p",
-        run: 3,
+        run: 7,
         progress: { stage: "solve", done: 1, total: 4 },
-      },
-    });
-    s = updateRuns(s, { type: "loaded", project: "p", runs: [record(3, "running")] });
-    const live = s.runs[3];
-    expect(live?.status === "running" && live.progress?.done).toBe(1);
+      }),
+    );
+    const shown = showRun(record(7, "running"), s.runs.p, s.progress.p);
+    expect(shown.progress?.done).toBe(1);
+  });
+
+  it("trusts finished records over stale live states", () => {
+    const s = updateRuns(NO_RUNS, event({ type: "run", project: "p", run: record(2, "running") }));
+    expect(showRun(record(2, "failed"), s.runs.p, s.progress.p).run.status).toBe("failed");
   });
 });

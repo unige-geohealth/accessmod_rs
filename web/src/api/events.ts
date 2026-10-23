@@ -7,7 +7,7 @@ import { NO_RUNS, updateRuns } from "../state/runs";
 import { createStore } from "../state/store";
 import { keys, queryClient } from "./queries";
 
-/** Runs of the open project, followed through events. */
+/** What events say about runs, by project. */
 export const runsStore = createStore(NO_RUNS, updateRuns);
 
 const NAMES = ["run", "progress", "catalogue", "projects"] as const;
@@ -38,10 +38,9 @@ function handle(event: Api.Event) {
   }
 }
 
-/** Follow the events of `project` while mounted (subscription only). */
+/** Follow the events of `project` while mounted: a subscription only. */
 export function useEvents(project: string | null) {
   useEffect(() => {
-    runsStore.dispatch({ type: "open", project });
     const url =
       project === null ? "/api/events" : `/api/events?project=${encodeURIComponent(project)}`;
     const source = new EventSource(url);
@@ -54,7 +53,7 @@ export function useEvents(project: string | null) {
     };
     for (const name of NAMES) source.addEventListener(name, listener);
     source.addEventListener("resync", resync);
-    // After a reconnection, events may have been missed: refresh.
+    // After a reconnection, events may have been missed: reload.
     source.onopen = resync;
     return () => source.close();
   }, [project]);

@@ -1,14 +1,14 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../api/client";
 import { useAnalyses, useDatasets, useJobs } from "../api/queries";
 import { ANALYSIS_SCREENS, analysisName, TOOLBOX_SCREENS, t } from "../app/i18n";
 import { navigate } from "../app/route";
-import { EMPTY_JOB, type JobDraft, updateJob } from "../documents/job";
+import { EMPTY_JOB, type JobDraft, type JobMessage, updateJob } from "../documents/job";
 import { SchemaForm } from "../forms/SchemaForm";
 import { defaultValue, type Json, type Schema } from "../forms/schema";
 import type { Api } from "../generated/types";
-import { createStore, history, useStore, withHistory } from "../state/store";
+import { createStore, type HistoryMessage, history, useStore, withHistory } from "../state/store";
 import { Issues, Loading } from "./common";
 
 export function AnalysisScreen({
@@ -74,13 +74,6 @@ function draftStore(analysis: string, schema: Schema) {
   return createStore(history(initial), withHistory(updateJob));
 }
 
-/** What the server said about a document, and which document it was. */
-interface Checked {
-  document: string;
-  result: Record<string, unknown> | null;
-  error: unknown;
-}
-
 function JobEditor({
   project,
   analysis,
@@ -100,29 +93,50 @@ function JobEditor({
   const datasets = useDatasets(project);
   const jobs = useJobs(project);
   const [tags, setTags] = useState("");
-  const [checked, setChecked] = useState<Checked | null>(null);
+  // The document the user asked the server to check (a user message).
+  const [requested, setRequested] = useState<string | null>(null);
   const documentKey = JSON.stringify(draft.document);
-  // A check applies only to the document it checked (derived, not stored).
-  const check = checked?.document === documentKey ? checked : null;
 
-  const dispatch = store.dispatch;
+  // Every change of the document is a message; it also drops the check of
+  // the previous document, whose request is then cancelled.
+  const dispatch = (message: HistoryMessage<JobMessage>) => {
+    store.dispatch(message);
+    setRequested(null);
+  };
+
+  // Server check: a query keyed by the document it checks.
+  const validation = useQuery({
+    queryKey: ["validate", project, analysis, requested],
+    queryFn: ({ signal }) =>
+      api.validate(project, analysis, JSON.parse(requested ?? "null") as Json, signal),
+    enabled: requested !== null,
+    retry: false,
+    staleTime: 0,
+  });
+  const check = requested === documentKey ? validation : null;
+
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (snapshot: JobDraft) =>
       api.command<Api.SavedJob>("job.save", {
         project,
         analysis,
-        name: draft.name || title,
-        document: draft.document,
-        ...(draft.saved ? { id: draft.saved.id, revision: draft.saved.revision } : {}),
+        name: snapshot.name || title,
+        document: snapshot.document,
+        ...(snapshot.saved ? { id: snapshot.saved.id, revision: snapshot.saved.revision } : {}),
       }),
-    onSuccess: (job) => dispatch({ type: "do", message: { type: "saved", job } }),
-  });
-  const validate = useMutation({
-    mutationFn: (document: Json) => api.validate(project, analysis, document),
-    onSuccess: (result, document) =>
-      setChecked({ document: JSON.stringify(document), result, error: null }),
-    onError: (error, document) =>
-      setChecked({ document: JSON.stringify(document), result: null, error }),
+    onSuccess: (job, snapshot) => {
+      const now = store.getState().present;
+      if (now === snapshot) {
+        store.dispatch({ type: "do", message: { type: "saved", job } });
+      } else if (now.saved?.id === snapshot.saved?.id) {
+        // Edited while saving: keep the edits, record the saved revision.
+        store.dispatch({
+          type: "do",
+          message: { type: "revised", id: job.id, revision: job.revision },
+        });
+      }
+      // Another job was loaded meanwhile: nothing to update.
+    },
   });
   const run = useMutation({
     mutationFn: () =>
@@ -140,6 +154,7 @@ function JobEditor({
       <h1>{title}</h1>
       <div className="toolbar">
         <select
+          aria-label={t("job.saved")}
           value={draft.saved?.id ?? ""}
           onChange={(e) => {
             const job = saved.find((j) => j.id === Number(e.target.value));
@@ -165,13 +180,14 @@ function JobEditor({
           {t("job.new")}
         </button>
         <input
+          aria-label={t("job.name")}
           placeholder={t("job.name")}
           value={draft.name}
           onChange={(e) =>
             dispatch({ type: "do", message: { type: "rename", name: e.target.value } })
           }
         />
-        <button type="button" disabled={save.isPending} onClick={() => save.mutate()}>
+        <button type="button" disabled={save.isPending} onClick={() => save.mutate(draft)}>
           {t("job.save")}
           {draft.dirty ? " *" : ""}
         </button>
@@ -193,12 +209,15 @@ function JobEditor({
         <aside className="actions">
           <button
             type="button"
-            disabled={validate.isPending}
-            onClick={() => validate.mutate(draft.document)}
+            disabled={check?.isFetching === true}
+            onClick={() => {
+              setRequested(documentKey);
+              if (requested === documentKey) void validation.refetch();
+            }}
           >
-            {validate.isPending ? t("common.loading") : t("job.validate")}
+            {check?.isFetching ? t("common.loading") : t("job.validate")}
           </button>
-          {check?.result && <Validation result={check.result} />}
+          {check?.data && <Validation result={check.data} />}
           {check?.error ? <Issues error={check.error} /> : null}
           <label>
             {t("job.tags")}

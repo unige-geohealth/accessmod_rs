@@ -67,6 +67,9 @@
           "x-accessmod-class": [
             "rExclusion",
             "vExclusion"
+          ],
+          "x-accessmod-dynamic": [
+            "facilities"
           ]
         }
       },
@@ -141,6 +144,9 @@
               "x-accessmod-class": [
                 "rPopulation",
                 "rPopulationResidual"
+              ],
+              "x-accessmod-dynamic": [
+                "population"
               ]
             },
             "prefer": {
@@ -182,6 +188,9 @@
                 "vRoad",
                 "vBarrier",
                 "vFacility"
+              ],
+              "x-accessmod-dynamic": [
+                "facilities"
               ]
             },
             "prefer": {
@@ -222,6 +231,9 @@
                 "vRoad",
                 "vBarrier",
                 "vFacility"
+              ],
+              "x-accessmod-dynamic": [
+                "facilities"
               ]
             },
             "method": {
@@ -265,7 +277,8 @@
               "description": "A raster.",
               "x-accessmod-class": [
                 "rPriority"
-              ]
+              ],
+              "x-accessmod-dynamic": []
             },
             "prefer": {
               "$ref": "#/$defs/Prefer",

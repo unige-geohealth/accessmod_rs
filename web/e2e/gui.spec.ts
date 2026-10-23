@@ -6,7 +6,7 @@ const data = new URL("../../docs/tutorial/data/", import.meta.url).pathname;
 // The `.field` holding the label `name` (not its ancestors).
 const field = (page: Page, name: string, index = 0) =>
   page
-    .locator(".field-label > span", { hasText: new RegExp(`^${name}$`) })
+    .locator(".field-label > :is(label, span)", { hasText: new RegExp(`^${name}$`) })
     .nth(index)
     .locator("xpath=../..");
 // The control of a field: its own select or input, not those of sub-fields.
