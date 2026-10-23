@@ -258,6 +258,9 @@ pub struct SaveJob {
     /// Saved job to replace; a new one when absent.
     #[serde(default)]
     pub id: Option<Id>,
+    /// Revision of the saved job the client edited (with `id`).
+    #[serde(default)]
+    pub revision: Option<i64>,
     /// Analysis name.
     pub analysis: String,
     /// Free name.
@@ -408,8 +411,17 @@ fn remove_dataset(state: &AppState, _: &Principal, params: DatasetRef) -> ApiRes
 }
 
 fn save_job(state: &AppState, _: &Principal, params: SaveJob) -> ApiResult<SavedJob> {
+    let target = match (params.id, params.revision) {
+        (Some(id), Some(revision)) => Some((id, revision)),
+        (None, _) => None,
+        (Some(_), None) => {
+            return Err(ApiError::BadRequest(
+                "saving over a job needs the revision that was read".into(),
+            ));
+        }
+    };
     let saved = state.open(&params.project)?.save_job(
-        params.id,
+        target,
         &params.analysis,
         &params.name,
         &params.document,

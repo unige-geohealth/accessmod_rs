@@ -49,6 +49,13 @@ impl Project {
                 "a project has one DEM, given when the project is created",
             ));
         }
+        if !class.importable() {
+            return Err(Error::invalid(format!(
+                "{} datasets ({}) are written by analyses, not imported",
+                class.label(),
+                class.code()
+            )));
+        }
         let grid = self.grid()?;
         self.import_with(
             source,
@@ -107,6 +114,7 @@ impl Project {
                 source.display()
             )));
         }
+        let _hold = self.activity()?;
         let origin = Origin::Import {
             source: source.display().to_string(),
             layer: options.layer.clone(),
@@ -121,33 +129,10 @@ impl Project {
         }
         result
     }
-
-    /// Register `file` (relative to the project, already in place) as a
-    /// dataset of `class`, e.g. a run output.
-    pub(super) fn register(
-        &self,
-        file: &str,
-        class: DataClass,
-        tags: &[String],
-        origin: &Origin,
-        settings: &ExecutionSettings,
-        cancelled: Cancelled<'_>,
-    ) -> Result<DatasetRecord> {
-        let (id, _) = self.reserve(class, tags, origin)?;
-        let result = self
-            .resolve(Path::new(file))
-            .and_then(|path| summarise(&path, class, settings, cancelled))
-            .and_then(|summary| self.complete(id, file, &summary, cancelled));
-        if result.is_err() {
-            // The file belongs to the run: keep it, drop the row only.
-            let _ = self.db.execute("DELETE FROM datasets WHERE id = ?1", [id]);
-        }
-        result
-    }
 }
 
 /// Summary of a file already written.
-fn summarise(
+pub(super) fn summarise(
     path: &Path,
     class: DataClass,
     settings: &ExecutionSettings,
@@ -190,33 +175,42 @@ fn integer_class(class: DataClass) -> bool {
 /// A raster cell type that can be copied.
 trait Cell: GdalType + Copy {
     fn from_f64(value: f64) -> Self;
-    /// NoData for cells the source does not cover, when it has none.
-    fn fill() -> f64;
+    fn to_f64(self) -> f64;
+    /// Candidate NoData values for cells the source does not cover, when it
+    /// has none, in order of preference.
+    fn fills() -> &'static [f64];
     /// TIFF predictor: 2 for integers, 3 for floats.
     const PREDICTOR: u8;
 }
 
 macro_rules! integer_cell {
-    ($($t:ty => $fill:expr),+) => {$(
+    ($($t:ty),+) => {$(
         impl Cell for $t {
-            fn from_f64(value: f64) -> Self { value as $t }
-            fn fill() -> f64 { $fill as f64 }
+            fn from_f64(value: f64) -> Self {
+                value as $t
+            }
+            fn to_f64(self) -> f64 {
+                self as f64
+            }
+            fn fills() -> &'static [f64] {
+                &[<$t>::MAX as f64, <$t>::MIN as f64, (<$t>::MAX - 1) as f64]
+            }
             const PREDICTOR: u8 = 2;
         }
     )+};
 }
 
-integer_cell!(
-    u8 => u8::MAX, i8 => i8::MIN, u16 => u16::MAX, i16 => i16::MIN,
-    u32 => u32::MAX, i32 => i32::MIN, u64 => u64::MAX, i64 => i64::MIN
-);
+integer_cell!(u8, i8, u16, i16, u32, i32, u64, i64);
 
 impl Cell for f32 {
     fn from_f64(value: f64) -> Self {
         value as f32
     }
-    fn fill() -> f64 {
-        f64::NAN
+    fn to_f64(self) -> f64 {
+        f64::from(self)
+    }
+    fn fills() -> &'static [f64] {
+        &[f64::NAN]
     }
     const PREDICTOR: u8 = 3;
 }
@@ -225,8 +219,11 @@ impl Cell for f64 {
     fn from_f64(value: f64) -> Self {
         value
     }
-    fn fill() -> f64 {
-        f64::NAN
+    fn to_f64(self) -> f64 {
+        self
+    }
+    fn fills() -> &'static [f64] {
+        &[f64::NAN]
     }
     const PREDICTOR: u8 = 3;
 }
@@ -271,6 +268,34 @@ fn copy_raster(
     preview::build(target, resampling(class), threads, cancelled).map(Summary::Raster)
 }
 
+/// A NoData value for cells the source does not cover, when it has none:
+/// one the source never holds, so no value turns into NoData.
+fn free_fill<T: Cell>(band: &AlignedBand<'_>, cancelled: Cancelled<'_>) -> Result<f64> {
+    let candidates = T::fills();
+    let mut present = vec![false; candidates.len()];
+    band.for_each_covered_row::<T>(cancelled, |_, _, values| {
+        for value in values {
+            let value = value.to_f64();
+            for (seen, candidate) in present.iter_mut().zip(candidates) {
+                // NaN equals nothing: it is always free.
+                *seen |= value == *candidate;
+            }
+        }
+        Ok(())
+    })?;
+    candidates
+        .iter()
+        .zip(&present)
+        .find(|(_, seen)| !**seen)
+        .map(|(value, _)| *value)
+        .ok_or_else(|| {
+            Error::invalid(
+                "the raster covers part of the project grid, has no NoData value, and holds \
+                 every candidate NoData value of its type: set a NoData value before importing",
+            )
+        })
+}
+
 fn copy_typed<T: Cell>(
     band: &AlignedBand<'_>,
     target: &Path,
@@ -283,7 +308,7 @@ fn copy_typed<T: Cell>(
     let nodata = match band.nodata() {
         Some(value) => Some(value),
         None if whole => None,
-        None => Some(T::fill()),
+        None => Some(free_fill::<T>(band, cancelled)?),
     };
     let out = GeoTiff::create_with::<T>(target, grid, T::PREDICTOR, threads, nodata)?;
     let fill = T::from_f64(nodata.unwrap_or(0.0));
@@ -352,6 +377,11 @@ fn copy_vector(
         .fields()
         .map(|f| (f.name(), f.field_type()))
         .collect();
+    if let Some((name, _)) = fields.iter().find(|(_, t)| is_list(*t)) {
+        return Err(input.invalid(format!(
+            "field {name:?} holds a list, which a project layer (FlatGeobuf) cannot store"
+        )));
+    }
     let kind = layer
         .defn()
         .geom_fields()
@@ -382,9 +412,15 @@ fn copy_vector(
             )));
         }
         let geometry: Geometry = input.to_grid_geometry(geometry).map_err(problem)?;
-        let values: Vec<_> = (0..fields.len())
-            .map(|i| feature.field(i).ok().flatten())
-            .collect();
+        let values = fields
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| {
+                feature
+                    .field(i)
+                    .map_err(|e| problem(&format!("field {name:?} cannot be read ({e})")))
+            })
+            .collect::<Result<Vec<_>>>()?;
         out.write(geometry, &values)?;
         count += 1;
     }
@@ -394,6 +430,18 @@ fn copy_vector(
         geometry: geometry_name(kind),
         fields: fields.into_iter().map(|(n, _)| n).collect(),
     }))
+}
+
+/// Whether an OGR field type is a list.
+fn is_list(kind: gdal::vector::OGRFieldType::Type) -> bool {
+    use gdal::vector::OGRFieldType as T;
+    [
+        T::OFTIntegerList,
+        T::OFTInteger64List,
+        T::OFTRealList,
+        T::OFTStringList,
+    ]
+    .contains(&kind)
 }
 
 fn geometry_name(kind: OGRwkbGeometryType::Type) -> String {
@@ -429,29 +477,31 @@ fn copy_table(source: &Path, target: &Path) -> Result<Summary> {
     Ok(Summary::Table(summary))
 }
 
-/// Header and row count of a CSV file. Quoted fields with commas or line
-/// breaks in the header are not split correctly; data rows are counted as
-/// lines.
+/// Largest CSV record read, bytes.
+const MAX_RECORD_BYTES: usize = 1 << 20;
+
+/// Header and record count of a CSV file (RFC 4180).
 fn table_summary(path: &Path) -> Result<TableSummary> {
-    use std::io::BufRead;
     let file = std::fs::File::open(path).map_err(Error::file(path))?;
-    let mut lines = std::io::BufReader::new(file).lines();
-    let header = lines
-        .next()
-        .transpose()
-        .map_err(Error::file(path))?
-        .ok_or_else(|| Error::invalid(format!("{}: empty table", path.display())))?;
-    let columns = header
-        .trim_start_matches('\u{feff}')
-        .split(',')
-        .map(|c| c.trim().trim_matches('"').to_owned())
-        .collect();
+    let mut columns: Option<Vec<String>> = None;
     let mut rows = 0u64;
-    for line in lines {
-        if !line.map_err(Error::file(path))?.trim().is_empty() {
-            rows += 1;
+    crate::output::read_csv(file, MAX_RECORD_BYTES, |record| {
+        match &columns {
+            None => {
+                columns = Some(
+                    record
+                        .iter()
+                        .map(|c| c.trim_start_matches('\u{feff}').trim().to_owned())
+                        .collect(),
+                );
+            }
+            Some(_) => rows += 1,
         }
-    }
+        Ok(())
+    })
+    .map_err(|e| Error::invalid(format!("{}: {e}", path.display())))?;
+    let columns =
+        columns.ok_or_else(|| Error::invalid(format!("{}: empty table", path.display())))?;
     Ok(TableSummary { rows, columns })
 }
 

@@ -74,7 +74,7 @@ fn project_with_inputs(dir: &Path) -> Project {
     project
         .import(
             &dir.join("lc.tif"),
-            DataClass::LandCover,
+            DataClass::LandCoverMerged,
             &tags(&["base"]),
             &ImportOptions::default(),
             &settings,
@@ -120,7 +120,11 @@ fn create_import_and_reopen() {
     let classes: Vec<DataClass> = all.iter().map(|d| d.class).collect();
     assert_eq!(
         classes,
-        [DataClass::Dem, DataClass::LandCover, DataClass::Facility]
+        [
+            DataClass::Dem,
+            DataClass::LandCoverMerged,
+            DataClass::Facility
+        ]
     );
     assert_eq!(all[1].file, "datasets/2.tif");
     assert_eq!(all[2].tags, ["health", "centres"]);
@@ -162,7 +166,7 @@ fn tags_name_datasets_uniquely_per_class() {
     let err = project
         .import(
             &dir.path().join("lc.tif"),
-            DataClass::LandCover,
+            DataClass::LandCoverMerged,
             &tags(&["base"]),
             &ImportOptions::default(),
             &settings,
@@ -177,7 +181,7 @@ fn tags_name_datasets_uniquely_per_class() {
     project
         .import(
             &dir.path().join("lc.tif"),
-            DataClass::LandCoverMerged,
+            DataClass::LandCover,
             &tags(&["base"]),
             &ImportOptions::default(),
             &settings,
@@ -412,7 +416,12 @@ fn saved_jobs_round_trip() {
         .expect("save");
     assert_eq!(saved.document, draft);
     let updated = project
-        .save_job(Some(saved.id), "travel-time", "renamed", &travel_time_job())
+        .save_job(
+            Some((saved.id, saved.revision)),
+            "travel-time",
+            "renamed",
+            &travel_time_job(),
+        )
         .expect("update");
     assert_eq!(updated.name, "renamed");
     assert_eq!(project.jobs().expect("jobs").len(), 1);
@@ -527,4 +536,135 @@ fn queued_runs_execute_later_or_cancel() {
         RunStatus::Cancelled
     );
     assert!(!project.root().join(format!("runs/{third}")).exists());
+}
+
+#[test]
+fn jobs_name_catalogue_datasets_of_the_right_class() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    // A file of the project that is not a dataset.
+    let mut job = travel_time_job();
+    job["land_cover"] = json!("project.sqlite");
+    let err = project
+        .check_job::<TravelTime>(&job)
+        .expect_err("not a dataset");
+    assert!(err.to_string().contains("not a dataset"), "{err}");
+    // A dataset of a class the field does not take: the DEM as land cover.
+    job["land_cover"] = json!("datasets/1.tif");
+    let err = project
+        .check_job::<TravelTime>(&job)
+        .expect_err("wrong class");
+    assert!(err.to_string().contains("rDem dataset"), "{err}");
+    // `./` prefixes name the same dataset.
+    job["land_cover"] = json!("./datasets/2.tif");
+    project.check_job::<TravelTime>(&job).expect("same dataset");
+}
+
+#[test]
+fn outputs_of_analyses_are_not_imported() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let err = project
+        .import(
+            &dir.path().join("lc.tif"),
+            DataClass::TravelTime,
+            &tags(&["x"]),
+            &ImportOptions::default(),
+            &settings(64 << 20, 1),
+            &|| false,
+        )
+        .expect_err("output class");
+    assert!(err.to_string().contains("written by analyses"), "{err}");
+}
+
+#[test]
+fn partial_rasters_get_a_nodata_value_they_do_not_hold() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    // Byte classes using 255: NoData must be another value.
+    write_raster::<u8>(
+        &dir.path().join("excl.tif"),
+        2,
+        ROWS,
+        geo_transform(X0, Y0),
+        vec![255, 1, 255, 1, 255, 1, 255, 1],
+        None,
+    );
+    let record = project
+        .import(
+            &dir.path().join("excl.tif"),
+            DataClass::Exclusion,
+            &tags(&["zones"]),
+            &ImportOptions::default(),
+            &settings(64 << 20, 1),
+            &|| false,
+        )
+        .expect("import");
+    let (values, nodata) =
+        accessmod_io::fixtures::read_with_nodata::<u8>(&project.root().join(&record.file));
+    assert_eq!(nodata, Some(0.0), "255 is held, so 0 (u8::MIN)");
+    assert_eq!(values[0], 255);
+    assert_eq!(values[COLS - 1], 0);
+}
+
+#[test]
+fn saved_jobs_detect_concurrent_edits() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let saved = project
+        .save_job(None, "travel-time", "draft", &json!({}))
+        .expect("save");
+    project
+        .save_job(
+            Some((saved.id, saved.revision)),
+            "travel-time",
+            "first",
+            &json!({}),
+        )
+        .expect("first edit");
+    let err = project
+        .save_job(
+            Some((saved.id, saved.revision)),
+            "travel-time",
+            "second",
+            &json!({}),
+        )
+        .expect_err("stale revision");
+    assert!(err.to_string().contains("changed since revision"), "{err}");
+}
+
+#[test]
+fn recovery_waits_for_work_in_progress() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let hold = project.activity().expect("hold");
+    assert!(!project.recover().expect("recover"), "busy: nothing done");
+    drop(hold);
+    assert!(project.recover().expect("recover"));
+}
+
+#[test]
+fn tables_with_quoted_fields_are_summarised() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    std::fs::write(
+        dir.path().join("scenario.csv"),
+        "class,label,speed\n1,\"forest, dense\",2\n2,\"road\nmain\",60\n",
+    )
+    .expect("write");
+    let record = project
+        .import(
+            &dir.path().join("scenario.csv"),
+            DataClass::Scenario,
+            &tags(&["dry season"]),
+            &ImportOptions::default(),
+            &settings(64 << 20, 1),
+            &|| false,
+        )
+        .expect("table");
+    let Summary::Table(table) = record.summary else {
+        panic!("table summary");
+    };
+    assert_eq!(table.columns, ["class", "label", "speed"]);
+    assert_eq!(table.rows, 2);
 }

@@ -49,6 +49,15 @@ pub const DB_FILE: &str = "project.sqlite";
 pub const DATASETS_DIR: &str = "datasets";
 /// Directory of runs.
 pub const RUNS_DIR: &str = "runs";
+/// Lock file: imports and runs hold it shared, recovery exclusive.
+pub const LOCK_FILE: &str = ".lock";
+/// Suffix of files being deleted.
+const DELETING: &str = ".deleting";
+
+/// A hold on a project while an import or a run works in it; released when
+/// dropped.
+#[derive(Debug)]
+pub struct Activity(#[allow(dead_code)] std::fs::File);
 
 /// Identifier of a dataset, saved job or run (never reused).
 pub type Id = i64;
@@ -176,19 +185,53 @@ pub struct SavedJob {
     pub name: String,
     /// The job document, paths relative to the project.
     pub document: serde_json::Value,
+    /// Revision, increased by every save.
+    pub revision: i64,
     /// Last change, seconds since the Unix epoch.
     pub updated: i64,
 }
 
-/// Tags as AccessMod 5 keeps them: words of letters and digits, any other
-/// character separates words, duplicates removed, order kept.
+/// Tags as AccessMod 5 keeps them (`amGetUniqueTags`): Latin letters
+/// transliterated to ASCII (`santé` → `sante`, `ß` → `ss`), any character
+/// but letters and digits separates words, duplicates removed, order kept.
 pub fn normalize_tags<S: AsRef<str>>(tags: &[S]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for tag in tags {
-        for word in tag.as_ref().split(|c: char| !c.is_alphanumeric()) {
+        let ascii = latin_to_ascii(tag.as_ref());
+        for word in ascii.split(|c: char| !c.is_alphanumeric()) {
             if !word.is_empty() && !out.iter().any(|t| t == word) {
                 out.push(word.to_owned());
             }
+        }
+    }
+    out
+}
+
+/// Latin letters without their diacritics, ligatures spelled out, as ICU's
+/// `Latin-ASCII` transform does for the letters tags use. Other scripts
+/// are kept.
+fn latin_to_ascii(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    use unicode_normalization::char::is_combining_mark;
+    let mut out = String::with_capacity(text.len());
+    for c in text.nfd().filter(|c| !is_combining_mark(*c)) {
+        match c {
+            'ß' => out.push_str("ss"),
+            'ẞ' => out.push_str("SS"),
+            'æ' => out.push_str("ae"),
+            'Æ' => out.push_str("AE"),
+            'œ' => out.push_str("oe"),
+            'Œ' => out.push_str("OE"),
+            'ø' => out.push('o'),
+            'Ø' => out.push('O'),
+            'đ' | 'ð' => out.push('d'),
+            'Đ' | 'Ð' => out.push('D'),
+            'ł' => out.push('l'),
+            'Ł' => out.push('L'),
+            'þ' => out.push_str("th"),
+            'Þ' => out.push_str("TH"),
+            'ı' => out.push('i'),
+            other => out.push(other),
         }
     }
     out
@@ -199,6 +242,31 @@ fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64)
+}
+
+/// `root` must not exist, or be an empty directory.
+fn check_empty(root: &Path) -> Result<()> {
+    if !root.exists() {
+        return Ok(());
+    }
+    let mut entries = std::fs::read_dir(root)
+        .map_err(|_| Error::invalid(format!("{} exists and is not a directory", root.display())))?;
+    if entries.next().is_some() {
+        return Err(Error::invalid(format!(
+            "{} is not empty: a project is created in a new or empty directory",
+            root.display()
+        )));
+    }
+    Ok(())
+}
+
+/// Rename `from` to `to`; nothing to do when `from` does not exist.
+fn rename_if_exists(from: &Path, to: &Path) -> Result<()> {
+    match std::fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(Error::file(from)(e)),
+    }
 }
 
 /// `path` relative to the project: no root, no `..`, not empty.
@@ -235,39 +303,45 @@ impl Project {
         if name.is_empty() {
             return Err(Error::invalid("a project needs a name"));
         }
-        let existed = root.exists();
-        if existed {
-            let mut entries = std::fs::read_dir(root).map_err(|_| {
-                Error::invalid(format!("{} exists and is not a directory", root.display()))
-            })?;
-            if entries.next().is_some() {
-                return Err(Error::invalid(format!(
-                    "{} is not empty: a project is created in a new or empty directory",
-                    root.display()
-                )));
-            }
-        }
+        check_empty(root)?;
         // The DEM must define a grid before anything is written.
         GridSpec::open_dem(dem)?;
-        let result = Self::create_in(root, name, description, dem, settings, cancelled);
-        if result.is_err() {
-            // Everything in `root` was written here.
-            if existed {
-                if let Ok(entries) = std::fs::read_dir(root) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        let _ = if path.is_dir() {
-                            std::fs::remove_dir_all(&path)
-                        } else {
-                            std::fs::remove_file(&path)
-                        };
-                    }
+        // Build the project in a directory of its own next to `root`, then
+        // move it in place: a failure removes only what this call wrote.
+        let parent = match root.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
+            _ => PathBuf::from("."),
+        };
+        std::fs::create_dir_all(&parent).map_err(Error::file(&parent))?;
+        let staging = parent.join(format!(
+            ".accessmod-project-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos())
+        ));
+        std::fs::create_dir(&staging).map_err(Error::file(&staging))?;
+        let built = Self::create_in(&staging, name, description, dem, settings, cancelled)
+            .and_then(|project| {
+                // Close the database before moving its directory.
+                drop(project);
+                if root.exists() {
+                    // Still empty (checked above): only an empty directory
+                    // can be removed.
+                    std::fs::remove_dir(root).map_err(|_| {
+                        Error::invalid(format!(
+                            "{} is not empty: a project is created in a new or empty directory",
+                            root.display()
+                        ))
+                    })?;
                 }
-            } else {
-                let _ = std::fs::remove_dir_all(root);
-            }
+                std::fs::rename(&staging, root).map_err(Error::file(root))
+            });
+        if let Err(error) = built {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(error);
         }
-        result
+        Self::open(root)
     }
 
     fn create_in(
@@ -295,6 +369,20 @@ impl Project {
         let record = project.import_dem(dem, settings, cancelled)?;
         project.set_meta("dem", &record.id.to_string())?;
         Ok(project)
+    }
+
+    /// Hold the project for an import or a run: several may hold it at
+    /// once, across processes; [`Project::recover`] waits for none.
+    pub fn activity(&self) -> Result<Activity> {
+        let path = self.root.join(LOCK_FILE);
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .map_err(Error::file(&path))?;
+        file.lock_shared().map_err(Error::file(&path))?;
+        Ok(Activity(file))
     }
 
     /// Open the project in `root`.
@@ -390,23 +478,43 @@ impl Project {
         Ok(self.root.join(relative))
     }
 
-    /// Clean up after a crash: imports left half-done are removed, runs
-    /// left running are marked interrupted. Only one process may call this,
-    /// when no import or run of this project is in progress (the server, at
-    /// start).
-    pub fn recover(&self) -> Result<()> {
+    /// Clean up after a crash: half-done imports and deletions are removed,
+    /// runs left queued or running are marked interrupted. Only when no
+    /// process is importing or running in this project (none holds it,
+    /// [`Project::activity`]); otherwise nothing is done and `false` is
+    /// returned.
+    pub fn recover(&self) -> Result<bool> {
+        let path = self.root.join(LOCK_FILE);
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .map_err(Error::file(&path))?;
+        match file.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => return Ok(false),
+            Err(std::fs::TryLockError::Error(e)) => return Err(Error::file(&path)(e)),
+        }
         let mut stmt = self
             .db
-            .prepare("SELECT id, file FROM datasets WHERE state = 'importing'")
+            .prepare(
+                "SELECT id, file, state FROM datasets WHERE state IN ('importing', 'deleting')",
+            )
             .map_err(self.db_error())?;
-        let stale: Vec<(Id, String)> = stmt
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        let stale: Vec<(Id, String, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
             .map_err(self.db_error())?
             .collect::<rusqlite::Result<_>>()
             .map_err(self.db_error())?;
         drop(stmt);
-        for (id, file) in stale {
-            self.remove_files(&file)?;
+        for (id, file, state) in stale {
+            // A run output being registered keeps its file (it belongs to
+            // the run); a plain import or a deletion removes it.
+            if state == "deleting" || file.starts_with(DATASETS_DIR) {
+                self.remove_files(&file)?;
+                self.remove_files(&format!("{file}{DELETING}"))?;
+            }
             self.db
                 .execute("DELETE FROM datasets WHERE id = ?1", [id])
                 .map_err(self.db_error())?;
@@ -418,7 +526,8 @@ impl Project {
                 [now()],
             )
             .map_err(self.db_error())?;
-        Ok(())
+        // Dropping `file` releases the lock.
+        Ok(true)
     }
 
     // ---- datasets ------------------------------------------------------
@@ -477,10 +586,41 @@ impl Project {
             ));
         }
         let record = self.dataset(id)?;
+        // Claim the row first: two removals cannot both proceed, and an
+        // interrupted one is finished by `recover`.
+        let claimed = self
+            .db
+            .execute(
+                "UPDATE datasets SET state = 'deleting' WHERE id = ?1 AND state = 'ready'",
+                [id],
+            )
+            .map_err(self.db_error())?;
+        if claimed != 1 {
+            return Err(Error::invalid(format!("no dataset {id} in this project")));
+        }
+        // Move the files aside; on failure the dataset stays as it was.
+        let path = self.resolve(Path::new(&record.file))?;
+        let aside = self.resolve(Path::new(&format!("{}{DELETING}", record.file)))?;
+        let moved = rename_if_exists(&path, &aside).and_then(|()| {
+            rename_if_exists(
+                &crate::preview::overview_path(&path),
+                &crate::preview::overview_path(&aside),
+            )
+        });
+        if let Err(error) = moved {
+            let _ = rename_if_exists(&aside, &path);
+            let _ = self.db.execute(
+                "UPDATE datasets SET state = 'ready' WHERE id = ?1 AND state = 'deleting'",
+                [id],
+            );
+            return Err(error);
+        }
         self.db
             .execute("DELETE FROM datasets WHERE id = ?1", [id])
             .map_err(self.db_error())?;
-        self.remove_files(&record.file)
+        // Left-overs are removed by `recover` if this fails.
+        let _ = self.remove_files(&format!("{}{DELETING}", record.file));
+        Ok(())
     }
 
     /// Remove a dataset file and its side files (overviews).
@@ -574,11 +714,12 @@ impl Project {
         let path = self.resolve(Path::new(file))?;
         let fingerprint = crate::report::fingerprints(&[("dataset", &path)], cancelled)?
             .pop()
-            .expect("one file, one fingerprint");
-        self.db
+            .ok_or_else(|| Error::invalid("no fingerprint"))?;
+        let changed = self
+            .db
             .execute(
                 "UPDATE datasets SET state = 'ready', file = ?1, sha256 = ?2, bytes = ?3,
-                 preview = ?4 WHERE id = ?5",
+                 preview = ?4 WHERE id = ?5 AND state = 'importing'",
                 params![
                     file,
                     fingerprint.sha256,
@@ -588,6 +729,11 @@ impl Project {
                 ],
             )
             .map_err(self.db_error())?;
+        if changed != 1 {
+            return Err(Error::invalid(format!(
+                "dataset {id} was removed while it was being imported"
+            )));
+        }
         self.dataset(id)
     }
 
@@ -599,10 +745,12 @@ impl Project {
 
     // ---- saved jobs ----------------------------------------------------
 
-    /// Save a job document: a new job when `id` is `None`.
+    /// Save a job document: a new job when `id` is `None`; otherwise job
+    /// `id`, which must still be at `revision` (the one the caller read), so
+    /// that two users editing one job cannot overwrite each other silently.
     pub fn save_job(
         &self,
-        id: Option<Id>,
+        id: Option<(Id, i64)>,
         analysis: &str,
         name: &str,
         document: &serde_json::Value,
@@ -615,17 +763,21 @@ impl Project {
         }
         let text = serde_json::to_string(document).map_err(|e| Error::invalid(e.to_string()))?;
         let id = match id {
-            Some(id) => {
+            Some((id, revision)) => {
                 let changed = self
                     .db
                     .execute(
-                        "UPDATE jobs SET analysis = ?1, name = ?2, document = ?3, updated = ?4
-                         WHERE id = ?5",
-                        params![analysis, name, text, now(), id],
+                        "UPDATE jobs SET analysis = ?1, name = ?2, document = ?3, updated = ?4,
+                         revision = revision + 1 WHERE id = ?5 AND revision = ?6",
+                        params![analysis, name, text, now(), id, revision],
                     )
                     .map_err(self.db_error())?;
                 if changed == 0 {
-                    return Err(Error::invalid(format!("no saved job {id} in this project")));
+                    let current = self.job(id)?;
+                    return Err(Error::invalid(format!(
+                        "saved job {id} changed since revision {revision} (now {}): reload it",
+                        current.revision
+                    )));
                 }
                 id
             }
@@ -646,7 +798,7 @@ impl Project {
     pub fn jobs(&self) -> Result<Vec<SavedJob>> {
         let mut stmt = self
             .db
-            .prepare("SELECT id, analysis, name, document, updated FROM jobs ORDER BY id")
+            .prepare("SELECT id, analysis, name, document, revision, updated FROM jobs ORDER BY id")
             .map_err(self.db_error())?;
         let rows = stmt
             .query_map([], job_row)
@@ -660,7 +812,7 @@ impl Project {
     pub fn job(&self, id: Id) -> Result<SavedJob> {
         self.db
             .query_row(
-                "SELECT id, analysis, name, document, updated FROM jobs WHERE id = ?1",
+                "SELECT id, analysis, name, document, revision, updated FROM jobs WHERE id = ?1",
                 [id],
                 job_row,
             )
@@ -745,6 +897,7 @@ struct JobRow {
     analysis: String,
     name: String,
     document: String,
+    revision: i64,
     updated: i64,
 }
 
@@ -754,7 +907,8 @@ fn job_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<JobRow> {
         analysis: r.get(1)?,
         name: r.get(2)?,
         document: r.get(3)?,
-        updated: r.get(4)?,
+        revision: r.get(4)?,
+        updated: r.get(5)?,
     })
 }
 
@@ -765,6 +919,7 @@ impl JobRow {
             analysis: self.analysis,
             name: self.name,
             document: decode(&self.document, "job document")?,
+            revision: self.revision,
             updated: self.updated,
         })
     }
@@ -781,10 +936,16 @@ mod tests {
             vec!["Road", "network", "2024", "road"]
         );
         assert_eq!(normalize_tags(&["  ", "--"]), Vec::<String>::new());
+        // Latin-ASCII, as AccessMod 5 (`stri_trans_general`).
         assert_eq!(
             normalize_tags(&["santé publique"]),
-            vec!["santé", "publique"]
+            vec!["sante", "publique"]
         );
+        assert_eq!(
+            normalize_tags(&["Straße", "Ærø", "œuvre", "Łódź"]),
+            vec!["Strasse", "AEro", "oeuvre", "Lodz"]
+        );
+        assert_eq!(normalize_tags(&["_a__b_ "]), vec!["a", "b"]);
     }
 
     #[test]

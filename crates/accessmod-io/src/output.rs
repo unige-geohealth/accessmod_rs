@@ -421,3 +421,141 @@ mod tests {
         assert_eq!(csv_field(&serde_json::Value::Null), "");
     }
 }
+
+/// Call `record` with the fields of every record of CSV `input` (RFC 4180:
+/// quoted fields may hold commas, doubled quotes and line breaks; `\r\n` or
+/// `\n` ends a record; blank lines are skipped). A record longer than
+/// `max_bytes` is an error, so a hostile file cannot exhaust memory.
+pub fn read_csv(
+    input: impl std::io::Read,
+    max_bytes: usize,
+    mut record: impl FnMut(&[String]) -> Result<()>,
+) -> Result<()> {
+    use std::io::{BufRead, BufReader};
+    let mut reader = BufReader::new(input);
+    let mut fields: Vec<String> = Vec::new();
+    let mut field: Vec<u8> = Vec::new();
+    let mut size = 0usize;
+    let mut quoted = false;
+    // In a quoted field, a quote was just read: either the closing quote or
+    // the first of a doubled one.
+    let mut quote_pending = false;
+    let too_long = || Error::invalid(format!("a CSV record is longer than {max_bytes} bytes"));
+    let mut flush = |fields: &mut Vec<String>, field: &mut Vec<u8>| -> Result<()> {
+        fields.push(String::from_utf8_lossy(field).into_owned());
+        field.clear();
+        let blank = fields.len() == 1 && fields.first().is_some_and(|f| f.is_empty());
+        if !blank {
+            record(fields)?;
+        }
+        fields.clear();
+        Ok(())
+    };
+    loop {
+        let buffer = reader
+            .fill_buf()
+            .map_err(|e| Error::invalid(format!("cannot read CSV: {e}")))?;
+        if buffer.is_empty() {
+            break;
+        }
+        let n = buffer.len();
+        for &byte in buffer {
+            size += 1;
+            if size > max_bytes {
+                return Err(too_long());
+            }
+            if quoted {
+                match (quote_pending, byte) {
+                    (false, b'"') => quote_pending = true,
+                    (false, other) => field.push(other),
+                    (true, b'"') => {
+                        field.push(b'"');
+                        quote_pending = false;
+                    }
+                    (true, other) => {
+                        quoted = false;
+                        quote_pending = false;
+                        match other {
+                            b',' => fields.push(
+                                String::from_utf8_lossy(&std::mem::take(&mut field)).into_owned(),
+                            ),
+                            b'\n' => {
+                                flush(&mut fields, &mut field)?;
+                                size = 0;
+                            }
+                            b'\r' => {}
+                            other => field.push(other),
+                        }
+                    }
+                }
+                continue;
+            }
+            match byte {
+                b'"' if field.is_empty() => quoted = true,
+                b',' => {
+                    fields.push(String::from_utf8_lossy(&std::mem::take(&mut field)).into_owned())
+                }
+                b'\n' => {
+                    flush(&mut fields, &mut field)?;
+                    size = 0;
+                }
+                b'\r' => {}
+                other => field.push(other),
+            }
+        }
+        reader.consume(n);
+    }
+    if quoted && !quote_pending {
+        return Err(Error::invalid("a CSV quoted field is not closed"));
+    }
+    if !field.is_empty() || !fields.is_empty() {
+        flush(&mut fields, &mut field)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod csv_tests {
+    use super::*;
+
+    fn records(text: &str) -> Result<Vec<Vec<String>>> {
+        let mut out = Vec::new();
+        read_csv(text.as_bytes(), 1 << 20, |r| {
+            out.push(r.to_vec());
+            Ok(())
+        })?;
+        Ok(out)
+    }
+
+    #[test]
+    fn quoted_fields_hold_separators_quotes_and_line_breaks() {
+        let rows = records("id,\"name, full\"\r\n1,\"a \"\"b\"\"\nc\"\n\n2,\n").unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                vec!["id".to_owned(), "name, full".to_owned()],
+                vec!["1".to_owned(), "a \"b\"\nc".to_owned()],
+                vec!["2".to_owned(), String::new()],
+            ]
+        );
+    }
+
+    #[test]
+    fn last_record_without_newline_counts() {
+        assert_eq!(records("a,b\n1,2").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn unclosed_quote_and_huge_records_fail() {
+        assert!(records("a,\"b\n1,2\n").is_err());
+        let long = "x".repeat(2000);
+        let mut out = 0;
+        assert!(
+            read_csv(long.as_bytes(), 1000, |_| {
+                out += 1;
+                Ok(())
+            })
+            .is_err()
+        );
+    }
+}

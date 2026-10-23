@@ -309,7 +309,7 @@ fn project_init_import_run_and_list() {
     assert_eq!(stdout_json(&init)["grid"]["cols"], 4);
 
     for (file, class, tags) in [
-        ("lc.tif", "rLandCover", "base"),
+        ("lc.tif", "rLandCoverMerged", "base"),
         ("hf.gpkg", "vFacility", "hf"),
     ] {
         let import = accessmod(&[
@@ -336,7 +336,7 @@ fn project_init_import_run_and_list() {
         "import",
         &format!("{d}/lc.tif"),
         "--class",
-        "rLandCover",
+        "rLandCoverMerged",
         "--tags",
         "base",
         "--project",

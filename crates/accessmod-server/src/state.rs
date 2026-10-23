@@ -48,8 +48,12 @@ impl AppState {
             ApiError::Internal(format!("cannot create {}: {e}", projects.display()))
         })?;
         for slug in project_slugs(&projects) {
-            if let Err(e) = Project::open(&projects.join(&slug)).and_then(|p| p.recover()) {
-                tracing::warn!("project {slug}: recovery failed: {e}");
+            match Project::open(&projects.join(&slug)).and_then(|p| p.recover()) {
+                Ok(true) => {}
+                Ok(false) => {
+                    tracing::warn!("project {slug}: in use by another process, not recovered")
+                }
+                Err(e) => tracing::warn!("project {slug}: recovery failed: {e}"),
             }
         }
         let (events, _) = broadcast::channel(1024);

@@ -1,7 +1,7 @@
 //! The project database: schema, migrations, connection settings.
 //!
 //! The schema version is SQLite's `user_version`; migrations run in order
-//! when a project opens, each in its own transaction. A database newer
+//! when a project opens, in one transaction that holds the write lock. A database newer
 //! than this engine is refused rather than misread.
 
 use std::path::Path;
@@ -13,31 +13,10 @@ use crate::error::{Error, Result};
 
 /// Migrations, in order; migration `i` brings the schema to version `i + 1`.
 const MIGRATIONS: &[&str] = &[
-    // 1: project, datasets, saved jobs, runs.
+    // 1: project, runs, datasets (with the run that wrote them), saved jobs.
     "CREATE TABLE meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
-    );
-    CREATE TABLE datasets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        class TEXT NOT NULL,
-        tags TEXT NOT NULL,
-        tags_key TEXT NOT NULL,
-        file TEXT NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('importing', 'ready')),
-        origin TEXT NOT NULL,
-        sha256 TEXT,
-        bytes INTEGER,
-        preview TEXT,
-        created INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX datasets_class_tags ON datasets (class, tags_key);
-    CREATE TABLE jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        analysis TEXT NOT NULL,
-        name TEXT NOT NULL,
-        document TEXT NOT NULL,
-        updated INTEGER NOT NULL
     );
     CREATE TABLE runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,6 +30,32 @@ const MIGRATIONS: &[&str] = &[
         error TEXT,
         started INTEGER NOT NULL,
         finished INTEGER
+    );
+    CREATE INDEX runs_status ON runs (status);
+    CREATE TABLE datasets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        class TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        tags_key TEXT NOT NULL,
+        file TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('importing', 'ready', 'deleting')),
+        origin TEXT NOT NULL,
+        run INTEGER REFERENCES runs (id),
+        sha256 TEXT,
+        bytes INTEGER,
+        preview TEXT,
+        created INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX datasets_class_tags ON datasets (class, tags_key);
+    CREATE INDEX datasets_run ON datasets (run);
+    CREATE INDEX datasets_file ON datasets (file);
+    CREATE TABLE jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        analysis TEXT NOT NULL,
+        name TEXT NOT NULL,
+        document TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
+        updated INTEGER NOT NULL
     );",
 ];
 
@@ -79,7 +84,12 @@ pub fn open(path: &Path, create: bool) -> Result<Connection> {
 }
 
 fn migrate(db: &mut Connection, path: &Path) -> Result<()> {
-    let version: i64 = db
+    // Take the write lock before reading the version: two processes opening
+    // a new or old project must not both apply a migration.
+    let tx = db
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(Error::database(path))?;
+    let version: i64 = tx
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(Error::database(path))?;
     if version > VERSION {
@@ -89,14 +99,14 @@ fn migrate(db: &mut Connection, path: &Path) -> Result<()> {
             path.display()
         )));
     }
-    for (i, sql) in MIGRATIONS.iter().enumerate().skip(version as usize) {
-        let tx = db.transaction().map_err(Error::database(path))?;
+    for sql in MIGRATIONS.iter().skip(version as usize) {
         tx.execute_batch(sql).map_err(Error::database(path))?;
-        tx.pragma_update(None, "user_version", i as i64 + 1)
-            .map_err(Error::database(path))?;
-        tx.commit().map_err(Error::database(path))?;
     }
-    Ok(())
+    if version < VERSION {
+        tx.pragma_update(None, "user_version", VERSION)
+            .map_err(Error::database(path))?;
+    }
+    tx.commit().map_err(Error::database(path))
 }
 
 #[cfg(test)]

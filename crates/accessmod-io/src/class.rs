@@ -148,6 +148,120 @@ pub fn schema_classes(schema: &serde_json::Value) -> Vec<(String, Vec<String>)> 
     out
 }
 
+/// Dataset references of a job `document`, with the classes their field
+/// accepts: every `(text, classes)` where a field of `schema` marked with
+/// [`SCHEMA_KEY`] holds a string, or an object whose `path` (directly or
+/// in its single variant, e.g. `{"raster": "…"}`) is a string. `$ref`s are
+/// followed; of `oneOf` / `anyOf` alternatives, only those whose constant
+/// properties match the value are walked (tagged enums). Callers keep the
+/// texts that are paths of the job.
+pub fn dataset_fields(
+    schema: &serde_json::Value,
+    document: &serde_json::Value,
+) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    walk_fields(schema, schema, document, 0, &mut out);
+    out
+}
+
+/// Deepest schema nesting followed (schemas here are shallow; guards
+/// against cycles).
+const MAX_DEPTH: usize = 64;
+
+fn walk_fields(
+    root: &serde_json::Value,
+    schema: &serde_json::Value,
+    value: &serde_json::Value,
+    depth: usize,
+    out: &mut Vec<(String, Vec<String>)>,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    if let Some(classes) = schema.get(SCHEMA_KEY).and_then(|c| c.as_array())
+        && let Some(path) = referenced_path(value)
+    {
+        let classes = classes
+            .iter()
+            .filter_map(|c| c.as_str().map(str::to_owned))
+            .collect();
+        out.push((path, classes));
+    }
+    if let Some(target) = schema.get("$ref").and_then(|r| r.as_str())
+        && let Some(resolved) = target
+            .strip_prefix("#/")
+            .and_then(|pointer| root.pointer(&format!("/{pointer}")))
+    {
+        walk_fields(root, resolved, value, depth + 1, out);
+    }
+    for key in ["oneOf", "anyOf", "allOf"] {
+        for alternative in schema
+            .get(key)
+            .and_then(|a| a.as_array())
+            .into_iter()
+            .flatten()
+        {
+            if key == "allOf" || constants_match(root, alternative, value) {
+                walk_fields(root, alternative, value, depth + 1, out);
+            }
+        }
+    }
+    if let (Some(properties), Some(object)) = (
+        schema.get("properties").and_then(|p| p.as_object()),
+        value.as_object(),
+    ) {
+        for (name, property) in properties {
+            if let Some(child) = object.get(name) {
+                walk_fields(root, property, child, depth + 1, out);
+            }
+        }
+    }
+    if let (Some(items), Some(array)) = (schema.get("items"), value.as_array()) {
+        for child in array {
+            walk_fields(root, items, child, depth + 1, out);
+        }
+    }
+}
+
+/// Whether the `const` properties of `schema` (after a `$ref`) hold in
+/// `value`: the discriminant of a tagged enum variant.
+fn constants_match(
+    root: &serde_json::Value,
+    schema: &serde_json::Value,
+    value: &serde_json::Value,
+) -> bool {
+    let schema = schema
+        .get("$ref")
+        .and_then(|r| r.as_str())
+        .and_then(|r| r.strip_prefix("#/"))
+        .and_then(|p| root.pointer(&format!("/{p}")))
+        .unwrap_or(schema);
+    let Some(properties) = schema.get("properties").and_then(|p| p.as_object()) else {
+        return true;
+    };
+    properties
+        .iter()
+        .all(|(name, property)| match property.get("const") {
+            Some(constant) => value.get(name) == Some(constant),
+            None => true,
+        })
+}
+
+/// The path a field value names: a string, `{"path": …}`, or the single
+/// variant of an externally tagged enum holding one of these.
+fn referenced_path(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(text) => Some(text.clone()),
+        serde_json::Value::Object(map) => match map.get("path") {
+            Some(serde_json::Value::String(path)) => Some(path.clone()),
+            Some(_) => None,
+            None if map.len() == 1 => map.values().next().and_then(referenced_path),
+            None => None,
+        },
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,6 +287,50 @@ mod tests {
             };
             assert!(class.code().starts_with(prefix), "{}", class.code());
         }
+    }
+
+    #[test]
+    fn dataset_fields_follow_refs_and_enum_variants() {
+        let schema = crate::analysis::job_schemas()
+            .into_iter()
+            .find(|(n, _)| *n == "scaling-up")
+            .map(|(_, s)| s)
+            .unwrap();
+        let job = serde_json::json!({
+            "dem": "datasets/1.tif",
+            "facilities": {"path": "datasets/3.fgb", "id_field": "id"},
+            "exclusions": [{"layer": {"raster": "datasets/9.tif"}, "keep": "outside"}],
+            "suitability": [
+                {"factor": "priority", "layer": {"raster": "datasets/5.tif"}, "weight": 1, "prefer": "high"},
+                {"factor": "distance", "layer": "facilities", "weight": 1, "prefer": "low"}
+            ]
+        });
+        let mut found = dataset_fields(&schema, &job);
+        found.sort();
+        assert_eq!(
+            found,
+            vec![
+                ("datasets/1.tif".to_owned(), vec!["rDem".to_owned()]),
+                (
+                    "datasets/3.fgb".to_owned(),
+                    vec!["vFacility".to_owned(), "vFacilityNew".to_owned()]
+                ),
+                ("datasets/5.tif".to_owned(), vec!["rPriority".to_owned()]),
+                (
+                    "datasets/9.tif".to_owned(),
+                    vec!["rExclusion".to_owned(), "vExclusion".to_owned()]
+                ),
+                // Not a path: callers keep only paths of the job.
+                (
+                    "facilities".to_owned(),
+                    vec![
+                        "vRoad".to_owned(),
+                        "vBarrier".to_owned(),
+                        "vFacility".to_owned()
+                    ]
+                ),
+            ]
+        );
     }
 
     #[test]

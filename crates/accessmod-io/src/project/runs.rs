@@ -8,6 +8,8 @@
 use std::path::{Path, PathBuf};
 
 use rusqlite::{OptionalExtension, params};
+
+use super::import::summarise;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -98,36 +100,89 @@ pub struct RunRecord {
     pub datasets: Vec<Id>,
 }
 
-/// Job document for analysis `A` with `output_dir` set: typed, every path
-/// checked to stay in the project, then made absolute against `root`.
-fn project_job<A: Analysis>(
-    document: &serde_json::Value,
-    output_dir: &str,
-    root: &Path,
-) -> Result<(serde_json::Value, A::Job)> {
-    let mut document = document.clone();
-    let Some(object) = document.as_object_mut() else {
-        return Err(Error::invalid("a job document is a JSON object"));
-    };
-    object.insert("output_dir".into(), serde_json::Value::from(output_dir));
-    let mut job = A::Job::from_json(&document.to_string())?;
-    let mut issues = Vec::new();
-    job.for_each_path(&mut |path: &mut PathBuf| {
-        if let Err(issue) = check_relative(path) {
-            issues.push(issue);
-        }
-    });
-    if !issues.is_empty() {
-        return Err(Error::Validation { issues });
-    }
-    Ok((document, job.resolve_paths(root)))
+/// `path` as the catalogue stores files: components joined by `/`, without
+/// `.` components.
+fn catalogue_key(path: &Path) -> String {
+    path.components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 impl Project {
+    /// Job document for analysis `A` with `output_dir` set, typed and
+    /// checked: every input path names a ready dataset of this project
+    /// whose class its field accepts, and stays inside the project once
+    /// symbolic links are resolved. Paths come back absolute.
+    fn project_job<A: Analysis>(
+        &self,
+        document: &serde_json::Value,
+        output_dir: &str,
+    ) -> Result<(serde_json::Value, A::Job)> {
+        let mut document = document.clone();
+        let Some(object) = document.as_object_mut() else {
+            return Err(Error::invalid("a job document is a JSON object"));
+        };
+        object.insert("output_dir".into(), serde_json::Value::from(output_dir));
+        let mut job = A::Job::from_json(&document.to_string())?;
+        let mut paths = Vec::new();
+        let mut issues = Vec::new();
+        job.for_each_path(&mut |path: &mut PathBuf| match check_relative(path) {
+            Ok(()) => paths.push(catalogue_key(path)),
+            Err(issue) => issues.push(issue),
+        });
+        if !issues.is_empty() {
+            return Err(Error::Validation { issues });
+        }
+        let schema = A::Job::schema();
+        let accepted: Vec<(String, Vec<String>)> = crate::class::dataset_fields(&schema, &document)
+            .into_iter()
+            .map(|(path, classes)| (catalogue_key(Path::new(&path)), classes))
+            .collect();
+        let root = std::fs::canonicalize(&self.root).map_err(Error::file(&self.root))?;
+        for path in paths.iter().filter(|p| p.as_str() != output_dir) {
+            let class: Option<String> = self
+                .db
+                .query_row(
+                    "SELECT class FROM datasets WHERE file = ?1 AND state = 'ready'",
+                    [path],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(self.db_error())?;
+            let Some(class) = class else {
+                issues.push(format!("{path} is not a dataset of this project"));
+                continue;
+            };
+            for (_, classes) in accepted.iter().filter(|(p, _)| p == path) {
+                if !classes.contains(&class) {
+                    issues.push(format!(
+                        "{path} is a {class} dataset; this field takes {}",
+                        classes.join(" or ")
+                    ));
+                }
+            }
+            match std::fs::canonicalize(self.root.join(path)) {
+                Ok(real) if real.starts_with(&root) => {}
+                Ok(_) => issues.push(format!("{path} leaves the project through a link")),
+                Err(e) => issues.push(format!("{path}: {e}")),
+            }
+        }
+        if !issues.is_empty() {
+            return Err(Error::Validation { issues });
+        }
+        Ok((document, job.resolve_paths(&self.root)))
+    }
+
     /// Check `document` as a job of analysis `A` in this project, without
-    /// reading its inputs: types, and paths inside the project.
+    /// reading its inputs: types, and paths naming datasets of the classes
+    /// their fields accept.
     pub fn check_job<A: Analysis>(&self, document: &serde_json::Value) -> Result<A::Job> {
-        project_job::<A>(document, &format!("{RUNS_DIR}/new"), &self.root).map(|(_, job)| job)
+        self.project_job::<A>(document, &format!("{RUNS_DIR}/new"))
+            .map(|(_, job)| job)
     }
 
     /// Queue a run of `A` on `document`: its outputs will go to `runs/<id>`,
@@ -158,7 +213,7 @@ impl Project {
             .iter()
             .filter_map(|output| output.class)
             .try_for_each(|class| self.free_tags(class, &tags, None).map(drop))
-            .and_then(|()| project_job::<A>(document, &output_dir, &self.root));
+            .and_then(|()| self.project_job::<A>(document, &output_dir));
         let stored = match checked {
             Ok((stored, _)) => stored,
             Err(error) => {
@@ -187,22 +242,29 @@ impl Project {
         let record = self.run_record(id)?;
         if record.analysis != A::NAME || record.status != RunStatus::Queued {
             return Err(Error::invalid(format!(
-                "run {id} is a {} run, {:?}: it cannot run as {}",
+                "run {id} is a {} run, {}: it cannot run as {}",
                 record.analysis,
-                record.status,
+                record.status.name(),
                 A::NAME
             )));
         }
+        let _hold = self.activity()?;
         let outcome = if monitor.is_cancelled() {
             Err(Error::Cancelled)
         } else {
-            self.db
+            let claimed = self
+                .db
                 .execute(
-                    "UPDATE runs SET status = 'running', started = ?1 WHERE id = ?2",
+                    "UPDATE runs SET status = 'running', started = ?1
+                     WHERE id = ?2 AND status = 'queued'",
                     params![now(), id],
                 )
                 .map_err(self.db_error())?;
-            project_job::<A>(&record.job, &record.output_dir, &self.root)
+            if claimed != 1 {
+                // Cancelled or taken by another process meanwhile.
+                return Err(Error::invalid(format!("run {id} is no longer queued")));
+            }
+            self.project_job::<A>(&record.job, &record.output_dir)
                 .and_then(|(_, job)| A::prepare(job, settings, monitor))
                 .and_then(|prepared| A::run(prepared, settings, monitor))
         };
@@ -215,7 +277,8 @@ impl Project {
         outcome.map(|_| finished)
     }
 
-    /// Record the end of run `id`: on success, register its outputs.
+    /// Record the end of run `id`: on success, register every output and
+    /// mark the run done in one transaction, or neither.
     fn finish_run<A: Analysis>(
         &self,
         id: Id,
@@ -227,29 +290,10 @@ impl Project {
         match result {
             Ok(report) => {
                 monitor.stage("register");
-                let registered = A::OUTPUTS
-                    .iter()
-                    .filter_map(|o| o.class.map(|class| (o.file, class)))
-                    .filter(|(file, _)| self.root.join(&record.output_dir).join(file).is_file())
-                    .try_for_each(|(file, class)| {
-                        self.register(
-                            &format!("{}/{file}", record.output_dir),
-                            class,
-                            &record.tags,
-                            &Origin::Run {
-                                run: id,
-                                file: file.to_owned(),
-                            },
-                            settings,
-                            monitor.cancelled(),
-                        )
-                        .map(drop)
-                    });
-                if let Err(error) = registered {
+                if let Err(error) = self.register_outputs::<A>(&record, report, settings, monitor) {
                     self.close_run(id, RunStatus::Failed, None, Some(&error))?;
                     return Err(error);
                 }
-                self.close_run(id, RunStatus::Done, Some(&A::outcome(report)), None)?;
             }
             Err(error) => {
                 let status = if error.kind() == crate::error::ErrorKind::Cancelled {
@@ -261,6 +305,112 @@ impl Project {
             }
         }
         self.run_record(id)
+    }
+
+    /// Summarise the outputs of `record` (slow: overviews, fingerprints),
+    /// then insert them and mark the run done atomically.
+    fn register_outputs<A: Analysis>(
+        &self,
+        record: &RunRecord,
+        report: &A::Report,
+        settings: &ExecutionSettings,
+        monitor: Monitor<'_>,
+    ) -> Result<()> {
+        struct Ready {
+            file: String,
+            name: &'static str,
+            class: crate::class::DataClass,
+            summary: String,
+            sha256: String,
+            bytes: u64,
+        }
+        let mut ready: Vec<Ready> = Vec::new();
+        let summarised = A::OUTPUTS
+            .iter()
+            .filter_map(|o| o.class.map(|class| (o.file, class)))
+            .filter(|(name, _)| self.root.join(&record.output_dir).join(name).is_file())
+            .try_for_each(|(name, class)| {
+                let file = format!("{}/{name}", record.output_dir);
+                let path = self.resolve(Path::new(&file))?;
+                let summary = summarise(&path, class, settings, monitor.cancelled())?;
+                let fingerprint =
+                    crate::report::fingerprints(&[("output", &path)], monitor.cancelled())?
+                        .pop()
+                        .ok_or_else(|| Error::invalid("no fingerprint"))?;
+                ready.push(Ready {
+                    file,
+                    name,
+                    class,
+                    summary: json(&summary)?,
+                    sha256: fingerprint.sha256,
+                    bytes: fingerprint.bytes,
+                });
+                Ok(())
+            });
+        let committed = summarised.and_then(|()| {
+            self.db
+                .execute_batch("BEGIN IMMEDIATE")
+                .map_err(self.db_error())?;
+            let inserted = (|| {
+                for output in &ready {
+                    self.free_tags(output.class, &record.tags, None)?;
+                    let origin = Origin::Run {
+                        run: record.id,
+                        file: output.name.to_owned(),
+                    };
+                    self.db
+                        .execute(
+                            "INSERT INTO datasets (class, tags, tags_key, file, state, origin, run,
+                             sha256, bytes, preview, created)
+                             VALUES (?1, ?2, ?3, ?4, 'ready', ?5, ?6, ?7, ?8, ?9, ?10)",
+                            params![
+                                output.class.code(),
+                                json(&record.tags)?,
+                                record.tags.join("_"),
+                                output.file,
+                                json(&origin)?,
+                                record.id,
+                                output.sha256,
+                                output.bytes as i64,
+                                output.summary,
+                                now()
+                            ],
+                        )
+                        .map_err(self.db_error())?;
+                }
+                let done = self
+                    .db
+                    .execute(
+                        "UPDATE runs SET status = 'done', outcome = ?1, error = NULL, finished = ?2
+                         WHERE id = ?3 AND status = 'running'",
+                        params![A::outcome(report), now(), record.id],
+                    )
+                    .map_err(self.db_error())?;
+                if done != 1 {
+                    return Err(Error::invalid(format!(
+                        "run {} changed state while finishing",
+                        record.id
+                    )));
+                }
+                Ok(())
+            })();
+            let end = if inserted.is_ok() {
+                "COMMIT"
+            } else {
+                "ROLLBACK"
+            };
+            self.db.execute_batch(end).map_err(self.db_error())?;
+            inserted
+        });
+        if committed.is_err() {
+            // Nothing was registered: drop the overviews built for it.
+            for output in &ready {
+                if let Ok(path) = self.resolve(Path::new(&output.file)) {
+                    let _ = std::fs::remove_file(crate::preview::overview_path(&path));
+                }
+            }
+        }
+        committed
     }
 
     fn close_run(
@@ -280,7 +430,8 @@ impl Project {
             .transpose()?;
         self.db
             .execute(
-                "UPDATE runs SET status = ?1, outcome = ?2, error = ?3, finished = ?4 WHERE id = ?5",
+                "UPDATE runs SET status = ?1, outcome = ?2, error = ?3, finished = ?4
+                 WHERE id = ?5 AND status IN ('queued', 'running')",
                 params![status.name(), outcome, error, now(), id],
             )
             .map_err(self.db_error())?;
@@ -472,11 +623,7 @@ impl Project {
         let datasets: Vec<Id> = {
             let mut stmt = self
                 .db
-                .prepare(
-                    "SELECT id FROM datasets WHERE state = 'ready'
-                     AND json_extract(origin, '$.type') = 'run'
-                     AND json_extract(origin, '$.run') = ?1 ORDER BY id",
-                )
+                .prepare("SELECT id FROM datasets WHERE state = 'ready' AND run = ?1 ORDER BY id")
                 .map_err(self.db_error())?;
             stmt.query_map([id], |r| r.get(0))
                 .map_err(self.db_error())?

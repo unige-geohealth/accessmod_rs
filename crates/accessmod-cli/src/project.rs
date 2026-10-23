@@ -70,8 +70,8 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// After a crash: remove half-done imports, mark unfinished runs
-    /// interrupted. Only when nothing else uses the project.
+    /// After a crash: remove half-done imports and deletions, mark unfinished
+    /// runs interrupted. Refused while an import or a run is in progress.
     Recover {
         #[command(flatten)]
         project: ProjectArg,
@@ -266,7 +266,15 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
         }
         Command::Recover { project } => {
             let project = open(&project.project, false)?;
-            project.recover().map_err(|e| fail(&e, false))
+            if project.recover().map_err(|e| fail(&e, false))? {
+                tracing::info!("recovered {}", project.root().display());
+                Ok(())
+            } else {
+                eprintln!(
+                    "error: an import or a run is in progress in this project; try again later"
+                );
+                Err(Failure { code: 2 })
+            }
         }
     }
 }

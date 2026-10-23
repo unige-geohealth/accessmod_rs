@@ -18,6 +18,11 @@
       "description": "Free name.",
       "type": "string"
     },
+    "revision": {
+      "description": "Revision, increased by every save.",
+      "format": "int64",
+      "type": "integer"
+    },
     "updated": {
       "description": "Last change, seconds since the Unix epoch.",
       "format": "int64",
@@ -29,6 +34,7 @@
     "analysis",
     "name",
     "document",
+    "revision",
     "updated"
   ],
   "title": "SavedJob",

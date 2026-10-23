@@ -240,22 +240,20 @@ pub fn cell_polygon(c0: f64, r0: f64, c1: f64, r1: f64) -> String {
 /// Rows of a CSV keyed by column `key`, every field by column name; quotes
 /// around fields are dropped (fields hold no comma in the test tables).
 pub fn csv_table(path: &Path, key: &str) -> BTreeMap<String, BTreeMap<String, String>> {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let mut lines = text.lines();
-    let header: Vec<String> = lines
-        .next()
-        .expect("header")
-        .split(',')
-        .map(|h| h.trim_matches('"').to_owned())
-        .collect();
-    lines
-        .map(|line| {
-            let fields: BTreeMap<String, String> = header
-                .iter()
-                .cloned()
-                .zip(line.split(',').map(|f| f.trim_matches('"').to_owned()))
-                .collect();
-            (fields[key].clone(), fields)
-        })
-        .collect()
+    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let mut header: Option<Vec<String>> = None;
+    let mut table = BTreeMap::new();
+    crate::output::read_csv(file, 1 << 24, |record| {
+        match &header {
+            None => header = Some(record.to_vec()),
+            Some(names) => {
+                let fields: BTreeMap<String, String> =
+                    names.iter().cloned().zip(record.iter().cloned()).collect();
+                table.insert(fields[key].clone(), fields);
+            }
+        }
+        Ok(())
+    })
+    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    table
 }
