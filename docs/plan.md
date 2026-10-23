@@ -1,7 +1,8 @@
 # accessmod-rs — general plan
 
-Revision 2026-10-09, derived from `accessmod_app/plans/rs-refactor.md` after
-review.
+Revision 2026-10-23: the graphical interface and the project layer come
+next; MCP is deferred. First revision 2026-10-09, derived from
+`accessmod_app/plans/rs-refactor.md` after review.
 
 ## Decision
 
@@ -28,10 +29,13 @@ change speed, never numbers.
 
 ## Trajectory
 
-1. Travel-time CLI engine on disk-backed tiled storage, without GRASS.
-2. MCP stdio server and agent skill.
-3. Migration of the other analyses.
-4. Graphical UI once the engine and its contracts are stable.
+1. Travel-time CLI engine on disk-backed tiled storage, without GRASS (done).
+2. Migration of the other analyses (done, equal to the oracle).
+3. Project layer and graphical interface, in testable slices
+   ([`ui.md`](ui.md)).
+4. Distribution: self-contained archives, CI on the five targets.
+
+MCP is deferred (see "Deferred").
 
 ## Architecture
 
@@ -43,7 +47,11 @@ change speed, never numbers.
 - `accessmod-io`: GDAL/PROJ, CRS, facility rasterisation, job validation,
   reports.
 - `accessmod-cli`: `clap`, diagnostics, progress, exit codes.
-- Milestone 2: `accessmod-mcp`, thin adapter over the same public API.
+- `accessmod-server` (milestone 3): `accessmod serve`, command registry,
+  JSON HTTP API and events over the same public API, accounts and roles,
+  embedded front end. The project layer lives in `accessmod-io`.
+- `web/` (milestone 3): TypeScript front end (React, MapLibre, Tabulator),
+  outside the cargo workspace.
 - `xtask`: developer tasks (LUT generation, oracle export driver).
 - Rust 2024, pinned toolchain, committed `Cargo.lock`, `thiserror`, `serde`,
   `schemars`, `tracing`.
@@ -52,9 +60,12 @@ GDAL/PROJ stay at the I/O boundary ([GeoRust GDAL](https://github.com/georust/gd
 Internal geometries: `geo-types` / [`geo`](https://github.com/georust/geo).
 No call to GRASS, R, Docker or any external GIS process.
 
-**Tooling**: building, testing and generating artefacts require only the Rust
-toolchain. Helper scripts are `cargo xtask` or POSIX `sh`. No R or Python in
-the build or test path. Docker is used only to export the AccessMod 5 oracle.
+**Tooling**: building, testing and generating artefacts of the Rust
+workspace require only the Rust toolchain; `cargo build --workspace` never
+runs Node. The front end in `web/` needs Node LTS and npm, pinned, and
+nothing else. Helper scripts are `cargo xtask` or POSIX `sh`. No R or Python
+in the build or test path. Docker is used only to export the AccessMod 5
+oracle.
 
 ### Units
 
@@ -119,7 +130,8 @@ v1 rejects geographic CRS, rotated grids and non-metric units.
 
 **Validation policy**: anything that makes the result wrong or undefined is a
 blocking error (exit code `2`); anything else is a passive warning in the
-report. Interactive fixes belong to a later TUI, not to the engine.
+report. Interactive fixes belong to the graphical interface, not to the
+engine.
 
 Facilities may be reprojected from another CRS. Points outside the grid, on a
 barrier or on a class without scenario: detailed error by default, with an
@@ -274,34 +286,77 @@ This repository becomes the **canonical source** of the model, without R:
   `bundled` feature / `gdal-src`, or a minimal GeoTIFF + GPKG build) on the
   five targets; this is the main risk of the milestone.
 
-### Milestone 2 — MCP and skill
+Status: engine done; distribution and CI to do (milestone 4).
 
-- stdio server with [`rmcp`](https://github.com/modelcontextprotocol/rust-sdk).
-- Tools: `inspect_dataset`, `get_travel_time_schema`,
-  `validate_travel_time_job`, `run_travel_time`, `read_run_report`.
-- MCP long-running tasks for progress and cancellation.
-- Paths restricted to client roots; no network; no overwrite.
-- `skills/accessmod/SKILL.md`: inspect → build/validate job → run → check
-  `run.json`, without copying the schema; validated on a realistic scenario.
+### Milestone 2 — analyses
 
-### Later
+Every AccessMod 5 analysis and tool runs from the CLI as a job, equal to the
+oracle within documented tolerances:
 
-1. Zonal statistics, done (2026-10-16) ([`zonal-statistics.md`](zonal-statistics.md));
-   geographic coverage and catchments, done (2026-10-16)
-   ([`geographic-coverage.md`](geographic-coverage.md)).
-2. **Referral**, done (2026-10-09) except the network output: many-to-many with early
-   stop, smaller-side searches and parallel sources ([`referral.md`](referral.md)).
-3. Scaling up, done (2026-10-16) ([`scaling-up.md`](scaling-up.md)); optimization,
-   done (2026-10-16) ([`optimization.md`](optimization.md)).
-4. New project format; `.am5p` import as a separate converter.
-5. UI on top of the stabilised CLI/MCP APIs: web front end served by
-   `accessmod serve`, optional Tauri package, no TUI ([`ui.md`](ui.md)).
-6. Land-cover merge (land cover, roads with classes, barriers, bridge
-   cleaning), done (2026-10-16) except the polygon skeleton option
-   ([`merge-land-cover.md`](merge-land-cover.md)); population adjustment on
-   barriers, done (2026-10-16) ([`adjust-population.md`](adjust-population.md)).
-   Both are prerequisites of coverage analyses on raw data. See
-   [`coverage.md`](coverage.md).
+- Referral, done (2026-10-09) except the network output: many-to-many with
+  early stop, smaller-side searches and parallel sources
+  ([`referral.md`](referral.md)).
+- Zonal statistics, done (2026-10-16)
+  ([`zonal-statistics.md`](zonal-statistics.md)); geographic coverage and
+  catchments, done (2026-10-16)
+  ([`geographic-coverage.md`](geographic-coverage.md)).
+- Scaling up, done (2026-10-16) ([`scaling-up.md`](scaling-up.md));
+  optimization, done (2026-10-16) ([`optimization.md`](optimization.md)).
+- Land-cover merge (land cover, roads with classes, barriers, bridge
+  cleaning), done (2026-10-16) except the polygon skeleton option
+  ([`merge-land-cover.md`](merge-land-cover.md)); population adjustment on
+  barriers, done (2026-10-16) ([`adjust-population.md`](adjust-population.md)).
+
+See [`coverage.md`](coverage.md) for the full feature map.
+
+### Milestone 3 — project layer and graphical interface
+
+Design, state rules and slices are in [`ui.md`](ui.md). In short:
+
+- Two deployments of the same server: desktop (`127.0.0.1`, one implicit
+  user) and country server (e.g. a ministry of health; local accounts,
+  roles per project, admission control on memory).
+- Contracts: progress sink in `Analysis`, expected dataset class on job
+  fields, overviews and statistics written with rasters, `cargo xtask
+  schemas` (JSON Schemas turned into TypeScript types), `cargo xtask
+  layers` (crate dependency rules).
+- Project layer: metadata in SQLite, data in files (GeoTIFF with overviews,
+  GeoPackage for edited vectors, FlatGeobuf for outputs); jobs reference
+  project datasets only and export as plain `job.json` for the CLI.
+- `accessmod serve` (`accessmod-server`): every action is a command in one
+  registry (parameter schema, role, never panics), generic over
+  `Analysis`; run queue with progress and cancellation as server-sent
+  events; raster and vector tiles; paged tables; outputs byte-identical to
+  the CLI's.
+- Web front end in `web/`: TypeScript, React with an explicit store (Elm
+  architecture: typed messages, pure `update`, no state derived by
+  effects), MapLibre, Tabulator.
+- National scale is the design case: 400 M-cell rasters, every facility of
+  a country; a national fixture with time budgets joins the tests.
+- First testable slice: navigation as in AccessMod 5, projects, catalogue
+  with import and preview, a schema-driven form for every analysis, runs and
+  history. Then the country server, bespoke screens ordered by user
+  feedback, four languages, `.am5p` import, optional Tauri package.
+
+### Milestone 4 — distribution
+
+- Self-contained archives (binary, GDAL/PROJ, data, licences, embedded front
+  end) and CI on the five targets; see milestone 1 and "Tests and acceptance
+  criteria".
+
+### Deferred — MCP and skill
+
+Early feedback on an agent interface was lukewarm; it waits for demand.
+When it comes back, it is a thin adapter over the command registry of
+`accessmod serve`:
+
+- stdio server with [`rmcp`](https://github.com/modelcontextprotocol/rust-sdk);
+- tools: inspect a dataset, get a job schema, validate, run, read a report,
+  for every analysis;
+- long-running tasks for progress and cancellation;
+- paths restricted to client roots; no network; no overwrite;
+- `skills/accessmod/SKILL.md`: inspect → build and validate a job → run →
+  check `run.json`, without copying the schema.
 
 ## Tests and acceptance criteria
 

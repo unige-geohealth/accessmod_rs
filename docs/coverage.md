@@ -43,19 +43,19 @@ _Last updated: 2026-10-16._
 | Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges` (default on), `bridges.tif` identical to AM5 on the demo | CLI |
 | Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` on land-cover items (AM5 quick correction) | CLI + UI |
 | **Adjust population distribution**: population on barriers, redistribution | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: zone or known population; equal to AM5 within 6e-15 on the demo ([`adjust-population.md`](adjust-population.md)) | CLI |
-| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview`, toolbox | ➖ engine; 🗓 UI (plan: Later 5) | UI |
+| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview`, toolbox | ➖ engine; 🗓 UI (plan: milestone 3) | UI |
 
 ## Project and data
 
 | AccessMod 5 feature | Where in AM5 | accessmod-rs | Interface |
 | --- | --- | --- | --- |
-| Project = GRASS location built from the DEM | `amProjectCreateFromDem` | 🟡 no project yet: the DEM of each job defines the grid, other rasters must lie on its lattice (stricter than AM5, which resamples on import) | CLI |
+| Project = GRASS location built from the DEM | `amProjectCreateFromDem` | 🟡 no project yet: the DEM of each job defines the grid, other rasters must lie on its lattice (stricter than AM5, which resamples on import); 🗓 project layer with explicit resampling on import (plan: milestone 3) | CLI |
 | Raster import with CRS / extent checks | `amUploadRaster.R` | ✅ validation at run time (CRS, resolution, origin, overlap); no implicit resampling or reprojection | CLI |
 | Vector import (facilities) | `amUploadVector.R` | ✅ any GDAL point layer, explicit reprojection | CLI |
 | Vector import (roads, barriers, zones) | idem | ✅ roads and barriers (any GDAL line or polygon layer, explicit reprojection); 🗓 zones with zonal statistics | CLI |
 | Table import (scenarios, capacities) | `amUploadTable.R` | 🟡 scenario in the job JSON; 🗓 CSV scenarios and capacity tables | CLI + UI (table editing) |
-| Data catalogue: tags, filter, rename, archive, delete | `modules/amManageData` | ➖ engine works on plain files; 🗓 UI | UI |
-| Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 separate converter (plan: Later 4) | CLI |
+| Data catalogue: tags, filter, rename, archive, delete | `modules/amManageData` | ➖ engine works on plain files; 🗓 project layer and UI (plan: milestone 3) | CLI + UI |
+| Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 separate converter (plan: milestone 3) | CLI |
 | Data export | `amExport.R` | ✅ outputs are GeoTIFF and JSON directly | CLI |
 | Dataset inspection | data module | ✅ `dataset inspect` | CLI |
 | Logs | `modules/amManageLogs` | ✅ `run.json` per run, stderr messages | CLI + UI (history) |
@@ -66,8 +66,8 @@ _Last updated: 2026-10-16._
 
 | AccessMod 5 | accessmod-rs |
 | --- | --- |
-| R/Shiny web app + GRASS GIS + Docker, packaged as Electron app or VM | Single `accessmod` binary (CLI); 🗓 self-contained archives with GDAL/PROJ (milestone 1, distribution) |
-| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; 🗓 MCP server for agents (milestone 2) |
+| R/Shiny web app + GRASS GIS + Docker, packaged as Electron app or VM | Single `accessmod` binary (CLI); 🗓 `accessmod serve`: web interface on the desktop or on a country server with accounts (milestone 3); 🗓 self-contained archives with GDAL/PROJ (milestone 4) |
+| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; ➖ MCP server for agents deferred |
 | Memory needs grow with the grid (GRASS segments) | Explicit memory budget, tiled disk storage, same results at any budget ([benchmarks](../benchmark/README.md)) |
 | Results in minutes (rounded) | Results in seconds and metres; minutes as a compatibility export (🗓) |
 
@@ -84,8 +84,8 @@ necessary for:
 4. **Result exploration**: maps, coverage charts, zonal tables.
 5. **Data and project management**: catalogue, tags, history.
 
-The plan keeps the UI last (Later 5), on top of the stabilised CLI and MCP
-contracts, so every interface action maps to a reproducible job.
+The interface is the next milestone (3), on top of the CLI contracts: every
+action that computes maps to a reproducible job.
 
-Feasibility, architecture and the screen-to-job mapping are in
+Architecture, state rules, the screen-to-job mapping and the slices are in
 [`ui.md`](ui.md).

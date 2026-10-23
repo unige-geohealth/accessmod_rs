@@ -21,6 +21,15 @@ performance. Code is read by people who must trust its numbers.
 - The CLI maps errors to exit codes (`0` ok, `2` validation, `3` I/O,
   `4` computation, `130` cancelled). Messages say what failed, on which input,
   and what the user can do.
+- Non-test code does not panic on input (files, job fields, command
+  parameters, HTTP bodies).
+- `accessmod-server` denies `clippy::unwrap_used`, `expect_used`, `panic`,
+  `indexing_slicing`, `todo`, `unimplemented` from its first commit
+  (allowed in tests); other crates follow when touched.
+- Sizes, offsets and counts from input use checked arithmetic and are capped
+  before allocating.
+- The server catches a panic escaping a command or a run, reports it as an
+  error and keeps serving.
 
 ## Numerics
 
@@ -43,7 +52,7 @@ performance. Code is read by people who must trust its numbers.
 ## API and types
 
 - Domain types live in `accessmod-core`; I/O types never leak into it.
-- Public structs that cross the CLI/MCP boundary derive `serde` and
+- Public structs that cross the CLI or HTTP boundary derive `serde` and
   `schemars::JsonSchema`. Schemas are versioned (`schema_version`); a breaking
   change bumps the version, never mutates it.
 - Prefer newtypes and enums over strings and booleans (`Direction::TowardsFacilities`,
@@ -76,3 +85,20 @@ performance. Code is read by people who must trust its numbers.
 - Comment *why*, not *what*. Public items have doc comments with units and
   failure modes.
 - Design decisions that change behaviour go in `docs/` (short, dated).
+
+## TypeScript (`web/`)
+
+- `strict` on; no `any`, no non-null assertion without a comment saying why.
+- Types for jobs, reports and API bodies are generated from the Rust
+  schemas (`cargo xtask schemas`); never write them by hand.
+- State follows [`docs/ui.md`](docs/ui.md), "State": typed messages, pure
+  `update` functions, derived values as selectors, no effect that sets
+  state from other state.
+- Unions over flags: a run is `{ status: "running"; progress } | { status:
+  "done"; report } | …`, handled with an exhaustive `switch`.
+- MapLibre and Tabulator are wrapped in adapters that take state and emit
+  messages; components never call them directly.
+- Biome formats and lints; Vitest covers update functions, selectors and
+  state machines without a DOM.
+- User-visible text goes through the i18n catalogue (AccessMod 5 keys and
+  vocabulary); no literal strings in components.

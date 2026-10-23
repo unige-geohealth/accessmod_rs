@@ -1,6 +1,6 @@
 //! The contract every analysis implements: a job document, validation
 //! against the inputs (`prepare`), execution (`run`) and its `run.json`.
-//! The CLI drives any analysis through it, and so will the MCP server.
+//! The CLI drives any analysis through it, and so will `accessmod serve`.
 
 use std::path::PathBuf;
 

@@ -2,8 +2,9 @@
 
 Guide for humans and coding agents (Claude Code, Codex, …) working in this
 repository. Read [`docs/plan.md`](docs/plan.md) first: it is the source of
-truth for architecture, contracts and milestones. Code style is in
-[`STYLE.md`](STYLE.md).
+truth for architecture, contracts and milestones. The interface (project
+layer, `accessmod serve`, `web/`) follows [`docs/ui.md`](docs/ui.md). Code
+style, Rust and TypeScript, is in [`STYLE.md`](STYLE.md).
 
 ## Ground rules
 
@@ -17,10 +18,25 @@ truth for architecture, contracts and milestones. Code style is in
   machines (2 GB RAM, 2 CPU) to compute servers (40 GB RAM, 12 CPU). All
   raster work goes through the tiled, disk-backed storage with an explicit
   memory budget (see `docs/plan.md`, "Storage and memory").
-- **Tooling dependencies**: building, testing and generating artefacts (e.g.
-  the bicycle LUT) need only the Rust toolchain. Helper scripts are Rust
+- **Tooling dependencies**: building, testing and generating artefacts of the
+  Rust workspace (e.g. the bicycle LUT, the JSON Schemas) need only the Rust
+  toolchain; `cargo build --workspace` never runs Node. The front end in
+  `web/` needs pinned Node LTS and npm, nothing else. Helper scripts are Rust
   (`cargo xtask …`) or POSIX `sh`. No R; no Python in the build or test path.
   Docker is needed only to export the AccessMod 5 oracle.
+- **Interface state**: no cascades. Typed messages, pure `update`, derived
+  values as selectors, no effect that sets state from other state
+  ([`docs/ui.md`](docs/ui.md), "State"). Reviewers treat a violation as a
+  defect.
+- **Never crash**: input from users, files and the network is hostile. The
+  server and every command return errors, never panic; a country server
+  runs unattended. A crash fix ships with the test that panicked before it.
+- **Every action is a command** in the server registry (parameter schema,
+  role, `Result`); the HTTP API, the CLI and a future MCP dispatch it
+  ([`docs/ui.md`](docs/ui.md), "Commands").
+- **National scale**: a preview, a table or a legend never reads a whole
+  grid or layer; overviews, statistics, tiles and paged queries do
+  ([`docs/ui.md`](docs/ui.md), "Scale").
 
 ## Commits
 
@@ -30,16 +46,16 @@ truth for architecture, contracts and milestones. Code style is in
 - Commit only what the change needs; never commit `_oracle/`, `_am5/`,
   `_shared/` or `target/`.
 
-## Multiple agents
+## Agents
 
-Claude Code and Codex may implement the same task in parallel; the best
-implementation is kept.
+One implementing agent at a time keeps the whole design in view; parallel
+implementations produced more noise than value. Other agents review
+(Codex, see "Tooling"); they do not implement in parallel.
 
-- Work in a dedicated branch per agent and task, e.g. `claude/<topic>`,
-  `codex/<topic>`, branched from `main`.
+- Work in a branch per task, e.g. `claude/<topic>`, branched from `main`.
 - Keep each branch self-contained and passing all checks so it can be
-  compared and merged as a unit.
-- Do not edit another agent's branch.
+  merged as a unit; keep the tree building at every commit, so an
+  interrupted session can be resumed.
 - Summarise in the final message (or PR description): what was done, what was
   verified, known gaps, and any deviation from `docs/plan.md`.
 
@@ -68,8 +84,9 @@ sh scripts/fetch-am5.sh
   from this source before asking the user; cite paths relative to
   `_am5/accessmod/`, never absolute or sibling-checkout paths.
 - Never edit it, copy code from it or build it; the GPL rule above applies.
-- **Vocabulary**: domain names (CLI, job fields, outputs, types, docs) follow
-  the English names in `www/dictionary/classes.json` and `main.json`, e.g.
+- **Vocabulary**: domain names (CLI, job fields, outputs, types, API,
+  interface, docs) follow the English names in
+  `www/dictionary/classes.json` and `main.json`, e.g.
   *facility* (French *structure*), *land cover*, *cost allocation*. "Source"
   is reserved for solver internals.
 
@@ -89,9 +106,23 @@ sh benchmark/travel-time/run.sh 1000 2000   # benchmark vs AccessMod 5 (Docker),
 sh benchmark/referral/run.sh 1000 20         # idem; also benchmark/geographic-coverage/, scaling-up/, optimization/
 ```
 
+Interface (milestone 3, as the slices land):
+
+```sh
+cargo xtask schemas [--check]               # JSON Schemas into web/schemas/ (committed)
+cargo xtask layers                          # crate dependency rules (core: no GDAL, …)
+cargo run -p accessmod-cli -- serve --open  # API + front end (built with --features web, or --web-dir)
+npm --prefix web ci
+npm --prefix web run dev                    # Vite dev server, proxies /api to `serve`
+npm --prefix web run check                  # tsc --noEmit, Biome, Vitest
+npm --prefix web run e2e                    # Playwright on the demo project
+```
+
 The workspace needs GDAL ≥ 3.5 and PROJ installed (`gdal-config` on `PATH`).
 
-Build, test, clippy and fmt must all pass before a commit.
+Build, test, clippy and fmt must all pass before a commit; when `web/` or
+the schemas change, `cargo xtask schemas --check` and `npm --prefix web run
+check` too; once it exists, `cargo xtask layers`.
 
 ## Layout
 
@@ -99,8 +130,9 @@ Build, test, clippy and fmt must all pass before a commit.
 crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity, scaling up, optimization, focal operations (no GDAL)
 crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
 crates/accessmod-cli    `accessmod` binary (clap): doctor, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage, scaling-up, optimization
-crates/accessmod-mcp    milestone 2 (not yet): thin MCP adapter over the public API
-xtask/                  developer tasks (`cargo xtask lut`)
+crates/accessmod-server milestone 3 (not yet): `accessmod serve`, command registry, JSON API + events generic over `Analysis`, accounts and roles, run queue, tiles, embedded front end (feature `web`)
+web/                    milestone 3 (not yet): TypeScript front end (React, MapLibre, Tabulator); schemas/ generated by `cargo xtask schemas`
+xtask/                  developer tasks (`cargo xtask lut`, `cargo xtask schemas`)
 _oracle/                AccessMod 5 exports (ignored; checksummed manifest committed)
 _am5/accessmod/         pinned AccessMod 5 source, read-only (ignored; `scripts/fetch-am5.sh`)
 _shared/                local scratch, issue reproductions (ignored)
@@ -110,7 +142,8 @@ docs/                   plan, references, design decisions, tutorial (with data 
 ```
 
 `accessmod-core` never depends on GDAL, PROJ, a project layout or an external
-process.
+process. `accessmod-io` never depends on the server or HTTP. `cargo xtask
+layers` (milestone 3) checks these rules.
 
 ## Reusable GIS toolkit
 
@@ -133,8 +166,9 @@ determinism, memory budget, cancellation and error messages included.
 | Memory plan and execution settings | `accessmod_io::resources` |
 | Staging directory, GeoTIFF blocks, CSV, `finish` | `accessmod_io::output` |
 | `run.json` (`Report`, `Execution`), fingerprints, warnings | `accessmod_io::report` |
-| `prepare` / `run` contract driven by the CLI (and MCP) | `accessmod_io::analysis::Analysis` |
+| `prepare` / `run` contract driven by the CLI and `accessmod serve` | `accessmod_io::analysis::Analysis` |
 | Test inputs, oracle paths, running a job | `accessmod_io::fixtures` (feature `fixtures`), `accessmod-core/tests/common` |
+| Project: SQLite metadata, datasets (classes, tags, statistics), saved jobs, runs (milestone 3) | `accessmod_io::project` |
 
 Rules:
 
@@ -142,7 +176,9 @@ Rules:
   one, look in the toolkit; if it is not domain-specific, add it there with
   its own test and use it from every caller.
 - A new analysis implements `Analysis`; its CLI command is
-  `exec::job_command::<A>` unless it needs direct parameters.
+  `exec::job_command::<A>` unless it needs direct parameters. The server
+  exposes it by registration alone; a bespoke screen talks to the generic
+  API until it needs more.
 - Reviewers treat duplicated logic as a defect.
 
 ## Local scratch

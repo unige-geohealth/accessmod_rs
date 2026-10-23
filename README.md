@@ -73,10 +73,10 @@ On 16 M-cell synthetic grids (AccessMod 5: its engine alone, a lower bound):
 
 | Milestone | Deliverable | Status |
 | --- | --- | --- |
-| 1 | `accessmod` CLI: travel-time engine on disk-backed tiled rasters (isotropic/anisotropic, nearest, path distance) | working; distribution and CI to do |
-| 2 | MCP stdio server + agent skill over the same public API | not started |
-| 3+ | Referral, zonal stats, coverage, optimization, land-cover merge, project import | referral, zonal statistics, geographic coverage, land-cover merge, population adjustment, scaling up and optimization done (referral network output to do) |
-| last | Graphical UI on top of the stabilised CLI/MCP contracts | not started |
+| 1 | `accessmod` CLI: travel-time engine on disk-backed tiled rasters (isotropic/anisotropic, nearest, path distance) | done |
+| 2 | Every analysis and tool as a CLI job: referral, zonal statistics, geographic coverage, scaling up, optimization, land-cover merge, population adjustment | done (referral network output to do) |
+| 3 | Project layer and web interface (`accessmod serve`), desktop or country server, in testable slices | next |
+| 4 | Distribution: self-contained archives with GDAL/PROJ, CI on five targets | to do |
 
 ## Documentation
 
@@ -86,6 +86,7 @@ On 16 M-cell synthetic grids (AccessMod 5: its engine alone, a lower bound):
 - [`docs/cost-model.md`](docs/cost-model.md) — cost model, neighbours and direction codes
 - [`docs/referral.md`](docs/referral.md) — referral design, decisions and differences from AccessMod 5
 - [`docs/plan.md`](docs/plan.md) — architecture, contracts and milestones
+- [`docs/ui.md`](docs/ui.md) — web interface: architecture, state rules, deployment, scale, slices
 - [`docs/reference-accessmod5.md`](docs/reference-accessmod5.md) — where the
   oracle behaviour lives in the AccessMod 5 repository
 - [`AGENTS.md`](AGENTS.md) — workflow, commands, conventions (humans and agents)
