@@ -149,14 +149,19 @@ impl AppState {
     }
 
     /// Change the settings with `f` and write them; unchanged on error.
-    pub fn update_settings(&self, f: impl FnOnce(&mut Settings)) -> ApiResult<Settings> {
+    /// Settings changes are serialised: what `f` checks (a project exists)
+    /// holds until they are written.
+    pub fn update_settings(
+        &self,
+        f: impl FnOnce(&mut Settings) -> ApiResult<()>,
+    ) -> ApiResult<Settings> {
         let mut current = self
             .inner
             .settings
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut next = current.clone();
-        f(&mut next);
+        f(&mut next)?;
         if next != *current {
             next.save(&self.inner.config.data_dir)?;
             *current = next.clone();
@@ -164,26 +169,53 @@ impl AppState {
         Ok(next)
     }
 
-    /// Build the demo project again: remove it if it exists (waiting for
-    /// its imports and runs), then create it from the embedded data.
+    /// Build the demo project again from the embedded data, then put it in
+    /// place of the current one (removed once its imports and runs are
+    /// over): a failed build leaves the current demo as it was.
     pub fn reset_demo(&self) -> ApiResult<()> {
         let _guard = self
             .inner
             .demo
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let root = self.projects_dir().join(DEMO_SLUG);
-        if root.exists() {
+        let projects = self.projects_dir();
+        let root = projects.join(DEMO_SLUG);
+        let current = if root.exists() {
             let project = Project::open(&root)?;
             if !project.info()?.demo {
                 return Err(ApiError::BadRequest(format!(
                     "project {DEMO_SLUG:?} is not the demo project: remove it first"
                 )));
             }
-            project.remove()?;
+            Some(project)
+        } else {
+            None
+        };
+        // Built aside, under a name no project has; a crash leaves it to the
+        // purge of removed projects at the next start.
+        let built = projects.join(format!(
+            ".{DEMO_SLUG}.removed-new-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos())
+        ));
+        drop(accessmod_io::demo::create(
+            &built,
+            &self.inner.config.settings,
+            &|| false,
+        )?);
+        let replaced = current
+            .map_or(Ok(()), |p| p.remove().map_err(ApiError::from))
+            .and_then(|()| {
+                std::fs::rename(&built, &root).map_err(|e| {
+                    ApiError::Internal(format!("cannot move the demo project in place: {e}"))
+                })
+            });
+        if replaced.is_err() {
+            let _ = std::fs::remove_dir_all(&built);
         }
-        accessmod_io::demo::create(&root, &self.inner.config.settings, &|| false)?;
-        Ok(())
+        replaced
     }
 
     /// Publish an event; nobody listening is fine.

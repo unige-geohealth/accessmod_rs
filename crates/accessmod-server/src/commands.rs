@@ -427,6 +427,7 @@ fn remove_project(state: &AppState, _: &Principal, params: ProjectRef) -> ApiRes
         if s.default_project.as_deref() == Some(params.project.as_str()) {
             s.default_project = None;
         }
+        Ok(())
     })?;
     state.publish(Event::Projects);
     Ok(())
@@ -442,10 +443,15 @@ fn reset_demo(state: &AppState, _: &Principal, _: ResetDemo) -> ApiResult<Create
 }
 
 fn default_project(state: &AppState, _: &Principal, params: DefaultProject) -> ApiResult<Settings> {
-    if let Some(slug) = &params.project {
-        state.project_dir(slug)?;
-    }
-    state.update_settings(|s| s.default_project = params.project)
+    // Checked with the settings held: a removal clears the setting after
+    // the project is gone, so it cannot keep a removed project.
+    state.update_settings(|s| {
+        if let Some(slug) = &params.project {
+            state.project_dir(slug)?;
+        }
+        s.default_project = params.project;
+        Ok(())
+    })
 }
 
 fn rename_project(

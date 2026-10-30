@@ -779,6 +779,14 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
     }
     let (_, list) = s.call("GET", "/api/projects", None).await;
     assert_eq!(slugs(&list), ["demo", "demo-2"]);
+    // Built aside then moved in place: nothing else is left.
+    let mut entries: Vec<String> = std::fs::read_dir(s.dir.path().join("data/projects"))
+        .expect("projects")
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    entries.sort();
+    assert_eq!(entries, ["demo", "demo-2"]);
     let (status, _) = s.command("demo.reset", json!({"force": true})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
