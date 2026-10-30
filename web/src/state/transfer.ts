@@ -1,6 +1,7 @@
 // Process state of an upload followed by a command (project.create,
 // dataset.import): an explicit state machine, driven by the click handler
 // that starts it, never by an effect.
+import { useI18n } from "@accessmod/ui/i18n";
 import { useCallback, useReducer } from "react";
 import { api, issuesOf } from "../api/client";
 import type { Api } from "../generated/types";
@@ -46,6 +47,7 @@ export const busy = (t: Transfer) => t.state === "uploading" || t.state === "pro
  * `command` on the upload; its result names what was made.
  */
 export function useTransfer() {
+  const { t } = useI18n();
   const [state, dispatch] = useReducer(updateTransfer, IDLE);
   const start = useCallback(async (files: File[], command: (upload: Api.Upload) => Promise<string>) => {
     dispatch({ type: "start" });
@@ -54,9 +56,9 @@ export function useTransfer() {
       dispatch({ type: "uploaded" });
       dispatch({ type: "done", label: await command(upload) });
     } catch (error) {
-      dispatch({ type: "failed", issues: issuesOf(error) });
+      dispatch({ type: "failed", issues: issuesOf(error, t) });
     }
-  }, []);
+  }, [t]);
   const reset = useCallback(() => dispatch({ type: "reset" }), []);
   return { state, start, reset };
 }

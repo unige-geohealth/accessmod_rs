@@ -17,13 +17,22 @@ describe("data document", () => {
   it("commits only tag edits that change the tags", () => {
     let doc = updateData(EMPTY, { type: "editTags", id: 1, text: " demo " });
     doc = updateData(doc, { type: "editTags", id: 2, text: "health, Santé" });
-    expect(tagChanges(doc, datasets)).toEqual([{ id: 2, tags: ["health", "Sante"] }]);
+    expect(tagChanges(doc, datasets)).toEqual([{ id: 2, text: "health, Santé", tags: ["health", "Sante"] }]);
+  });
+
+  it("keeps an edit typed while the previous one was committed", () => {
+    let doc = updateData(EMPTY, { type: "editTags", id: 2, text: "alpha" });
+    const changes = tagChanges(doc, datasets);
+    doc = updateData(doc, { type: "editTags", id: 2, text: "beta" });
+    doc = updateData(doc, { type: "renamed", changes });
+    expect(doc.edits).toEqual({ 2: "beta" });
+    expect(updateData(doc, { type: "renamed", changes: tagChanges(doc, datasets) }).edits).toEqual({});
   });
 
   it("forgets settled datasets", () => {
     let doc = updateData(EMPTY, { type: "select", ids: [1, 2] });
     doc = updateData(doc, { type: "editTags", id: 2, text: "x" });
-    doc = updateData(doc, { type: "settled", ids: [2] });
+    doc = updateData(doc, { type: "removed", ids: [2] });
     expect(doc).toEqual({ selected: [1], edits: {} });
   });
 

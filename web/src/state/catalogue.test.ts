@@ -3,13 +3,15 @@ import type { Api } from "../generated/types";
 import { classLabel, filterFromQuery, filterToQuery, kindOf, matches, normalizeTags, toRow } from "./catalogue";
 
 const dataset = (id: number, cls: Api.DataClass, tags: string[]) => ({ id, class: cls, tags }) as Api.Dataset;
-const label = (code: Api.DataClass) => code;
+const t = (key: string) => key;
 
 describe("catalogue", () => {
   it("normalises tags as the server does", () => {
     expect(normalizeTags("travel_time Santé  santé")).toEqual(["travel", "time", "Sante", "sante"]);
     expect(normalizeTags("Straße œuvre")).toEqual(["Strasse", "oeuvre"]);
     expect(normalizeTags(" -- ")).toEqual([]);
+    // Alphabetic symbols and other numerics, as Rust's is_alphanumeric.
+    expect(normalizeTags("ⓐ½ x")).toEqual(["ⓐ½", "x"]);
   });
 
   it("knows class kinds and labels", () => {
@@ -20,7 +22,7 @@ describe("catalogue", () => {
   });
 
   it("filters by type, text and tags", () => {
-    const rows = [dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"])].map((d) => toRow(d, label));
+    const rows = [dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"])].map((d) => toRow(d, t as never));
     const ids = (q: Record<string, string>) => rows.filter((r) => matches(r, filterFromQuery(q))).map((r) => r.id);
     expect(ids({})).toEqual([1, 2]);
     expect(ids({ type: "vector" })).toEqual([2]);

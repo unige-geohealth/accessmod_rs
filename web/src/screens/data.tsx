@@ -11,7 +11,7 @@ import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
 import { T, useI18n } from "@accessmod/ui/i18n";
 import { type Dispatch, useMemo, useReducer, useState } from "react";
-import { api } from "../api/client";
+import { api, issuesOf } from "../api/client";
 import { keys, queryClient, useDatasets } from "../api/queries";
 import { navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
@@ -44,7 +44,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
 
   const list = datasets.data;
   const rows = useMemo(() => {
-    const all = sortRows((list ?? []).map((d) => toRow(d, (c) => classLabel(t, c))));
+    const all = sortRows((list ?? []).map((d) => toRow(d, t)));
     return all.filter((r) => matches(r, filter)).map((r) => ({ ...r, tags: doc.edits[r.id] ?? r.tags }));
     // the filter is a value of the URL query
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,7 +91,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
       right={
         <>
           <CenterTitle title="data_available_title" sub="data_available_sub" />
-          {datasets.isError && <MessageList messages={[{ kind: "issue", text: datasets.error.message }]} />}
+          {datasets.isError && <MessageList messages={issuesOf(datasets.error, t).map((text) => ({ kind: "issue", text }))} />}
           <DataTable
             selectable
             rowId="id"
@@ -201,7 +201,7 @@ function RenamePanel({ project, doc, dispatch, datasets, label }: DocumentProps)
       },
       (c) => api.command("dataset.tag", { project, id: c.id, tags: c.tags }),
     );
-    dispatch({ type: "settled", ids: done.map((c) => c.id) });
+    dispatch({ type: "renamed", changes: done });
     await queryClient.invalidateQueries({ queryKey: keys.datasets(project) });
   };
   return (
@@ -221,7 +221,7 @@ function DeletePanel({ project, doc, dispatch, datasets, label }: DocumentProps)
   const selected = selectedDatasets(doc, datasets);
   const remove = async () => {
     const done = await start(selected, label, (d) => api.command("dataset.remove", { project, id: d.id }));
-    dispatch({ type: "settled", ids: done.map((d) => d.id) });
+    dispatch({ type: "removed", ids: done.map((d) => d.id) });
     await queryClient.invalidateQueries({ queryKey: keys.datasets(project) });
   };
   return (

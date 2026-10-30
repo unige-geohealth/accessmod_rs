@@ -62,7 +62,8 @@ const SPELLED: Record<string, string> = {
 export function normalizeTags(text: string): string[] {
   const ascii = Array.from(text.normalize("NFD").replace(/\p{M}/gu, ""), (c) => SPELLED[c] ?? c).join("");
   const out: string[] = [];
-  for (const word of ascii.split(/[^\p{L}\p{N}]+/u)) {
+  // Rust's `char::is_alphanumeric`: Unicode Alphabetic or Numeric.
+  for (const word of ascii.split(/[^\p{Alphabetic}\p{N}]+/u)) {
     if (word !== "" && !out.includes(word)) out.push(word);
   }
   return out;
@@ -92,21 +93,27 @@ export function filterToQuery(filter: DataFilter): Record<string, string> {
   return { type: filter.type === "all" ? "" : filter.type, text: filter.text, tags: filter.tags };
 }
 
+/** AM5 names of the kinds (Data › Filter). */
+export const KIND_KEYS: Record<Kind, Key> = { vector: "data_vector", raster: "data_raster", table: "data_table", config: "data_config" };
+
 /** A row of the "Available data" table (AM5: Tags, Type, Class). */
 export interface DataRow {
   [field: string]: string | number;
   id: number;
   tags: string;
-  type: Kind;
+  kind: Kind;
+  /** The kind, translated. */
+  type: string;
   class: string;
 }
 
-export function toRow(dataset: Api.Dataset, label: (code: Api.DataClass) => string): DataRow {
-  return { id: dataset.id, tags: dataset.tags.join(" "), type: kindOf(dataset.class), class: label(dataset.class) };
+export function toRow(dataset: Api.Dataset, t: (key: Key) => string): DataRow {
+  const kind = kindOf(dataset.class);
+  return { id: dataset.id, tags: dataset.tags.join(" "), kind, type: t(KIND_KEYS[kind]), class: classLabel(t, dataset.class) };
 }
 
 export function matches(row: DataRow, filter: DataFilter): boolean {
-  if (filter.type !== "all" && row.type !== filter.type) return false;
+  if (filter.type !== "all" && row.kind !== filter.type) return false;
   if (filter.text !== "" && ![row.tags, row.type, row.class].some((f) => f.includes(filter.text))) return false;
   const wanted = normalizeTags(filter.tags);
   if (wanted.length > 0) {

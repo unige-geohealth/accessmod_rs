@@ -1,4 +1,5 @@
 // The HTTP API of `accessmod serve`, typed with the generated types.
+import type { Key } from "@accessmod/ui/i18n";
 import type { Api } from "../generated/types";
 
 /** An error document of the API: what failed and every issue found. */
@@ -12,8 +13,15 @@ export class ApiError extends Error {
   }
 }
 
-/** The issues of any error, for display. */
-export function issuesOf(error: unknown): string[] {
+/** Errors the client makes itself, by kind: their text is translated. */
+const OWN: Record<string, Key> = { network: "upload.connection_lost", cancelled: "upload.cancelled" };
+
+/** The issues of any error, for display; server issues are shown as sent. */
+export function issuesOf(error: unknown, t: (key: Key) => string): string[] {
+  if (error instanceof ApiError && error.status === 0) {
+    const key = OWN[error.kind];
+    if (key) return [t(key)];
+  }
   if (error instanceof ApiError) return error.issues;
   if (error instanceof Error) return [error.message];
   return [String(error)];
@@ -92,8 +100,8 @@ export const api = {
         if (xhr.status >= 200 && xhr.status < 300) resolve(value as Api.Upload);
         else reject(apiError(xhr.status, xhr.statusText, value));
       };
-      xhr.onerror = () => reject(new ApiError(0, "network", ["the upload failed: connection lost"]));
-      xhr.onabort = () => reject(new ApiError(0, "cancelled", ["the upload was cancelled"]));
+      xhr.onerror = () => reject(new ApiError(0, "network", []));
+      xhr.onabort = () => reject(new ApiError(0, "cancelled", []));
       signal?.addEventListener("abort", () => xhr.abort());
       xhr.send(form);
     }),

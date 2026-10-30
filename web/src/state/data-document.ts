@@ -15,8 +15,10 @@ export type DataMessage =
   | { type: "select"; ids: number[] }
   | { type: "editTags"; id: number; text: string }
   | { type: "discardEdits" }
-  /** These datasets were renamed or removed on the server. */
-  | { type: "settled"; ids: number[] };
+  /** These datasets were removed on the server. */
+  | { type: "removed"; ids: number[] }
+  /** These edits were committed; an edit typed since then stays. */
+  | { type: "renamed"; changes: TagChange[] };
 
 export const EMPTY: DataDocument = { selected: [], edits: {} };
 
@@ -30,11 +32,16 @@ export function updateData(doc: DataDocument, message: DataMessage): DataDocumen
       return doc.edits[message.id] === message.text ? doc : { ...doc, edits: { ...doc.edits, [message.id]: message.text } };
     case "discardEdits":
       return Object.keys(doc.edits).length === 0 ? doc : { ...doc, edits: {} };
-    case "settled": {
+    case "removed": {
       const gone = new Set(message.ids);
       const edits = Object.fromEntries(Object.entries(doc.edits).filter(([id]) => !gone.has(Number(id))));
       const selected = doc.selected.filter((id) => !gone.has(id));
       return { selected: same(selected, doc.selected) ? doc.selected : selected, edits };
+    }
+    case "renamed": {
+      const committed = new Map(message.changes.map((c) => [c.id, c.text]));
+      const edits = Object.fromEntries(Object.entries(doc.edits).filter(([id, text]) => committed.get(Number(id)) !== text));
+      return { ...doc, edits };
     }
   }
 }
@@ -42,6 +49,8 @@ export function updateData(doc: DataDocument, message: DataMessage): DataDocumen
 /** A tag change to commit with `dataset.tag`. */
 export interface TagChange {
   id: number;
+  /** The edit as typed, to tell it from a later one. */
+  text: string;
   tags: string[];
 }
 
@@ -52,7 +61,7 @@ export function tagChanges(doc: DataDocument, datasets: readonly Api.Dataset[]):
     const text = doc.edits[d.id];
     if (text === undefined) continue;
     const tags = normalizeTags(text);
-    if (tags.join(" ") !== d.tags.join(" ")) out.push({ id: d.id, tags });
+    if (tags.join(" ") !== d.tags.join(" ")) out.push({ id: d.id, text, tags });
   }
   return out;
 }
