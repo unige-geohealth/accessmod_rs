@@ -18,6 +18,8 @@ export const sections: NavItem[] = [
 
 type AppShellProps = {
   logo: ReactNode;
+  /** Product name above the current project (AM5: "AccessMod 5"). */
+  product?: string;
   project: string;
   version: string;
   active: string;
@@ -31,7 +33,7 @@ type AppShellProps = {
  * AM5 layout: black sidebar (230px) with the WHO logo on top of it, a white
  * header bar with the menu toggle, and the content area (padding 20px).
  */
-export function AppShell({ logo, project, version, active, onNavigate, headerExtra, children }: AppShellProps) {
+export function AppShell({ logo, product = "AccessMod 5", project, version, active, onNavigate, headerExtra, children }: AppShellProps) {
   const [open, setOpen] = useState(true);
   const { t } = useI18n();
   const MenuIcon = icons.menu;
@@ -63,7 +65,7 @@ export function AppShell({ logo, project, version, active, onNavigate, headerExt
       </header>
 
       <aside className="row-start-2 overflow-hidden bg-sidebar text-sidebar-foreground">
-        <Sidebar project={project} version={version} active={active} onNavigate={onNavigate} />
+        <Sidebar product={product} project={project} version={version} active={active} onNavigate={onNavigate} />
       </aside>
 
       <main className="col-start-2 row-start-2 min-w-0 p-[var(--content-padding)]">{children}</main>
@@ -71,12 +73,12 @@ export function AppShell({ logo, project, version, active, onNavigate, headerExt
   );
 }
 
-function Sidebar({ project, version, active, onNavigate }: Omit<AppShellProps, "logo" | "children" | "headerExtra">) {
+function Sidebar({ product, project, version, active, onNavigate }: Omit<AppShellProps, "logo" | "children" | "headerExtra">) {
   return (
     <div className="w-[var(--sidebar-width)]">
       <hr className="my-5 border-sidebar-border" />
       <div className="px-1 text-center">
-        <h4 className="mt-2.5 mb-2.5 text-lg">AccessMod 5</h4>
+        <h4 className="mt-2.5 mb-2.5 text-lg">{product}</h4>
         <span className="font-semibold">
           <T k="main_ui_current_project" />
         </span>

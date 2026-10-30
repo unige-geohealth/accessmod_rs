@@ -1,5 +1,9 @@
 # accessmod-rs — general plan
 
+The product is **AccessMod 6** (from 6.0.0-alpha.1, 2026-10-30); the
+repository, crates and binary keep the names `accessmod-rs` and
+`accessmod`.
+
 Revision 2026-10-23: the graphical interface and the project layer come
 next; MCP is deferred. First revision 2026-10-09, derived from
 `accessmod_app/plans/rs-refactor.md` after review.

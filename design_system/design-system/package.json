@@ -1,7 +1,7 @@
 {
   "name": "@accessmod/ui",
   "private": true,
-  "version": "0.1.0",
+  "version": "6.0.0-alpha.1",
   "type": "module",
   "description": "AccessMod design system: AM5-faithful tokens and components (shadcn/ui, Tailwind v4), light and dark",
   "license": "LGPL-3.0-or-later",

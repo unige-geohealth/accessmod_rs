@@ -1,6 +1,6 @@
-# accessmod-rs
+# AccessMod 6 (accessmod-rs)
 
-Portable rewrite of [AccessMod](https://github.com/unige-geohealth/accessmod):
+AccessMod 6, a portable rewrite of [AccessMod](https://github.com/unige-geohealth/accessmod):
 physical accessibility to health services (travel time, nearest facility,
 coverage, catchments) as a standalone engine, without GRASS GIS, R or Docker.
 
@@ -9,9 +9,13 @@ replace the AccessMod 5 stack (R/Shiny + GRASS + Docker). Until it reaches
 feature parity, AccessMod 5 is used **only as a numerical oracle**: its fixtures
 and outputs validate this engine; its code is not copied.
 
-> Status: pre-alpha. Travel time and referral work end to end from the
-> command line and match AccessMod 5 on its demo project; other analyses are
-> not ported yet ([coverage](docs/coverage.md)). Contracts may still change.
+> Status: alpha (6.0.0-alpha.1). Every AccessMod 5 analysis runs from the
+> command line and matches AccessMod 5 on its demo project, except the
+> referral network output ([coverage](docs/coverage.md)); the web interface
+> runs them all. Not yet there: Toolbox screens (merge land cover, adjust
+> population), interactive map, logs, `.am5p` import, self-contained
+> builds. Contracts may still change. Versions are independent from
+> AccessMod 5.
 
 ## Quick start
 

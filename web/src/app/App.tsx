@@ -23,6 +23,7 @@ export function App() {
   const project = useProject(route.project);
   return (
     <AppShell
+      product="AccessMod 6"
       logo={<img src={who} alt={t("app.who_logo")} className="max-h-10 w-full px-[15px]" />}
       project={project.data?.name ?? route.project ?? "—"}
       version={health.data ? `${t("menu_version_current")} ${health.data.version}` : ""}
