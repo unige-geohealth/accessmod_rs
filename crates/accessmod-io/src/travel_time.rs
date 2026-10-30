@@ -1,6 +1,6 @@
 //! Travel-time analysis: validation (`prepare`) and execution (`run`).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -258,12 +258,31 @@ pub(crate) fn landscape_warnings(
     scenario: &[ScenarioEntry],
 ) -> Vec<Warning> {
     let mut warnings = Vec::new();
-    if !summary.unmapped_classes.is_empty() || summary.unmapped_other_cells > 0 {
-        let listed: Vec<String> = summary
-            .unmapped_classes
-            .iter()
+    let zero: BTreeSet<i64> = scenario
+        .iter()
+        .filter(|e| e.speed_kmh == 0.0)
+        .map(|e| e.class)
+        .collect();
+    let (at_zero, unlisted): (Vec<_>, Vec<_>) = summary
+        .unmapped_classes
+        .iter()
+        .partition(|(class, _)| zero.contains(class));
+    let cells = |list: &[(&i64, &u64)]| -> Vec<String> {
+        list.iter()
             .map(|(class, cells)| format!("{class} ({cells} cells)"))
-            .collect();
+            .collect()
+    };
+    if !at_zero.is_empty() {
+        warnings.push(Warning {
+            code: "scenario_speed_zero",
+            message: format!(
+                "land-cover classes at 0 km/h are barriers: {}",
+                cells(&at_zero).join(", ")
+            ),
+        });
+    }
+    if !unlisted.is_empty() || summary.unmapped_other_cells > 0 {
+        let listed = cells(&unlisted);
         let mut message = format!(
             "land-cover classes without scenario are barriers: {}",
             listed.join(", ")
@@ -280,7 +299,11 @@ pub(crate) fn landscape_warnings(
         });
     }
     for entry in scenario {
-        if !summary.class_cells.contains_key(&entry.class) {
+        // A class at 0 km/h has no slot: its cells are counted as unmapped.
+        let present = summary.class_cells.contains_key(&entry.class)
+            || summary.unmapped_classes.contains_key(&entry.class)
+            || (zero.contains(&entry.class) && summary.unmapped_other_cells > 0);
+        if !present {
             warnings.push(Warning {
                 code: "scenario_class_absent",
                 message: format!(

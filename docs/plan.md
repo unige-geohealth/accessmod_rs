@@ -113,7 +113,9 @@ Versioned JSON document:
   applied while reading, not as SQL (OGR SQL fails on an `IN` list of
   thousands of values). Every job with a facility layer (`origins`,
   `destinations`, `catchments`) accepts it;
-- scenario: class → `walking` | `bicycling` | `motorized` + speed > 0 km/h;
+- scenario: class → `walking` | `bicycling` | `motorized` + speed ≥ 0 km/h;
+  a class at 0 km/h is a barrier, like a class left out, but stays in the
+  job (as in an AccessMod 5 scenario table) and gets its own warning;
 - method `isotropic` | `anisotropic`;
 - direction `from_facilities` | `towards_facilities`;
 - neighbourhood `8` | `16`;

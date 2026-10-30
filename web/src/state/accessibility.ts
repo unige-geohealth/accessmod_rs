@@ -136,7 +136,7 @@ export function buildJob(draft: AccessibilityDraft, context: Context): Built {
   if (facilities === undefined) issues.push("srv_analysis_accessibility_missing_facility_layer");
   if (facilities !== undefined && draft.idField === "") issues.push("analysis.id_field_missing");
   const scenario = toScenario(context.scenario);
-  if (landCover !== undefined && scenario.length === 0) issues.push("analysis.scenario_no_speed");
+  if (landCover !== undefined && !scenario.some((e) => e.speed_kmh > 0)) issues.push("analysis.scenario_no_speed");
   if (draft.selection.mode === "ids" && draft.selection.ids.length === 0) issues.push("srv_analysis_accessibility_select_facilities");
   const limit = limitSeconds(draft.minutes);
   if (limit === undefined) issues.push("srv_analysis_accessibility_max_travel_time_input");
@@ -153,9 +153,12 @@ export function buildJob(draft: AccessibilityDraft, context: Context): Built {
       facilities: toFacilitySource(facilities, draft.idField, draft.selection),
       scenario,
       method: draft.method,
+      mobility_model: "accessmod5-v1",
       direction: draft.direction,
       neighbourhood: draft.knight ? 16 : 8,
       ...(limit === null ? {} : { limit_s: limit }),
+      facility_issues: "error",
+      outputs: { direction: false },
     },
     issues,
     tags,

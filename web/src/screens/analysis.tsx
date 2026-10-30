@@ -32,6 +32,7 @@ import { checkedOnPage, checkPage, count, type FacilitySelection } from "../stat
 import { busy, minutes, percent, runView, type RunView } from "../state/run";
 import {
   editRow,
+  hasZero,
   initialRows,
   labelsOf,
   landCoverClasses,
@@ -212,7 +213,11 @@ function Accessibility({ project }: { project: string }) {
             <TextField label="analysis_settings_add_tag" value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
 
-          <ValidationCard project={project} analysis={ANALYSIS} issues={built.issues} document={built.document} tags={built.tags} datasets={byId} />
+          <ValidationCard
+            project={project}
+            analysis={ANALYSIS}
+            issues={built.issues}
+            notices={hasZero(scenario) ? ["srv_analysis_accessibility_tbl_speed_has_zero"] : []} document={built.document} tags={built.tags} datasets={byId} />
         </>
       }
       right={
@@ -455,6 +460,7 @@ function ValidationCard({
   project,
   analysis,
   issues,
+  notices,
   document,
   tags,
   datasets,
@@ -462,6 +468,8 @@ function ValidationCard({
   project: string;
   analysis: string;
   issues: Parameters<typeof T>[0]["k"][];
+  /** AM5 information messages (not blocking). */
+  notices: Parameters<typeof T>[0]["k"][];
   /** Complete job document; `null` while incomplete. */
   document: Record<string, unknown> | null;
   tags: string[];
@@ -479,6 +487,7 @@ function ValidationCard({
 
   const messages: Message[] = [
     ...issues.map((k) => ({ kind: "issue" as const, k })),
+    ...notices.map((k) => ({ kind: "info" as const, k })),
     ...(validation.isError ? issuesOf(validation.error, t).map((text) => ({ kind: "issue" as const, text })) : []),
     ...((validation.data?.warnings as { message: string }[] | undefined) ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
     ...failure.map((text) => ({ kind: "issue" as const, text })),

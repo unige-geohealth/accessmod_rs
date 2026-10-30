@@ -108,7 +108,8 @@ pub struct ScenarioEntry {
     pub class: i64,
     /// Transport mode.
     pub mode: TransportMode,
-    /// Flat-ground speed, km/h, > 0 (≤ 100 for bicycling).
+    /// Flat-ground speed, km/h, ≥ 0 (≤ 100 for bicycling); 0 makes the
+    /// class a barrier, as AccessMod 5 scenarios do.
     pub speed_kmh: f64,
     /// Optional human label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -267,8 +268,10 @@ pub fn check_common(
     limit_s: Option<f64>,
 ) -> Vec<String> {
     let mut issues: Vec<String> = check_schema_version(schema_version).into_iter().collect();
-    if scenario.is_empty() {
-        issues.push("scenario is empty: every cell would be a barrier".into());
+    if !scenario.iter().any(|e| e.speed_kmh > 0.0) {
+        issues.push(
+            "scenario has no class with a speed above 0: every cell would be a barrier".into(),
+        );
     }
     let repeats: BTreeMap<usize, usize> = repeated(scenario.iter().map(|e| e.class))
         .into_iter()
@@ -283,10 +286,9 @@ pub fn check_common(
                 i + 1
             ));
         }
-        if CellMobility::new(entry.mode, entry.speed_kmh).is_none() {
+        if entry.speed_kmh != 0.0 && CellMobility::new(entry.mode, entry.speed_kmh).is_none() {
             issues.push(format!(
-                "scenario class {}: speed_kmh must be finite and > 0, got {} \
-                 (leave a class out of the scenario to make it a barrier)",
+                "scenario class {}: speed_kmh must be finite and >= 0 (0: a barrier), got {}",
                 entry.class, entry.speed_kmh
             ));
         }
@@ -315,6 +317,7 @@ pub fn check_common(
 
 /// Scenario as solver slots: class value → slot, and slot → mobility
 /// (first entry wins for a duplicated class; [`check_common`] reports it).
+/// Classes at 0 km/h get no slot: they are barriers, as classes left out.
 pub fn scenario_table(scenario: &[ScenarioEntry]) -> (BTreeMap<i64, u16>, Vec<CellMobility>) {
     let mut slots = BTreeMap::new();
     let mut table = Vec::with_capacity(scenario.len());
@@ -385,12 +388,36 @@ mod tests {
         job.scenario.push(ScenarioEntry {
             class: 3,
             mode: TransportMode::Walking,
-            speed_kmh: 0.0,
+            speed_kmh: -1.0,
             label: None,
         });
         job.limit_s = Some(-1.0);
         let issues = job.check();
         assert_eq!(issues.len(), 5, "{issues:#?}");
+    }
+
+    #[test]
+    fn classes_at_zero_are_barriers_but_one_class_must_move() {
+        let mut job = TravelTimeJob::from_json(MINIMAL).expect("valid job");
+        job.scenario.push(ScenarioEntry {
+            class: 3,
+            mode: TransportMode::Walking,
+            speed_kmh: 0.0,
+            label: Some("marsh, rainy season".into()),
+        });
+        assert_eq!(job.check(), Vec::<String>::new());
+        let (slots, table) = job.scenario_table();
+        assert_eq!((slots.contains_key(&3), table.len()), (false, 2));
+        for entry in &mut job.scenario {
+            entry.speed_kmh = 0.0;
+        }
+        let issues = job.check();
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.contains("no class with a speed above 0")),
+            "{issues:#?}"
+        );
     }
 
     #[test]

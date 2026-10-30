@@ -254,6 +254,59 @@ fn facility_problems_fail_or_warn() {
 }
 
 #[test]
+fn a_class_at_zero_is_a_barrier_like_a_class_left_out() {
+    let fixture = Fixture::new(5, 3, &[(1, 0)]);
+    let settings = settings(256 << 20, 1);
+    // Class 2 covers a column; its cells are not in the scenario.
+    let mut classes = vec![1u8; 15];
+    for row in 0..3 {
+        classes[row * 5 + 2] = 2;
+    }
+    std::fs::remove_file(fixture.path().join("lc.tif")).expect("remove");
+    write_raster::<u8>(
+        &fixture.path().join("lc.tif"),
+        5,
+        3,
+        geo_transform(X0, Y0),
+        classes,
+        Some(0.0),
+    );
+    let mut left_out = fixture.job.clone();
+    left_out.output_dir = fixture.path().join("left_out");
+    let mut at_zero = fixture.job.clone();
+    at_zero.output_dir = fixture.path().join("at_zero");
+    at_zero.scenario.push(ScenarioEntry {
+        class: 2,
+        mode: TransportMode::Walking,
+        speed_kmh: 0.0,
+        label: None,
+    });
+    let a = run_job::<TravelTime>(left_out.clone(), &settings).expect("left out");
+    let b = run_job::<TravelTime>(at_zero.clone(), &settings).expect("at zero");
+    assert_eq!(
+        std::fs::read(a.join(TRAVEL_TIME_FILE)).expect("read"),
+        std::fs::read(b.join(TRAVEL_TIME_FILE)).expect("read")
+    );
+    let codes = |mut job: TravelTimeJob| -> Vec<&'static str> {
+        job.output_dir = fixture.path().join("checked");
+        prepare(job, &settings, Monitor::QUIET)
+            .expect("prepare")
+            .warnings
+            .iter()
+            .map(|w| w.code)
+            .collect()
+    };
+    let (left_out, at_zero) = (codes(left_out), codes(at_zero));
+    assert!(
+        left_out.contains(&"classes_without_scenario")
+            && !left_out.contains(&"scenario_speed_zero")
+    );
+    assert!(
+        at_zero.contains(&"scenario_speed_zero") && !at_zero.contains(&"classes_without_scenario")
+    );
+}
+
+#[test]
 fn ids_select_facilities_like_an_equivalent_filter() {
     // Facilities 100, 101, 102; select 100 and 102.
     let fixture = Fixture::new(5, 3, &[(1, 0), (0, 2), (2, 4)]);

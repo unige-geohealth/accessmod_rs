@@ -121,6 +121,9 @@ export function tableNotices(current: readonly ScenarioRow[], rows: Api.Rows | u
   return { unknownMode, unmatched };
 }
 
+/** Whether a class is set to 0 km/h (AM5 `srv_analysis_accessibility_tbl_speed_has_zero`). */
+export const hasZero = (rows: readonly ScenarioRow[]) => rows.some((r) => r.speed === 0);
+
 /** Edit of one cell; values come from the table as typed. */
 export function editRow(rows: readonly ScenarioRow[], cls: number, field: "speed" | "mode", value: unknown): ScenarioRow[] {
   return rows.map((row) => {
@@ -134,9 +137,7 @@ export function editRow(rows: readonly ScenarioRow[], cls: number, field: "speed
   });
 }
 
-/** Job scenario: classes with a speed; the others are barriers. */
+/** Job scenario: every class, 0 km/h ones as barriers, as AM5 keeps them (a replay shows every choice). */
 export function toScenario(rows: readonly ScenarioRow[]): Jobs.ScenarioEntry[] {
-  return rows
-    .filter((r) => r.speed > 0)
-    .map((r) => ({ class: r.class, label: r.label, speed_kmh: r.speed, mode: r.mode.toLowerCase() as Jobs.TransportMode }));
+  return rows.map((r) => ({ class: r.class, label: r.label, speed_kmh: r.speed, mode: r.mode.toLowerCase() as Jobs.TransportMode }));
 }

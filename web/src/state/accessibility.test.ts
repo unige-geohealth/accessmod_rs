@@ -43,11 +43,17 @@ describe("accessibility draft", () => {
       dem: "datasets/1.x",
       land_cover: "datasets/2.x",
       facilities: { path: "datasets/3.x", id_field: "cat" },
-      scenario: [{ class: 1, label: "no_label_1", speed_kmh: 5, mode: "walking" }],
+      scenario: [
+        { class: 1, label: "no_label_1", speed_kmh: 5, mode: "walking" },
+        { class: 2, label: "no_label_2", speed_kmh: 0, mode: "walking" },
+      ],
       method: "anisotropic",
+      mobility_model: "accessmod5-v1",
       direction: "towards_facilities",
       neighbourhood: 16,
       limit_s: 7200,
+      facility_issues: "error",
+      outputs: { direction: false },
     });
   });
 

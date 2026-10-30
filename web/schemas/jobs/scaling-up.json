@@ -449,7 +449,7 @@
           "description": "Transport mode."
         },
         "speed_kmh": {
-          "description": "Flat-ground speed, km/h, > 0 (≤ 100 for bicycling).",
+          "description": "Flat-ground speed, km/h, ≥ 0 (≤ 100 for bicycling); 0 makes the\nclass a barrier, as AccessMod 5 scenarios do.",
           "format": "double",
           "type": "number"
         }

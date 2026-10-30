@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { editRow, initialRows, labelsOf, landCoverClasses, mergeTable, tableNotices, tableRows, toScenario } from "./scenario";
+import { editRow, hasZero, initialRows, labelsOf, landCoverClasses, mergeTable, tableNotices, tableRows, toScenario } from "./scenario";
 
 const rows = (columns: string[], data: unknown[][]): Api.Rows => ({ columns, rows: data, offset: 0, total: data.length });
 
@@ -62,12 +62,17 @@ describe("scenario", () => {
     expect(editRow(current, 1, "mode", "boat")).toEqual(current);
   });
 
-  it("leaves classes without speed out of the job", () => {
+  it("keeps classes at 0 km/h in the job, as barriers", () => {
     const current = [
       { class: 1, label: "forest", speed: 4, mode: "WALKING" as const },
       { class: 2, label: "lake", speed: 0, mode: "WALKING" as const },
     ];
     const scenario = toScenario(current);
-    expect(scenario).toEqual([{ class: 1, label: "forest", speed_kmh: 4, mode: "walking" }]);
+    expect(scenario).toEqual([
+      { class: 1, label: "forest", speed_kmh: 4, mode: "walking" },
+      { class: 2, label: "lake", speed_kmh: 0, mode: "walking" },
+    ]);
+    expect(hasZero(current)).toBe(true);
+    expect(hasZero([current[0]!])).toBe(false);
   });
 });
