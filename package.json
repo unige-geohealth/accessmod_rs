@@ -9,5 +9,17 @@
   "workspaces": [
     "design_system/design-system",
     "web"
-  ]
+  ],
+  "scripts": {
+    "dev": "sh scripts/dev.sh",
+    "dev:web": "npm -w @accessmod/web run dev",
+    "dev:ui": "npm -w @accessmod/ui run dev",
+    "typecheck": "npm -w @accessmod/ui run typecheck && npm -w @accessmod/web run typecheck",
+    "test": "npm -w @accessmod/web test",
+    "contrast": "npm -w @accessmod/ui run contrast",
+    "visual": "npm -w @accessmod/ui run visual",
+    "build": "npm -w @accessmod/ui run build && npm -w @accessmod/web run build",
+    "e2e": "npm -w @accessmod/web run e2e",
+    "check": "npm run typecheck && npm run contrast && npm test && npm run build"
+  }
 }

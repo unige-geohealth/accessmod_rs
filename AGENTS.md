@@ -121,6 +121,8 @@ cargo xtask i18n [--check]                  # design_system catalogue from the A
 cargo xtask layers                          # crate dependency rules (core: no GDAL, …)
 cargo run -p accessmod-cli -- serve         # API, http://127.0.0.1:5099 (--web-dir: a built client)
 npm ci                                      # root npm workspace: @accessmod/ui and @accessmod/web
+npm run dev                                 # scripts/dev.sh: serve (debug) + client; args go to serve
+npm run check                               # front-end gate: typecheck, contrast, test, build (both packages)
 npm -w @accessmod/ui run dev                # gallery, http://localhost:5180
 npm -w @accessmod/ui run typecheck
 npm -w @accessmod/ui run contrast           # WCAG AA, both themes

@@ -28,16 +28,32 @@ and figures on a small synthetic landscape (travel time, then referral).
 ### Web interface (in progress)
 
 The API runs with `accessmod serve` (http://127.0.0.1:5099; projects in
-`~/AccessMod`, `--data` or `ACCESSMOD_DATA` to change). The client is being
-rebuilt on the design system in [`design_system/`](design_system/README.md):
-AccessMod 5 look and layout, light and dark, en/fr/es/pt. Its gallery:
+`~/AccessMod`, `--data` or `ACCESSMOD_DATA` to change). The client in
+[`web/`](web/) is built on the design system in
+[`design_system/`](design_system/README.md): AccessMod 5 look and layout,
+light and dark, en/fr/es/pt.
+
+## Development
+
+The Rust workspace needs only the Rust toolchain (and GDAL, PROJ); the front
+end needs Node 24 and npm. Shortcuts from the repository root:
 
 ```sh
-npm --prefix design_system/design-system ci   # needs Node 24
-npm --prefix design_system/design-system run dev   # http://localhost:5180
+sh scripts/check.sh   # Rust gate: fmt, clippy, tests, layers, LUT, schemas, i18n
+npm ci                # front-end dependencies (design system and client)
+npm run dev           # API (debug build, port 5099) + client, http://localhost:5173
+npm run dev -- --data _shared/dev-data   # arguments go to `accessmod serve`
+npm run dev:ui        # design system gallery, http://localhost:5180
+npm test              # client unit tests (Vitest)
+npm run check         # front-end gate: typecheck, contrast, tests, builds
+npm run e2e           # Playwright on the tutorial data (after `npm run build`)
 ```
 
-Design: [`docs/ui.md`](docs/ui.md).
+`npm run dev` restarts nothing: client changes reload live, Rust changes
+need a new `npm run dev`. `ACCESSMOD_DEV_PORT` moves the API off 5099.
+Debug the server with any LLDB front end on `target/debug/accessmod serve`,
+the client in the browser's devtools (source maps on). Every command:
+[`AGENTS.md`](AGENTS.md). Design: [`docs/ui.md`](docs/ui.md).
 
 ## AccessMod 5 vs accessmod-rs
 
