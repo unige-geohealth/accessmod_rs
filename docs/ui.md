@@ -1,7 +1,10 @@
 # Graphical interface
 
 Status: decision, 2026-10-23. Implements `plan.md`, milestone 3. Replaces
-the 2026-10-16 draft, which kept the interface after MCP.
+the 2026-10-16 draft, which kept the interface after MCP. Revised
+2026-10-30: the first web client (slice 4) is removed; the client is
+rebuilt on the design system in `design_system/` (see "Client"). The
+server, project layer and contracts are kept.
 
 ## Goal
 
@@ -195,12 +198,27 @@ Metadata in SQLite, data in files:
   `travel_time` is two tags; with its class, a tag set names one dataset.
 - `.am5p` import: a separate converter, after the first testable slice.
 
-### Client: `web/`
+### Client
 
+- Built on `design_system/` (rules in `design_system/docs/DESIGN.md`):
+  - **look**: tokens measured from AccessMod 5 (light) plus a dark theme;
+    Tailwind v4 and shadcn/ui (Radix); Source Sans; Lucide icons mapped
+    from the AM5 Font Awesome set;
+  - **patterns**: `design_system/design-system/src/components/am` (app shell,
+    section tabs, accordions, cards, fields, Tabulator table with selection
+    and export bars, merge stack, MapLibre map with facility edit controls);
+    screens compose these, not raw primitives;
+  - **references**: every AM5 screen as captured from 5.9.2-beta.6
+    (`design_system/references/`: screenshots in four languages, visible
+    DOM with i18n keys, ARIA tree, measured styles; index in
+    `inventory.md`). A screen is built from its reference and compared
+    with it in the gallery overlay.
 - TypeScript (`strict`), Vite, React 19, MapLibre GL, Tabulator, TanStack
-  Query.
-- Node LTS pinned (`web/.nvmrc`, `engines`), npm with a committed lockfile,
-  Biome (lint and format), Vitest, Playwright.
+  Query. Types from `web/schemas` (`cargo xtask schemas`).
+- Node LTS pinned (`design_system/design-system/.nvmrc`, `engines`), npm
+  with committed lockfiles, Vitest, Playwright.
+- Where the client lives (its own package next to `design_system`, or the
+  design system as its library) is decided with slice 4.
 
 ## State
 
@@ -331,7 +349,10 @@ One binary and one data directory on a small server, run as a service
   travel time and population. Tiles are cached under `cache/`.
 - Vectors as vector tiles (MVT) built from the spatial index; GeoJSON only
   for small layers.
-- No basemap by default (offline use); an online basemap is a setting.
+- Offline schematic basemap by default: one PMTiles archive of country
+  polygons served with the client
+  (`design_system/design-system/scripts/build-basemap.sh`), drawn from the
+  theme tokens, no labels or network. An online basemap is a setting.
 - A click shows the values at that point.
 
 ## Testing
@@ -340,8 +361,10 @@ One binary and one data directory on a small server, run as a service
   query, roles, the event sequence of a run, cancellation, interrupted
   runs, outputs equal to the CLI's; adversarial parameters for every
   command.
-- **TypeScript**: `tsc --noEmit`, Biome, Vitest on update functions,
-  selectors and state machines (no DOM needed, since they are pure).
+- **TypeScript**: `tsc --noEmit`, Vitest on update functions, selectors and
+  state machines (no DOM needed, since they are pure).
+- **Look**: the design system's contrast check (WCAG AA, both themes) and
+  its visual report (AM5 reference | light | dark per screen).
 - **End to end**: Playwright on the demo project: open a project, import a
   dataset, run an analysis, see the result and its report; one scenario per
   analysis screen. Screenshots are checked by eye for interface changes.
@@ -352,9 +375,12 @@ One binary and one data directory on a small server, run as a service
 
 ## Languages
 
-- `main.json` and `classes.json` are converted by an xtask into an i18n
-  catalogue served to the client.
-- Keys and vocabulary follow the AccessMod 5 dictionary.
+- `cargo xtask i18n` builds `design_system/design-system/src/i18n/catalog.json`
+  (en, fr, es, pt) from the AccessMod 5 `main.json` and `classes.json`,
+  under their AM5 ids unchanged (the `data-amt_id` of the references), plus
+  `own.json` for texts AM5 lacks (dotted keys). The gate runs `--check`.
+- Keys are a typed union in TypeScript: an unknown key does not compile.
+  No hard-coded text.
 
 ## Screens and jobs
 
@@ -386,19 +412,22 @@ Each slice passes every check and is usable on its own.
 3. **Server** (done 2026-10-23): `accessmod-server`, `serve`, command
    registry with the implicit local user, generic API, runner, events,
    tiles; API tests.
-4. **Web shell, first testable slice** (done 2026-10-23; the four languages
-   and the generated parity checklist are still to do): AccessMod 5
-   navigation, project open and new, catalogue with import and map
-   preview, a form generated from the JSON Schema for every analysis and
-   tool, runs with progress and cancellation, run history. Playwright on
-   the tutorial data.
-   From the web review (2026-10-23), still open: drafts typed with the
-   generated job types (one union per analysis); instant schema checks
-   (Ajv) with errors on their controls and Run disabled while invalid;
-   attribute fields fed by another dataset field (`capacity_field` from
-   `facilities`), declared in the schema; drafts saved automatically
-   (debounced, from the message handler); component tests rendering all
-   eight job forms; texts of summaries translated.
+4. **Client on the design system** (restarted 2026-10-30). The first web
+   client (2026-10-23, generated forms) was removed: it was planned
+   without a visual reference and did not look or flow like AccessMod 5.
+   It stays in history (branch `claude/web`). Design system done
+   2026-10-30 (`design_system/`). Next: AccessMod 5 navigation, project
+   open and new, catalogue with import and map preview, the analysis and
+   toolbox screens built from their references with the AM5 layout (not
+   generated forms), runs with progress and cancellation, run history;
+   Playwright on the tutorial data.
+   Carried over from the first client's review (2026-10-23): drafts typed
+   with the generated job types (one union per analysis); instant schema
+   checks (Ajv) with errors on their controls and Run disabled while
+   invalid; attribute fields fed by another dataset field
+   (`capacity_field` from `facilities`), declared in the schema; drafts
+   saved automatically (debounced, from the message handler); texts of
+   summaries translated.
 5. **Country server**: accounts, roles, admission control, quotas,
    resumable uploads; national fixture and time budgets. From the server
    review (2026-10-23), still open:
@@ -416,9 +445,11 @@ Each slice passes every check and is usable on its own.
      `resync` and on reconnection);
    - HTTP statuses: 201 and 202 for created and queued resources, 404 for
      tiles outside the world; a missing local file is a client error.
-6. **Bespoke screens**, ordered by user feedback: Accessibility scenario
+6. **Bespoke interactions**, ordered by user feedback: editable scenario
    table, merge land cover stack, facility selection, coverage and zonal
-   results, facility relocation.
+   results, facility relocation. The design system has their look
+   (`DataTable`, `StackList`, `MapFrame` edit controls); this slice wires
+   their behaviour.
 7. **Reach**: four languages, `.am5p` import, self-contained archives with
    GDAL/PROJ (`plan.md`, milestone 4), optional Tauri package.
 

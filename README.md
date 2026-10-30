@@ -25,17 +25,19 @@ cargo build --release -p accessmod-cli     # needs GDAL ≥ 3.5 and PROJ
 The [tutorial](docs/tutorial/README.md) walks through inputs, jobs, outputs
 and figures on a small synthetic landscape (travel time, then referral).
 
-### Web interface (early)
+### Web interface (in progress)
+
+The API runs with `accessmod serve` (http://127.0.0.1:5099; projects in
+`~/AccessMod`, `--data` or `ACCESSMOD_DATA` to change). The client is being
+rebuilt on the design system in [`design_system/`](design_system/README.md):
+AccessMod 5 look and layout, light and dark, en/fr/es/pt. Its gallery:
 
 ```sh
-npm --prefix web ci && npm --prefix web run build   # needs Node 24
-./target/release/accessmod serve --web-dir web/dist # http://127.0.0.1:5099
+npm --prefix design_system/design-system ci   # needs Node 24
+npm --prefix design_system/design-system run dev   # http://localhost:5180
 ```
 
-Create a project from `docs/tutorial/data/dem.tif`, import
-`land_cover.tif` as *land cover merged* and `facilities.gpkg` as *facility*,
-then run *Analysis › Accessibility*. Projects live in `~/AccessMod`
-(`--data` or `ACCESSMOD_DATA` to change). Design: [`docs/ui.md`](docs/ui.md).
+Design: [`docs/ui.md`](docs/ui.md).
 
 ## AccessMod 5 vs accessmod-rs
 
