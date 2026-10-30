@@ -1,9 +1,10 @@
 //! `accessmod serve`: the web interface and its API (`accessmod-server`).
 
+use std::io::{BufRead, Write};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
-use accessmod_server::{AppState, Config};
+use accessmod_server::{AppState, Config, Guard};
 
 use crate::Failure;
 use crate::exec::{ExecArgs, settings};
@@ -35,6 +36,11 @@ pub struct Args {
     /// trusted network only.
     #[arg(long)]
     pub insecure_network: bool,
+    /// Run for a parent application (the desktop window): read a session
+    /// token from the first line of stdin and require it, print
+    /// `{"url": …}` on stdout once listening, and stop when stdin closes.
+    #[arg(long)]
+    pub session_stdin: bool,
     #[command(flatten)]
     pub exec: ExecArgs,
 }
@@ -47,6 +53,26 @@ fn default_data_dir() -> PathBuf {
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map_or_else(|| PathBuf::from("."), PathBuf::from);
     home.join("AccessMod")
+}
+
+/// The first line of stdin; a thread then waits for stdin to close and
+/// ends the process, so the server never outlives its parent.
+fn session_token() -> Result<String, Failure> {
+    let mut line = String::new();
+    let mut stdin = std::io::stdin().lock();
+    let read = stdin.read_line(&mut line);
+    let token = line.trim().to_string();
+    if read.is_err() || token.len() < 16 {
+        eprintln!("error: --session-stdin expects a token of 16 characters or more on stdin");
+        return Err(Failure { code: 2 });
+    }
+    drop(stdin);
+    std::thread::spawn(|| {
+        let _ = std::io::copy(&mut std::io::stdin(), &mut std::io::sink());
+        tracing::info!("stdin closed: the parent application is gone, stopping");
+        std::process::exit(0);
+    });
+    Ok(token)
 }
 
 /// Run `accessmod serve` until Ctrl-C.
@@ -68,6 +94,15 @@ pub fn run(args: Args) -> Result<(), Failure> {
             args.host
         );
     }
+    let token = if args.session_stdin {
+        Some(session_token()?)
+    } else {
+        None
+    };
+    let guard = Guard {
+        loopback_host: args.host.is_loopback(),
+        token,
+    };
     let state = AppState::new(Config {
         data_dir: data_dir.clone(),
         settings,
@@ -84,6 +119,19 @@ pub fn run(args: Args) -> Result<(), Failure> {
         state,
         SocketAddr::new(args.host, args.port),
         args.web_dir.or_else(accessmod_io::install::shipped_web_dir),
+        guard,
+        |bound| {
+            if args.session_stdin {
+                // The parent reads this line to open its window.
+                let mut out = std::io::stdout().lock();
+                let _ = writeln!(
+                    out,
+                    "{}",
+                    serde_json::json!({ "url": format!("http://{bound}") })
+                );
+                let _ = out.flush();
+            }
+        },
     )
     .map_err(|e| {
         eprintln!("error: {e}");

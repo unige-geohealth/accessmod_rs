@@ -1033,3 +1033,47 @@ async fn the_default_project_is_a_setting() {
     let (_, current) = s.call("GET", "/api/settings", None).await;
     assert_eq!(current["default_project"], Value::Null);
 }
+
+#[tokio::test]
+async fn guard_needs_a_loopback_host_and_the_session_cookie() {
+    let s = server(true);
+    let app = accessmod_server::Guard {
+        loopback_host: true,
+        token: Some("0123456789abcdef".into()),
+    }
+    .wrap(s.app.clone());
+    let send = |uri: &str, host: &str, cookie: Option<&str>| {
+        let mut request = Request::builder().uri(uri).header("host", host);
+        if let Some(cookie) = cookie {
+            request = request.header("cookie", cookie);
+        }
+        app.clone()
+            .oneshot(request.body(Body::empty()).expect("request"))
+    };
+    let health = "/api/health";
+    let local = "127.0.0.1:5099";
+    // DNS rebinding: a foreign name resolving to 127.0.0.1.
+    let r = send(health, "evil.example:5099", None)
+        .await
+        .expect("response");
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+    // No session yet, or a wrong token.
+    let r = send(health, local, None).await.expect("response");
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+    let r = send("/api/session/open?token=wrong", local, None)
+        .await
+        .expect("response");
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+    // The window opens the session, then uses its cookie.
+    let r = send("/api/session/open?token=0123456789abcdef", local, None)
+        .await
+        .expect("response");
+    assert_eq!(r.status(), StatusCode::SEE_OTHER);
+    let cookie = r.headers()["set-cookie"].to_str().expect("cookie");
+    assert!(cookie.contains("SameSite=Strict") && cookie.contains("HttpOnly"));
+    let pair = cookie.split(';').next().expect("pair");
+    let r = send(health, "localhost:5099", Some(pair))
+        .await
+        .expect("response");
+    assert_eq!(r.status(), StatusCode::OK);
+}

@@ -24,6 +24,7 @@ pub mod auth;
 pub mod commands;
 pub mod error;
 pub mod events;
+pub mod guard;
 pub mod maps;
 pub mod routes;
 pub mod runner;
@@ -39,6 +40,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::routing::{any, get, post};
 use tower_http::services::{ServeDir, ServeFile};
 
+pub use guard::Guard;
 pub use state::{AppState, Config, DEFAULT_UPLOAD_LIMIT};
 
 /// The API routes, and the front end from `web_dir` when given.
@@ -110,15 +112,20 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
     }
 }
 
-/// Serve on `address` until Ctrl-C.
+/// Serve on `address` behind `guard` until Ctrl-C. `ready` receives the
+/// bound address (port 0 picks a free port).
 pub async fn serve(
     state: AppState,
     address: SocketAddr,
     web_dir: Option<PathBuf>,
+    guard: Guard,
+    ready: impl FnOnce(SocketAddr),
 ) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(address).await?;
-    tracing::info!("accessmod serving on http://{}", listener.local_addr()?);
-    axum::serve(listener, router(state, web_dir))
+    let bound = listener.local_addr()?;
+    tracing::info!("accessmod serving on http://{bound}");
+    ready(bound);
+    axum::serve(listener, guard.wrap(router(state, web_dir)))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })
@@ -130,9 +137,11 @@ pub fn serve_blocking(
     state: AppState,
     address: SocketAddr,
     web_dir: Option<PathBuf>,
+    guard: Guard,
+    ready: impl FnOnce(SocketAddr),
 ) -> std::io::Result<()> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
-        .block_on(serve(state, address, web_dir))
+        .block_on(serve(state, address, web_dir, guard, ready))
 }
