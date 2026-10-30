@@ -1,0 +1,43 @@
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
+
+export async function shot(page: Page, name: string) {
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `test-results/screens/${name}.png`, fullPage: true });
+}
+
+export const sidebar = (page: Page, name: string) => page.locator("aside").getByRole("button", { name, exact: true });
+export const panel = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
+
+/** A design-system SelectField: open it by its label, pick an option. */
+export async function choose(page: Page, label: string, option: string) {
+  await page.getByLabel(label, { exact: true }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
+/** A command of the server registry, through the API. */
+export async function command<T>(request: APIRequestContext, id: string, params: unknown): Promise<T> {
+  const response = await request.post(`/api/commands/${id}`, { data: params });
+  expect(response.ok(), await response.text()).toBe(true);
+  return (await response.json()) as T;
+}
+
+/** Wait until run `id` of `project` is done. */
+export async function finished(request: APIRequestContext, project: string, id: number) {
+  await expect
+    .poll(
+      async () => {
+        const runs = (await (await request.get(`/api/projects/${project}/runs`)).json()) as { id: number; status: string }[];
+        return runs.find((r) => r.id === id)?.status;
+      },
+      { timeout: 120_000 },
+    )
+    .toBe("done");
+}
+
+/** Upload one file and import it as a dataset of `cls`. */
+export async function importFile(request: APIRequestContext, project: string, cls: string, tags: string[], name: string, content: string) {
+  const response = await request.post("/api/uploads", { multipart: { file: { name, mimeType: "text/plain", buffer: Buffer.from(content) } } });
+  expect(response.ok(), await response.text()).toBe(true);
+  const upload = (await response.json()) as { id: string };
+  return command<{ id: number }>(request, "dataset.import", { project, class: cls, tags, source: { upload: { id: upload.id } } });
+}

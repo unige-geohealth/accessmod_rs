@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { choose, panel, shot, sidebar } from "./helpers";
 
 // The tutorial data of the repository (docs/tutorial/data); facilities are
 // also sent as a shapefile, to upload several files at once.
@@ -10,20 +11,6 @@ const work = new URL("../test-results/e2e-data/", import.meta.url).pathname;
 const demo = new URL("../../crates/accessmod-io/demo/", import.meta.url).pathname;
 
 const size = JSON.parse(execFileSync("gdalinfo", ["-json", `${data}dem.tif`], { encoding: "utf8" })).size as [number, number];
-
-async function shot(page: Page, name: string) {
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: `test-results/screens/${name}.png`, fullPage: true });
-}
-
-const sidebar = (page: Page, name: string) => page.locator("aside").getByRole("button", { name, exact: true });
-const panel = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
-
-/** A design-system SelectField: open it by its label, pick an option. */
-async function choose(page: Page, label: string, option: string) {
-  await page.getByLabel(label, { exact: true }).click();
-  await page.getByRole("option", { name: option, exact: true }).click();
-}
 
 test.beforeAll(() => {
   rmSync(work, { recursive: true, force: true });
