@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { Callout, AmButton, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
+import { Callout, AmButton, FilePicker, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
+import { ConfirmDialog } from "#ui/components/am/confirm-dialog";
 import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
 import { DataTable } from "#ui/components/am/data-table";
 import { icons } from "#ui/components/am/icons";
@@ -10,6 +11,7 @@ import { MapFrame } from "#ui/components/am/map-frame";
 import { PageTabs } from "#ui/components/am/page-tabs";
 import { type Stack, StackList } from "#ui/components/am/stack-list";
 import { Progress } from "#ui/components/ui/progress";
+import { T } from "#ui/i18n";
 import { layers, scenarioSelected, stack as stackMock, zonalTable } from "../mock";
 
 const swatches = [
@@ -34,6 +36,7 @@ export function Catalogue() {
   const [check, setCheck] = useState(true);
   const [stack, setStack] = useState<Stack>({ use: stackMock.skip.slice(0, 2), skip: stackMock.skip.slice(2, 5) });
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="max-w-5xl">
@@ -74,6 +77,11 @@ export function Catalogue() {
           <AmButton variant="primary" k="project_import_btn" />
           <AmButton variant="danger" k="analysis_validation_compute_btn" />
           <AmButton variant="danger" disabled k="analysis_validation_compute_btn" />
+          <FilePicker k="project_import_btn" accept=".tif" onFiles={() => {}} />
+          <AmButton variant="danger" k="data_delete_permanently" onClick={() => setConfirming(true)} />
+          <ConfirmDialog open={confirming} onOpenChange={setConfirming} confirm="data_delete_permanently" onConfirm={() => {}}>
+            <T k="data_delete_warning" />
+          </ConfirmDialog>
         </div>
       </Block>
 

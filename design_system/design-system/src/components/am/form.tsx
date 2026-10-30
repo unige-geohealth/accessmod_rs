@@ -120,11 +120,14 @@ export function RadioField({
   options,
   value,
   onChange,
+  inline,
 }: {
   label: Key;
   options: { value: string; label: Key }[];
   value: string;
   onChange?: (v: string) => void;
+  /** Options on one line (AM5 `radio-inline`, e.g. Data › Filter). */
+  inline?: boolean;
 }) {
   const id = useId();
   return (
@@ -132,7 +135,7 @@ export function RadioField({
       <span id={id} className="font-bold">
         <T k={label} />
       </span>
-      <RadioGroup value={value} onValueChange={onChange} className="gap-1">
+      <RadioGroup value={value} onValueChange={onChange} className={cn("gap-1", inline && "flex flex-wrap gap-x-5")}>
         {options.map((o) => (
           <label key={o.value} className="flex items-center gap-2">
             <RadioGroupItem value={o.value} />

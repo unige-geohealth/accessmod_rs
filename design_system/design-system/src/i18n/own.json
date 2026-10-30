@@ -232,5 +232,71 @@
     "fr": "Valeur",
     "es": "Valor",
     "pt": "Valor"
+  },
+  "common.not_available_yet": {
+    "en": "Not available yet in this version.",
+    "fr": "Pas encore disponible dans cette version.",
+    "es": "Aún no disponible en esta versión.",
+    "pt": "Ainda não disponível nesta versão."
+  },
+  "data.imported": {
+    "en": "Imported: %s",
+    "fr": "Importé : %s",
+    "es": "Importado: %s",
+    "pt": "Importado: %s"
+  },
+  "data.removed": {
+    "en": "Removed: %s",
+    "fr": "Supprimé : %s",
+    "es": "Eliminado: %s",
+    "pt": "Removido: %s"
+  },
+  "data.renamed": {
+    "en": "Renamed: %s",
+    "fr": "Renommé : %s",
+    "es": "Renombrado: %s",
+    "pt": "Renomeado: %s"
+  },
+  "data.selected_none": {
+    "en": "Select the data to delete in the table.",
+    "fr": "Sélectionnez les données à supprimer dans le tableau.",
+    "es": "Seleccione en la tabla los datos a eliminar.",
+    "pt": "Selecione na tabela os dados a excluir."
+  },
+  "data.tags_preview": {
+    "en": "Tags: %s",
+    "fr": "Tags : %s",
+    "es": "Etiquetas: %s",
+    "pt": "Tags: %s"
+  },
+  "project.open_first": {
+    "en": "Open or create a project first (Project).",
+    "fr": "Ouvrez ou créez d’abord un projet (Projet).",
+    "es": "Abra o cree primero un proyecto (Proyecto).",
+    "pt": "Abra ou crie primeiro um projeto (Projeto)."
+  },
+  "upload.sending": {
+    "en": "Sending the files: %s%",
+    "fr": "Envoi des fichiers : %s %",
+    "es": "Enviando los archivos: %s %",
+    "pt": "Enviando os arquivos: %s%"
+  },
+  "data.column_tags": {
+    "en": "Tags",
+    "fr": "Tags",
+    "es": "Etiquetas",
+    "pt": "Tags"
+  },
+  "data.column_type": {
+    "en": "Type",
+    "fr": "Type",
+    "es": "Tipo",
+    "pt": "Tipo"
+  },
+  "data.column_class": {
+    "en": "Class",
+    "fr": "Classe",
+    "es": "Clase",
+    "pt": "Classe"
   }
 }

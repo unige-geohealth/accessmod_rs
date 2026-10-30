@@ -1,0 +1,3 @@
+@import "@accessmod/ui/styles.css";
+/* Classes used by the design system's components. */
+@source "../../design_system/design-system/src/components";
