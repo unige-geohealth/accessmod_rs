@@ -120,6 +120,8 @@ impl Cancel {
 fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
+        // Colours only on a terminal: a log file (desktop engine) stays plain.
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
         .with_target(false)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_env("ACCESSMOD_LOG")
