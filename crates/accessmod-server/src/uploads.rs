@@ -64,15 +64,31 @@ pub struct Upload {
 pub struct Resolved {
     /// File to read.
     pub path: PathBuf,
-    upload: Option<PathBuf>,
+    /// The upload and its lock: no purge or other command touches it
+    /// until this is dropped.
+    upload: Option<(PathBuf, std::fs::File)>,
 }
 
 impl Resolved {
     /// The command succeeded: the upload is no longer needed.
     pub fn consumed(self) {
-        if let Some(dir) = self.upload {
+        if let Some((dir, _lock)) = self.upload {
             remove(&dir);
         }
+    }
+}
+
+/// Lock upload `dir` (through its owner file) for its sole use; `None`
+/// when another request holds it.
+fn lock(dir: &Path) -> std::io::Result<Option<std::fs::File>> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(dir.join(OWNER_FILE))?;
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(e)) => Err(e),
     }
 }
 
@@ -115,6 +131,11 @@ async fn receive(
     tokio::fs::write(dir.join(OWNER_FILE), principal.user.as_bytes())
         .await
         .map_err(|e| ApiError::Internal(format!("cannot write an upload: {e}")))?;
+    // Held while receiving: a purge skips the upload.
+    let _lock = lock(dir)
+        .ok()
+        .flatten()
+        .ok_or_else(|| ApiError::Internal("cannot lock a new upload".into()))?;
     let mut files = Vec::new();
     let mut total: u64 = 0;
     while let Some(mut field) = multipart
@@ -198,7 +219,17 @@ pub fn resolve(
                 return Err(missing());
             }
             let dir = state.uploads_dir().join(id);
-            let owner = std::fs::read_to_string(dir.join(OWNER_FILE)).map_err(|_| missing())?;
+            let mut guard = match lock(&dir) {
+                Ok(Some(guard)) => guard,
+                Ok(None) => {
+                    return Err(ApiError::BadRequest(format!(
+                        "upload {id:?} is in use by another request"
+                    )));
+                }
+                Err(_) => return Err(missing()),
+            };
+            let mut owner = String::new();
+            std::io::Read::read_to_string(&mut guard, &mut owner).map_err(|_| missing())?;
             if owner != principal.user {
                 return Err(missing());
             }
@@ -215,9 +246,12 @@ pub fn resolve(
                 }
                 None => main_file(&names)?,
             };
+            let path = dir.join(name);
+            // A file sent by a user must not make the server read others.
+            accessmod_io::project::check_self_contained(&path)?;
             Ok(Resolved {
-                path: dir.join(name),
-                upload: Some(dir),
+                path,
+                upload: Some((dir, guard)),
             })
         }
     }
@@ -292,8 +326,14 @@ pub fn purge(root: &Path, age: Duration) {
             .ok()
             .and_then(|t| now.duration_since(t).ok())
             .is_some_and(|d| d > age);
-        if old {
-            remove(&entry.path());
+        if !old {
+            continue;
+        }
+        // An upload being received or consumed is locked: skip it.
+        match lock(&entry.path()) {
+            Ok(None) => {}
+            Ok(Some(_held)) => remove(&entry.path()),
+            Err(_) => remove(&entry.path()),
         }
     }
 }

@@ -33,7 +33,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use import::{ImportOptions, resampling};
+pub use import::{ImportOptions, check_self_contained, resampling};
 pub use runs::{RunError, RunRecord, RunStatus};
 
 use crate::analysis::Cancelled;
@@ -55,6 +55,30 @@ pub const CACHE_DIR: &str = "cache";
 pub const LOCK_FILE: &str = ".lock";
 /// Suffix of files being deleted.
 const DELETING: &str = ".deleting";
+/// Mark of a project directory renamed by [`Project::remove`].
+const REMOVED: &str = ".removed-";
+
+/// A new name next to `root` for a project being removed.
+fn removed_path(root: &Path) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let mut name = root.as_os_str().to_owned();
+    name.push(format!("{REMOVED}{}-{nanos:x}", std::process::id()));
+    PathBuf::from(name)
+}
+
+/// Delete what removals in `projects` (a directory of projects) left.
+pub fn purge_removed(projects: &Path) {
+    let Ok(entries) = std::fs::read_dir(projects) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.file_name().to_string_lossy().contains(REMOVED) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
 
 /// A hold on a project while an import or a run works in it; released when
 /// dropped.
@@ -373,10 +397,15 @@ impl Project {
         Ok(project)
     }
 
-    /// Hold the project for an import or a run: several may hold it at
-    /// once, across processes; [`Project::recover`] waits for none.
+    /// Hold the project for an import, a run or queuing a run: several may
+    /// hold it at once, across processes; [`Project::recover`] and
+    /// [`Project::remove`] wait for none. Fails once the project was
+    /// removed, even when the removal ended while this call waited.
     pub fn activity(&self) -> Result<Activity> {
         let path = self.root.join(LOCK_FILE);
+        if !self.db_path.is_file() {
+            return Err(Error::invalid("the project was removed"));
+        }
         let file = std::fs::OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -384,6 +413,10 @@ impl Project {
             .open(&path)
             .map_err(Error::file(&path))?;
         file.lock_shared().map_err(Error::file(&path))?;
+        // A removal may have ended while this call waited for the lock.
+        if !self.db_path.is_file() {
+            return Err(Error::invalid("the project was removed"));
+        }
         Ok(Activity(file))
     }
 
@@ -539,8 +572,10 @@ impl Project {
 
     /// Remove the project and every file in it. Refused while a process
     /// imports or runs in it ([`Project::activity`]) or a run is queued.
-    /// The directory is first renamed aside (`<root>.deleting`, which is not
-    /// a project), so an interrupted removal leaves no half project.
+    /// The directory is first renamed aside, to a new
+    /// `<root>.removed-<id>` that is not a project: from then on the
+    /// removal is done. Its files are deleted next; what a failure leaves
+    /// is deleted by [`purge_removed`].
     pub fn remove(self) -> Result<()> {
         let path = self.root.join(LOCK_FILE);
         let file = std::fs::OpenOptions::new()
@@ -573,14 +608,15 @@ impl Project {
         }
         let Self { root, db, .. } = self;
         drop(db);
-        let mut aside = root.clone().into_os_string();
-        aside.push(DELETING);
-        let aside = PathBuf::from(aside);
-        // A leftover of an interrupted removal would block the rename.
-        let _ = std::fs::remove_dir_all(&aside);
+        let aside = removed_path(&root);
+        if aside.exists() {
+            return Err(Error::invalid(format!("{} exists", aside.display())));
+        }
         std::fs::rename(&root, &aside).map_err(Error::file(&root))?;
         drop(file);
-        std::fs::remove_dir_all(&aside).map_err(Error::file(&aside))
+        // The project is gone; a failure here leaves files for `purge_removed`.
+        let _ = std::fs::remove_dir_all(&aside);
+        Ok(())
     }
 
     // ---- datasets ------------------------------------------------------

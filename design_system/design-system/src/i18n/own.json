@@ -298,5 +298,23 @@
     "fr": "Classe",
     "es": "Clase",
     "pt": "Classe"
+  },
+  "upload.connection_lost": {
+    "en": "The upload failed: the connection was lost.",
+    "fr": "L’envoi a échoué : la connexion a été perdue.",
+    "es": "El envío falló: se perdió la conexión.",
+    "pt": "O envio falhou: a conexão foi perdida."
+  },
+  "upload.cancelled": {
+    "en": "The upload was cancelled.",
+    "fr": "L’envoi a été annulé.",
+    "es": "El envío fue cancelado.",
+    "pt": "O envio foi cancelado."
+  },
+  "app.who_logo": {
+    "en": "World Health Organization",
+    "fr": "Organisation mondiale de la Santé",
+    "es": "Organización Mundial de la Salud",
+    "pt": "Organização Mundial da Saúde"
   }
 }

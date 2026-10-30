@@ -193,6 +193,8 @@ impl Project {
         document: &serde_json::Value,
         tags: &[String],
     ) -> Result<Id> {
+        // Held while the run is recorded: a removal waits, or wins and this fails.
+        let _hold = self.activity()?;
         // Fail early, before a run is recorded.
         self.check_job::<A>(document)?;
         self.db

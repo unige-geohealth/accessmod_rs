@@ -42,9 +42,11 @@ pub use state::{AppState, Config, DEFAULT_UPLOAD_LIMIT};
 
 /// The API routes, and the front end from `web_dir` when given.
 pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
-    // Uploads stream to disk and count their bytes; other bodies keep
-    // axum's default limit.
-    let upload_limit = usize::try_from(state.config().upload_limit).unwrap_or(usize::MAX);
+    // Uploads stream to disk and count their file bytes against the limit;
+    // the body adds part headers and boundaries (1 MiB is far more than
+    // `MAX_FILES` parts need). Other bodies keep axum's default limit.
+    let upload_limit =
+        usize::try_from(state.config().upload_limit.saturating_add(1 << 20)).unwrap_or(usize::MAX);
     let api = Router::new()
         .route("/api/health", get(routes::health))
         .route("/api/session", get(routes::session))

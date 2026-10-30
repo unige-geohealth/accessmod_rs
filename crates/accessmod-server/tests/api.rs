@@ -546,6 +546,28 @@ async fn uploads_create_projects_and_import_datasets() {
     assert_eq!(created["info"]["grid"]["cols"], COLS);
     assert_eq!(s.uploads(), 0, "a consumed upload is removed");
 
+    // A VRT, whatever its name, would read any file of the server.
+    let vrt = (COLS, ROWS);
+    let evil = format!(
+        r#"<VRTDataset rasterXSize="{}" rasterYSize="{}"><VRTRasterBand dataType="Float32" band="1"><SimpleSource><SourceFilename relativeToVRT="0">{}</SourceFilename><SourceBand>1</SourceBand></SimpleSource></VRTRasterBand></VRTDataset>"#,
+        vrt.0,
+        vrt.1,
+        s.path("dem.tif")
+    );
+    let (status, up) = s.upload(&[("dem.tif", evil.into_bytes())]).await;
+    assert_eq!(status, StatusCode::OK, "{up}");
+    let (status, body) = s
+        .command(
+            "project.create",
+            json!({"name": "Evil", "dem": {"upload": {"id": up["id"]}}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(
+        body["issues"].to_string().contains("not a supported file"),
+        "{body}"
+    );
+
     let files = shapefile(s.dir.path());
     let hf = s.upload_files(&files).await;
     let (status, record) = s
@@ -573,7 +595,7 @@ async fn uploads_create_projects_and_import_datasets() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(s.uploads(), 0);
+    assert_eq!(s.uploads(), 1, "only the refused VRT is left, for a retry");
 }
 
 #[tokio::test]
@@ -590,6 +612,9 @@ async fn uploads_are_confined_and_bounded() {
     let (status, body) = s.upload(&[("big.tif", vec![0; 4096])]).await;
     assert!(status.is_client_error(), "{status}: {body}");
     assert_eq!(s.uploads(), 0, "failed uploads leave nothing");
+    // The limit counts file bytes, not the multipart envelope.
+    let (status, body) = s.upload(&[("exact.tif", vec![0; 1024])]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
     let (status, body) = s.upload(&[]).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
 

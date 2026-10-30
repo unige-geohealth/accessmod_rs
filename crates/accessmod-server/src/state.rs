@@ -61,6 +61,7 @@ impl AppState {
                 Err(e) => tracing::warn!("project {slug}: recovery failed: {e}"),
             }
         }
+        accessmod_io::project::purge_removed(&projects);
         crate::uploads::purge(
             &config.data_dir.join(crate::uploads::UPLOADS_DIR),
             std::time::Duration::from_secs(24 * 3600),

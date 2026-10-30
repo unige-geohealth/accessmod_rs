@@ -505,6 +505,37 @@ fn table_summary(path: &Path) -> Result<TableSummary> {
     Ok(TableSummary { rows, columns })
 }
 
+/// GDAL drivers a file sent by a user may be read with: formats that never
+/// read other files they name. A VRT, for one, would open any file of the
+/// server; GDAL identifies formats by content, so the extension is no guard.
+const SELF_CONTAINED: &[&str] = &["GTiff", "ESRI Shapefile", "GPKG", "FlatGeobuf", "GeoJSON"];
+
+/// Check that `path`, a file sent by a user (an upload), reads nothing but
+/// itself and its companion files: a GeoTIFF, shapefile, GeoPackage,
+/// FlatGeobuf or GeoJSON layer, or a CSV table (copied as it is).
+pub fn check_self_contained(path: &Path) -> Result<()> {
+    let csv = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("csv"));
+    if csv {
+        return Ok(());
+    }
+    let options = gdal::DatasetOptions {
+        open_flags: gdal::GdalOpenFlags::GDAL_OF_RASTER
+            | gdal::GdalOpenFlags::GDAL_OF_VECTOR
+            | gdal::GdalOpenFlags::GDAL_OF_READONLY,
+        allowed_drivers: Some(SELF_CONTAINED),
+        ..gdal::DatasetOptions::default()
+    };
+    gdal::Dataset::open_ex(path, options).map(drop).map_err(|_| {
+        Error::invalid(format!(
+            "{}: not a supported file (GeoTIFF, shapefile, GeoPackage, FlatGeobuf, GeoJSON or CSV)",
+            path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -485,11 +485,25 @@ fn removal_waits_for_activity_and_queued_runs() {
     assert!(project.remove().is_err());
     let project = Project::open(&root).expect("open");
     assert!(project.cancel_queued(run).expect("cancel"));
+    // Siblings are never touched, whatever their name.
+    let sibling = dir.path().join("p.deleting");
+    std::fs::create_dir(&sibling).expect("mkdir");
+    std::fs::write(sibling.join("keep"), "x").expect("write");
+    // A handle opened before the removal can no longer import or queue.
+    let stale = Project::open(&root).expect("open");
     project.remove().expect("remove");
     assert!(!root.exists());
+    assert!(sibling.join("keep").exists());
+    assert!(stale.activity().is_err());
+    assert!(
+        stale
+            .start_run::<TravelTime>(&travel_time_job(), &[])
+            .is_err()
+    );
+    accessmod_io::project::purge_removed(dir.path());
     assert!(std::fs::read_dir(dir.path()).expect("list").all(|e| {
         let name = e.expect("entry").file_name();
-        !name.to_string_lossy().starts_with("p.")
+        !name.to_string_lossy().starts_with("p.removed-")
     }));
 }
 
