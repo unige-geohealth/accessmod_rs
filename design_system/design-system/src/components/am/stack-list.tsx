@@ -1,6 +1,6 @@
 import { type DragEvent, type KeyboardEvent, useState } from "react";
-import { type Key, T, useI18n } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { type Key, T, useI18n } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 import { icons } from "./icons";
 
 export type StackItem = { id: string; label: string; kind: "raster" | "vector" };

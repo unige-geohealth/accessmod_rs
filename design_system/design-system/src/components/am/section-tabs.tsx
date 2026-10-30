@@ -1,5 +1,5 @@
-import { type Key, T } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { type Key, T } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 import { type IconName, icons } from "./icons";
 
 export type SectionTab<V extends string> = { value: V; label: Key; icon: IconName };

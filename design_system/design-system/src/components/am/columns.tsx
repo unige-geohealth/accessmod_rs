@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "#ui/lib/utils";
 
 /**
  * AM5 page grid: controls on the left (Bootstrap col-4), results on the

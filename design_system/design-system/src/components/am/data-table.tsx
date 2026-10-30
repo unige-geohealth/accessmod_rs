@@ -2,7 +2,7 @@ import { type ColumnDefinition, TabulatorFull as Tabulator } from "tabulator-tab
 import "tabulator-tables/dist/css/tabulator.min.css";
 import "./data-table.css";
 import { useEffect, useRef, useState } from "react";
-import { useI18n } from "@/i18n";
+import { useI18n } from "#ui/i18n";
 
 export type Row = Record<string, string | number | boolean | null>;
 export type Column = { field: string; title?: string; editable?: boolean; width?: number };
@@ -15,6 +15,15 @@ type DataTableProps = {
   /** Checkbox column and the AM5 selection toolbar. */
   selectable?: boolean;
   onSelectionChange?: (rows: Row[]) => void;
+  /** Field identifying a row; needed for a controlled `selected`. */
+  rowId?: string;
+  /**
+   * Controlled selection, as `rowId` values: the owner keeps it in its state
+   * and gets user changes through `onSelectionChange`.
+   */
+  selected?: (string | number)[];
+  /** A cell of an `editable` column was edited by the user. */
+  onCellEdited?: (row: Row, field: string, value: unknown) => void;
   /** `fitData` sizes columns to content (zonal statistics); default fills the width. */
   layout?: "fitColumns" | "fitData";
   /** Adds the AM5 export bar ([Download CSV] [Download JSON]); file name without extension. */
@@ -32,6 +41,9 @@ export function DataTable({
   height = "400px",
   selectable,
   onSelectionChange,
+  rowId,
+  selected: selectedIds,
+  onCellEdited,
   layout = "fitColumns",
   exportName,
 }: DataTableProps) {
@@ -41,7 +53,41 @@ export function DataTable({
   const table = useRef<Tabulator | null>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
+  const selectedRef = useRef(selectedIds);
+  selectedRef.current = selectedIds;
+  const onSelectionRef = useRef(onSelectionChange);
+  onSelectionRef.current = onSelectionChange;
+  const onEditedRef = useRef(onCellEdited);
+  onEditedRef.current = onCellEdited;
+  /** Above zero while rows or selection change from props: no change is emitted. */
+  const syncing = useRef(0);
   const [selected, setSelected] = useState(0);
+
+  /** Make Tabulator's selection match the controlled one. */
+  const syncSelection = (tab: Tabulator) => {
+    const ids = selectedRef.current;
+    if (!rowId || !ids) return;
+    const want = new Set(ids.map(String));
+    syncing.current++;
+    try {
+      for (const r of tab.getRows()) {
+        const on = want.has(String(r.getData()[rowId]));
+        if (on !== r.isSelected()) on ? r.select() : r.deselect();
+      }
+    } finally {
+      syncing.current--;
+    }
+    setSelected(tab.getSelectedRows().length);
+  };
+
+  /** New rows from props, then the controlled selection again. */
+  const replaceRows = (tab: Tabulator, rows: Row[]) => {
+    syncing.current++;
+    void tab.replaceData(rows).finally(() => {
+      syncing.current--;
+      syncSelection(tab);
+    });
+  };
 
   useEffect(() => {
     const host = el.current;
@@ -72,16 +118,21 @@ export function DataTable({
       height,
       layout,
       selectableRows: !!selectable,
+      index: rowId ?? "id",
     });
     tab.on("tableBuilt", () => {
       built = true;
       if (disposed) return dispose(tab);
       table.current = tab;
-      if (dataRef.current !== initial) tab.replaceData(dataRef.current);
+      if (dataRef.current !== initial) replaceRows(tab, dataRef.current);
+      else syncSelection(tab);
     });
     tab.on("rowSelectionChanged", (rows: Row[]) => {
       setSelected(rows.length);
-      onSelectionChange?.(rows);
+      if (syncing.current === 0) onSelectionRef.current?.(rows);
+    });
+    tab.on("cellEdited", (cell) => {
+      onEditedRef.current?.(cell.getRow().getData() as Row, cell.getField(), cell.getValue());
     });
     return () => {
       disposed = true;
@@ -92,11 +143,18 @@ export function DataTable({
     // the column content (not the array identity) defines the table;
     // data updates go through replaceData below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(columns), height, selectable, layout]);
+  }, [JSON.stringify(columns), height, selectable, layout, rowId]);
 
   useEffect(() => {
-    table.current?.replaceData(data);
+    if (table.current) replaceRows(table.current, data);
+    // replaceRows reads refs only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  useEffect(() => {
+    if (table.current) syncSelection(table.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds]);
 
   return (
     <div className="am-table border border-table-border">

@@ -1,10 +1,10 @@
 import { useId, type ReactNode } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type Key, T, useI18n } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { Checkbox } from "#ui/components/ui/checkbox";
+import { Input } from "#ui/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "#ui/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#ui/components/ui/select";
+import { type Key, T, useI18n } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 
 /**
  * AM5 form row (`.form-group`): bold label above a full-width control,

@@ -1,15 +1,15 @@
 import { useState, type ReactNode } from "react";
-import { Callout, AmButton, InfoList, LinkActions, MessageList } from "@/components/am/messages";
-import { CheckboxField, RadioField, SelectField, TextField } from "@/components/am/form";
-import { DataTable } from "@/components/am/data-table";
-import { icons } from "@/components/am/icons";
-import { PanelAccordion } from "@/components/am/panel-accordion";
-import { CenterTitle, SectionCard } from "@/components/am/section";
-import { SectionTabs } from "@/components/am/section-tabs";
-import { MapFrame } from "@/components/am/map-frame";
-import { PageTabs } from "@/components/am/page-tabs";
-import { type Stack, StackList } from "@/components/am/stack-list";
-import { Progress } from "@/components/ui/progress";
+import { Callout, AmButton, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
+import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
+import { DataTable } from "#ui/components/am/data-table";
+import { icons } from "#ui/components/am/icons";
+import { PanelAccordion } from "#ui/components/am/panel-accordion";
+import { CenterTitle, SectionCard } from "#ui/components/am/section";
+import { SectionTabs } from "#ui/components/am/section-tabs";
+import { MapFrame } from "#ui/components/am/map-frame";
+import { PageTabs } from "#ui/components/am/page-tabs";
+import { type Stack, StackList } from "#ui/components/am/stack-list";
+import { Progress } from "#ui/components/ui/progress";
 import { layers, scenarioSelected, stack as stackMock, zonalTable } from "../mock";
 
 const swatches = [

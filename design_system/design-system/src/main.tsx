@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles/index.css";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "#ui/components/ui/tooltip";
 import { GalleryApp } from "./gallery/app";
 import { I18nProvider } from "./i18n";
 import { ThemeProvider } from "./lib/theme";

@@ -1,0 +1,13 @@
+{
+  "name": "accessmod-front-end",
+  "private": true,
+  "description": "npm workspace: the design system (@accessmod/ui) and the web client (@accessmod/web)",
+  "license": "LGPL-3.0-or-later",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "design_system/design-system",
+    "web"
+  ]
+}

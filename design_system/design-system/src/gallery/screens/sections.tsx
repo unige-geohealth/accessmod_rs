@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Slider } from "@/components/ui/slider";
-import { Columns } from "@/components/am/columns";
-import { DataTable } from "@/components/am/data-table";
-import { CheckboxField, Field, RadioField, SelectField, TextField } from "@/components/am/form";
-import { MapFrame } from "@/components/am/map-frame";
-import { AmButton, InfoList } from "@/components/am/messages";
-import { PanelAccordion } from "@/components/am/panel-accordion";
-import { CenterTitle } from "@/components/am/section";
-import { T } from "@/i18n";
+import { Slider } from "#ui/components/ui/slider";
+import { Columns } from "#ui/components/am/columns";
+import { DataTable } from "#ui/components/am/data-table";
+import { CheckboxField, Field, RadioField, SelectField, TextField } from "#ui/components/am/form";
+import { MapFrame } from "#ui/components/am/map-frame";
+import { AmButton, InfoList } from "#ui/components/am/messages";
+import { PanelAccordion } from "#ui/components/am/panel-accordion";
+import { CenterTitle } from "#ui/components/am/section";
+import { T } from "#ui/i18n";
 import { dataList, layers, logs } from "../mock";
 
 const projects = ["446_skeleton", "demo", "ethiopia_final", "yaniss_guinea"].map((p) => ({ value: p, label: p }));

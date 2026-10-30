@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
-import { type Key, T, useI18n } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { type Key, T, useI18n } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 import { type IconName, icons } from "./icons";
 
 export type NavItem = { id: string; label: Key; icon: IconName };

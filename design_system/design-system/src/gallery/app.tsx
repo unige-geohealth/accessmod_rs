@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
-import who from "@/assets/who.svg";
-import { AppShell } from "@/components/am/app-shell";
-import { languageNames, languages, type Lang, useI18n } from "@/i18n";
-import { type Theme, useTheme } from "@/lib/theme";
+import who from "#ui/assets/who.svg";
+import { AppShell } from "#ui/components/am/app-shell";
+import { languageNames, languages, type Lang, useI18n } from "#ui/i18n";
+import { type Theme, useTheme } from "#ui/lib/theme";
 import { routes, sectionRoute } from "./routes";
 
 const useHash = () => {

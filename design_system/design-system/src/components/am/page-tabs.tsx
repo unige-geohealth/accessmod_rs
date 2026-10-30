@@ -1,7 +1,7 @@
 import { Tabs as TabsPrimitive } from "radix-ui";
 import type { ReactNode } from "react";
-import { type Key, T } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { type Key, T } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 
 export type PageTab<V extends string> = { value: V; label: Key; content: ReactNode };
 

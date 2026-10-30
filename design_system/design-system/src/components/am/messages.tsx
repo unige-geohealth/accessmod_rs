@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import type { ComponentProps, ReactNode } from "react";
-import { type Key, T } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { type ComponentProps, type ReactNode, useRef } from "react";
+import { type Key, T } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 import { type IconName, icons } from "./icons";
 
 /** AM5 `.callout.callout-info`: solid blue block, white text ("Please add …"). */
@@ -133,5 +133,46 @@ export function AmButton({
       {Icon && <Icon className="size-4" />}
       {k ? <T k={k} /> : children}
     </button>
+  );
+}
+
+/**
+ * AM5 file chooser ("Choose and import data"): an `AmButton` that opens the
+ * browser's file picker and hands the chosen files to `onFiles`.
+ */
+export function FilePicker({
+  k,
+  accept,
+  multiple,
+  disabled,
+  block,
+  onFiles,
+}: {
+  k: Key;
+  /** Extensions or MIME types, e.g. ".tif,.tiff". */
+  accept?: string;
+  multiple?: boolean;
+  disabled?: boolean;
+  block?: boolean;
+  onFiles: (files: File[]) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <AmButton k={k} block={block} disabled={disabled} onClick={() => input.current?.click()} />
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept={accept}
+        multiple={multiple}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          // the same file chosen again must fire a change
+          e.target.value = "";
+          if (files.length > 0) onFiles(files);
+        }}
+      />
+    </>
   );
 }

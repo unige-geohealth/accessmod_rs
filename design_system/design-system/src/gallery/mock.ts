@@ -1,6 +1,6 @@
 // Static data copied from the AM5 DEMO project (references/screens/*/dom.html).
-import { dataLabel, type Option } from "@/components/am/form";
-import type { Row } from "@/components/am/data-table";
+import { dataLabel, type Option } from "#ui/components/am/form";
+import type { Row } from "#ui/components/am/data-table";
 
 const opt = (type: "r" | "v" | "t", cls: string, tags: string): Option => ({
   value: `${type}:${cls}:${tags}`,

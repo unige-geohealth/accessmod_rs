@@ -3,10 +3,10 @@ import { Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./map-frame.css";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useI18n } from "@/i18n";
-import type { Key } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "#ui/components/ui/tooltip";
+import { useI18n } from "#ui/i18n";
+import type { Key } from "#ui/i18n";
+import { cn } from "#ui/lib/utils";
 import { type IconName, icons } from "./icons";
 
 let protocol: Protocol | null = null;

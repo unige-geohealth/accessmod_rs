@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Columns } from "@/components/am/columns";
-import { DataTable } from "@/components/am/data-table";
-import { CheckboxField, RadioField, SelectField, TextField } from "@/components/am/form";
-import { AmButton, InfoList, LinkActions, MessageList } from "@/components/am/messages";
-import { PanelAccordion } from "@/components/am/panel-accordion";
-import { CenterTitle, SectionCard, SubTitle } from "@/components/am/section";
-import { type SectionTab, SectionTabs } from "@/components/am/section-tabs";
+import { Columns } from "#ui/components/am/columns";
+import { DataTable } from "#ui/components/am/data-table";
+import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
+import { AmButton, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
+import { PanelAccordion } from "#ui/components/am/panel-accordion";
+import { CenterTitle, SectionCard, SubTitle } from "#ui/components/am/section";
+import { type SectionTab, SectionTabs } from "#ui/components/am/section-tabs";
 import { facilities, fields, layers, scenarioSelected, scenarioToProcess, zonalLayers, zonalTable } from "../mock";
 
 type Module = "accessibility" | "coverage" | "referral" | "zonal" | "scalingUp" | "optimization";
