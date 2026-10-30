@@ -537,6 +537,52 @@ impl Project {
         Ok(true)
     }
 
+    /// Remove the project and every file in it. Refused while a process
+    /// imports or runs in it ([`Project::activity`]) or a run is queued.
+    /// The directory is first renamed aside (`<root>.deleting`, which is not
+    /// a project), so an interrupted removal leaves no half project.
+    pub fn remove(self) -> Result<()> {
+        let path = self.root.join(LOCK_FILE);
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .map_err(Error::file(&path))?;
+        match file.try_lock() {
+            Ok(()) => {}
+            Err(std::fs::TryLockError::WouldBlock) => {
+                return Err(Error::invalid(
+                    "the project is in use by an import or a run; try again when it ends",
+                ));
+            }
+            Err(std::fs::TryLockError::Error(e)) => return Err(Error::file(&path)(e)),
+        }
+        let pending: i64 = self
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM runs WHERE status IN ('queued', 'running')",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(self.db_error())?;
+        if pending > 0 {
+            return Err(Error::invalid(
+                "the project has queued or running runs; cancel them first",
+            ));
+        }
+        let Self { root, db, .. } = self;
+        drop(db);
+        let mut aside = root.clone().into_os_string();
+        aside.push(DELETING);
+        let aside = PathBuf::from(aside);
+        // A leftover of an interrupted removal would block the rename.
+        let _ = std::fs::remove_dir_all(&aside);
+        std::fs::rename(&root, &aside).map_err(Error::file(&root))?;
+        drop(file);
+        std::fs::remove_dir_all(&aside).map_err(Error::file(&aside))
+    }
+
     // ---- datasets ------------------------------------------------------
 
     /// Datasets, of `class` when given, by identifier.

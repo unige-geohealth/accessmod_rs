@@ -467,6 +467,33 @@ fn dem_cannot_be_removed_and_others_can() {
 }
 
 #[test]
+fn removal_waits_for_activity_and_queued_runs() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().join("p");
+    let project = project_with_inputs(dir.path());
+    // An import or a run holds the project.
+    let activity = project.activity().expect("activity");
+    let project = Project::open(&root).expect("open");
+    assert!(project.remove().is_err());
+    drop(activity);
+    // A queued run too.
+    let project = Project::open(&root).expect("open");
+    let run = project
+        .start_run::<TravelTime>(&travel_time_job(), &[])
+        .expect("queue");
+    let project = Project::open(&root).expect("open");
+    assert!(project.remove().is_err());
+    let project = Project::open(&root).expect("open");
+    assert!(project.cancel_queued(run).expect("cancel"));
+    project.remove().expect("remove");
+    assert!(!root.exists());
+    assert!(std::fs::read_dir(dir.path()).expect("list").all(|e| {
+        let name = e.expect("entry").file_name();
+        !name.to_string_lossy().starts_with("p.")
+    }));
+}
+
+#[test]
 fn creation_needs_an_empty_directory_and_a_valid_dem() {
     let dir = tempfile::tempdir().expect("tempdir");
     sources(dir.path());

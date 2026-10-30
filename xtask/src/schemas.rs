@@ -123,6 +123,28 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::commands::CommandInfo>(),
         ),
         ("principal", schema::<accessmod_server::auth::Principal>()),
+        ("upload", schema::<accessmod_server::uploads::Upload>()),
+        // Parameters of the commands the client sends.
+        (
+            "create-project",
+            schema::<accessmod_server::commands::CreateProject>(),
+        ),
+        (
+            "import-dataset",
+            schema::<accessmod_server::commands::ImportDataset>(),
+        ),
+        (
+            "tag-dataset",
+            schema::<accessmod_server::commands::TagDataset>(),
+        ),
+        (
+            "dataset-ref",
+            schema::<accessmod_server::commands::DatasetRef>(),
+        ),
+        (
+            "project-ref",
+            schema::<accessmod_server::commands::ProjectRef>(),
+        ),
         ("tile-style", schema::<accessmod_io::tiles::Style>()),
     ]
 }

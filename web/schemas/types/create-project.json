@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "FileSource": {
+      "description": "A file a command reads: on the server's disk (desktop) or uploaded.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A path on the server's disk, when the server allows local paths.",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An upload of the same user.",
+          "properties": {
+            "upload": {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "default": null,
+                  "description": "The file to read, when the upload holds several main files.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "description": "Upload identifier, from `POST /api/uploads`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "upload"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`project.create`.",
+  "properties": {
+    "dem": {
+      "$ref": "#/$defs/FileSource",
+      "description": "DEM defining the grid: an upload, or a file on the server's disk\n(desktop)."
+    },
+    "description": {
+      "default": "",
+      "description": "Free description.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Name.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "dem"
+  ],
+  "title": "CreateProject",
+  "type": "object"
+}

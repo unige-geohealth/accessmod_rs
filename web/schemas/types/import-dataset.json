@@ -1,0 +1,288 @@
+{
+  "$defs": {
+    "DataClass": {
+      "description": "A data class, serialised with its AccessMod 5 identifier.",
+      "oneOf": [
+        {
+          "const": "rDem",
+          "description": "dem",
+          "type": "string"
+        },
+        {
+          "const": "rLandCover",
+          "description": "land cover",
+          "type": "string"
+        },
+        {
+          "const": "rLandCoverMerged",
+          "description": "land cover merged",
+          "type": "string"
+        },
+        {
+          "const": "rPopulation",
+          "description": "population",
+          "type": "string"
+        },
+        {
+          "const": "rPopulationResidual",
+          "description": "population residual",
+          "type": "string"
+        },
+        {
+          "const": "rTravelTime",
+          "description": "travel time",
+          "type": "string"
+        },
+        {
+          "const": "rNearest",
+          "description": "cost allocation",
+          "type": "string"
+        },
+        {
+          "const": "rTravelTimeImported",
+          "description": "imported travel time",
+          "type": "string"
+        },
+        {
+          "const": "rPopulationOnBarrier",
+          "description": "population on barrier",
+          "type": "string"
+        },
+        {
+          "const": "rPriority",
+          "description": "priority",
+          "type": "string"
+        },
+        {
+          "const": "rExclusion",
+          "description": "exclusion",
+          "type": "string"
+        },
+        {
+          "const": "vBarrier",
+          "description": "barrier",
+          "type": "string"
+        },
+        {
+          "const": "vRoad",
+          "description": "road",
+          "type": "string"
+        },
+        {
+          "const": "vFacility",
+          "description": "facility",
+          "type": "string"
+        },
+        {
+          "const": "vFacilityNew",
+          "description": "facility scaling up",
+          "type": "string"
+        },
+        {
+          "const": "vZone",
+          "description": "zone for stat",
+          "type": "string"
+        },
+        {
+          "const": "vExclusion",
+          "description": "exclusion",
+          "type": "string"
+        },
+        {
+          "const": "vCatchment",
+          "description": "catchment",
+          "type": "string"
+        },
+        {
+          "const": "vCatchmentNew",
+          "description": "catchment scaling up",
+          "type": "string"
+        },
+        {
+          "const": "vReferralNetwork",
+          "description": "referral network",
+          "type": "string"
+        },
+        {
+          "const": "tLandCover",
+          "description": "land cover",
+          "type": "string"
+        },
+        {
+          "const": "tScenario",
+          "description": "scenario",
+          "type": "string"
+        },
+        {
+          "const": "tScenarioOut",
+          "description": "scenario processed",
+          "type": "string"
+        },
+        {
+          "const": "tExclusion",
+          "description": "exclusion",
+          "type": "string"
+        },
+        {
+          "const": "tExclusionOut",
+          "description": "exclusion processed",
+          "type": "string"
+        },
+        {
+          "const": "tCapacity",
+          "description": "capacity",
+          "type": "string"
+        },
+        {
+          "const": "tCapacityOut",
+          "description": "capacity processed",
+          "type": "string"
+        },
+        {
+          "const": "tSuitability",
+          "description": "suitability",
+          "type": "string"
+        },
+        {
+          "const": "tSuitabilityOut",
+          "description": "suitability processed",
+          "type": "string"
+        },
+        {
+          "const": "tReferral",
+          "description": "referral",
+          "type": "string"
+        },
+        {
+          "const": "tReferralDist",
+          "description": "referral nearest by dist",
+          "type": "string"
+        },
+        {
+          "const": "tReferralTime",
+          "description": "referral nearest by time",
+          "type": "string"
+        },
+        {
+          "const": "tCapacityStat",
+          "description": "result geographic coverage analysis",
+          "type": "string"
+        },
+        {
+          "const": "tCapacityStatNew",
+          "description": "result scaling up analysis",
+          "type": "string"
+        },
+        {
+          "const": "tOptimization",
+          "description": "optimization",
+          "type": "string"
+        },
+        {
+          "const": "tZonalStat",
+          "description": "zonal coverage",
+          "type": "string"
+        },
+        {
+          "const": "tPopDistribAdjustSummary",
+          "description": "population adjustment summary",
+          "type": "string"
+        },
+        {
+          "const": "lAnalysisParameters",
+          "description": "analysis parameters",
+          "type": "string"
+        }
+      ]
+    },
+    "FileSource": {
+      "description": "A file a command reads: on the server's disk (desktop) or uploaded.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A path on the server's disk, when the server allows local paths.",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An upload of the same user.",
+          "properties": {
+            "upload": {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "default": null,
+                  "description": "The file to read, when the upload holds several main files.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "description": "Upload identifier, from `POST /api/uploads`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "upload"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`dataset.import`.",
+  "properties": {
+    "class": {
+      "$ref": "#/$defs/DataClass",
+      "description": "Data class."
+    },
+    "layer": {
+      "default": null,
+      "description": "Layer of a vector file.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/FileSource",
+      "description": "File to import: an upload, or a file on the server's disk (desktop)."
+    },
+    "tags": {
+      "description": "Tags naming the dataset.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "project",
+    "source",
+    "class",
+    "tags"
+  ],
+  "title": "ImportDataset",
+  "type": "object"
+}

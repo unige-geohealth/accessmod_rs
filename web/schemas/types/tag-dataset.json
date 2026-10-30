@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`dataset.tag`.",
+  "properties": {
+    "id": {
+      "description": "Dataset.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "tags": {
+      "description": "New tags.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "project",
+    "id",
+    "tags"
+  ],
+  "title": "TagDataset",
+  "type": "object"
+}

@@ -71,6 +71,7 @@ pub fn run(args: Args) -> Result<(), Failure> {
         data_dir: data_dir.clone(),
         settings,
         local_paths,
+        upload_limit: accessmod_server::DEFAULT_UPLOAD_LIMIT,
     })
     .map_err(|e| {
         eprintln!("error: {e}");

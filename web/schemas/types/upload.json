@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Response of `POST /api/uploads`.",
+  "properties": {
+    "files": {
+      "description": "Names of the files received.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "id": {
+      "description": "Identifier, for a [`FileSource::Upload`].",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "files"
+  ],
+  "title": "Upload",
+  "type": "object"
+}

@@ -57,12 +57,17 @@ struct Server {
 }
 
 fn server(local_paths: bool) -> Server {
+    server_with(local_paths, accessmod_server::DEFAULT_UPLOAD_LIMIT)
+}
+
+fn server_with(local_paths: bool, upload_limit: u64) -> Server {
     let dir = tempfile::tempdir().expect("tempdir");
     sources(dir.path());
     let state = AppState::new(Config {
         data_dir: dir.path().join("data"),
         settings: settings(64 << 20, 1),
         local_paths,
+        upload_limit,
     })
     .expect("state");
     let app = router(state.clone(), None);
@@ -103,12 +108,66 @@ impl Server {
             .await
     }
 
+    /// `POST /api/uploads` with one part per `(file name, bytes)`.
+    async fn upload(&self, files: &[(&str, Vec<u8>)]) -> (StatusCode, Value) {
+        const BOUNDARY: &str = "accessmod-test-boundary";
+        let mut body = Vec::new();
+        for (name, bytes) in files {
+            body.extend_from_slice(
+                format!(
+                    "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+                )
+                .as_bytes(),
+            );
+            body.extend_from_slice(bytes);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/uploads")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={BOUNDARY}"),
+            )
+            .body(Body::from(body))
+            .expect("request");
+        let response = self.app.clone().oneshot(request).await.expect("response");
+        let status = response.status();
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let value = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into()));
+        (status, value)
+    }
+
+    /// Upload the source files `names` (in the test directory).
+    async fn upload_files(&self, names: &[&str]) -> String {
+        let files: Vec<(&str, Vec<u8>)> = names
+            .iter()
+            .map(|n| (*n, std::fs::read(self.dir.path().join(n)).expect("read")))
+            .collect();
+        let (status, body) = self.upload(&files).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        body["id"].as_str().expect("id").to_owned()
+    }
+
+    fn uploads(&self) -> usize {
+        std::fs::read_dir(self.dir.path().join("data/uploads"))
+            .map(|d| d.count())
+            .unwrap_or(0)
+    }
+
     /// Create project "Demo" with land cover (merged) and facilities.
     async fn demo(&self) -> String {
         let (status, created) = self
             .command(
                 "project.create",
-                json!({"name": "Demo", "dem": self.path("dem.tif")}),
+                json!({"name": "Demo", "dem": {"path": self.path("dem.tif")}}),
             )
             .await;
         assert_eq!(status, StatusCode::OK, "{created}");
@@ -120,7 +179,7 @@ impl Server {
             let (status, body) = self
                 .command(
                     "dataset.import",
-                    json!({"project": slug, "path": self.path(file), "class": class, "tags": tags}),
+                    json!({"project": slug, "source": {"path": self.path(file)}, "class": class, "tags": tags}),
                 )
                 .await;
             assert_eq!(status, StatusCode::OK, "{body}");
@@ -335,7 +394,7 @@ async fn a_country_server_refuses_local_paths() {
     let (status, body) = s
         .command(
             "project.create",
-            json!({"name": "Demo", "dem": s.path("dem.tif")}),
+            json!({"name": "Demo", "dem": {"path": s.path("dem.tif")}}),
         )
         .await;
     assert_eq!(
@@ -455,4 +514,162 @@ async fn malformed_bodies_get_json_errors() {
         .to_bytes();
     let body: Value = serde_json::from_slice(&bytes).expect("a JSON error document");
     assert_eq!(body["kind"], "bad_request");
+}
+
+/// `hf.gpkg` as a shapefile: `hf.shp`, `.shx`, `.dbf`, `.prj`.
+fn shapefile(dir: &Path) -> Vec<&'static str> {
+    let source = gdal::Dataset::open(dir.join("hf.gpkg")).expect("open");
+    let driver = gdal::DriverManager::get_driver_by_name("ESRI Shapefile").expect("driver");
+    source
+        .create_copy(
+            &driver,
+            dir.join("hf.shp"),
+            &gdal::cpl::CslStringList::new(),
+        )
+        .expect("copy");
+    vec!["hf.shp", "hf.shx", "hf.dbf", "hf.prj"]
+}
+
+#[tokio::test]
+async fn uploads_create_projects_and_import_datasets() {
+    // A country server: no local path, only uploads.
+    let s = server(false);
+    let dem = s.upload_files(&["dem.tif"]).await;
+    let (status, created) = s
+        .command(
+            "project.create",
+            json!({"name": "Uploaded", "dem": {"upload": {"id": dem}}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    let slug = created["slug"].as_str().expect("slug").to_owned();
+    assert_eq!(created["info"]["grid"]["cols"], COLS);
+    assert_eq!(s.uploads(), 0, "a consumed upload is removed");
+
+    let files = shapefile(s.dir.path());
+    let hf = s.upload_files(&files).await;
+    let (status, record) = s
+        .command(
+            "dataset.import",
+            json!({"project": slug, "source": {"upload": {"id": hf}}, "class": "vFacility", "tags": ["health"]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{record}");
+    assert_eq!(record["class"], "vFacility");
+
+    // Several main files: the command names one.
+    let both = s.upload_files(&["lc.tif", "dem.tif"]).await;
+    let (status, body) = s
+        .command(
+            "dataset.import",
+            json!({"project": slug, "source": {"upload": {"id": both}}, "class": "rLandCoverMerged", "tags": ["base"]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = s
+        .command(
+            "dataset.import",
+            json!({"project": slug, "source": {"upload": {"id": both, "file": "lc.tif"}}, "class": "rLandCoverMerged", "tags": ["base"]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(s.uploads(), 0);
+}
+
+#[tokio::test]
+async fn uploads_are_confined_and_bounded() {
+    let s = server_with(false, 1024);
+    for name in ["../x.tif", "a/b.tif", ".owner", ""] {
+        let (status, body) = s.upload(&[(name, b"x".to_vec())]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{name:?}: {body}");
+    }
+    let (status, body) = s
+        .upload(&[("a.tif", b"x".to_vec()), ("a.tif", b"y".to_vec())])
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = s.upload(&[("big.tif", vec![0; 4096])]).await;
+    assert!(status.is_client_error(), "{status}: {body}");
+    assert_eq!(s.uploads(), 0, "failed uploads leave nothing");
+    let (status, body) = s.upload(&[]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+
+    for id in ["0", "../projects", "zz", ""] {
+        let (status, body) = s
+            .command(
+                "project.create",
+                json!({"name": "X", "dem": {"upload": {"id": id}}}),
+            )
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{id:?}: {body}");
+    }
+    // Another user's upload is not found.
+    let (status, up) = s.upload(&[("a.tif", b"x".to_vec())]).await;
+    assert_eq!(status, StatusCode::OK, "{up}");
+    let id = up["id"].as_str().expect("id");
+    std::fs::write(
+        s.dir.path().join("data/uploads").join(id).join(".owner"),
+        "someone",
+    )
+    .expect("owner");
+    let (status, body) = s
+        .command(
+            "project.create",
+            json!({"name": "X", "dem": {"upload": {"id": id}}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    // A file outside the upload cannot be named.
+    std::fs::write(
+        s.dir.path().join("data/uploads").join(id).join(".owner"),
+        "local",
+    )
+    .expect("owner");
+    let (status, body) = s
+        .command(
+            "project.create",
+            json!({"name": "X", "dem": {"upload": {"id": id, "file": "../../dem.tif"}}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+}
+
+#[tokio::test]
+async fn projects_can_be_removed_when_idle() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let mut events = s.state.subscribe();
+    let (status, run) = s
+        .command(
+            "run.start",
+            json!({"project": slug, "analysis": "travel-time", "document": travel_time_job()}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{run}");
+    // Wait for the run to end: removal is refused while it is queued or running.
+    let (status, _) = s.command("project.remove", json!({"project": slug})).await;
+    if status != StatusCode::OK {
+        tokio::time::timeout(Duration::from_secs(60), async {
+            loop {
+                if let Ok(Event::Run { run, .. }) = events.recv().await
+                    && !matches!(run.status.name(), "queued" | "running")
+                {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("run ends");
+        let (status, body) = s.command("project.remove", json!({"project": slug})).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+    }
+    let (status, _) = s.call("GET", &format!("/api/projects/{slug}"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (_, list) = s.call("GET", "/api/projects", None).await;
+    assert_eq!(list, json!([]));
+    let (status, _) = s.command("project.remove", json!({"project": slug})).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = s
+        .command("project.remove", json!({"project": "../data"}))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

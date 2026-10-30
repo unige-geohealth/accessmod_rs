@@ -76,6 +76,12 @@ pub enum Command {
         #[command(flatten)]
         project: ProjectArg,
     },
+    /// Remove the project and every file in it. Refused while an import or a
+    /// run is in progress or a run is queued.
+    Remove {
+        #[command(flatten)]
+        project: ProjectArg,
+    },
 }
 
 /// Catalogue subcommands of `accessmod dataset`.
@@ -275,6 +281,10 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
                 );
                 Err(Failure { code: 2 })
             }
+        }
+        Command::Remove { project } => {
+            let project = open(&project.project, false)?;
+            project.remove().map_err(|e| fail(&e, false))
         }
     }
 }

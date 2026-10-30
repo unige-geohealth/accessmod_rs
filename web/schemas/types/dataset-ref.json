@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A dataset of a project.",
+  "properties": {
+    "id": {
+      "description": "Dataset.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "id"
+  ],
+  "title": "DatasetRef",
+  "type": "object"
+}

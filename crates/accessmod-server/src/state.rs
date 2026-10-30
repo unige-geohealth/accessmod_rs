@@ -14,6 +14,9 @@ use crate::runner::Runner;
 /// Directory of projects inside the data directory.
 pub const PROJECTS_DIR: &str = "projects";
 
+/// Default of [`Config::upload_limit`]: 4 GiB.
+pub const DEFAULT_UPLOAD_LIMIT: u64 = 4 << 30;
+
 /// Server configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -24,6 +27,8 @@ pub struct Config {
     /// Whether requests may name files on the server's disk (desktop: the
     /// user's own files). A country server takes uploads instead.
     pub local_paths: bool,
+    /// Bytes one upload may hold ([`DEFAULT_UPLOAD_LIMIT`]).
+    pub upload_limit: u64,
 }
 
 /// Shared state of the server.
@@ -56,6 +61,10 @@ impl AppState {
                 Err(e) => tracing::warn!("project {slug}: recovery failed: {e}"),
             }
         }
+        crate::uploads::purge(
+            &config.data_dir.join(crate::uploads::UPLOADS_DIR),
+            std::time::Duration::from_secs(24 * 3600),
+        );
         let (events, _) = broadcast::channel(1024);
         let runner = Runner::start(projects, config.settings.clone(), events.clone())
             .map_err(|e| ApiError::Internal(format!("cannot start the run worker: {e}")))?;
@@ -87,6 +96,11 @@ impl AppState {
         } else {
             Err(ApiError::NotFound(format!("no project {slug:?}")))
         }
+    }
+
+    /// Directory of uploads.
+    pub fn uploads_dir(&self) -> PathBuf {
+        self.inner.config.data_dir.join(crate::uploads::UPLOADS_DIR)
     }
 
     /// Open project `slug`.

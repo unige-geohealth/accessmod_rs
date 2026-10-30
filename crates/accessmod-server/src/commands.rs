@@ -5,8 +5,6 @@
 //! result or an error, never a panic. `POST /api/commands/{id}` dispatches
 //! them; a future MCP server lists the same registry.
 
-use std::path::Path;
-
 use accessmod_io::class::DataClass;
 use accessmod_io::project::{
     DatasetRecord, Id, ImportOptions, Project, ProjectInfo, RunRecord, SavedJob,
@@ -19,6 +17,7 @@ use crate::auth::{Principal, Requirement, Role};
 use crate::error::{ApiError, ApiResult};
 use crate::events::Event;
 use crate::state::{AppState, new_slug};
+use crate::uploads::{self, FileSource};
 
 /// Parameters naming the project they act on, if any.
 pub trait Scoped {
@@ -109,6 +108,13 @@ pub fn registry() -> Vec<CommandSpec> {
             rename_project
         ),
         command!(
+            "project.remove",
+            "Remove a project and every file in it",
+            Requirement::Project(Role::Owner),
+            ProjectRef,
+            remove_project
+        ),
+        command!(
             "dataset.import",
             "Import a file as a dataset of a class",
             Requirement::Project(Role::Editor),
@@ -193,8 +199,17 @@ pub struct CreateProject {
     /// Free description.
     #[serde(default)]
     pub description: String,
-    /// DEM defining the grid: a file on the server's disk (desktop).
-    pub dem: String,
+    /// DEM defining the grid: an upload, or a file on the server's disk
+    /// (desktop).
+    pub dem: FileSource,
+}
+
+/// A project.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectRef {
+    /// Project slug.
+    pub project: String,
 }
 
 /// `project.rename`.
@@ -216,8 +231,8 @@ pub struct RenameProject {
 pub struct ImportDataset {
     /// Project slug.
     pub project: String,
-    /// File on the server's disk (desktop).
-    pub path: String,
+    /// File to import: an upload, or a file on the server's disk (desktop).
+    pub source: FileSource,
     /// Data class.
     pub class: DataClass,
     /// Tags naming the dataset.
@@ -321,6 +336,7 @@ macro_rules! scoped {
 }
 
 scoped!(
+    ProjectRef,
     RenameProject,
     ImportDataset,
     TagDataset,
@@ -344,10 +360,10 @@ pub struct CreatedProject {
 
 fn create_project(
     state: &AppState,
-    _: &Principal,
+    principal: &Principal,
     params: CreateProject,
 ) -> ApiResult<CreatedProject> {
-    let dem = state.local_path(&params.dem)?;
+    let dem = uploads::resolve(state, principal, &params.dem)?;
     let projects = state.projects_dir();
     let slug = new_slug(&projects, &params.name);
     let settings = &state.config().settings;
@@ -355,13 +371,20 @@ fn create_project(
         &projects.join(&slug),
         &params.name,
         &params.description,
-        Path::new(&dem),
+        &dem.path,
         settings,
         &|| false,
     )?;
+    dem.consumed();
     let info = project.info()?;
     state.publish(Event::Projects);
     Ok(CreatedProject { slug, info })
+}
+
+fn remove_project(state: &AppState, _: &Principal, params: ProjectRef) -> ApiResult<()> {
+    state.open(&params.project)?.remove()?;
+    state.publish(Event::Projects);
+    Ok(())
 }
 
 fn rename_project(
@@ -377,13 +400,13 @@ fn rename_project(
 
 fn import_dataset(
     state: &AppState,
-    _: &Principal,
+    principal: &Principal,
     params: ImportDataset,
 ) -> ApiResult<DatasetRecord> {
-    let path = state.local_path(&params.path)?;
+    let source = uploads::resolve(state, principal, &params.source)?;
     let project = state.open(&params.project)?;
     let record = project.import(
-        &path,
+        &source.path,
         params.class,
         &params.tags,
         &ImportOptions {
@@ -392,6 +415,7 @@ fn import_dataset(
         &state.config().settings,
         &|| false,
     )?;
+    source.consumed();
     catalogue(state, &params.project);
     Ok(record)
 }

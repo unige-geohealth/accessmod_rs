@@ -28,18 +28,23 @@ pub mod maps;
 pub mod routes;
 pub mod runner;
 pub mod state;
+pub mod uploads;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 use tower_http::services::{ServeDir, ServeFile};
 
-pub use state::{AppState, Config};
+pub use state::{AppState, Config, DEFAULT_UPLOAD_LIMIT};
 
 /// The API routes, and the front end from `web_dir` when given.
 pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
+    // Uploads stream to disk and count their bytes; other bodies keep
+    // axum's default limit.
+    let upload_limit = usize::try_from(state.config().upload_limit).unwrap_or(usize::MAX);
     let api = Router::new()
         .route("/api/health", get(routes::health))
         .route("/api/session", get(routes::session))
@@ -48,6 +53,10 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/commands", get(routes::command_list))
         .route("/api/commands/{id}", post(routes::command))
         .route("/api/events", get(events::stream))
+        .route(
+            "/api/uploads",
+            post(uploads::upload).layer(DefaultBodyLimit::max(upload_limit)),
+        )
         .route("/api/projects", get(routes::projects))
         .route("/api/projects/{project}", get(routes::project))
         .route("/api/projects/{project}/datasets", get(routes::datasets))
