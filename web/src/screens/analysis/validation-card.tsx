@@ -4,7 +4,7 @@
 import { MessageDialog } from "@accessmod/ui/am/message-dialog";
 import { AmButton, LinkActions, type Message, MessageList } from "@accessmod/ui/am/messages";
 import { SectionCard } from "@accessmod/ui/am/section";
-import { T, useI18n } from "@accessmod/ui/i18n";
+import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { Progress } from "@accessmod/ui/ui/progress";
 import { useState } from "react";
 import { api, issuesOf } from "../../api/client";
@@ -24,6 +24,8 @@ export function ValidationCard({
   document,
   tags,
   datasets,
+  button = "analysis_validation_compute_btn",
+  dialog = true,
 }: {
   project: string;
   analysis: string;
@@ -34,6 +36,9 @@ export function ValidationCard({
   document: Record<string, unknown> | null;
   tags: string[];
   datasets: ReadonlyMap<number, Api.Dataset>;
+  /** AM5 Zonal statistics: "Update", and the result shown in place of the dialog. */
+  button?: Key;
+  dialog?: boolean;
 }) {
   const { t } = useI18n();
   const f = useFmt();
@@ -100,11 +105,11 @@ export function ValidationCard({
       {busy(view) ? (
         <RunProgress view={view} onCancel={() => void cancel()} />
       ) : (
-        <AmButton variant="danger" block disabled={!ready} k="analysis_validation_compute_btn" onClick={() => void compute()} />
+        <AmButton variant="danger" block disabled={!ready} k={button} onClick={() => void compute()} />
       )}
       {document !== null && <LinkActions actions={[{ icon: "download", k: "analysis.download_job", onClick: download }]} />}
       <MessageDialog
-        open={view.state === "done" && !acknowledged}
+        open={dialog && view.state === "done" && !acknowledged}
         onOpenChange={(open) => {
           if (!open) session.dispatch({ type: "acknowledged" });
         }}

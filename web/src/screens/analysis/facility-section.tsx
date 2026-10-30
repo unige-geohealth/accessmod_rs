@@ -12,7 +12,7 @@ import { useRows } from "../../api/queries";
 import { checkedOnPage, checkPage, count, type FacilityInput, type FacilityMessage } from "../../state/facility-selection";
 import type { ScenarioRow } from "../../state/scenario";
 import { useFmt } from "../common";
-import { DatasetSelect, FieldSelect, type Options } from "./inputs";
+import { DatasetSelect, FieldSelect, LINK, type Options, Pager } from "./inputs";
 
 /** Data input: the facility layer and its identifier field. */
 export function FacilityInputs({
@@ -128,7 +128,6 @@ export function FacilitySection({
   }
 
   const total = data?.total ?? 0;
-  const link = "px-1 text-link hover:text-link-hover hover:underline disabled:opacity-50 disabled:no-underline";
   const changePage = async (checked: Row[]) => {
     setFailure([]);
     try {
@@ -161,10 +160,10 @@ export function FacilitySection({
         {page.isError && <MessageList messages={issuesOf(page.error, t).map((text) => ({ kind: "issue", text }))} />}
         {failure.length > 0 && <MessageList messages={failure.map((text) => ({ kind: "issue", text }))} />}
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <button type="button" className={link} onClick={() => onSelection({ mode: "all", where: selection.where })}>
+          <button type="button" className={LINK} onClick={() => onSelection({ mode: "all", where: selection.where })}>
             [{t("table.all")}]
           </button>
-          <button type="button" className={link} onClick={() => onSelection({ mode: "ids", where: selection.where, ids: [] })}>
+          <button type="button" className={LINK} onClick={() => onSelection({ mode: "ids", where: selection.where, ids: [] })}>
             [{t("table.none")}]
           </button>
           <span>{f("analysis.facilities_selected", count(selection, total), total)}</span>
@@ -183,17 +182,7 @@ export function FacilitySection({
             height="420px"
           />
         )}
-        {total > PAGE && (
-          <div className="flex items-center gap-2 text-sm">
-            <button type="button" className={link} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
-              [{t("analysis.previous")}]
-            </button>
-            <span>{f("analysis.rows_page", offset + 1, Math.min(offset + PAGE, total), total)}</span>
-            <button type="button" className={link} disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>
-              [{t("analysis.next")}]
-            </button>
-          </div>
-        )}
+        <Pager offset={offset} page={PAGE} total={total} onOffset={setOffset} />
       </div>
     </>
   );

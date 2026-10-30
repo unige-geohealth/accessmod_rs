@@ -526,5 +526,35 @@
     "fr": "Indiquez un temps de calcul maximal de 0 minute ou plus.",
     "es": "Indique un tiempo máximo de procesamiento de 0 minutos o más.",
     "pt": "Indique um tempo máximo de processamento de 0 minutos ou mais."
+  },
+  "analysis.time_limits_missing": {
+    "en": "Enter at least one maximum travel time above 0 minutes.",
+    "fr": "Saisissez au moins un temps de déplacement maximal supérieur à 0 minute.",
+    "es": "Introduzca al menos un tiempo máximo de desplazamiento superior a 0 minutos.",
+    "pt": "Introduza pelo menos um tempo máximo de deslocação superior a 0 minutos."
+  },
+  "analysis.wide_too_large": {
+    "en": "The table is too large for one column per time step here: download it instead.",
+    "fr": "Le tableau est trop grand pour une colonne par pas de temps ici : téléchargez-le.",
+    "es": "La tabla es demasiado grande para una columna por paso de tiempo aquí: descárguela.",
+    "pt": "A tabela é demasiado grande para uma coluna por passo de tempo aqui: descarregue-a."
+  },
+  "analysis.download_csv": {
+    "en": "Download CSV",
+    "fr": "Télécharger en CSV",
+    "es": "Descargar CSV",
+    "pt": "Descarregar CSV"
+  },
+  "analysis.download_json": {
+    "en": "Download JSON",
+    "fr": "Télécharger en JSON",
+    "es": "Descargar JSON",
+    "pt": "Descarregar JSON"
+  },
+  "analysis.zonal_update": {
+    "en": "Press Update to compute the table.",
+    "fr": "Cliquez sur Mettre à jour pour calculer le tableau.",
+    "es": "Pulse Actualizar para calcular la tabla.",
+    "pt": "Clique em «Atualização» para calcular a tabela."
   }
 }

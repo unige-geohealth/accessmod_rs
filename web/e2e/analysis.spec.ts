@@ -162,3 +162,21 @@ test("scaling up: capacity table, a factor from the form, run", async ({ page })
   await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
   await expect(dialog).toContainText("[up]");
 });
+
+test("zonal statistics: Update fills the table in place, one column per time step, download", async ({ page }) => {
+  await page.goto(`/#/${project}/analysis/zonal`);
+  await choose(page, "Select travel time layer (raster)", "(r) travel time [e2e]");
+  await page.getByLabel("Select maximum travel time [minutes]").fill("30, 60, abc, 30");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  const table = page.locator(".tabulator", { hasText: "time_limit_s" });
+  await expect(table.locator(".tabulator-row").first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await shot(page, "analysis-zonal");
+  await page.getByLabel("Format table to get individual columns for each time step").click();
+  await expect(page.locator(".tabulator", { hasText: "coverage_percent_60min" })).toBeVisible();
+  await shot(page, "analysis-zonal-wide");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download CSV" }).click();
+  const csv = readFileSync(await (await download).path(), "utf8");
+  expect(csv.split("\n")[0]).toBe("zone_id,label,time_limit_s,population,population_covered,coverage_percent");
+});

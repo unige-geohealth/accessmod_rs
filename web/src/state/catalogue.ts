@@ -155,7 +155,7 @@ export function datasetLabel(t: (key: Key) => string, dataset: Api.Dataset): str
   return `(${kindOf(dataset.class).charAt(0)}) ${classLabel(t, dataset.class)} [${dataset.tags.join(" ")}]`;
 }
 
-/** Datasets of `classes`, newest first, as select options (value: id). */
+/** Datasets of `classes` as select options (value: id): class by class in the order given (AM5 `amListData`), newest first. */
 export function datasetOptions(
   t: (key: Key) => string,
   datasets: readonly Api.Dataset[] | undefined,
@@ -163,7 +163,7 @@ export function datasetOptions(
 ): { value: string; label: string }[] {
   return (datasets ?? [])
     .filter((d) => classes.includes(d.class))
-    .sort((a, b) => b.id - a.id)
+    .sort((a, b) => classes.indexOf(a.class) - classes.indexOf(b.class) || b.id - a.id)
     .map((d) => ({ value: String(d.id), label: datasetLabel(t, d) }));
 }
 

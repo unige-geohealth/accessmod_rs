@@ -1,11 +1,12 @@
 // Selectors shared by the analysis tabs: datasets of the catalogue (AM5
 // labels "(r) land cover merged [demo]") and fields of a vector dataset.
 import { SelectField } from "@accessmod/ui/am/form";
-import type { Key } from "@accessmod/ui/i18n";
+import { type Key, useI18n } from "@accessmod/ui/i18n";
 import { useMemo } from "react";
 import { useDatasets, useProject } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import type { ZoneInput, ZoneMessage } from "../../state/zones";
+import { useFmt } from "../common";
 
 /** Datasets of a project by id, and its DEM. */
 export function useCatalogue(project: string) {
@@ -87,5 +88,26 @@ export function ZoneInputs({
       <FieldSelect label="analysis_select_zone_id_integer" fields={fields} value={input.idField} onChange={(field) => onMessage({ type: "idField", field })} />
       <FieldSelect label="analysis_select_zone_name_text" fields={fields} value={input.labelField} onChange={(field) => onMessage({ type: "labelField", field })} />
     </>
+  );
+}
+
+/** AM5 link-style buttons ("[All]", "[Previous]"). */
+export const LINK = "px-1 text-link hover:text-link-hover hover:underline disabled:opacity-50 disabled:no-underline";
+
+/** Previous / next over pages of `page` rows; nothing when one page holds them all. */
+export function Pager({ offset, page, total, onOffset }: { offset: number; page: number; total: number; onOffset: (offset: number) => void }) {
+  const { t } = useI18n();
+  const f = useFmt();
+  if (total <= page) return null;
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <button type="button" className={LINK} disabled={offset === 0} onClick={() => onOffset(Math.max(0, offset - page))}>
+        [{t("analysis.previous")}]
+      </button>
+      <span>{f("analysis.rows_page", offset + 1, Math.min(offset + page, total), total)}</span>
+      <button type="button" className={LINK} disabled={offset + page >= total} onClick={() => onOffset(offset + page)}>
+        [{t("analysis.next")}]
+      </button>
+    </div>
   );
 }

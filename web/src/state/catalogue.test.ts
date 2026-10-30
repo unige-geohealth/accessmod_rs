@@ -49,6 +49,9 @@ describe("catalogue", () => {
       { value: "3", label: "(r) land cover merged [b c]" },
       { value: "1", label: "(r) land cover merged [a]" },
     ]);
+    // Class by class, as AM5 lists them: the population before newer residuals.
+    const population = [dataset(6, "rPopulation", ["a"]), dataset(7, "rPopulationResidual", ["r"]), dataset(8, "rPopulation", ["b"])];
+    expect(datasetOptions(t, population, ["rPopulation", "rPopulationResidual"]).map((o) => o.value)).toEqual(["8", "6", "7"]);
     const tables = [dataset(4, "tLandCover", ["c", "b"]), dataset(5, "tLandCover", ["b"])];
     expect(pairedTable(tables, list[2], "tLandCover")?.id).toBe(4);
     expect(pairedTable(tables, list[0], "tLandCover")).toBeUndefined();

@@ -4,13 +4,14 @@
 // so it survives navigation; datasets, rows, validation and runs are server
 // state.
 import { type SectionTab, SectionTabs } from "@accessmod/ui/am/section-tabs";
+import type { ReactNode } from "react";
 import { navigate, type Route } from "../app/route";
 import { Accessibility } from "./analysis/accessibility";
 import { Coverage } from "./analysis/coverage";
 import { Optimization } from "./analysis/optimization";
 import { Referral } from "./analysis/referral";
 import { ScalingUp } from "./analysis/scaling-up";
-import { NotYet } from "./other";
+import { Zonal } from "./analysis/zonal";
 
 type Tab = "accessibility" | "coverage" | "referral" | "zonal" | "scalingUp" | "optimization";
 
@@ -25,24 +26,22 @@ const TABS: SectionTab<Tab>[] = [
 
 const isTab = (v: string | null): v is Tab => TABS.some((t) => t.value === v);
 
+const SCREENS: Record<Tab, (props: { project: string }) => ReactNode> = {
+  accessibility: Accessibility,
+  coverage: Coverage,
+  referral: Referral,
+  zonal: Zonal,
+  scalingUp: ScalingUp,
+  optimization: Optimization,
+};
+
 export function AnalysisScreen({ route, project }: { route: Route; project: string }) {
   const tab = isTab(route.panel) ? route.panel : "accessibility";
+  const Screen = SCREENS[tab];
   return (
     <div className="flex flex-col gap-5">
       <SectionTabs tabs={TABS} value={tab} onChange={(v) => navigate({ ...route, panel: v, query: {} })} />
-      {tab === "accessibility" ? (
-        <Accessibility project={project} />
-      ) : tab === "coverage" ? (
-        <Coverage project={project} />
-      ) : tab === "referral" ? (
-        <Referral project={project} />
-      ) : tab === "scalingUp" ? (
-        <ScalingUp project={project} />
-      ) : tab === "optimization" ? (
-        <Optimization project={project} />
-      ) : (
-        <NotYet />
-      )}
+      <Screen project={project} />
     </div>
   );
 }
