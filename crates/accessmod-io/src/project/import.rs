@@ -8,9 +8,10 @@
 //! - Vector layers are copied to FlatGeobuf in the project CRS with every
 //!   attribute; their geometries must suit the class (points for
 //!   facilities, polygons for zones, …).
-//! - Tables are CSV files with a header, copied as they are.
+//! - Tables are CSV files with a header, copied as they are, or a sheet of
+//!   an XLSX workbook (the first unless one is named), written as CSV.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use gdal::raster::{GdalDataType, GdalType};
 use gdal::vector::{Geometry, LayerAccess, OGRwkbGeometryType};
@@ -20,7 +21,7 @@ use crate::analysis::Cancelled;
 use crate::class::{DataClass, Kind};
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::output::GeoTiff;
+use crate::output::{CsvWriter, GeoTiff, csv_field};
 use crate::preview::{self, Resampling};
 use crate::raster::{AlignedBand, for_each_chunk, open_aligned_raster, open_class_raster};
 use crate::resources::ExecutionSettings;
@@ -29,7 +30,8 @@ use crate::vector::{FeatureWriter, VectorLayer};
 /// Options of an import.
 #[derive(Debug, Clone, Default)]
 pub struct ImportOptions {
-    /// Layer of a vector dataset; the first when `None`.
+    /// Layer of a vector dataset, or sheet of a workbook; the first when
+    /// `None`.
     pub layer: Option<String>,
 }
 
@@ -72,7 +74,7 @@ impl Project {
                     options.layer.as_deref(),
                     cancelled,
                 ),
-                Kind::Table => copy_table(source, target),
+                Kind::Table => copy_table(source, target, options.layer.as_deref(), cancelled),
                 Kind::Config => Err(config_is_a_job()),
             },
             cancelled,
@@ -471,10 +473,72 @@ fn vector_summary(path: &Path) -> Result<VectorSummary> {
 
 // ---- tables ---------------------------------------------------------------
 
-fn copy_table(source: &Path, target: &Path) -> Result<Summary> {
+fn copy_table(
+    source: &Path,
+    target: &Path,
+    sheet: Option<&str>,
+    cancelled: Cancelled<'_>,
+) -> Result<Summary> {
+    let xlsx = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("xlsx"));
+    if xlsx {
+        xlsx_to_csv(source, target, sheet, cancelled)?;
+        return Ok(Summary::Table(table_summary(target)?));
+    }
     let summary = table_summary(source)?;
     std::fs::copy(source, target).map_err(Error::file(target))?;
     Ok(Summary::Table(summary))
+}
+
+/// Write `sheet` (the first when `None`) of workbook `source` as CSV: its
+/// first row is the header, every cell is read as text.
+fn xlsx_to_csv(
+    source: &Path,
+    target: &Path,
+    sheet: Option<&str>,
+    cancelled: Cancelled<'_>,
+) -> Result<()> {
+    let options = gdal::DatasetOptions {
+        open_flags: gdal::GdalOpenFlags::GDAL_OF_VECTOR | gdal::GdalOpenFlags::GDAL_OF_READONLY,
+        allowed_drivers: Some(&["XLSX"]),
+        open_options: Some(&["HEADERS=FORCE", "FIELD_TYPES=STRING"]),
+        ..gdal::DatasetOptions::default()
+    };
+    let dataset = gdal::Dataset::open_ex(source, options).map_err(Error::gdal(source))?;
+    let mut layer = match sheet {
+        Some(name) => dataset
+            .layer_by_name(name)
+            .map_err(|_| Error::invalid(format!("{}: no sheet {name:?}", source.display())))?,
+        None => dataset
+            .layer(0)
+            .map_err(|_| Error::invalid(format!("{}: no sheet", source.display())))?,
+    };
+    let header: Vec<String> = layer.defn().fields().map(|f| f.name()).collect();
+    if header.is_empty() {
+        return Err(Error::invalid(format!("{}: empty sheet", source.display())));
+    }
+    let text = |s: String| csv_field(&serde_json::Value::String(s));
+    let mut out = CsvWriter::create(
+        target,
+        &header.into_iter().map(text).collect::<Vec<_>>().join(","),
+    )?;
+    for feature in layer.features() {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let fields = (0..feature.field_count())
+            .map(|i| {
+                feature
+                    .field_as_string(i)
+                    .map(|v| text(v.unwrap_or_default()))
+                    .map_err(Error::gdal(source))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        out.record(&fields)?;
+    }
+    out.finish()
 }
 
 /// Largest CSV record read, bytes.
@@ -508,12 +572,26 @@ fn table_summary(path: &Path) -> Result<TableSummary> {
 /// GDAL drivers a file sent by a user may be read with: formats that never
 /// read other files they name. A VRT, for one, would open any file of the
 /// server; GDAL identifies formats by content, so the extension is no guard.
-const SELF_CONTAINED: &[&str] = &["GTiff", "ESRI Shapefile", "GPKG", "FlatGeobuf", "GeoJSON"];
+/// ERDAS Imagine (HFA) may name a spill file (`.ige`) or a dependent file
+/// (`.rrd`): [`check_self_contained`] also confines every file GDAL reads.
+const SELF_CONTAINED: &[&str] = &[
+    "GTiff",
+    "HFA",
+    "ESRI Shapefile",
+    "GPKG",
+    "FlatGeobuf",
+    "GeoJSON",
+    "XLSX",
+];
 
 /// Check that `path`, a file sent by a user (an upload), reads nothing but
-/// itself and its companion files: a GeoTIFF, shapefile, GeoPackage,
-/// FlatGeobuf or GeoJSON layer, or a CSV table (copied as it is).
+/// itself and its companion files in its own directory: a GeoTIFF, ERDAS
+/// Imagine, shapefile, GeoPackage, FlatGeobuf or GeoJSON layer, or a CSV or
+/// XLSX table.
 pub fn check_self_contained(path: &Path) -> Result<()> {
+    let name = path
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     let csv = path
         .extension()
         .and_then(|e| e.to_str())
@@ -528,12 +606,53 @@ pub fn check_self_contained(path: &Path) -> Result<()> {
         allowed_drivers: Some(SELF_CONTAINED),
         ..gdal::DatasetOptions::default()
     };
-    gdal::Dataset::open_ex(path, options).map(drop).map_err(|_| {
+    let dataset = gdal::Dataset::open_ex(path, options).map_err(|_| {
         Error::invalid(format!(
-            "{}: not a supported file (GeoTIFF, shapefile, GeoPackage, FlatGeobuf, GeoJSON or CSV)",
-            path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+            "{name}: not a supported file (GeoTIFF, ERDAS Imagine, shapefile, GeoPackage, \
+             FlatGeobuf, GeoJSON, CSV or XLSX)"
         ))
+    })?;
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    if !confined(&file_list(&dataset), dir) {
+        return Err(Error::invalid(format!(
+            "{name}: the file names other files outside its upload"
+        )));
+    }
+    Ok(())
+}
+
+/// Whether every file of `files` lies in `dir` (symbolic links resolved);
+/// a file that does not exist is outside.
+fn confined(files: &[PathBuf], dir: &Path) -> bool {
+    let Ok(dir) = dir.canonicalize() else {
+        return false;
+    };
+    files.iter().all(|f| {
+        f.canonicalize()
+            .is_ok_and(|f| f.parent().is_some_and(|p| p == dir))
     })
+}
+
+/// Files GDAL reads for `dataset` (`GDALGetFileList`): the main file and its
+/// companions, spill and dependent files included.
+fn file_list(dataset: &gdal::Dataset) -> Vec<PathBuf> {
+    // SAFETY: the dataset handle is valid while `dataset` lives; the list is
+    // a NULL-terminated array of C strings owned by the caller, read before
+    // it is freed with `CSLDestroy` (which accepts NULL).
+    unsafe {
+        let list = gdal_sys::GDALGetFileList(dataset.c_dataset());
+        let mut files = Vec::new();
+        if !list.is_null() {
+            let mut i = 0;
+            while !(*list.add(i)).is_null() {
+                let name = std::ffi::CStr::from_ptr(*list.add(i));
+                files.push(PathBuf::from(name.to_string_lossy().into_owned()));
+                i += 1;
+            }
+        }
+        gdal_sys::CSLDestroy(list);
+        files
+    }
 }
 
 #[cfg(test)]
@@ -548,6 +667,21 @@ mod tests {
         assert!(accepts(DataClass::Barrier, Family::Polygon));
         assert!(!accepts(DataClass::Zone, Family::Line));
         assert!(accepts(DataClass::ExclusionVector, Family::Point));
+    }
+
+    #[test]
+    fn files_must_lie_in_their_directory() {
+        let root = std::env::temp_dir().join(format!("am-confined-{}", std::process::id()));
+        let (inside, outside) = (root.join("upload"), root.join("other"));
+        std::fs::create_dir_all(&inside).expect("dir");
+        std::fs::create_dir_all(&outside).expect("dir");
+        std::fs::write(inside.join("a.img"), b"").expect("file");
+        std::fs::write(outside.join("a.ige"), b"").expect("file");
+        assert!(confined(&[inside.join("a.img")], &inside));
+        assert!(!confined(&[inside.join("../other/a.ige")], &inside));
+        assert!(!confined(&[inside.join("missing.ige")], &inside));
+        assert!(!confined(&[inside.join("a.img")], &root.join("none")));
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[test]

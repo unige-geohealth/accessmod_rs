@@ -10,7 +10,7 @@ use accessmod_io::fixtures::{
 };
 use accessmod_io::project::{ImportOptions, Origin, Project, RunStatus, Summary};
 use accessmod_io::travel_time::TravelTime;
-use gdal::vector::{FieldValue, OGRFieldType};
+use gdal::vector::{FieldValue, LayerAccess, OGRFieldType};
 use serde_json::json;
 
 const COLS: usize = 6;
@@ -708,4 +708,88 @@ fn tables_with_quoted_fields_are_summarised() {
     };
     assert_eq!(table.columns, ["class", "label", "speed"]);
     assert_eq!(table.rows, 2);
+}
+
+#[test]
+fn erdas_imagine_rasters_are_accepted() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let tif = gdal::Dataset::open(dir.path().join("lc.tif")).expect("open");
+    let img = dir.path().join("lc.img");
+    let hfa = gdal::DriverManager::get_driver_by_name("HFA").expect("HFA driver");
+    tif.create_copy(&hfa, &img, &gdal::cpl::CslStringList::new())
+        .expect("write HFA");
+    drop(tif);
+    accessmod_io::project::check_self_contained(&img).expect("self-contained");
+    let record = project
+        .import(
+            &img,
+            DataClass::LandCover,
+            &tags(&["erdas"]),
+            &ImportOptions::default(),
+            &settings(64 << 20, 1),
+            &|| false,
+        )
+        .expect("import");
+    assert!(matches!(record.summary, Summary::Raster(_)));
+}
+
+#[test]
+fn xlsx_sheets_are_imported_as_csv() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let path = dir.path().join("tables.xlsx");
+    {
+        let driver = gdal::DriverManager::get_driver_by_name("XLSX").expect("XLSX driver");
+        let mut book = driver.create_vector_only(&path).expect("create");
+        for (name, rows) in [("classes", 2), ("other", 1)] {
+            let layer = book
+                .create_layer(gdal::vector::LayerOptions {
+                    name,
+                    ty: gdal::vector::OGRwkbGeometryType::wkbNone,
+                    ..Default::default()
+                })
+                .expect("sheet");
+            layer
+                .create_defn_fields(&[
+                    ("class", OGRFieldType::OFTInteger),
+                    ("label", OGRFieldType::OFTString),
+                ])
+                .expect("fields");
+            for i in 0..rows {
+                let defn = layer.defn();
+                let mut feature = gdal::vector::Feature::new(defn).expect("feature");
+                feature.set_field_integer(0, i + 1).expect("class");
+                feature
+                    .set_field_string(1, &format!("forest, {i}"))
+                    .expect("label");
+                feature.create(&layer).expect("row");
+            }
+        }
+    }
+    accessmod_io::project::check_self_contained(&path).expect("self-contained");
+    let import = |layer: Option<&str>, tag: &str| {
+        project.import(
+            &path,
+            DataClass::LandCoverTable,
+            &tags(&[tag]),
+            &ImportOptions {
+                layer: layer.map(str::to_owned),
+            },
+            &settings(64 << 20, 1),
+            &|| false,
+        )
+    };
+    let record = import(None, "first").expect("first sheet");
+    let Summary::Table(table) = record.summary else {
+        panic!("table summary");
+    };
+    assert_eq!(table.columns, ["class", "label"]);
+    assert_eq!(table.rows, 2);
+    let record = import(Some("other"), "second").expect("named sheet");
+    let Summary::Table(table) = record.summary else {
+        panic!("table summary");
+    };
+    assert_eq!(table.rows, 1);
+    assert!(import(Some("missing"), "third").is_err());
 }

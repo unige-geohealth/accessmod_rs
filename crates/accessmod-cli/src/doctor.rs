@@ -53,7 +53,7 @@ pub fn run(args: &Args) -> Result<(), Failure> {
     let tmp_dir = args.tmp_dir.clone().unwrap_or_else(std::env::temp_dir);
     let mut checks = Vec::new();
 
-    for driver in ["GTiff", "GPKG", "ESRI Shapefile", "GeoJSON"] {
+    for driver in ["GTiff", "HFA", "GPKG", "ESRI Shapefile", "GeoJSON", "XLSX"] {
         let ok = DriverManager::get_driver_by_name(driver).is_ok();
         let detail = if ok { "available" } else { "missing" };
         checks.push(check(&format!("driver {driver}"), ok, detail.to_owned()));

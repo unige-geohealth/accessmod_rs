@@ -30,7 +30,8 @@ const MAX_FILES: usize = 32;
 const MAX_AGE: Duration = Duration::from_secs(24 * 3600);
 /// Companion files: never the file a command reads.
 const SIDECARS: &[&str] = &[
-    "dbf", "shx", "prj", "cpg", "qix", "sbn", "sbx", "xml", "ovr", "aux", "qmd",
+    "dbf", "shx", "prj", "cpg", "qix", "sbn", "sbx", "xml", "ovr", "aux", "qmd", "ige", "rrd",
+    "rde",
 ];
 
 /// A file a command reads: on the server's disk (desktop) or uploaded.
