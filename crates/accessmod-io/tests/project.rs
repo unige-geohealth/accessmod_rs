@@ -845,3 +845,36 @@ fn demo_project_holds_every_sample_dataset() {
     // A project that is not the demo says so.
     assert!(!project_with_inputs(dir.path()).info().expect("info").demo);
 }
+
+#[test]
+fn uploads_read_by_another_driver_than_their_name_are_refused() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    sources(dir.path());
+    let outside = dir.path().join("lc.tif");
+    let upload = dir.path().join("upload");
+    std::fs::create_dir(&upload).expect("dir");
+    let vrt = format!(
+        "<VRTDataset rasterXSize=\"{COLS}\" rasterYSize=\"{ROWS}\">\
+         <VRTRasterBand dataType=\"Byte\" band=\"1\"><SimpleSource>\
+         <SourceFilename relativeToVRT=\"0\">{}</SourceFilename>\
+         <SourceBand>1</SourceBand></SimpleSource></VRTRasterBand></VRTDataset>",
+        outside.display()
+    );
+    let ogr_vrt = format!(
+        "<OGRVRTDataSource><OGRVRTLayer name=\"hf\"><SrcDataSource>{}</SrcDataSource>\
+         </OGRVRTLayer></OGRVRTDataSource>",
+        dir.path().join("hf.gpkg").display()
+    );
+    for (name, content) in [("dem.csv", &vrt), ("dem.tif", &vrt), ("hf.csv", &ogr_vrt)] {
+        let path = upload.join(name);
+        std::fs::write(&path, content).expect("write");
+        assert!(
+            accessmod_io::project::check_self_contained(&path).is_err(),
+            "{name} is refused"
+        );
+        std::fs::remove_file(&path).expect("remove");
+    }
+    let table = upload.join("scenario.csv");
+    std::fs::write(&table, "class,label,speed\n1,\"forest, dense\",2\n").expect("write");
+    accessmod_io::project::check_self_contained(&table).expect("a CSV table");
+}

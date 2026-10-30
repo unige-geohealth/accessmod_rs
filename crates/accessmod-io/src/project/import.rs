@@ -574,30 +574,42 @@ fn table_summary(path: &Path) -> Result<TableSummary> {
 /// server; GDAL identifies formats by content, so the extension is no guard.
 /// ERDAS Imagine (HFA) may name a spill file (`.ige`) or a dependent file
 /// (`.rrd`): [`check_self_contained`] also confines every file GDAL reads.
+/// XYZ is how a raster read may see a CSV of numbers.
 const SELF_CONTAINED: &[&str] = &[
     "GTiff",
     "HFA",
+    "XYZ",
     "ESRI Shapefile",
     "GPKG",
     "FlatGeobuf",
     "GeoJSON",
+    "CSV",
     "XLSX",
 ];
 
 /// Check that `path`, a file sent by a user (an upload), reads nothing but
 /// itself and its companion files in its own directory: a GeoTIFF, ERDAS
 /// Imagine, shapefile, GeoPackage, FlatGeobuf or GeoJSON layer, or a CSV or
-/// XLSX table.
+/// XLSX table. Imports open files with any driver, so the driver a raster
+/// or a vector read would pick must be one of [`SELF_CONTAINED`], whatever
+/// the file is named.
 pub fn check_self_contained(path: &Path) -> Result<()> {
     let name = path
         .file_name()
         .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-    let csv = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("csv"));
-    if csv {
-        return Ok(());
+    let unsupported = || {
+        Error::invalid(format!(
+            "{name}: not a supported file (GeoTIFF, ERDAS Imagine, shapefile, GeoPackage, \
+             FlatGeobuf, GeoJSON, CSV or XLSX)"
+        ))
+    };
+    for flags in [
+        gdal::GdalOpenFlags::GDAL_OF_RASTER,
+        gdal::GdalOpenFlags::GDAL_OF_VECTOR,
+    ] {
+        if identify(path, flags)?.is_some_and(|d| !SELF_CONTAINED.contains(&d.as_str())) {
+            return Err(unsupported());
+        }
     }
     let options = gdal::DatasetOptions {
         open_flags: gdal::GdalOpenFlags::GDAL_OF_RASTER
@@ -606,12 +618,7 @@ pub fn check_self_contained(path: &Path) -> Result<()> {
         allowed_drivers: Some(SELF_CONTAINED),
         ..gdal::DatasetOptions::default()
     };
-    let dataset = gdal::Dataset::open_ex(path, options).map_err(|_| {
-        Error::invalid(format!(
-            "{name}: not a supported file (GeoTIFF, ERDAS Imagine, shapefile, GeoPackage, \
-             FlatGeobuf, GeoJSON, CSV or XLSX)"
-        ))
-    })?;
+    let dataset = gdal::Dataset::open_ex(path, options).map_err(|_| unsupported())?;
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     if !confined(&file_list(&dataset), dir) {
         return Err(Error::invalid(format!(
@@ -619,6 +626,35 @@ pub fn check_self_contained(path: &Path) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+/// Short name of the driver GDAL would open `path` with for `flags`
+/// (raster or vector), without opening it; `None` when no driver would.
+fn identify(path: &Path, flags: gdal::GdalOpenFlags) -> Result<Option<String>> {
+    let c_path = path
+        .to_str()
+        .and_then(|p| std::ffi::CString::new(p).ok())
+        .ok_or_else(|| Error::invalid(format!("{}: unsupported file name", path.display())))?;
+    // SAFETY: `c_path` outlives the call; no allowed-driver or file lists.
+    // A driver handle is owned by GDAL's driver manager and never freed; its
+    // short name is a C string GDAL keeps, copied before returning.
+    unsafe {
+        let driver = gdal_sys::GDALIdentifyDriverEx(
+            c_path.as_ptr(),
+            flags.bits(),
+            std::ptr::null(),
+            std::ptr::null(),
+        );
+        if driver.is_null() {
+            return Ok(None);
+        }
+        let name = gdal_sys::GDALGetDriverShortName(driver);
+        Ok((!name.is_null()).then(|| {
+            std::ffi::CStr::from_ptr(name)
+                .to_string_lossy()
+                .into_owned()
+        }))
+    }
 }
 
 /// Whether every file of `files` lies in `dir` (symbolic links resolved);
