@@ -119,4 +119,4 @@ until it is public).
   the runner); the build itself needs no other change. Windows code signing
   needs a certificate (none yet).
 - End-to-end tests against the Linux and Windows archives in CI.
-- Later: a Tauri desktop package over the same binary.
+- Desktop installers wrap this archive: [`desktop.md`](desktop.md).

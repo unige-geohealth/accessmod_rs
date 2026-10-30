@@ -27,7 +27,9 @@ engine in the tests; its code is not copied.
 Release archives (binary with GDAL, PROJ and the web client, nothing else
 to install) come from the [releases](https://github.com/unige-geohealth/accessmod_rs/releases);
 Linux (x86_64, arm64), macOS (Apple silicon, Intel) and Windows (x86_64)
-([`docs/distribution.md`](docs/distribution.md)).
+([`docs/distribution.md`](docs/distribution.md)). Desktop installers
+(`.dmg`, `.deb`, `.AppImage`, Windows setup) open the same interface in an
+application window, unsigned for now ([`docs/desktop.md`](docs/desktop.md)).
 
 ```sh
 ./accessmod doctor        # check GDAL, PROJ, drivers, memory and disk
@@ -53,7 +55,7 @@ and figures on a small synthetic landscape.
 | 1 | Travel-time engine on disk-backed tiled rasters, under a memory budget | ✅ |
 | 2 | Every analysis and tool as a command-line job, equal to AccessMod 5 | ✅ (referral network output 🗓) |
 | 3 | Projects and web interface (`accessmod serve`) | 🟡 analyses, data and projects ✅; toolbox, map, logs 🗓 |
-| 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives for Linux, macOS and Windows ✅; macOS notarization in CI 🗓 |
+| 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives for Linux, macOS and Windows ✅; desktop installers 🟡 (unsigned); macOS notarization in CI 🗓 |
 
 ## AccessMod 6 against AccessMod 5
 
@@ -95,7 +97,8 @@ analysis (AccessMod 5 replay without its 5.4 s of R start-up):
 - **Use**: [tutorial](docs/tutorial/README.md) ·
   [coverage of AccessMod 5 features](docs/coverage.md) ·
   [benchmarks](benchmark/README.md) ·
-  [distribution](docs/distribution.md)
+  [distribution](docs/distribution.md) ·
+  [desktop application](docs/desktop.md)
 - **Analyses**: [cost model](docs/cost-model.md) ·
   [referral](docs/referral.md) ·
   [geographic coverage](docs/geographic-coverage.md) ·

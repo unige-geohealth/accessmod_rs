@@ -1,0 +1,27 @@
+[package]
+name = "accessmod-desktop"
+description = "AccessMod 6 desktop window: runs `accessmod serve` as a sidecar process and shows its interface"
+version = "6.0.0-alpha.1"
+edition = "2024"
+rust-version = "1.92"
+license = "LGPL-3.0-or-later"
+publish = false
+
+# Its own workspace: the engine gate never builds a webview (WebKitGTK,
+# WebView2). The engine runs as a separate process, so a crash of the
+# engine never takes the window down.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+getrandom = "0.4"
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+[profile.release]
+strip = true
+lto = "thin"
