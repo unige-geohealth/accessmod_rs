@@ -468,10 +468,10 @@
     "pt": "Cálculo cancelado"
   },
   "analysis.download_job": {
-    "en": "Download the job (JSON), to run it again or on a server",
-    "fr": "Télécharger la tâche (JSON), pour la relancer ou l'exécuter sur un serveur",
-    "es": "Descargar la tarea (JSON), para volver a ejecutarla o en un servidor",
-    "pt": "Transferir a tarefa (JSON), para a executar novamente ou num servidor"
+    "en": "Export job",
+    "fr": "Exporter la tâche",
+    "es": "Exportar la tarea",
+    "pt": "Exportar a tarefa"
   },
   "analysis.no_rows": {
     "en": "No facility matches.",
@@ -490,5 +490,11 @@
     "fr": "OK",
     "es": "Aceptar",
     "pt": "OK"
+  },
+  "api.not_json": {
+    "en": "The server answered with a page instead of data: it is probably older than this interface. Restart it from the current version.",
+    "fr": "Le serveur a répondu par une page au lieu de données : il est probablement plus ancien que cette interface. Redémarrez-le depuis la version actuelle.",
+    "es": "El servidor respondió con una página en lugar de datos: probablemente es más antiguo que esta interfaz. Reinícielo desde la versión actual.",
+    "pt": "O servidor respondeu com uma página em vez de dados: provavelmente é mais antigo do que esta interface. Reinicie-o a partir da versão atual."
   }
 }

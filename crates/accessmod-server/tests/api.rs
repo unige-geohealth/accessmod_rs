@@ -663,6 +663,40 @@ async fn tables_download_as_csv_or_json() {
 }
 
 #[tokio::test]
+async fn unknown_api_paths_are_json_errors_even_with_a_client() {
+    let s = server(true);
+    let web = tempfile::tempdir().expect("temp dir");
+    std::fs::write(web.path().join("index.html"), "<!doctype html>").expect("write");
+    let app = router(s.state.clone(), Some(web.path().to_path_buf()));
+    for uri in ["/api/nope", "/api/projects/demo/datasets/1/nope"] {
+        let request = Request::builder()
+            .uri(uri)
+            .body(Body::empty())
+            .expect("request");
+        let response = app.clone().oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(body["kind"], "not_found", "{uri}");
+    }
+    let request = Request::builder()
+        .uri("/some/page")
+        .body(Body::empty())
+        .expect("request");
+    let response = app.oneshot(request).await.expect("response");
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "client routes still serve the page"
+    );
+}
+
+#[tokio::test]
 async fn malformed_bodies_get_json_errors() {
     let s = server(true);
     let request = Request::builder()

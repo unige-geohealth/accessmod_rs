@@ -31,6 +31,11 @@ pub async fn health() -> Json<Value> {
     Json(json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")}))
 }
 
+/// Any other `/api/…` path: a `not_found` error document.
+pub async fn no_route(uri: axum::http::Uri) -> ApiError {
+    ApiError::NotFound(format!("no API route {}", uri.path()))
+}
+
 /// `GET /api/settings`.
 pub async fn settings(
     _: Principal,

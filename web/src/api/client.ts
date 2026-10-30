@@ -14,7 +14,11 @@ export class ApiError extends Error {
 }
 
 /** Errors the client makes itself, by kind: their text is translated. */
-const OWN: Record<string, Key> = { network: "upload.connection_lost", cancelled: "upload.cancelled" };
+const OWN: Record<string, Key> = {
+  network: "upload.connection_lost",
+  cancelled: "upload.cancelled",
+  not_json: "api.not_json",
+};
 
 /** The issues of any error, for display; server issues are shown as sent. */
 export function issuesOf(error: unknown, t: (key: Key) => string): string[] {
@@ -50,6 +54,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   });
   const value = parse(await response.text());
   if (!response.ok) throw apiError(response.status, response.statusText, value);
+  // A page instead of a document: a server older than the client.
+  if (typeof value === "string") throw new ApiError(0, "not_json", []);
   return value as T;
 }
 

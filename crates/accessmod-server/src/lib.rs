@@ -36,7 +36,7 @@ use std::path::PathBuf;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{get, post};
+use axum::routing::{any, get, post};
 use tower_http::services::{ServeDir, ServeFile};
 
 pub use state::{AppState, Config, DEFAULT_UPLOAD_LIMIT};
@@ -97,6 +97,8 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
             "/api/projects/{project}/analyses/{name}/validate",
             post(routes::validate),
         )
+        // An unknown API path is a JSON error, never the client's page.
+        .route("/api/{*path}", any(routes::no_route))
         .with_state(state);
     match web_dir {
         // A single-page application: unknown paths serve `index.html`.
