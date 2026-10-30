@@ -2,6 +2,7 @@
 // facility matching an attribute filter, or the ones checked. Checked ids go
 // to the job as `ids`, so a job saved here replays headless on the same
 // subset (docs/plan.md, travel-time job).
+import type { Key } from "@accessmod/ui/i18n";
 import type { Jobs } from "../generated/jobs";
 
 export type FacilitySelection =
@@ -65,4 +66,48 @@ export function toFacilitySource(path: string, idField: string, selection: Facil
     ...(where === "" ? {} : { where }),
     ...(selection.mode === "ids" ? { ids: [...selection.ids] } : {}),
   };
+}
+
+/** A facility layer chosen in an analysis: the layer, its identifier field and the selection. */
+export interface FacilityInput {
+  layer: number | null;
+  /** Identifier field; "" until chosen. */
+  idField: string;
+  selection: FacilitySelection;
+}
+
+export const NO_FACILITIES: FacilityInput = { layer: null, idField: "", selection: ALL };
+
+export type FacilityMessage =
+  | { type: "layer"; id: number | null }
+  | { type: "idField"; field: string }
+  | { type: "selection"; selection: FacilitySelection };
+
+export function updateFacilities(input: FacilityInput, message: FacilityMessage): FacilityInput {
+  switch (message.type) {
+    case "layer":
+      // Fields and identifiers belong to a layer.
+      return message.id === input.layer ? input : { layer: message.id, idField: "", selection: ALL };
+    case "idField":
+      return message.field === input.idField ? input : { ...input, idField: message.field, selection: { mode: "all", where: input.selection.where } };
+    case "selection":
+      return { ...input, selection: message.selection };
+  }
+}
+
+/** The input as shown: AM5 preselects the first layer and its `cat` field. */
+export function withFacilityDefaults(input: FacilityInput, layer: number | null, fieldsOf: (layer: number | null) => readonly string[]): FacilityInput {
+  const chosen = input.layer ?? layer;
+  const fields = fieldsOf(chosen);
+  const idField = input.idField !== "" && fields.includes(input.idField) ? input.idField : fields.includes("cat") ? "cat" : (fields[0] ?? "");
+  return chosen === input.layer && idField === input.idField ? input : { ...input, layer: chosen, idField };
+}
+
+/** Missing layer, missing identifier field, empty selection (AM5 messages). */
+export function facilityIssues(input: FacilityInput, path: string | undefined): Key[] {
+  if (path === undefined) return ["srv_analysis_accessibility_missing_facility_layer"];
+  const issues: Key[] = [];
+  if (input.idField === "") issues.push("analysis.id_field_missing");
+  if (input.selection.mode === "ids" && input.selection.ids.length === 0) issues.push("srv_analysis_accessibility_select_facilities");
+  return issues;
 }

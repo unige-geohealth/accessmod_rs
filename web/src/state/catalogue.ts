@@ -73,6 +73,12 @@ export function normalizeTags(text: string): string[] {
   return out;
 }
 
+/** Output tags; AM5 requires at least one. */
+export function tagsOf(text: string): { tags: string[]; issues: Key[] } {
+  const tags = normalizeTags(text);
+  return { tags, issues: tags.length === 0 ? ["srv_analysis_accessibility_add_tag_instruction"] : [] };
+}
+
 /** Data › Filter, from the URL. */
 export interface DataFilter {
   type: Kind | "all";
