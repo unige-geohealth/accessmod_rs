@@ -479,11 +479,7 @@ fn copy_table(
     sheet: Option<&str>,
     cancelled: Cancelled<'_>,
 ) -> Result<Summary> {
-    let xlsx = source
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("xlsx"));
-    if xlsx {
+    if is_xlsx(source) {
         xlsx_to_csv(source, target, sheet, cancelled)?;
         return Ok(Summary::Table(table_summary(target)?));
     }
@@ -492,53 +488,79 @@ fn copy_table(
     Ok(Summary::Table(summary))
 }
 
+/// A workbook by its name; read by calamine, never by GDAL.
+fn is_xlsx(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("xlsx"))
+}
+
 /// Write `sheet` (the first when `None`) of workbook `source` as CSV: its
-/// first row is the header, every cell is read as text.
+/// first row is the header, every cell is written as text. Read in Rust
+/// (calamine), not by GDAL: bundled GDAL builds have no XLSX driver.
 fn xlsx_to_csv(
     source: &Path,
     target: &Path,
     sheet: Option<&str>,
     cancelled: Cancelled<'_>,
 ) -> Result<()> {
-    let options = gdal::DatasetOptions {
-        open_flags: gdal::GdalOpenFlags::GDAL_OF_VECTOR | gdal::GdalOpenFlags::GDAL_OF_READONLY,
-        allowed_drivers: Some(&["XLSX"]),
-        open_options: Some(&["HEADERS=FORCE", "FIELD_TYPES=STRING"]),
-        ..gdal::DatasetOptions::default()
+    use calamine::{Reader, Xlsx, open_workbook};
+    let invalid = |why: String| Error::invalid(format!("{}: {why}", source.display()));
+    let mut workbook: Xlsx<_> = open_workbook(source)
+        .map_err(|e| invalid(format!("not a readable XLSX workbook ({e})")))?;
+    let name = match sheet {
+        Some(name) => name.to_owned(),
+        None => workbook
+            .sheet_names()
+            .first()
+            .cloned()
+            .ok_or_else(|| invalid("no sheet".into()))?,
     };
-    let dataset = gdal::Dataset::open_ex(source, options).map_err(Error::gdal(source))?;
-    let mut layer = match sheet {
-        Some(name) => dataset
-            .layer_by_name(name)
-            .map_err(|_| Error::invalid(format!("{}: no sheet {name:?}", source.display())))?,
-        None => dataset
-            .layer(0)
-            .map_err(|_| Error::invalid(format!("{}: no sheet", source.display())))?,
-    };
-    let header: Vec<String> = layer.defn().fields().map(|f| f.name()).collect();
-    if header.is_empty() {
-        return Err(Error::invalid(format!("{}: empty sheet", source.display())));
+    let range = workbook
+        .worksheet_range(&name)
+        .map_err(|_| invalid(format!("no sheet {name:?}")))?;
+    let mut rows = range.rows();
+    let header: Vec<String> = rows
+        .next()
+        .map(|r| r.iter().map(cell_text).collect())
+        .unwrap_or_default();
+    if header.iter().all(String::is_empty) {
+        return Err(invalid("empty sheet".into()));
     }
     let text = |s: String| csv_field(&serde_json::Value::String(s));
     let mut out = CsvWriter::create(
         target,
         &header.into_iter().map(text).collect::<Vec<_>>().join(","),
     )?;
-    for feature in layer.features() {
+    for row in rows {
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        let fields = (0..feature.field_count())
-            .map(|i| {
-                feature
-                    .field_as_string(i)
-                    .map(|v| text(v.unwrap_or_default()))
-                    .map_err(Error::gdal(source))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        out.record(&fields)?;
+        // Rows without any value (formatting only) are not records.
+        if row.iter().all(|c| matches!(c, calamine::Data::Empty)) {
+            continue;
+        }
+        out.record(&row.iter().map(|c| text(cell_text(c))).collect::<Vec<_>>())?;
     }
     out.finish()
+}
+
+/// A cell as text: whole numbers without a decimal part (`5`, not `5.0`),
+/// other numbers in their shortest form, dates in ISO 8601.
+fn cell_text(cell: &calamine::Data) -> String {
+    use calamine::Data;
+    match cell {
+        Data::Empty => String::new(),
+        Data::String(s) | Data::DateTimeIso(s) | Data::DurationIso(s) => s.clone(),
+        Data::Int(i) => i.to_string(),
+        Data::Float(f) if f.fract() == 0.0 && f.abs() < 1e15 => format!("{f:.0}"),
+        Data::Float(f) => f.to_string(),
+        Data::Bool(b) => b.to_string(),
+        Data::DateTime(d) => d
+            .as_datetime()
+            .map_or_else(|| d.as_f64().to_string(), |t| format!("{t:?}")),
+        Data::Error(e) => format!("#{e:?}"),
+    }
 }
 
 /// Header and record count of a CSV file (RFC 4180).
@@ -591,6 +613,18 @@ pub fn check_self_contained(path: &Path) -> Result<()> {
         if identify(path, flags)?.is_some_and(|d| !SELF_CONTAINED.contains(&d.as_str())) {
             return Err(unsupported());
         }
+    }
+    // A workbook is one zip file, read by calamine only (bundled GDAL has no
+    // XLSX driver): no other GDAL driver claims it, and it must open.
+    if is_xlsx(path) {
+        use calamine::Reader;
+        let workbook: calamine::Xlsx<_> =
+            calamine::open_workbook(path).map_err(|_| unsupported())?;
+        return if workbook.sheet_names().is_empty() {
+            Err(unsupported())
+        } else {
+            Ok(())
+        };
     }
     let options = gdal::DatasetOptions {
         open_flags: gdal::GdalOpenFlags::GDAL_OF_RASTER

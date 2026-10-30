@@ -10,7 +10,7 @@ use accessmod_io::fixtures::{
 };
 use accessmod_io::project::{ImportOptions, Origin, Project, RunStatus, Summary};
 use accessmod_io::travel_time::TravelTime;
-use gdal::vector::{FieldValue, LayerAccess, OGRFieldType};
+use gdal::vector::{FieldValue, OGRFieldType};
 use serde_json::json;
 
 const COLS: usize = 6;
@@ -739,34 +739,22 @@ fn xlsx_sheets_are_imported_as_csv() {
     let dir = tempfile::tempdir().expect("tempdir");
     let project = project_with_inputs(dir.path());
     let path = dir.path().join("tables.xlsx");
-    {
-        let driver = gdal::DriverManager::get_driver_by_name("XLSX").expect("XLSX driver");
-        let mut book = driver.create_vector_only(&path).expect("create");
-        for (name, rows) in [("classes", 2), ("other", 1)] {
-            let layer = book
-                .create_layer(gdal::vector::LayerOptions {
-                    name,
-                    ty: gdal::vector::OGRwkbGeometryType::wkbNone,
-                    ..Default::default()
-                })
-                .expect("sheet");
-            layer
-                .create_defn_fields(&[
-                    ("class", OGRFieldType::OFTInteger),
-                    ("label", OGRFieldType::OFTString),
-                ])
-                .expect("fields");
-            for i in 0..rows {
-                let defn = layer.defn();
-                let mut feature = gdal::vector::Feature::new(defn).expect("feature");
-                feature.set_field_integer(0, i + 1).expect("class");
-                feature
-                    .set_field_string(1, &format!("forest, {i}"))
-                    .expect("label");
-                feature.create(&layer).expect("row");
-            }
+    // Written without GDAL: bundled GDAL builds have no XLSX driver.
+    let mut book = rust_xlsxwriter::Workbook::new();
+    for (name, rows) in [("classes", 2u32), ("other", 1)] {
+        let sheet = book.add_worksheet().set_name(name).expect("sheet");
+        sheet.write_string(0, 0, "class").expect("header");
+        sheet.write_string(0, 1, "label").expect("header");
+        for i in 0..rows {
+            sheet
+                .write_number(i + 1, 0, f64::from(i + 1))
+                .expect("class");
+            sheet
+                .write_string(i + 1, 1, format!("forest, {i}"))
+                .expect("label");
         }
     }
+    book.save(&path).expect("save");
     accessmod_io::project::check_self_contained(&path).expect("self-contained");
     let import = |layer: Option<&str>, tag: &str| {
         project.import(
@@ -786,6 +774,8 @@ fn xlsx_sheets_are_imported_as_csv() {
     };
     assert_eq!(table.columns, ["class", "label"]);
     assert_eq!(table.rows, 2);
+    let csv = std::fs::read_to_string(project.root().join(&record.file)).expect("csv");
+    assert_eq!(csv, "class,label\n1,\"forest, 0\"\n2,\"forest, 1\"\n");
     let record = import(Some("other"), "second").expect("named sheet");
     let Summary::Table(table) = record.summary else {
         panic!("table summary");

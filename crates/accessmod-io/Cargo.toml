@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 accessmod-core.workspace = true
+calamine = { version = "0.37", features = ["dates"] }
 gdal = "0.19"
 # GDALPolygonize, not wrapped by the gdal crate (same version as gdal uses).
 gdal-sys = "0.12"
@@ -30,6 +31,7 @@ libc = "0.2"
 
 [dev-dependencies]
 accessmod-io = { path = ".", features = ["fixtures"] }
+rust_xlsxwriter = "0.102"
 tempfile = "3"
 
 [lints]
