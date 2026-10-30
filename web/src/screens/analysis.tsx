@@ -9,6 +9,7 @@ import { Accessibility } from "./analysis/accessibility";
 import { Coverage } from "./analysis/coverage";
 import { Optimization } from "./analysis/optimization";
 import { Referral } from "./analysis/referral";
+import { ScalingUp } from "./analysis/scaling-up";
 import { NotYet } from "./other";
 
 type Tab = "accessibility" | "coverage" | "referral" | "zonal" | "scalingUp" | "optimization";
@@ -35,6 +36,8 @@ export function AnalysisScreen({ route, project }: { route: Route; project: stri
         <Coverage project={project} />
       ) : tab === "referral" ? (
         <Referral project={project} />
+      ) : tab === "scalingUp" ? (
+        <ScalingUp project={project} />
       ) : tab === "optimization" ? (
         <Optimization project={project} />
       ) : (

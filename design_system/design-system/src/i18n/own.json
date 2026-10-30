@@ -508,5 +508,23 @@
     "fr": "Sélectionnez le champ donnant l'ordre de traitement.",
     "es": "Seleccione el campo que da el orden de procesamiento.",
     "pt": "Selecione o campo que dá a ordem de processamento."
+  },
+  "analysis.cover_percent_invalid": {
+    "en": "Set a percentage of population to cover between 0 and 100.",
+    "fr": "Indiquez un pourcentage de population à couvrir entre 0 et 100.",
+    "es": "Indique un porcentaje de población a cubrir entre 0 y 100.",
+    "pt": "Indique uma percentagem de população a cobrir entre 0 e 100."
+  },
+  "analysis.new_facilities_invalid": {
+    "en": "Set a whole number of new facilities, 0 or more.",
+    "fr": "Indiquez un nombre entier de nouvelles structures, 0 ou plus.",
+    "es": "Indique un número entero de nuevos establecimientos, 0 o más.",
+    "pt": "Indique um número inteiro de novos estabelecimentos, 0 ou mais."
+  },
+  "analysis.max_minutes_invalid": {
+    "en": "Set a maximum processing time of 0 minutes or more.",
+    "fr": "Indiquez un temps de calcul maximal de 0 minute ou plus.",
+    "es": "Indique un tiempo máximo de procesamiento de 0 minutos o más.",
+    "pt": "Indique um tempo máximo de processamento de 0 minutos ou mais."
   }
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { command, finished, importFile, panel, shot, sidebar } from "./helpers";
+import { choose, command, finished, importFile, panel, shot, sidebar } from "./helpers";
 
 // Analysis screens on the demo project. The demo has no merged land cover
 // and no scenario table: both are made through the API first, as a user
@@ -138,4 +138,27 @@ test("optimization: catchments of the coverage run, minimum per zone, run", asyn
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
   await expect(dialog).toContainText("[opt]");
+});
+
+test("scaling up: capacity table, a factor from the form, run", async ({ page }) => {
+  await page.goto(`/#/${project}/analysis/scalingUp`);
+  await page.getByRole("button", { name: "Import content from the selected scenario table" }).click();
+  // The demo capacity table is read into the capacity rows.
+  await expect(page.locator(".tabulator", { hasText: "capacity" }).first().locator(".tabulator-row")).not.toHaveCount(0);
+  // Suitability: add the distance from the roads.
+  await page.getByRole("button", { name: "Suitability index" }).click();
+  await choose(page, "Select a factor for the suitability index", "Euclidean distance from features");
+  await choose(page, "Select available layer", "(v) road [demo]");
+  await page.getByRole("button", { name: "Add", exact: true }).first().click();
+  const factors = page.locator(".tabulator", { hasText: "options" });
+  await expect(factors.locator(".tabulator-row")).toHaveCount(2);
+  await page.getByLabel("Number of new health facilities to locate [facility]").fill("3");
+  await page.getByLabel("Add short tags").fill("up");
+  // Information messages only: Compute is enabled.
+  await expect(page.getByRole("button", { name: "Compute", exact: true })).toBeEnabled({ timeout: 30_000 });
+  await shot(page, "analysis-scaling-up");
+  await page.getByRole("button", { name: "Compute", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(dialog).toContainText("[up]");
 });

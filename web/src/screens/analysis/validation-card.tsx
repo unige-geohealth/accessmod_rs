@@ -4,14 +4,14 @@
 import { MessageDialog } from "@accessmod/ui/am/message-dialog";
 import { AmButton, LinkActions, type Message, MessageList } from "@accessmod/ui/am/messages";
 import { SectionCard } from "@accessmod/ui/am/section";
-import { type Key, T, useI18n } from "@accessmod/ui/i18n";
+import { T, useI18n } from "@accessmod/ui/i18n";
 import { Progress } from "@accessmod/ui/ui/progress";
 import { useState } from "react";
 import { api, issuesOf } from "../../api/client";
 import { keys, queryClient, useProgress, useRuns, useValidation } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import { classLabel } from "../../state/catalogue";
-import { sessionStore } from "../../state/drafts";
+import { type Issue, sessionStore } from "../../state/drafts";
 import { busy, minutes, percent, runView, type RunView } from "../../state/run";
 import { useStore } from "../../state/store";
 import { useFmt } from "../common";
@@ -27,9 +27,9 @@ export function ValidationCard({
 }: {
   project: string;
   analysis: string;
-  issues: Key[];
+  issues: Issue[];
   /** AM5 information messages (not blocking). */
-  notices: Key[];
+  notices: Issue[];
   /** Complete job document; `null` while incomplete. */
   document: Record<string, unknown> | null;
   tags: string[];
@@ -37,6 +37,7 @@ export function ValidationCard({
 }) {
   const { t } = useI18n();
   const f = useFmt();
+  const message = (kind: Message["kind"], i: Issue): Message => (typeof i === "string" ? { kind, k: i } : { kind, text: f(i.key, ...i.args) });
   const validation = useValidation(project, analysis, document);
   const session = sessionStore(project, analysis);
   const { run, acknowledged } = useStore(session, (s) => s);
@@ -46,8 +47,8 @@ export function ValidationCard({
   const [failure, setFailure] = useState<string[]>([]);
 
   const messages: Message[] = [
-    ...issues.map((k) => ({ kind: "issue" as const, k })),
-    ...notices.map((k) => ({ kind: "info" as const, k })),
+    ...issues.map((i) => message("issue", i)),
+    ...notices.map((i) => message("info", i)),
     ...(validation.isError ? issuesOf(validation.error, t).map((text) => ({ kind: "issue" as const, text })) : []),
     ...((validation.data?.warnings as { message: string }[] | undefined) ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
     ...failure.map((text) => ({ kind: "issue" as const, text })),
