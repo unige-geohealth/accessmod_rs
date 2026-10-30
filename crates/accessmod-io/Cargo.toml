@@ -26,7 +26,10 @@ gdal-src = { version = "0.3", optional = true, features = [
   "geos_static",
 ] }
 png = "0.18.1"
-rusqlite = { version = "0.37", features = ["bundled"] }
+# The SQLite GDAL uses: the system one with the system GDAL (on Linux a second,
+# bundled copy in the binary would take over libgdal's calls and crash), the
+# bundled one with the bundled GDAL (feature `bundled`).
+rusqlite = "0.37"
 schemars.workspace = true
 serde.workspace = true
 serde_json = "1"
@@ -40,7 +43,7 @@ unicode-normalization = "0.1.26"
 fixtures = []
 # GDAL and PROJ built from source and linked statically (release archives):
 # only the drivers the code uses (docs/distribution.md).
-bundled = ["gdal-sys/bundled", "dep:gdal-src"]
+bundled = ["gdal-sys/bundled", "dep:gdal-src", "rusqlite/bundled"]
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

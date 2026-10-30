@@ -47,9 +47,13 @@ subtracts catchments). Consequences:
 - XLSX workbooks are read in Rust (`calamine`), not by GDAL, in every
   build: `gdal-src` has no XLSX driver. The demo tables are byte-identical
   to the former GDAL reading.
-- One SQLite for the project database (`rusqlite`) and GeoPackage:
-  `rusqlite` is held at 0.37, whose `libsqlite3-sys` 0.35 is the newest
-  `gdal-src` accepts (a `links` key admits one version per build).
+- One SQLite for the project database (`rusqlite`) and GeoPackage, the one
+  GDAL uses: the system library with the system GDAL, the bundled one with
+  the feature `bundled`. On Linux a second, bundled SQLite in the binary
+  took over `libgdal`'s calls (ELF symbol interposition) and crashed
+  GeoPackage writes on GDAL 3.8. `rusqlite` is held at 0.37, whose
+  `libsqlite3-sys` 0.35 is the newest `gdal-src` accepts (a `links` key
+  admits one version per build).
 - The bundled GDAL opens no VRT raster: an upload holding a VRT cannot make
   it read another file (`check_self_contained` keeps refusing it where the
   system GDAL would read it).
