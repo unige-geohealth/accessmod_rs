@@ -1,0 +1,66 @@
+# Test and quality on every push and pull request: the Rust gate on Linux,
+# the tests on macOS (Apple silicon), the front-end gate and the end-to-end
+# tests. No packages: releases are built from tags (milestone 4).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  rust-linux:
+    name: Rust gate (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: GDAL and PROJ
+        run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends libgdal-dev gdal-bin libproj-dev
+      # rust-toolchain.toml pins the toolchain; rustup installs it.
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - run: sh scripts/check.sh
+
+  rust-macos:
+    name: Rust tests (macOS)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: GDAL and PROJ
+        run: brew install gdal
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -q --workspace
+
+  web:
+    name: Front end and end-to-end
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: GDAL and PROJ
+        run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends libgdal-dev gdal-bin libproj-dev
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # The e2e server is `cargo run … serve`: build it before the timer starts.
+      - run: cargo build -q -p accessmod-cli
+      - run: npx -w @accessmod/web playwright install --with-deps chromium
+      - run: npm -w @accessmod/web run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: web/test-results/
+          retention-days: 7
