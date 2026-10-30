@@ -793,3 +793,50 @@ fn xlsx_sheets_are_imported_as_csv() {
     assert_eq!(table.rows, 1);
     assert!(import(Some("missing"), "third").is_err());
 }
+
+#[test]
+fn demo_project_holds_every_sample_dataset() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().join("demo");
+    let project =
+        accessmod_io::demo::create(&root, &settings(64 << 20, 1), &|| false).expect("demo");
+    let info = project.info().expect("info");
+    assert!(info.demo);
+    assert_eq!(info.name, accessmod_io::demo::NAME);
+    assert_eq!((info.grid.cols, info.grid.rows), (227, 196));
+    let datasets = project.datasets(None).expect("datasets");
+    // The DEM, then every sample dataset.
+    assert_eq!(datasets.len(), accessmod_io::demo::DATASETS.len() + 1);
+    for (_, class, tags) in accessmod_io::demo::DATASETS {
+        assert!(
+            datasets
+                .iter()
+                .any(|d| d.class == *class && d.tags == *tags),
+            "{class:?} {tags:?}"
+        );
+    }
+    let facilities = project
+        .datasets(Some(DataClass::Facility))
+        .expect("facilities");
+    let Summary::Vector(vector) = &facilities[0].summary else {
+        panic!("vector summary");
+    };
+    assert_eq!(vector.features, 10);
+    let capacity = project
+        .datasets(Some(DataClass::Capacity))
+        .expect("capacity");
+    let Summary::Table(table) = &capacity[0].summary else {
+        panic!("table summary");
+    };
+    assert_eq!(table.columns, ["min", "max", "label", "capacity"]);
+    assert_eq!(table.rows, 7);
+    // Only the project is left next to it.
+    let entries: Vec<_> = std::fs::read_dir(dir.path())
+        .expect("read")
+        .flatten()
+        .map(|e| e.file_name())
+        .collect();
+    assert_eq!(entries, ["demo"]);
+    // A project that is not the demo says so.
+    assert!(!project_with_inputs(dir.path()).info().expect("info").demo);
+}

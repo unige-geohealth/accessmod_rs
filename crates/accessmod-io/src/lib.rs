@@ -8,6 +8,7 @@ pub mod analysis;
 pub(crate) mod catchment;
 pub mod class;
 pub mod coverage;
+pub mod demo;
 pub mod error;
 pub mod facilities;
 #[cfg(feature = "fixtures")]

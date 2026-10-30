@@ -109,6 +109,9 @@ pub struct ProjectInfo {
     pub dem: Id,
     /// The project grid.
     pub grid: GridInfo,
+    /// Whether this is the demo project ([`crate::demo`]).
+    #[serde(default)]
+    pub demo: bool,
 }
 
 /// The grid every raster of a project lies on.
@@ -325,6 +328,28 @@ impl Project {
         settings: &ExecutionSettings,
         cancelled: Cancelled<'_>,
     ) -> Result<Self> {
+        Self::create_with(
+            root,
+            name,
+            description,
+            dem,
+            settings,
+            cancelled,
+            |_| Ok(()),
+        )
+    }
+
+    /// [`Project::create`], then `populate` (imports, metadata) before the
+    /// project appears in `root`: it appears whole or not at all.
+    pub fn create_with(
+        root: &Path,
+        name: &str,
+        description: &str,
+        dem: &Path,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+        populate: impl FnOnce(&Self) -> Result<()>,
+    ) -> Result<Self> {
         let name = name.trim();
         if name.is_empty() {
             return Err(Error::invalid("a project needs a name"));
@@ -348,6 +373,7 @@ impl Project {
         ));
         std::fs::create_dir(&staging).map_err(Error::file(&staging))?;
         let built = Self::create_in(&staging, name, description, dem, settings, cancelled)
+            .and_then(|project| populate(&project).map(|()| project))
             .and_then(|project| {
                 // Close the database before moving its directory.
                 drop(project);
@@ -451,7 +477,7 @@ impl Project {
         Error::database(&self.db_path)
     }
 
-    fn set_meta(&self, key: &str, value: &str) -> Result<()> {
+    pub(crate) fn set_meta(&self, key: &str, value: &str) -> Result<()> {
         self.db
             .execute(
                 "INSERT INTO meta (key, value) VALUES (?1, ?2)
@@ -482,6 +508,7 @@ impl Project {
             description: self.meta("description")?,
             created: self.meta("created")?.parse().unwrap_or(0),
             dem,
+            demo: self.meta("demo").is_ok_and(|v| v == "1"),
             grid: GridInfo {
                 cols: grid.cols,
                 rows: grid.rows,

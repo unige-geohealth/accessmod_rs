@@ -51,6 +51,11 @@
           "format": "int64",
           "type": "integer"
         },
+        "demo": {
+          "default": false,
+          "description": "Whether this is the demo project ([`crate::demo`]).",
+          "type": "boolean"
+        },
         "description": {
           "description": "Free description.",
           "type": "string"

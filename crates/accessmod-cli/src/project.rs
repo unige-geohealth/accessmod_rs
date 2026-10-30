@@ -38,6 +38,13 @@ pub enum Command {
         #[command(flatten)]
         exec: ExecArgs,
     },
+    /// Create the demo project (AccessMod 5 sample data, tagged `demo`).
+    Demo {
+        /// Project directory.
+        dir: PathBuf,
+        #[command(flatten)]
+        exec: ExecArgs,
+    },
     /// Name, grid and content of a project.
     Info {
         #[command(flatten)]
@@ -196,6 +203,19 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
                 info.grid.cols,
                 info.grid.rows
             );
+            if exec.json {
+                print_value(&info);
+            }
+            Ok(())
+        }
+        Command::Demo { dir, exec } => {
+            let settings = settings(&exec)?;
+            let project = monitored(cancel, |m| {
+                accessmod_io::demo::create(&dir, &settings, m.cancelled())
+            })
+            .map_err(|e| fail(&e, exec.json))?;
+            let info = project.info().map_err(|e| fail(&e, exec.json))?;
+            tracing::info!("created the demo project in {}", dir.display());
             if exec.json {
                 print_value(&info);
             }
