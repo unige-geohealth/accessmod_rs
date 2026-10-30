@@ -5,14 +5,14 @@
 import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
 import { DataTable, type Row } from "@accessmod/ui/am/data-table";
-import { RadioField, SelectField, TextField } from "@accessmod/ui/am/form";
+import { CheckboxField, RadioField, SelectField, TextField } from "@accessmod/ui/am/form";
 import { AmButton, FilePicker, InfoList, MessageList } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
 import { T, useI18n } from "@accessmod/ui/i18n";
 import { type Dispatch, useMemo, useReducer, useState } from "react";
 import { api, issuesOf } from "../api/client";
-import { keys, queryClient, useDatasets } from "../api/queries";
+import { keys, queryClient, useDatasets, useRuns } from "../api/queries";
 import { navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
 import { useBatch } from "../state/batch";
@@ -31,12 +31,15 @@ import {
   toRow,
 } from "../state/catalogue";
 import { type DataDocument, type DataMessage, EMPTY, selectedDatasets, tagChanges, updateData } from "../state/data-document";
+import { lastResults } from "../state/run";
 import { busy, useTransfer } from "../state/transfer";
 import { BatchStatus, NotAvailable, TransferStatus, useFmt } from "./common";
 
 export function DataScreen({ route, project }: { route: Route; project: string }) {
   const { t } = useI18n();
   const datasets = useDatasets(project);
+  const runs = useRuns(project).data;
+  const last = useMemo(() => new Set(lastResults(runs)), [runs]);
   const [doc, dispatch] = useReducer(updateData, EMPTY);
   const filter = filterFromQuery(route.query);
   const renaming = route.panel === "rename";
@@ -45,10 +48,10 @@ export function DataScreen({ route, project }: { route: Route; project: string }
   const list = datasets.data;
   const rows = useMemo(() => {
     const all = sortRows((list ?? []).map((d) => toRow(d, t)));
-    return all.filter((r) => matches(r, filter)).map((r) => ({ ...r, tags: doc.edits[r.id] ?? r.tags }));
+    return all.filter((r) => matches(r, filter, last)).map((r) => ({ ...r, tags: doc.edits[r.id] ?? r.tags }));
     // the filter is a value of the URL query
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, t, doc.edits, filter.type, filter.text, filter.tags]);
+  }, [list, t, doc.edits, filter.type, filter.text, filter.tags, filter.last, last]);
 
   const setFilter = (next: DataFilter) => navigate({ ...route, query: filterToQuery(next) });
 
@@ -176,6 +179,7 @@ function FilterPanel({ filter, onChange }: { filter: DataFilter; onChange: (f: D
       />
       <TextField label="data_filter_text" value={filter.text} onChange={(text) => onChange({ ...filter, text })} />
       <TextField label="data_filter_tag" value={filter.tags} onChange={(tags) => onChange({ ...filter, tags })} />
+      <CheckboxField label="data.last_results" checked={filter.last} onChange={(last) => onChange({ ...filter, last })} />
     </div>
   );
 }

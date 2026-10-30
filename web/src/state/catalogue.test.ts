@@ -23,19 +23,21 @@ describe("catalogue", () => {
 
   it("filters by type, text and tags", () => {
     const rows = [dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"])].map((d) => toRow(d, t as never));
-    const ids = (q: Record<string, string>) => rows.filter((r) => matches(r, filterFromQuery(q))).map((r) => r.id);
+    const ids = (q: Record<string, string>) => rows.filter((r) => matches(r, filterFromQuery(q), new Set([2]))).map((r) => r.id);
     expect(ids({})).toEqual([1, 2]);
     expect(ids({ type: "vector" })).toEqual([2]);
     expect(ids({ type: "bogus" })).toEqual([1, 2]);
     expect(ids({ text: "health" })).toEqual([2]);
     expect(ids({ text: "Health" })).toEqual([]);
     expect(ids({ tags: "demo, health" })).toEqual([2]);
+    expect(ids({ last: "1" })).toEqual([2]);
+    expect(ids({ last: "1", type: "raster" })).toEqual([]);
   });
 
   it("round-trips the filter through the URL query", () => {
-    const filter = { type: "raster" as const, text: "a", tags: "" };
+    const filter = { type: "raster" as const, text: "a", tags: "", last: true };
     expect(filterFromQuery(filterToQuery(filter))).toEqual(filter);
-    expect(filterToQuery({ type: "all", text: "", tags: "" }).type).toBe("");
+    expect(filterToQuery({ type: "all", text: "", tags: "", last: false })).toEqual({ type: "", text: "", tags: "", last: "" });
   });
 
   it("offers the datasets of a job field's classes, and pairs tables by tags", () => {

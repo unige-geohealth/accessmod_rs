@@ -80,6 +80,8 @@ export interface DataFilter {
   text: string;
   /** Every tag must be present. */
   tags: string;
+  /** Only the datasets of the latest finished run ("Filter last results"). */
+  last: boolean;
 }
 
 const KINDS: readonly string[] = ["vector", "raster", "table", "config"];
@@ -90,11 +92,12 @@ export function filterFromQuery(query: Readonly<Record<string, string>>): DataFi
     type: KINDS.includes(type) ? (type as Kind) : "all",
     text: query.text ?? "",
     tags: query.tags ?? "",
+    last: query.last === "1",
   };
 }
 
 export function filterToQuery(filter: DataFilter): Record<string, string> {
-  return { type: filter.type === "all" ? "" : filter.type, text: filter.text, tags: filter.tags };
+  return { type: filter.type === "all" ? "" : filter.type, text: filter.text, tags: filter.tags, last: filter.last ? "1" : "" };
 }
 
 /** AM5 names of the kinds (Data › Filter). */
@@ -116,7 +119,9 @@ export function toRow(dataset: Api.Dataset, t: (key: Key) => string): DataRow {
   return { id: dataset.id, tags: dataset.tags.join(" "), kind, type: t(KIND_KEYS[kind]), class: classLabel(t, dataset.class) };
 }
 
-export function matches(row: DataRow, filter: DataFilter): boolean {
+/** Whether `row` passes `filter`; `last` holds the datasets of the latest finished run. */
+export function matches(row: DataRow, filter: DataFilter, last: ReadonlySet<number> = new Set()): boolean {
+  if (filter.last && !last.has(row.id)) return false;
   if (filter.type !== "all" && row.kind !== filter.type) return false;
   if (filter.text !== "" && ![row.tags, row.type, row.class].some((f) => f.includes(filter.text))) return false;
   const wanted = normalizeTags(filter.tags);
