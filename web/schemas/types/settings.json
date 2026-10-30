@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Server settings.",
+  "properties": {
+    "default_project": {
+      "default": null,
+      "description": "Project the client opens when none is named; the demo project when\nunset.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "Settings",
+  "type": "object"
+}

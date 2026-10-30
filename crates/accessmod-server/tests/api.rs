@@ -63,15 +63,40 @@ fn server(local_paths: bool) -> Server {
 fn server_with(local_paths: bool, upload_limit: u64) -> Server {
     let dir = tempfile::tempdir().expect("tempdir");
     sources(dir.path());
-    let state = AppState::new(Config {
-        data_dir: dir.path().join("data"),
+    let state = state_on(dir.path(), local_paths, upload_limit, false);
+    let app = router(state.clone(), None);
+    Server { dir, state, app }
+}
+
+/// A server on the data directory of `dir`, building the demo project in
+/// a new one when `demo`.
+fn state_on(dir: &Path, local_paths: bool, upload_limit: u64, demo: bool) -> AppState {
+    AppState::new(Config {
+        data_dir: dir.join("data"),
         settings: settings(64 << 20, 1),
         local_paths,
         upload_limit,
+        demo,
     })
-    .expect("state");
-    let app = router(state.clone(), None);
-    Server { dir, state, app }
+    .expect("state")
+}
+
+impl Server {
+    /// A new server on the same data directory (a restart).
+    fn restart(self, demo: bool) -> Self {
+        let state = state_on(
+            self.dir.path(),
+            true,
+            accessmod_server::DEFAULT_UPLOAD_LIMIT,
+            demo,
+        );
+        let app = router(state.clone(), None);
+        Self {
+            dir: self.dir,
+            state,
+            app,
+        }
+    }
 }
 
 impl Server {
@@ -697,4 +722,130 @@ async fn projects_can_be_removed_when_idle() {
         .command("project.remove", json!({"project": "../data"}))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+fn slugs(list: &Value) -> Vec<String> {
+    list.as_array()
+        .expect("array")
+        .iter()
+        .filter_map(|p| p["slug"].as_str().map(str::to_owned))
+        .collect()
+}
+
+#[tokio::test]
+async fn the_demo_project_is_built_once_and_reset_on_demand() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    sources(dir.path());
+    let state = state_on(
+        dir.path(),
+        true,
+        accessmod_server::DEFAULT_UPLOAD_LIMIT,
+        true,
+    );
+    let app = router(state.clone(), None);
+    let s = Server { dir, state, app };
+    let (_, list) = s.call("GET", "/api/projects", None).await;
+    assert_eq!(slugs(&list), ["demo"]);
+    assert_eq!(list[0]["info"]["demo"], json!(true));
+    let (_, datasets) = s.call("GET", "/api/projects/demo/datasets", None).await;
+    assert_eq!(datasets.as_array().map(Vec::len), Some(11));
+
+    // Removed, it stays removed across restarts.
+    let (status, body) = s
+        .command("project.remove", json!({"project": "demo"}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let s = s.restart(true);
+    let (_, list) = s.call("GET", "/api/projects", None).await;
+    assert_eq!(list, json!([]));
+
+    // A user project named Demo does not take the slug of the demo.
+    let (status, created) = s
+        .command(
+            "project.create",
+            json!({"name": "Demo", "dem": {"path": s.path("dem.tif")}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    assert_eq!(created["slug"], "demo-2");
+    assert_eq!(created["info"]["demo"], json!(false));
+
+    // Reset builds it again, twice in a row too.
+    for _ in 0..2 {
+        let (status, body) = s.command("demo.reset", json!({})).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["slug"], "demo");
+        assert_eq!(body["info"]["demo"], json!(true));
+    }
+    let (_, list) = s.call("GET", "/api/projects", None).await;
+    assert_eq!(slugs(&list), ["demo", "demo-2"]);
+    let (status, _) = s.command("demo.reset", json!({"force": true})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // A project in the place of the demo that is not the demo is kept.
+    let (status, _) = s
+        .command("project.remove", json!({"project": "demo"}))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    accessmod_io::project::Project::create(
+        &s.dir.path().join("data/projects/demo"),
+        "Mine",
+        "",
+        &s.dir.path().join("dem.tif"),
+        &settings(64 << 20, 1),
+        &|| false,
+    )
+    .expect("create");
+    let (status, body) = s.command("demo.reset", json!({})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (_, project) = s.call("GET", "/api/projects/demo", None).await;
+    assert_eq!(project["name"], "Mine");
+}
+
+#[tokio::test]
+async fn the_default_project_is_a_setting() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let (status, current) = s.call("GET", "/api/settings", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(current, json!({"default_project": null}));
+    let (status, body) = s
+        .command("settings.default_project", json!({"project": slug}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["default_project"], json!(slug));
+    // Kept across restarts.
+    let s = s.restart(false);
+    let (_, current) = s.call("GET", "/api/settings", None).await;
+    assert_eq!(current["default_project"], json!(slug));
+    for (params, expected) in [
+        (json!({"project": "missing"}), StatusCode::NOT_FOUND),
+        (json!({"project": "../data"}), StatusCode::NOT_FOUND),
+        (json!({"project": 3}), StatusCode::BAD_REQUEST),
+        (
+            json!({"project": slug, "other": 1}),
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        let (status, body) = s.command("settings.default_project", params).await;
+        assert_eq!(status, expected, "{body}");
+    }
+    let (_, current) = s.call("GET", "/api/settings", None).await;
+    assert_eq!(current["default_project"], json!(slug));
+    // Cleared by null, or when the project is removed.
+    let (status, body) = s
+        .command("settings.default_project", json!({"project": null}))
+        .await;
+    assert_eq!(
+        (status, body["default_project"].clone()),
+        (StatusCode::OK, Value::Null)
+    );
+    let (status, _) = s
+        .command("settings.default_project", json!({"project": slug}))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = s.command("project.remove", json!({"project": slug})).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, current) = s.call("GET", "/api/settings", None).await;
+    assert_eq!(current["default_project"], Value::Null);
 }

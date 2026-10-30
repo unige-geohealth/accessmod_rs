@@ -26,6 +26,14 @@ pub async fn health() -> Json<Value> {
     Json(json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")}))
 }
 
+/// `GET /api/settings`.
+pub async fn settings(
+    _: Principal,
+    State(state): State<AppState>,
+) -> Json<crate::settings::Settings> {
+    Json(state.settings())
+}
+
 /// `GET /api/session`: who the server sees.
 pub async fn session(principal: Principal) -> Json<Principal> {
     Json(principal)

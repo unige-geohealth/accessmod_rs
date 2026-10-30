@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`settings.default_project`.",
+  "properties": {
+    "project": {
+      "description": "Project slug; `null` clears the setting (the demo opens first).",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "DefaultProject",
+  "type": "object"
+}

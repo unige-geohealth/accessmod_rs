@@ -16,7 +16,8 @@ use serde_json::Value;
 use crate::auth::{Principal, Requirement, Role};
 use crate::error::{ApiError, ApiResult};
 use crate::events::Event;
-use crate::state::{AppState, new_slug};
+use crate::settings::Settings;
+use crate::state::{AppState, DEMO_SLUG, new_slug};
 use crate::uploads::{self, FileSource};
 
 /// Parameters naming the project they act on, if any.
@@ -113,6 +114,20 @@ pub fn registry() -> Vec<CommandSpec> {
             Requirement::Project(Role::Owner),
             ProjectRef,
             remove_project
+        ),
+        command!(
+            "demo.reset",
+            "Build the demo project again from the AccessMod 5 sample data",
+            Requirement::Admin,
+            ResetDemo,
+            reset_demo
+        ),
+        command!(
+            "settings.default_project",
+            "Set or clear the project the client opens first",
+            Requirement::Admin,
+            DefaultProject,
+            default_project
         ),
         command!(
             "dataset.import",
@@ -319,9 +334,34 @@ pub struct RunRef {
     pub id: Id,
 }
 
+/// `demo.reset`: no parameters.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ResetDemo {}
+
+/// `settings.default_project`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DefaultProject {
+    /// Project slug; `null` clears the setting (the demo opens first).
+    pub project: Option<String>,
+}
+
 impl Scoped for CreateProject {
     fn project(&self) -> Option<&str> {
         None
+    }
+}
+
+impl Scoped for ResetDemo {
+    fn project(&self) -> Option<&str> {
+        None
+    }
+}
+
+impl Scoped for DefaultProject {
+    fn project(&self) -> Option<&str> {
+        self.project.as_deref()
     }
 }
 
@@ -383,8 +423,29 @@ fn create_project(
 
 fn remove_project(state: &AppState, _: &Principal, params: ProjectRef) -> ApiResult<()> {
     state.open(&params.project)?.remove()?;
+    state.update_settings(|s| {
+        if s.default_project.as_deref() == Some(params.project.as_str()) {
+            s.default_project = None;
+        }
+    })?;
     state.publish(Event::Projects);
     Ok(())
+}
+
+fn reset_demo(state: &AppState, _: &Principal, _: ResetDemo) -> ApiResult<CreatedProject> {
+    state.reset_demo()?;
+    state.publish(Event::Projects);
+    Ok(CreatedProject {
+        slug: DEMO_SLUG.to_owned(),
+        info: state.open(DEMO_SLUG)?.info()?,
+    })
+}
+
+fn default_project(state: &AppState, _: &Principal, params: DefaultProject) -> ApiResult<Settings> {
+    if let Some(slug) = &params.project {
+        state.project_dir(slug)?;
+    }
+    state.update_settings(|s| s.default_project = params.project)
 }
 
 fn rename_project(

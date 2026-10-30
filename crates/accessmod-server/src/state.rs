@@ -1,7 +1,7 @@
 //! Server state: configuration, projects directory, events and runner.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use accessmod_io::project::Project;
 use accessmod_io::resources::ExecutionSettings;
@@ -10,9 +10,13 @@ use tokio::sync::broadcast;
 use crate::error::{ApiError, ApiResult};
 use crate::events::Event;
 use crate::runner::Runner;
+use crate::settings::Settings;
 
 /// Directory of projects inside the data directory.
 pub const PROJECTS_DIR: &str = "projects";
+/// Slug of the demo project ([`accessmod_io::demo`]), never given to
+/// another project.
+pub const DEMO_SLUG: &str = "demo";
 
 /// Default of [`Config::upload_limit`]: 4 GiB.
 pub const DEFAULT_UPLOAD_LIMIT: u64 = 4 << 30;
@@ -29,6 +33,9 @@ pub struct Config {
     pub local_paths: bool,
     /// Bytes one upload may hold ([`DEFAULT_UPLOAD_LIMIT`]).
     pub upload_limit: u64,
+    /// Build the demo project when the data directory has no projects
+    /// directory yet (a new installation).
+    pub demo: bool,
 }
 
 /// Shared state of the server.
@@ -42,16 +49,31 @@ struct Inner {
     config: Config,
     events: broadcast::Sender<Event>,
     runner: Runner,
+    /// Settings, as last written to the data directory.
+    settings: Mutex<Settings>,
+    /// Held while the demo project is rebuilt.
+    demo: Mutex<()>,
 }
 
 impl AppState {
-    /// State over `config`: creates the projects directory, recovers every
-    /// project left by a previous process, and starts the runner.
+    /// State over `config`: creates the projects directory (with the demo
+    /// project in a new data directory), recovers every project left by a
+    /// previous process, and starts the runner.
     pub fn new(config: Config) -> ApiResult<Self> {
         let projects = config.data_dir.join(PROJECTS_DIR);
+        let new = !projects.exists();
         std::fs::create_dir_all(&projects).map_err(|e| {
             ApiError::Internal(format!("cannot create {}: {e}", projects.display()))
         })?;
+        if new && config.demo {
+            // A failure leaves a working server without the demo, which
+            // the toolbox can build again.
+            if let Err(e) =
+                accessmod_io::demo::create(&projects.join(DEMO_SLUG), &config.settings, &|| false)
+            {
+                tracing::warn!("cannot build the demo project: {e}");
+            }
+        }
         for slug in project_slugs(&projects) {
             match Project::open(&projects.join(&slug)).and_then(|p| p.recover()) {
                 Ok(true) => {}
@@ -69,11 +91,14 @@ impl AppState {
         let (events, _) = broadcast::channel(1024);
         let runner = Runner::start(projects, config.settings.clone(), events.clone())
             .map_err(|e| ApiError::Internal(format!("cannot start the run worker: {e}")))?;
+        let settings = Mutex::new(Settings::load(&config.data_dir));
         Ok(Self {
             inner: Arc::new(Inner {
                 config,
                 events,
                 runner,
+                settings,
+                demo: Mutex::new(()),
             }),
         })
     }
@@ -112,6 +137,53 @@ impl AppState {
     /// Slugs of every project, sorted.
     pub fn project_slugs(&self) -> Vec<String> {
         project_slugs(&self.projects_dir())
+    }
+
+    /// Current settings.
+    pub fn settings(&self) -> Settings {
+        self.inner
+            .settings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Change the settings with `f` and write them; unchanged on error.
+    pub fn update_settings(&self, f: impl FnOnce(&mut Settings)) -> ApiResult<Settings> {
+        let mut current = self
+            .inner
+            .settings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut next = current.clone();
+        f(&mut next);
+        if next != *current {
+            next.save(&self.inner.config.data_dir)?;
+            *current = next.clone();
+        }
+        Ok(next)
+    }
+
+    /// Build the demo project again: remove it if it exists (waiting for
+    /// its imports and runs), then create it from the embedded data.
+    pub fn reset_demo(&self) -> ApiResult<()> {
+        let _guard = self
+            .inner
+            .demo
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let root = self.projects_dir().join(DEMO_SLUG);
+        if root.exists() {
+            let project = Project::open(&root)?;
+            if !project.info()?.demo {
+                return Err(ApiError::BadRequest(format!(
+                    "project {DEMO_SLUG:?} is not the demo project: remove it first"
+                )));
+            }
+            project.remove()?;
+        }
+        accessmod_io::demo::create(&root, &self.inner.config.settings, &|| false)?;
+        Ok(())
     }
 
     /// Publish an event; nobody listening is fine.
@@ -184,7 +256,7 @@ pub fn new_slug(projects: &Path, name: &str) -> String {
     };
     let mut slug = base.clone();
     let mut n = 2;
-    while projects.join(&slug).exists() {
+    while slug == DEMO_SLUG || projects.join(&slug).exists() {
         slug = format!("{base}-{n}");
         n += 1;
     }

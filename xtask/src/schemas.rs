@@ -124,6 +124,7 @@ fn types() -> Vec<(&'static str, Value)> {
         ),
         ("principal", schema::<accessmod_server::auth::Principal>()),
         ("upload", schema::<accessmod_server::uploads::Upload>()),
+        ("settings", schema::<accessmod_server::settings::Settings>()),
         // Parameters of the commands the client sends.
         (
             "create-project",
@@ -144,6 +145,10 @@ fn types() -> Vec<(&'static str, Value)> {
         (
             "project-ref",
             schema::<accessmod_server::commands::ProjectRef>(),
+        ),
+        (
+            "default-project",
+            schema::<accessmod_server::commands::DefaultProject>(),
         ),
         ("tile-style", schema::<accessmod_io::tiles::Style>()),
     ]

@@ -27,6 +27,7 @@ pub mod events;
 pub mod maps;
 pub mod routes;
 pub mod runner;
+pub mod settings;
 pub mod state;
 pub mod uploads;
 
@@ -50,6 +51,7 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
     let api = Router::new()
         .route("/api/health", get(routes::health))
         .route("/api/session", get(routes::session))
+        .route("/api/settings", get(routes::settings))
         .route("/api/analyses", get(routes::analyses))
         .route("/api/classes", get(routes::classes))
         .route("/api/commands", get(routes::command_list))

@@ -72,6 +72,7 @@ pub fn run(args: Args) -> Result<(), Failure> {
         settings,
         local_paths,
         upload_limit: accessmod_server::DEFAULT_UPLOAD_LIMIT,
+        demo: true,
     })
     .map_err(|e| {
         eprintln!("error: {e}");
