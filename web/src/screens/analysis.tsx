@@ -6,6 +6,7 @@
 import { type SectionTab, SectionTabs } from "@accessmod/ui/am/section-tabs";
 import { navigate, type Route } from "../app/route";
 import { Accessibility } from "./analysis/accessibility";
+import { Coverage } from "./analysis/coverage";
 import { NotYet } from "./other";
 
 type Tab = "accessibility" | "coverage" | "referral" | "zonal" | "scalingUp" | "optimization";
@@ -26,7 +27,13 @@ export function AnalysisScreen({ route, project }: { route: Route; project: stri
   return (
     <div className="flex flex-col gap-5">
       <SectionTabs tabs={TABS} value={tab} onChange={(v) => navigate({ ...route, panel: v, query: {} })} />
-      {tab === "accessibility" ? <Accessibility project={project} /> : <NotYet />}
+      {tab === "accessibility" ? (
+        <Accessibility project={project} />
+      ) : tab === "coverage" ? (
+        <Coverage project={project} />
+      ) : (
+        <NotYet />
+      )}
     </div>
   );
 }

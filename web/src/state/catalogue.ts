@@ -173,3 +173,9 @@ export function pairedTable(datasets: readonly Api.Dataset[] | undefined, datase
   const tags = [...dataset.tags].sort().join(" ");
   return (datasets ?? []).filter((d) => d.class === cls && [...d.tags].sort().join(" ") === tags).sort((a, b) => b.id - a.id)[0];
 }
+
+/** A field as shown: the one chosen if the layer has it, else the first preferred name present, else the first field. */
+export function pickField(chosen: string, fields: readonly string[], prefer: readonly string[] = []): string {
+  if (chosen !== "" && fields.includes(chosen)) return chosen;
+  return prefer.find((p) => fields.includes(p)) ?? fields[0] ?? "";
+}

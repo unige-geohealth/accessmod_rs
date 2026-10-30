@@ -40,10 +40,10 @@ export function buildJob(draft: AccessibilityDraft, context: Context): Built {
   const { tags, issues: tagIssues } = tagsOf(draft.tags);
   const issues: Key[] = [
     ...travel.landCoverIssues,
-    ...travel.scenarioIssues,
     ...facilityIssues(draft.facilities, facilities),
     ...(limit === undefined ? ["srv_analysis_accessibility_max_travel_time_input" as const] : []),
     ...tagIssues,
+    ...travel.scenarioIssues,
   ];
   if (issues.length > 0 || travel.fields === undefined || facilities === undefined || limit === undefined) {
     return { document: null, issues, tags };

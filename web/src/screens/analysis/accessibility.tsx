@@ -1,7 +1,6 @@
 // Analysis › Accessibility (AM5 module 2): travel time from or towards the
 // facilities.
 import { Columns } from "@accessmod/ui/am/columns";
-import { TextField } from "@accessmod/ui/am/form";
 import { SectionCard } from "@accessmod/ui/am/section";
 import { useI18n } from "@accessmod/ui/i18n";
 import { useMemo } from "react";
@@ -14,7 +13,7 @@ import { hasZero } from "../../state/scenario";
 import { useStore } from "../../state/store";
 import { FacilityInputs, FacilitySection } from "./facility-section";
 import { fieldsOf, firstOf, useCatalogue } from "./inputs";
-import { ScenarioSection, TravelInputs, TravelSettings, useTravel } from "./travel";
+import { LimitField, ScenarioSection, TagsField, TravelInputs, TravelSettings, useTravel } from "./travel";
 import { ValidationCard } from "./validation-card";
 
 const LAND_COVER = fieldClasses(travelTimeSchema, "land_cover");
@@ -52,7 +51,8 @@ export function Accessibility({ project }: { project: string }) {
 
           <SectionCard title="analysis_settings_title" sub="analysis_settings_sub" icon="analysisSettings">
             <TravelSettings draft={draft} dispatch={dispatch} />
-            <TextField label="analysis_settings_add_tag" value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <LimitField draft={draft} dispatch={dispatch} />
+            <TagsField value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
 
           <ValidationCard

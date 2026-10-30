@@ -496,5 +496,17 @@
     "fr": "Le serveur a répondu par une page au lieu de données : il est probablement plus ancien que cette interface. Redémarrez-le depuis la version actuelle.",
     "es": "El servidor respondió con una página en lugar de datos: probablemente es más antiguo que esta interfaz. Reinícielo desde la versión actual.",
     "pt": "O servidor respondeu com uma página em vez de dados: provavelmente é mais antigo do que esta interface. Reinicie-o a partir da versão atual."
+  },
+  "analysis.order_travel_time": {
+    "en": "Set a travel time above 0 minutes for the processing order.",
+    "fr": "Indiquez un temps de déplacement supérieur à 0 minute pour l'ordre de traitement.",
+    "es": "Indique un tiempo de desplazamiento superior a 0 minutos para el orden de procesamiento.",
+    "pt": "Indique um tempo de deslocação superior a 0 minutos para a ordem de processamento."
+  },
+  "analysis.order_field_missing": {
+    "en": "Select the field giving the processing order.",
+    "fr": "Sélectionnez le champ donnant l'ordre de traitement.",
+    "es": "Seleccione el campo que da el orden de procesamiento.",
+    "pt": "Selecione o campo que dá a ordem de processamento."
   }
 }

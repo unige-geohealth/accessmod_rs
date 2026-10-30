@@ -72,6 +72,6 @@ describe("accessibility draft", () => {
   it("requires a speed and a checked facility", () => {
     const facilities = { layer: 3, idField: "cat", selection: { mode: "ids" as const, where: "", ids: [] } };
     const draft = { ...EMPTY, landCover: 2, facilities, tags: "a" };
-    expect(buildJob(draft, context()).issues).toEqual(["analysis.scenario_no_speed", "srv_analysis_accessibility_select_facilities"]);
+    expect(buildJob(draft, context()).issues).toEqual(["srv_analysis_accessibility_select_facilities", "analysis.scenario_no_speed"]);
   });
 });

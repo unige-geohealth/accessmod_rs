@@ -88,3 +88,19 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   await expect(rows.first()).toBeVisible();
   for (const row of await rows.all()) await expect(row).toContainText("e2e");
 });
+
+test("geographic coverage: capacity, zones, run", async ({ page }) => {
+  await page.goto(`/#/${project}/analysis/coverage`);
+  // The scenario of the accessibility test is kept per tab: import it again.
+  await page.getByRole("button", { name: "Import content from the selected scenario table" }).click();
+  await expect(page.locator(".tabulator", { hasText: "amPopCell" })).toBeVisible();
+  await page.getByLabel("Generate zonal statistics (select zones layer in data input section)").click();
+  await expect(page.getByLabel("Select zones layer (vector)")).toBeVisible();
+  await page.getByLabel("Add short tags").fill("cov");
+  await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
+  await shot(page, "analysis-coverage");
+  await page.getByRole("button", { name: "Compute", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(dialog).toContainText("[cov]");
+});

@@ -4,6 +4,7 @@
 // subset (docs/plan.md, travel-time job).
 import type { Key } from "@accessmod/ui/i18n";
 import type { Jobs } from "../generated/jobs";
+import { pickField } from "./catalogue";
 
 export type FacilitySelection =
   /** Every facility matching `where` (AM5 default: all checked). */
@@ -99,7 +100,7 @@ export function updateFacilities(input: FacilityInput, message: FacilityMessage)
 export function withFacilityDefaults(input: FacilityInput, layer: number | null, fieldsOf: (layer: number | null) => readonly string[]): FacilityInput {
   const chosen = input.layer ?? layer;
   const fields = fieldsOf(chosen);
-  const idField = input.idField !== "" && fields.includes(input.idField) ? input.idField : fields.includes("cat") ? "cat" : (fields[0] ?? "");
+  const idField = pickField(input.idField, fields, ["cat"]);
   return chosen === input.layer && idField === input.idField ? input : { ...input, layer: chosen, idField };
 }
 

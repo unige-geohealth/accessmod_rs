@@ -5,6 +5,7 @@ import type { Key } from "@accessmod/ui/i18n";
 import { useMemo } from "react";
 import { useDatasets, useProject } from "../../api/queries";
 import type { Api } from "../../generated/types";
+import type { ZoneInput, ZoneMessage } from "../../state/zones";
 
 /** Datasets of a project by id, and its DEM. */
 export function useCatalogue(project: string) {
@@ -63,5 +64,28 @@ export function FieldSelect({ label, fields, value, onChange }: { label: Key; fi
         if (field !== value) onChange(field);
       }}
     />
+  );
+}
+
+/** A zone layer with its identifier and label fields. */
+export function ZoneInputs({
+  label = "analysis_select_zone_vector",
+  options,
+  input,
+  fields,
+  onMessage,
+}: {
+  label?: Key;
+  options: Options;
+  input: ZoneInput;
+  fields: readonly string[];
+  onMessage: (message: ZoneMessage) => void;
+}) {
+  return (
+    <>
+      <DatasetSelect label={label} options={options} value={input.layer} onChange={(id) => onMessage({ type: "layer", id })} />
+      <FieldSelect label="analysis_select_zone_id_integer" fields={fields} value={input.idField} onChange={(field) => onMessage({ type: "idField", field })} />
+      <FieldSelect label="analysis_select_zone_name_text" fields={fields} value={input.labelField} onChange={(field) => onMessage({ type: "labelField", field })} />
+    </>
   );
 }

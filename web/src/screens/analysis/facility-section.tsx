@@ -56,12 +56,15 @@ export function FacilitySection({
   project,
   input,
   landCover,
+  population,
   scenario,
   onMessage,
 }: {
   project: string;
   input: FacilityInput;
   landCover: number | null;
+  /** Population raster: adds AM5 `amPopCell`, the population of the cell of each facility. */
+  population?: number | null;
   scenario: readonly ScenarioRow[];
   onMessage: (message: FacilityMessage) => void;
 }) {
@@ -76,8 +79,9 @@ export function FacilitySection({
     offset,
     limit: PAGE,
     where: selection.where,
-    sample: landCover === null ? [] : [landCover],
+    sample: [landCover, population ?? null].filter((id) => id !== null),
   });
+  const popAt = population == null ? -1 : landCover === null ? 0 : 1;
   const data = page.data;
   const at = data?.columns.indexOf(idField) ?? -1;
   const ids = useMemo(() => (data && at >= 0 ? data.rows.map((r) => r[at]) : []), [data, at]);
@@ -85,11 +89,12 @@ export function FacilitySection({
   const rows = useMemo(() => {
     if (!data) return [];
     return data.rows.map((values, i) => {
-      const cls = data.samples?.[i]?.[0] ?? null;
+      const cls = landCover === null ? null : (data.samples?.[i]?.[0] ?? null);
       const row: Row = {
         amOnBarrier: cls === null ? "yes" : "no",
         amOnZero: cls !== null && (speeds.get(cls) ?? 0) === 0 ? "yes" : "no",
         amCatLandCover: cls,
+        ...(population === undefined ? {} : { amPopCell: popAt < 0 ? null : (data.samples?.[i]?.[popAt] ?? 0) }),
       };
       data.columns.forEach((c, k) => {
         const v = values[k];
@@ -97,11 +102,12 @@ export function FacilitySection({
       });
       return row;
     });
-  }, [data, speeds]);
+  }, [data, speeds, landCover, population, popAt]);
   const columns: Column[] = useMemo(() => {
     const rest = (data?.columns ?? []).filter((c) => c !== idField).map((field) => ({ field }));
-    return [{ field: idField }, { field: "amOnBarrier" }, { field: "amOnZero" }, { field: "amCatLandCover" }, ...rest];
-  }, [data?.columns, idField]);
+    const pop = population === undefined ? [] : [{ field: "amPopCell" }];
+    return [{ field: idField }, { field: "amOnBarrier" }, { field: "amOnZero" }, { field: "amCatLandCover" }, ...pop, ...rest];
+  }, [data?.columns, idField, population]);
 
   if (facilities === null) {
     return (

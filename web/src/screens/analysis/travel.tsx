@@ -55,7 +55,7 @@ export function TravelInputs({ travel, dispatch }: { travel: Travel; dispatch: (
   );
 }
 
-/** Analysis settings: method, direction (when the analysis has one), knight's move, maximum travel time. */
+/** Analysis settings: method, direction (when the analysis has one), knight's move. */
 export function TravelSettings({ draft, dispatch, direction = true }: { draft: TravelDraft; dispatch: (message: TravelMessage) => void; direction?: boolean }) {
   return (
     <>
@@ -85,7 +85,6 @@ export function TravelSettings({ draft, dispatch, direction = true }: { draft: T
         checked={draft.knight}
         onChange={(on) => dispatch({ type: "knight", on })}
       />
-      <TextField label="analysis_settings_max_travel_time" type="number" value={draft.minutes} onChange={(text) => dispatch({ type: "minutes", text })} />
     </>
   );
 }
@@ -150,3 +149,13 @@ export function ScenarioSection({ project, travel, dispatch }: { project: string
   );
 }
 
+
+/** Maximum travel time, minutes. */
+export function LimitField({ draft, dispatch }: { draft: TravelDraft; dispatch: (message: TravelMessage) => void }) {
+  return <TextField label="analysis_settings_max_travel_time" type="number" value={draft.minutes} onChange={(text) => dispatch({ type: "minutes", text })} />;
+}
+
+/** Output tags. */
+export function TagsField({ value, onChange }: { value: string; onChange: (text: string) => void }) {
+  return <TextField label="analysis_settings_add_tag" value={value} onChange={onChange} />;
+}
