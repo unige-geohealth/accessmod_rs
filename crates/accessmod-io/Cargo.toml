@@ -12,8 +12,21 @@ calamine = { version = "0.37", features = ["dates"] }
 gdal = "0.19"
 # GDALPolygonize, not wrapped by the gdal crate (same version as gdal uses).
 gdal-sys = "0.12"
+gdal-src = { version = "0.3", optional = true, features = [
+  "driver_gtiff",
+  "driver_mem",
+  "driver_hfa",
+  "driver_xyz",
+  "driver_shape",
+  "driver_gpkg",
+  "driver_flatgeobuf",
+  "driver_geojson",
+  "driver_csv",
+  # Geometry operations (catchment differences in optimization).
+  "geos_static",
+] }
 png = "0.18.1"
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
 schemars.workspace = true
 serde.workspace = true
 serde_json = "1"
@@ -25,6 +38,9 @@ unicode-normalization = "0.1.26"
 [features]
 # Test fixtures (`accessmod_io::fixtures`) for this crate's tests and the CLI's.
 fixtures = []
+# GDAL and PROJ built from source and linked statically (release archives):
+# only the drivers the code uses (docs/distribution.md).
+bundled = ["gdal-sys/bundled", "dep:gdal-src"]
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

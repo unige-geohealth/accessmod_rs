@@ -22,7 +22,8 @@ pub struct Args {
     /// Port.
     #[arg(long, default_value_t = 5099)]
     pub port: u16,
-    /// Built web front end to serve (`web/dist`).
+    /// Built web front end to serve (`web/dist`); a release archive serves
+    /// the client it ships (`share/accessmod/web`) by default.
     #[arg(long, value_name = "DIR")]
     pub web_dir: Option<PathBuf>,
     /// Refuse paths on this machine's disk in requests (default on a
@@ -79,9 +80,13 @@ pub fn run(args: Args) -> Result<(), Failure> {
         Failure { code: 3 }
     })?;
     tracing::info!("data directory {}", data_dir.display());
-    accessmod_server::serve_blocking(state, SocketAddr::new(args.host, args.port), args.web_dir)
-        .map_err(|e| {
-            eprintln!("error: {e}");
-            Failure { code: 3 }
-        })
+    accessmod_server::serve_blocking(
+        state,
+        SocketAddr::new(args.host, args.port),
+        args.web_dir.or_else(accessmod_io::install::shipped_web_dir),
+    )
+    .map_err(|e| {
+        eprintln!("error: {e}");
+        Failure { code: 3 }
+    })
 }

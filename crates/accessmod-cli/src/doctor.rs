@@ -53,13 +53,46 @@ pub fn run(args: &Args) -> Result<(), Failure> {
     let tmp_dir = args.tmp_dir.clone().unwrap_or_else(std::env::temp_dir);
     let mut checks = Vec::new();
 
-    for driver in ["GTiff", "HFA", "GPKG", "ESRI Shapefile", "GeoJSON", "XLSX"] {
+    // The GDAL drivers the code uses (XLSX workbooks are read in Rust).
+    for driver in [
+        "GTiff",
+        "MEM",
+        "HFA",
+        "GPKG",
+        "FlatGeobuf",
+        "ESRI Shapefile",
+        "GeoJSON",
+        "CSV",
+    ] {
         let ok = DriverManager::get_driver_by_name(driver).is_ok();
         let detail = if ok { "available" } else { "missing" };
         checks.push(check(&format!("driver {driver}"), ok, detail.to_owned()));
     }
+    // Optimization subtracts catchments: GDAL needs GEOS.
+    let geos = gdal::version::VersionInfo::has_geos();
+    checks.push(check(
+        "geos",
+        geos,
+        if geos {
+            "available"
+        } else {
+            "GDAL built without GEOS"
+        }
+        .to_owned(),
+    ));
     let (ok, detail) = proj_check();
-    checks.push(check("proj", ok, detail));
+    let source = match (
+        accessmod_io::install::use_shipped_proj_data(),
+        std::env::var_os("PROJ_DATA").or_else(|| std::env::var_os("PROJ_LIB")),
+    ) {
+        (Some(dir), _) => format!("; database shipped in {}", dir.display()),
+        (None, Some(dir)) => format!(
+            "; database from PROJ_DATA/PROJ_LIB {}",
+            dir.to_string_lossy()
+        ),
+        (None, None) => "; system database".to_owned(),
+    };
+    checks.push(check("proj", ok, detail + &source));
 
     let probe = tmp_dir.join(format!(".accessmod-doctor-{}", std::process::id()));
     let writable = std::fs::write(&probe, b"ok").is_ok();

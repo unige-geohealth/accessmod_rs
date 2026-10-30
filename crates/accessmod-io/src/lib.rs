@@ -15,6 +15,7 @@ pub mod facilities;
 pub mod fixtures;
 pub mod grid;
 pub mod inputs;
+pub mod install;
 pub mod job;
 pub mod merge;
 pub mod optimization;

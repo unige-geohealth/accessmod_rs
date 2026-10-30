@@ -855,11 +855,17 @@ fn uploads_read_by_another_driver_than_their_name_are_refused() {
          </OGRVRTLayer></OGRVRTDataSource>",
         dir.path().join("hf.gpkg").display()
     );
+    // The danger is GDAL reading a VRT, hence the file it names. Bundled
+    // builds cannot open a VRT raster at all: such a file is then plain
+    // text, which the CSV driver may accept.
+    let real = dir.path().join("real.vrt");
+    std::fs::write(&real, &vrt).expect("write");
+    let reads_vrt = gdal::Dataset::open(&real).is_ok();
     for (name, content) in [("dem.csv", &vrt), ("dem.tif", &vrt), ("hf.csv", &ogr_vrt)] {
         let path = upload.join(name);
         std::fs::write(&path, content).expect("write");
         assert!(
-            accessmod_io::project::check_self_contained(&path).is_err(),
+            accessmod_io::project::check_self_contained(&path).is_err() || !reads_vrt,
             "{name} is refused"
         );
         std::fs::remove_file(&path).expect("remove");

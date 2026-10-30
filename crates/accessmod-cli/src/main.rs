@@ -127,6 +127,9 @@ fn main() -> ExitCode {
         )
         .init();
 
+    // Release archives ship the PROJ database next to the binary.
+    accessmod_io::install::use_shipped_proj_data();
+
     let cancel = Cancel::default();
     let flag = cancel.0.clone();
     if let Err(e) = ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed)) {
