@@ -9,6 +9,7 @@ export const queryClient = new QueryClient({
 
 export const keys = {
   health: ["health"] as const,
+  settings: ["settings"] as const,
   projects: ["projects"] as const,
   project: (slug: string) => ["project", slug] as const,
   bounds: (slug: string) => ["project", slug, "bounds"] as const,
@@ -16,6 +17,8 @@ export const keys = {
 };
 
 export const useHealth = () => useQuery({ queryKey: keys.health, queryFn: api.health, staleTime: Infinity });
+
+export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: api.settings });
 
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: api.projects });
 

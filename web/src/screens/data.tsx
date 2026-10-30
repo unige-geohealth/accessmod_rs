@@ -149,7 +149,7 @@ function ImportPanel({ project }: { project: string }) {
         block
         k="data_choose_import_btn"
         accept={cls === undefined ? undefined : ACCEPT[kindOf(cls)]}
-        multiple={cls !== undefined && kindOf(cls) === "vector"}
+        multiple={cls !== undefined && (kindOf(cls) === "vector" || kindOf(cls) === "raster")}
         disabled={!ready}
         onFiles={importFiles}
       />

@@ -4,18 +4,19 @@ import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
 import { SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
-import { AmButton, Callout, FilePicker } from "@accessmod/ui/am/messages";
+import { AmButton, Callout, FilePicker, LinkActions } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
 import { type Lang, languageNames, languages, useI18n } from "@accessmod/ui/i18n";
 import type maplibregl from "maplibre-gl";
 import { useState } from "react";
 import { api } from "../api/client";
-import { keys, queryClient, useBounds, useProject, useProjects } from "../api/queries";
+import { keys, queryClient, useBounds, useProject, useProjects, useSettings } from "../api/queries";
 import { HOME, navigate, type Route } from "../app/route";
 import { useBatch } from "../state/batch";
 import { ACCEPT } from "../state/catalogue";
 import { extentDegrees, extentMetric, gridParameters, validName } from "../state/project-summary";
+import { demoSlug } from "../state/start";
 import { useTransfer } from "../state/transfer";
 import { BatchStatus, EntryList, NotAvailable, TransferStatus, useFmt } from "./common";
 
@@ -49,7 +50,14 @@ export function ProjectScreen({ route }: { route: Route }) {
       right={
         <>
           <CenterTitle title="project_summary_title" sub="project_summary_sub" />
-          {route.project === null ? <Callout k="project.open_first" /> : <Summary slug={route.project} />}
+          {route.project === null ? (
+            <>
+              <Callout k="project.open_first" />
+              <DemoHint />
+            </>
+          ) : (
+            <Summary slug={route.project} />
+          )}
         </>
       }
     />
@@ -60,15 +68,48 @@ function projectOptions(projects: { slug: string; info: { name: string } }[] | u
   return (projects ?? []).map((p) => ({ value: p.slug, label: p.info.name }));
 }
 
-function OpenPanel({ route }: { route: Route }) {
+/** An invitation to build the demo project again, when it is missing. */
+function DemoHint() {
   const projects = useProjects();
+  if (!projects.data || demoSlug(projects.data) !== null) return null;
   return (
-    <SelectField
-      label="project_open_select"
-      options={projectOptions(projects.data)}
-      value={route.project ?? undefined}
-      onChange={(slug) => navigate({ ...HOME, project: slug, panel: "open" })}
-    />
+    <>
+      <Callout k="project.demo_missing" className="mb-2.5" />
+      <LinkActions actions={[{ k: "toolbox.demo_title", icon: "reset", onClick: () => navigate({ ...HOME, section: "toolbox", panel: "demo" }) }]} />
+    </>
+  );
+}
+
+function OpenPanel({ route }: { route: Route }) {
+  const f = useFmt();
+  const projects = useProjects();
+  const settings = useSettings();
+  const { batch, start } = useBatch();
+  const preferred = settings.data?.default_project ?? null;
+  const setDefault = (project: string | null) =>
+    start([project], () => projects.data?.find((p) => p.slug === route.project)?.info.name ?? "", async (p) => {
+      await api.command("settings.default_project", { project: p });
+      await queryClient.invalidateQueries({ queryKey: keys.settings });
+    });
+  return (
+    <div className="flex flex-col gap-[15px]">
+      <SelectField
+        label="project_open_select"
+        options={projectOptions(projects.data)}
+        value={route.project ?? undefined}
+        onChange={(slug) => navigate({ ...HOME, project: slug, panel: "open" })}
+      />
+      {route.project !== null &&
+        (preferred === route.project ? (
+          <AmButton block icon="close" k="project.default_clear" disabled={batch.state === "running"} onClick={() => void setDefault(null)} />
+        ) : (
+          <AmButton block icon="home" k="project.default_set" disabled={batch.state === "running"} onClick={() => void setDefault(route.project)} />
+        ))}
+      {preferred !== null && (
+        <p className="text-xs text-muted-foreground">{f("project.default_current", projects.data?.find((p) => p.slug === preferred)?.info.name ?? preferred)}</p>
+      )}
+      <BatchStatus batch={batch} doneKey="project.default_done" />
+    </div>
   );
 }
 

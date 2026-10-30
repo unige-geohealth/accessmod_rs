@@ -57,6 +57,8 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 interface Commands {
   "project.create": [Api.CreateProject, Api.CreatedProject];
   "project.remove": [Api.ProjectRef, null];
+  "demo.reset": [Record<string, never>, Api.CreatedProject];
+  "settings.default_project": [Api.DefaultProject, Api.Settings];
   "dataset.import": [Api.ImportDataset, Api.Dataset];
   "dataset.tag": [Api.TagDataset, Api.Dataset];
   "dataset.remove": [Api.DatasetRef, null];
@@ -74,6 +76,7 @@ const project = (slug: string) => `/api/projects/${encodeURIComponent(slug)}`;
 
 export const api = {
   health: () => request<{ status: string; version: string }>("GET", "/api/health"),
+  settings: () => request<Api.Settings>("GET", "/api/settings"),
   projects: () => request<Api.ProjectEntry[]>("GET", "/api/projects"),
   project: (slug: string) => request<Api.ProjectInfo>("GET", project(slug)),
   /** `[west, south, east, north]` in WGS 84. */

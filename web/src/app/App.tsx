@@ -9,6 +9,7 @@ import { useHealth, useProject } from "../api/queries";
 import { DataScreen } from "../screens/data";
 import { AboutScreen, NotYet } from "../screens/other";
 import { ProjectScreen } from "../screens/project";
+import { ToolboxScreen } from "../screens/toolbox";
 import { goSection, type Route, SECTIONS, type Section, useRoute } from "./route";
 
 const isSection = (s: string): s is Section => (SECTIONS as readonly string[]).includes(s);
@@ -40,8 +41,9 @@ function Screen({ route }: { route: Route }) {
       return <ProjectScreen route={route} />;
     case "data":
       return route.project === null ? <Callout k="project.open_first" /> : <DataScreen key={route.project} route={route} project={route.project} />;
-    case "analysis":
     case "toolbox":
+      return <ToolboxScreen route={route} />;
+    case "analysis":
     case "logs":
     case "settings":
       return <NotYet />;

@@ -24,11 +24,15 @@ export function classLabel(t: (key: Key) => string, code: Api.DataClass): string
   return text === key ? (classInfo(code)?.label ?? code) : text;
 }
 
-/** Files the picker offers for a class, by kind; a shapefile comes with its companions. */
+/**
+ * Files the picker offers for a class, by kind, as the server reads uploads:
+ * a shapefile comes with its companions, an ERDAS Imagine raster with its
+ * spill (`.ige`) and overview (`.rrd`) files.
+ */
 export const ACCEPT: Record<Kind, string> = {
-  raster: ".tif,.tiff,.img,.vrt",
-  vector: ".shp,.shx,.dbf,.prj,.cpg,.gpkg,.fgb,.geojson,.json,.sqlite",
-  table: ".csv",
+  raster: ".tif,.tiff,.img,.ige,.rrd",
+  vector: ".shp,.shx,.dbf,.prj,.cpg,.gpkg,.fgb,.geojson,.json",
+  table: ".csv,.xlsx",
   config: ".json",
 };
 

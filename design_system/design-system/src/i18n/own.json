@@ -316,5 +316,65 @@
     "fr": "Organisation mondiale de la Santé",
     "es": "Organización Mundial de la Salud",
     "pt": "Organização Mundial da Saúde"
+  },
+  "toolbox.demo_title": {
+    "en": "Demo project",
+    "fr": "Projet de démonstration",
+    "es": "Proyecto de demostración",
+    "pt": "Projeto de demonstração"
+  },
+  "toolbox.demo_text": {
+    "en": "The demo project holds the AccessMod 5 sample data (southern Malawi, 1 km grid), every dataset tagged demo. Resetting removes it, with its runs and changes, and builds it again.",
+    "fr": "Le projet de démonstration contient les données d’exemple d’AccessMod 5 (sud du Malawi, grille de 1 km), chaque donnée avec le tag demo. La réinitialisation le supprime, avec ses calculs et modifications, puis le reconstruit.",
+    "es": "El proyecto de demostración contiene los datos de ejemplo de AccessMod 5 (sur de Malaui, cuadrícula de 1 km), cada dato con la etiqueta demo. Restablecerlo lo elimina, con sus cálculos y cambios, y lo vuelve a crear.",
+    "pt": "O projeto de demonstração contém os dados de exemplo do AccessMod 5 (sul do Malawi, grade de 1 km), cada dado com a tag demo. Redefini-lo o remove, com seus cálculos e alterações, e o recria."
+  },
+  "toolbox.demo_reset": {
+    "en": "Reset the demo project",
+    "fr": "Réinitialiser le projet de démonstration",
+    "es": "Restablecer el proyecto de demostración",
+    "pt": "Redefinir o projeto de demonstração"
+  },
+  "toolbox.demo_reset_confirm": {
+    "en": "Remove the demo project, with its runs and changes, and build it again from the sample data?",
+    "fr": "Supprimer le projet de démonstration, avec ses calculs et modifications, et le reconstruire à partir des données d’exemple ?",
+    "es": "¿Eliminar el proyecto de demostración, con sus cálculos y cambios, y volver a crearlo a partir de los datos de ejemplo?",
+    "pt": "Remover o projeto de demonstração, com seus cálculos e alterações, e recriá-lo a partir dos dados de exemplo?"
+  },
+  "toolbox.demo_done": {
+    "en": "Rebuilt: %s",
+    "fr": "Reconstruit : %s",
+    "es": "Recreado: %s",
+    "pt": "Recriado: %s"
+  },
+  "project.demo_missing": {
+    "en": "The demo project is missing: build it again in the Toolbox to explore AccessMod with sample data.",
+    "fr": "Le projet de démonstration est absent : reconstruisez-le dans la Boîte à outils pour découvrir AccessMod avec des données d’exemple.",
+    "es": "Falta el proyecto de demostración: vuelva a crearlo en la Caja de herramientas para explorar AccessMod con datos de ejemplo.",
+    "pt": "O projeto de demonstração está ausente: recrie-o na Caixa de ferramentas para explorar o AccessMod com dados de exemplo."
+  },
+  "project.default_set": {
+    "en": "Open this project first",
+    "fr": "Ouvrir ce projet en premier",
+    "es": "Abrir este proyecto primero",
+    "pt": "Abrir este projeto primeiro"
+  },
+  "project.default_clear": {
+    "en": "Stop opening this project first",
+    "fr": "Ne plus ouvrir ce projet en premier",
+    "es": "Dejar de abrir este proyecto primero",
+    "pt": "Deixar de abrir este projeto primeiro"
+  },
+  "project.default_current": {
+    "en": "Opened first: %s",
+    "fr": "Ouvert en premier : %s",
+    "es": "Se abre primero: %s",
+    "pt": "Aberto primeiro: %s"
+  },
+  "project.default_done": {
+    "en": "Saved: %s",
+    "fr": "Enregistré : %s",
+    "es": "Guardado: %s",
+    "pt": "Salvo: %s"
   }
 }
