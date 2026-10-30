@@ -5,7 +5,12 @@ set -e
 cd "$(dirname "$0")/.."
 cargo fmt --all --check
 cargo clippy -q --workspace --all-targets -- -D warnings
-out=$(cargo test -q --workspace 2>&1) || { echo "$out" | grep -E "FAILED|panicked|error" | head -40; exit 1; }
+# On failure: the output of each failing test, then the summary lines.
+out=$(cargo test -q --workspace 2>&1) || {
+	echo "$out" | sed -n '/^---- .* stdout ----$/,/^$/p' | head -80
+	echo "$out" | grep -E "FAILED|panicked|error|signal" | head -40
+	exit 1
+}
 echo "$out" | awk '/test result/ {p+=$4; f+=$6; i+=$8} END {print "tests: " p " passed, " f " failed, " i " ignored"}'
 cargo xtask layers
 cargo xtask lut --check 2>&1 | tail -1
