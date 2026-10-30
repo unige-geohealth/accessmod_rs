@@ -151,6 +151,13 @@ fn types() -> Vec<(&'static str, Value)> {
             "default-project",
             schema::<accessmod_server::commands::DefaultProject>(),
         ),
+        ("save-job", schema::<accessmod_server::commands::SaveJob>()),
+        ("job-ref", schema::<accessmod_server::commands::JobRef>()),
+        (
+            "start-run",
+            schema::<accessmod_server::commands::StartRun>(),
+        ),
+        ("run-ref", schema::<accessmod_server::commands::RunRef>()),
         ("tile-style", schema::<accessmod_io::tiles::Style>()),
     ]
 }

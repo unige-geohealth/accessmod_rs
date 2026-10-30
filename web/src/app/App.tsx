@@ -6,6 +6,7 @@ import who from "@accessmod/ui/assets/who.svg";
 import { useI18n } from "@accessmod/ui/i18n";
 import { useEvents } from "../api/events";
 import { useHealth, useProject } from "../api/queries";
+import { AnalysisScreen } from "../screens/analysis";
 import { DataScreen } from "../screens/data";
 import { AboutScreen, NotYet } from "../screens/other";
 import { ProjectScreen } from "../screens/project";
@@ -44,6 +45,7 @@ function Screen({ route }: { route: Route }) {
     case "toolbox":
       return <ToolboxScreen route={route} />;
     case "analysis":
+      return route.project === null ? <Callout k="project.open_first" /> : <AnalysisScreen key={route.project} route={route} project={route.project} />;
     case "logs":
     case "settings":
       return <NotYet />;

@@ -3,7 +3,16 @@
 // place events enter the client.
 import { useEffect } from "react";
 import type { Api } from "../generated/types";
-import { keys, queryClient } from "./queries";
+import { keys, type ProgressByRun, queryClient } from "./queries";
+
+/** Insert or replace `run` in the cached runs of `project`. */
+function upsertRun(project: string, run: Api.RunRecord) {
+  queryClient.setQueryData<Api.RunRecord[]>(keys.runs(project), (runs) => {
+    if (runs === undefined) return undefined;
+    const at = runs.findIndex((r) => r.id === run.id);
+    return at < 0 ? [...runs, run] : runs.map((r, i) => (i === at ? run : r));
+  });
+}
 
 const NAMES = ["run", "progress", "catalogue", "projects"] as const;
 
@@ -15,9 +24,11 @@ function resync() {
 function handle(event: Api.Event) {
   switch (event.type) {
     case "run":
-      // A finished run registers its outputs as datasets.
+      upsertRun(event.project, event.run);
       if (event.run.status !== "queued" && event.run.status !== "running") {
+        // A finished run registers its outputs as datasets.
         void queryClient.invalidateQueries({ queryKey: keys.datasets(event.project) });
+        void queryClient.invalidateQueries({ queryKey: keys.runs(event.project) });
       }
       return;
     case "catalogue":
@@ -28,6 +39,7 @@ function handle(event: Api.Event) {
       void queryClient.invalidateQueries({ queryKey: ["project"] });
       return;
     case "progress":
+      queryClient.setQueryData<ProgressByRun>(keys.progress(event.project), (all) => ({ ...all, [event.run]: event.progress }));
       return;
   }
 }

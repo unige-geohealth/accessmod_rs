@@ -62,6 +62,30 @@ interface Commands {
   "dataset.import": [Api.ImportDataset, Api.Dataset];
   "dataset.tag": [Api.TagDataset, Api.Dataset];
   "dataset.remove": [Api.DatasetRef, null];
+  "job.save": [Api.SaveJob, Api.SavedJob];
+  "job.remove": [Api.JobRef, null];
+  "run.start": [Api.StartRun, Api.RunRecord];
+  "run.cancel": [Api.RunRef, Api.RunRecord];
+}
+
+/** Query of `GET …/datasets/{id}/rows`. */
+export interface RowsQuery {
+  offset?: number;
+  limit?: number;
+  /** OGR SQL attribute filter (vector datasets). */
+  where?: string;
+  /** Raster datasets read at the point of each row. */
+  sample?: number[];
+}
+
+function rowsSearch(q: RowsQuery): string {
+  const params = new URLSearchParams();
+  if (q.offset) params.set("offset", String(q.offset));
+  if (q.limit !== undefined) params.set("limit", String(q.limit));
+  if (q.where && q.where.trim() !== "") params.set("where", q.where);
+  if (q.sample && q.sample.length > 0) params.set("sample", q.sample.join(","));
+  const search = params.toString();
+  return search === "" ? "" : `?${search}`;
 }
 
 /** A data class as `GET /api/classes` (and `web/schemas/data-classes.json`) lists it. */
@@ -82,6 +106,15 @@ export const api = {
   /** `[west, south, east, north]` in WGS 84. */
   bounds: (slug: string) => request<[number, number, number, number]>("GET", `${project(slug)}/bounds`),
   datasets: (slug: string) => request<Api.Dataset[]>("GET", `${project(slug)}/datasets`),
+  rows: (slug: string, id: number, q: RowsQuery, signal?: AbortSignal) =>
+    request<Api.Rows>("GET", `${project(slug)}/datasets/${id}/rows${rowsSearch(q)}`, undefined, signal),
+  /** URL of a table dataset as a file. */
+  downloadUrl: (slug: string, id: number, format: "csv" | "json") => `${project(slug)}/datasets/${id}/download?format=${format}`,
+  jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),
+  runs: (slug: string) => request<Api.RunRecord[]>("GET", `${project(slug)}/runs`),
+  /** `prepare` on a job document: its validation summary, or an error with every issue. */
+  validate: (slug: string, analysis: string, document: unknown, signal?: AbortSignal) =>
+    request<Record<string, unknown>>("POST", `${project(slug)}/analyses/${encodeURIComponent(analysis)}/validate`, document, signal),
   command: <K extends keyof Commands>(id: K, params: Commands[K][0]) =>
     request<Commands[K][1]>("POST", `/api/commands/${id}`, params),
 

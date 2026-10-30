@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`run.start`.",
+  "properties": {
+    "analysis": {
+      "description": "Analysis name.",
+      "type": "string"
+    },
+    "document": {
+      "description": "Job document, paths relative to the project."
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "tags": {
+      "default": [],
+      "description": "Tags of the datasets written (default: analysis name and run).",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "project",
+    "analysis",
+    "document"
+  ],
+  "title": "StartRun",
+  "type": "object"
+}

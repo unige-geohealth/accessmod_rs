@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`job.save`.",
+  "properties": {
+    "analysis": {
+      "description": "Analysis name.",
+      "type": "string"
+    },
+    "document": {
+      "description": "Job document, paths relative to the project (may be incomplete)."
+    },
+    "id": {
+      "default": null,
+      "description": "Saved job to replace; a new one when absent.",
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "name": {
+      "description": "Free name.",
+      "type": "string"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "revision": {
+      "default": null,
+      "description": "Revision of the saved job the client edited (with `id`).",
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "project",
+    "analysis",
+    "name",
+    "document"
+  ],
+  "title": "SaveJob",
+  "type": "object"
+}

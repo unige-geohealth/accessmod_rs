@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { classLabel, filterFromQuery, filterToQuery, kindOf, matches, normalizeTags, toRow } from "./catalogue";
+import { classLabel, datasetOptions, fieldClasses, filterFromQuery, pairedTable, filterToQuery, kindOf, matches, normalizeTags, toRow } from "./catalogue";
 
 const dataset = (id: number, cls: Api.DataClass, tags: string[]) => ({ id, class: cls, tags }) as Api.Dataset;
 const t = (key: string) => key;
@@ -36,5 +36,19 @@ describe("catalogue", () => {
     const filter = { type: "raster" as const, text: "a", tags: "" };
     expect(filterFromQuery(filterToQuery(filter))).toEqual(filter);
     expect(filterToQuery({ type: "all", text: "", tags: "" }).type).toBe("");
+  });
+
+  it("offers the datasets of a job field's classes, and pairs tables by tags", () => {
+    const schema = { properties: { land_cover: { "x-accessmod-class": ["rLandCoverMerged"] } } };
+    expect(fieldClasses(schema, "land_cover")).toEqual(["rLandCoverMerged"]);
+    expect(fieldClasses(schema, "nope")).toEqual([]);
+    const list = [dataset(1, "rLandCoverMerged", ["a"]), dataset(2, "rDem", ["a"]), dataset(3, "rLandCoverMerged", ["b", "c"])];
+    expect(datasetOptions(t, list, ["rLandCoverMerged"])).toEqual([
+      { value: "3", label: "(r) land cover merged [b c]" },
+      { value: "1", label: "(r) land cover merged [a]" },
+    ]);
+    const tables = [dataset(4, "tLandCover", ["c", "b"]), dataset(5, "tLandCover", ["b"])];
+    expect(pairedTable(tables, list[2], "tLandCover")?.id).toBe(4);
+    expect(pairedTable(tables, list[0], "tLandCover")).toBeUndefined();
   });
 });

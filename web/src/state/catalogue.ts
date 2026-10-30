@@ -131,3 +131,34 @@ export function matches(row: DataRow, filter: DataFilter): boolean {
 export function sortRows(rows: DataRow[]): DataRow[] {
   return [...rows].sort((a, b) => a.class.localeCompare(b.class) || a.tags.localeCompare(b.tags) || a.id - b.id);
 }
+
+/** Classes a job field accepts: its `x-accessmod-class` in the job schema. */
+export function fieldClasses(schema: unknown, field: string): Api.DataClass[] {
+  const properties = (schema as { properties?: Record<string, Record<string, unknown>> }).properties;
+  const classes = properties?.[field]?.["x-accessmod-class"];
+  return Array.isArray(classes) ? (classes as Api.DataClass[]) : [];
+}
+
+/** AM5 data selector label: "(r) land cover merged [demo]". */
+export function datasetLabel(t: (key: Key) => string, dataset: Api.Dataset): string {
+  return `(${kindOf(dataset.class).charAt(0)}) ${classLabel(t, dataset.class)} [${dataset.tags.join(" ")}]`;
+}
+
+/** Datasets of `classes`, newest first, as select options (value: id). */
+export function datasetOptions(
+  t: (key: Key) => string,
+  datasets: readonly Api.Dataset[] | undefined,
+  classes: readonly Api.DataClass[],
+): { value: string; label: string }[] {
+  return (datasets ?? [])
+    .filter((d) => classes.includes(d.class))
+    .sort((a, b) => b.id - a.id)
+    .map((d) => ({ value: String(d.id), label: datasetLabel(t, d) }));
+}
+
+/** The table of `classes` with exactly the tags of `dataset` (AM5 pairs layers by tags), e.g. land cover labels. */
+export function pairedTable(datasets: readonly Api.Dataset[] | undefined, dataset: Api.Dataset | undefined, cls: Api.DataClass): Api.Dataset | undefined {
+  if (dataset === undefined) return undefined;
+  const tags = [...dataset.tags].sort().join(" ");
+  return (datasets ?? []).filter((d) => d.class === cls && [...d.tags].sort().join(" ") === tags).sort((a, b) => b.id - a.id)[0];
+}
