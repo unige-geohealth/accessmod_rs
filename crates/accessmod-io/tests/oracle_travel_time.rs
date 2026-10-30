@@ -86,6 +86,7 @@ fn compare(case: &Case, dir: &Path, tmp: &Path) -> Comparison {
             layer: None,
             id_field: "cat".into(),
             filter: None,
+            ids: None,
         },
         scenario: scenario(dir),
         method: case.method,

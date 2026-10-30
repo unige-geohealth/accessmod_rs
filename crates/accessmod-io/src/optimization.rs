@@ -21,13 +21,14 @@ use serde::{Deserialize, Serialize};
 use crate::analysis::{Analysis, Monitor, Output};
 use crate::class::DataClass;
 use crate::error::{Error, Result};
+use crate::facilities::open_facilities;
 use crate::grid::GridSpec;
 use crate::job::{FacilitySource, JobFile, check_files, check_schema_version};
 use crate::output::{self, CsvWriter, Staging, csv_field};
 use crate::raster::{AlignedBand, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
-use crate::vector::{GeometrySpool, SpoolSlot, VectorLayer, covered_sum, json_attribute};
+use crate::vector::{GeometrySpool, SpoolSlot, VectorLayer, covered_sum, id_key, json_attribute};
 use crate::zonal::{Zone, ZoneLayer, open_zones, read_zones};
 
 /// Ranked facilities file name.
@@ -156,19 +157,6 @@ pub struct PreparedOptimization {
     pub durations_s: BTreeMap<&'static str, f64>,
 }
 
-/// Identifier as text, to match catchments with facilities whatever the
-/// field types (`4`, `4.0` and `"4"` match, as AccessMod 5 compares text).
-fn id_key(id: &serde_json::Value) -> String {
-    match id {
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Number(n) => match n.as_f64() {
-            Some(v) if v.fract() == 0.0 && v.abs() < 1e15 => format!("{}", v as i64),
-            _ => n.to_string(),
-        },
-        other => other.to_string(),
-    }
-}
-
 /// Text of a validation error, for a list of issues.
 fn issue(error: Error) -> String {
     match error {
@@ -178,13 +166,7 @@ fn issue(error: Error) -> String {
 }
 
 fn open_layer(source: &FacilitySource, grid: &GridSpec, role: &str) -> Result<VectorLayer> {
-    VectorLayer::open(
-        &source.path,
-        source.layer.as_deref(),
-        source.filter.as_deref(),
-        grid,
-        role,
-    )
+    open_facilities(source, grid, role)
 }
 
 /// Sizes found while scanning the catchments.
@@ -208,7 +190,7 @@ fn scan_catchments(
     let id_index = vector.field_index(&layer, &source.id_field)?;
     let mut scan = Scan::default();
     let mut issues = Vec::new();
-    for (k, feature) in layer.features().enumerate() {
+    for (k, feature) in vector.features(&mut layer)?.enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
         }
@@ -268,7 +250,7 @@ fn facility_zones(
     let id_index = vector.field_index(&layer, &quota.facilities.id_field)?;
     let mut points: Vec<(String, f64, f64)> = Vec::new();
     let mut issues = Vec::new();
-    for (k, feature) in layer.features().enumerate() {
+    for (k, feature) in vector.features(&mut layer)?.enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
         }
@@ -313,7 +295,7 @@ fn facility_zones(
     let dataset = zones.dataset()?;
     let mut layer = zones.layer(&dataset)?;
     let mut largest = 0u64;
-    for (k, feature) in layer.features().enumerate() {
+    for (k, feature) in zones.features(&mut layer)?.enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
         }
@@ -714,7 +696,7 @@ pub fn run(
     {
         let dataset = vector.dataset()?;
         let mut layer = vector.layer(&dataset)?;
-        for (k, feature) in layer.features().enumerate() {
+        for (k, feature) in vector.features(&mut layer)?.enumerate() {
             if cancelled() {
                 return Err(Error::Cancelled);
             }

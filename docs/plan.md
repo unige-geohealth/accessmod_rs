@@ -105,7 +105,14 @@ Versioned JSON document:
 - DEM, always required: it defines the grid (CRS, resolution, origin,
   extent), as in an AccessMod 5 project;
 - land-cover raster;
-- facility point layer and identifier field;
+- facility point layer and identifier field, optionally narrowed by an OGR
+  SQL `where` and an explicit `ids` list (both must hold). `ids` is what
+  the interface writes for the facilities checked in its table, so a job
+  saved from the interface replays headless on the same subset; an
+  identifier not found under `where` is a validation error. The list is
+  applied while reading, not as SQL (OGR SQL fails on an `IN` list of
+  thousands of values). Every job with a facility layer (`origins`,
+  `destinations`, `catchments`) accepts it;
 - scenario: class → `walking` | `bicycling` | `motorized` + speed > 0 km/h;
 - method `isotropic` | `anisotropic`;
 - direction `from_facilities` | `towards_facilities`;

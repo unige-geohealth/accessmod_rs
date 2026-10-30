@@ -32,7 +32,7 @@ use crate::catchment::{
 };
 use crate::class::DataClass;
 use crate::error::{Error, Result};
-use crate::facilities::{LoadedFacilities, load_facilities};
+use crate::facilities::{LoadedFacilities, load_facilities, open_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::InputSummary;
 use crate::job::{
@@ -44,7 +44,7 @@ use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_r
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
 use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
-use crate::vector::{FeatureWriter, VectorLayer, burn_zones, compare_values, number_attribute};
+use crate::vector::{FeatureWriter, burn_zones, compare_values, number_attribute};
 use crate::zonal::{MAX_ZONES, Zone, ZoneLayer, open_zones, read_zones};
 
 /// Capacity table file name.
@@ -390,13 +390,7 @@ fn read_facilities(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<CoverageFacility>> {
     let source = &job.facilities;
-    let vector = VectorLayer::open(
-        &source.path,
-        source.layer.as_deref(),
-        source.filter.as_deref(),
-        grid,
-        "facilities",
-    )?;
+    let vector = open_facilities(source, grid, "facilities")?;
     let order_field = match &job.order {
         CoverageOrder::Field { field, .. } => Some(field.as_str()),
         CoverageOrder::Population { .. } => None,

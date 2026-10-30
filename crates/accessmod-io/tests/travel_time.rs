@@ -11,8 +11,8 @@ use accessmod_io::fixtures::{
     EPSG, X0, Y0, geo_transform, grid, read, run_job, settings, to_wgs84, write_layer, write_raster,
 };
 use accessmod_io::job::{
-    FacilityIssues, FacilitySource, MethodName, OutputOptions, SCHEMA_VERSION, ScenarioEntry,
-    TravelTimeJob,
+    FacilityId, FacilityIssues, FacilitySource, MethodName, OutputOptions, SCHEMA_VERSION,
+    ScenarioEntry, TravelTimeJob,
 };
 use accessmod_io::output::{FLOAT_NODATA, NEAREST_FILE, TRAVEL_TIME_FILE};
 use accessmod_io::travel_time::{TravelTime, prepare, run};
@@ -83,6 +83,7 @@ impl Fixture {
                 layer: None,
                 id_field: "hf_id".into(),
                 filter: None,
+                ids: None,
             },
             scenario: vec![ScenarioEntry {
                 class: 1,
@@ -249,6 +250,90 @@ fn facility_problems_fail_or_warn() {
             .warnings
             .iter()
             .any(|w| w.code == "facility_skipped")
+    );
+}
+
+#[test]
+fn ids_select_facilities_like_an_equivalent_filter() {
+    // Facilities 100, 101, 102; select 100 and 102.
+    let fixture = Fixture::new(5, 3, &[(1, 0), (0, 2), (2, 4)]);
+    let settings = settings(256 << 20, 1);
+    let mut by_ids = fixture.job.clone();
+    by_ids.facilities.ids = Some(vec![
+        FacilityId::Integer(100),
+        FacilityId::Text("102".into()),
+    ]);
+    by_ids.output_dir = fixture.path().join("by_ids");
+    let mut by_filter = fixture.job.clone();
+    by_filter.facilities.filter = Some("hf_id <> 101".into());
+    by_filter.output_dir = fixture.path().join("by_filter");
+    let a = run_job::<TravelTime>(by_ids, &settings).expect("by ids");
+    let b = run_job::<TravelTime>(by_filter, &settings).expect("by filter");
+    for name in [TRAVEL_TIME_FILE, NEAREST_FILE] {
+        assert_eq!(
+            std::fs::read(a.join(name)).expect("read"),
+            std::fs::read(b.join(name)).expect("read"),
+            "{name}"
+        );
+    }
+
+    // Combined with `where`: both must hold.
+    let mut both = fixture.job.clone();
+    both.facilities.filter = Some("hf_id >= 101".into());
+    both.facilities.ids = Some(vec![FacilityId::Integer(101), FacilityId::Integer(102)]);
+    let prepared = prepare(both, &settings, Monitor::QUIET).expect("both");
+    let ids: Vec<_> = prepared
+        .facilities
+        .kept
+        .iter()
+        .map(|f| f.id.clone())
+        .collect();
+    assert_eq!(ids, [serde_json::json!(101), serde_json::json!(102)]);
+}
+
+#[test]
+fn ids_unknown_or_empty_are_rejected() {
+    let fixture = Fixture::new(5, 3, &[(1, 0), (0, 2)]);
+    let settings = settings(256 << 20, 1);
+    let mut unknown = fixture.job.clone();
+    unknown.facilities.ids = Some(vec![FacilityId::Integer(100), FacilityId::Integer(7)]);
+    let err = prepare(unknown, &settings, Monitor::QUIET).expect_err("unknown id");
+    assert_eq!(err.kind(), ErrorKind::Validation);
+    assert!(
+        err.to_string().contains("ids not found") && err.to_string().contains('7'),
+        "{err}"
+    );
+
+    // Present in the layer but excluded by `where`.
+    let mut excluded = fixture.job.clone();
+    excluded.facilities.filter = Some("hf_id = 100".into());
+    excluded.facilities.ids = Some(vec![FacilityId::Integer(101)]);
+    let err = prepare(excluded, &settings, Monitor::QUIET).expect_err("excluded id");
+    assert!(err.to_string().contains("ids not found"), "{err}");
+
+    let mut empty = fixture.job.clone();
+    empty.facilities.ids = Some(Vec::new());
+    let err = prepare(empty, &settings, Monitor::QUIET).expect_err("empty");
+    assert_eq!(err.kind(), ErrorKind::Validation);
+
+    // Quotes in a text id stay inside the literal.
+    let mut quoted = fixture.job.clone();
+    quoted.facilities.ids = Some(vec![FacilityId::Text("1') OR (1=1".into())]);
+    let err = prepare(quoted, &settings, Monitor::QUIET).expect_err("injection");
+    assert_eq!(err.kind(), ErrorKind::Validation);
+}
+
+#[test]
+fn ids_round_trip_in_job_files() {
+    let source: FacilitySource = serde_json::from_value(serde_json::json!({
+        "path": "hf.gpkg", "id_field": "id", "ids": [3, "A-7"]
+    }))
+    .expect("parse");
+    let back = serde_json::to_value(&source).expect("serialise");
+    assert_eq!(back["ids"], serde_json::json!([3, "A-7"]));
+    assert_eq!(
+        source.ids,
+        Some(vec![FacilityId::Integer(3), FacilityId::Text("A-7".into())])
     );
 }
 

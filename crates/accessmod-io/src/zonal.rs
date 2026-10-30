@@ -276,7 +276,7 @@ pub(crate) fn read_zones(
     let mut index_of: BTreeMap<String, u32> = BTreeMap::new();
     let mut feature_zones = Vec::new();
     let mut issues = Vec::new();
-    for (k, feature) in layer.features().enumerate() {
+    for (k, feature) in vector.features(&mut layer)?.enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
         }

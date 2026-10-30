@@ -41,6 +41,7 @@ fn fixture(dir: &Path, cols: usize, rows: usize, catchments: &[(i64, String)]) -
             layer: None,
             id_field: "id".into(),
             filter: None,
+            ids: None,
         },
         max_facilities: 5,
         zone_quota: None,
@@ -185,6 +186,7 @@ fn zone_minimum_takes_a_facility_in_every_zone() {
             layer: None,
             id_field: "code".into(),
             filter: None,
+            ids: None,
         },
         min_per_zone: 1,
     });

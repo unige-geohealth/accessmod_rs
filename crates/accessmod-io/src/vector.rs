@@ -3,6 +3,7 @@
 //! and polygon parts in grid pixel coordinates (see
 //! `accessmod_core::raster`).
 
+use std::collections::HashSet;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
@@ -34,7 +35,17 @@ pub struct VectorLayer {
     role: String,
     path: PathBuf,
     filter: Option<String>,
+    selection: Option<Selection>,
     transform: Option<CoordTransform>,
+}
+
+/// Identifiers a layer is restricted to, on top of its attribute filter.
+/// Applied while reading: OGR SQL cannot parse an `IN` list of thousands
+/// of values.
+#[derive(Debug)]
+struct Selection {
+    field: String,
+    keys: HashSet<String>,
 }
 
 /// A line or polygon of a geometry, in pixel coordinates of the grid.
@@ -112,8 +123,39 @@ impl VectorLayer {
             role: role.to_owned(),
             path: path.to_path_buf(),
             filter: filter.map(str::to_owned),
+            selection: None,
             transform,
         })
+    }
+
+    /// Restrict the features to those whose `field` value has one of
+    /// `keys` ([`id_key`]); read them through [`VectorLayer::features`].
+    pub fn select(mut self, field: &str, keys: HashSet<String>) -> Self {
+        self.selection = Some(Selection {
+            field: field.to_owned(),
+            keys,
+        });
+        self
+    }
+
+    /// Features of `layer` (from [`VectorLayer::layer`]) passing the
+    /// selection, in layer order.
+    pub fn features<'a>(
+        &'a self,
+        layer: &'a mut Layer<'_>,
+    ) -> Result<impl Iterator<Item = Feature<'a>> + 'a> {
+        let selection = match &self.selection {
+            Some(selection) => Some((self.field_index(layer, &selection.field)?, &selection.keys)),
+            None => None,
+        };
+        Ok(layer.features().filter(move |feature| match selection {
+            None => true,
+            Some((index, keys)) => feature
+                .field(index)
+                .ok()
+                .and_then(json_attribute)
+                .is_some_and(|id| keys.contains(&id_key(&id))),
+        }))
     }
 
     /// Whether coordinates are reprojected to the grid CRS.
@@ -158,7 +200,7 @@ impl VectorLayer {
             .map(|field| self.field_index(&layer, field))
             .collect::<Result<Vec<_>>>()?;
         let mut rows = Vec::new();
-        for feature in layer.features() {
+        for feature in self.features(&mut layer)? {
             if cancelled() {
                 return Err(Error::Cancelled);
             }
@@ -316,6 +358,19 @@ pub fn json_attribute(value: Option<FieldValue>) -> Option<serde_json::Value> {
     }
 }
 
+/// Identifier as text, to match identifiers whatever the field types
+/// (`4`, `4.0` and `"4"` match, as AccessMod 5 compares text).
+pub fn id_key(id: &serde_json::Value) -> String {
+    match id {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => match n.as_f64() {
+            Some(v) if v.fract() == 0.0 && v.abs() < 1e15 => format!("{}", v as i64),
+            _ => n.to_string(),
+        },
+        other => other.to_string(),
+    }
+}
+
 /// Order of attribute values (identifiers): numbers numerically, then text.
 pub fn compare_values(a: &serde_json::Value, b: &serde_json::Value) -> std::cmp::Ordering {
     match (a.as_f64(), b.as_f64()) {
@@ -466,7 +521,7 @@ pub fn burn_layer<T: CellCodec, U: Fn(&mut T)>(
     let dataset = layer.dataset()?;
     let mut features = layer.layer(&dataset)?;
     let mut counts = FeatureCounts::default();
-    for (index, feature) in features.features().enumerate() {
+    for (index, feature) in layer.features(&mut features)?.enumerate() {
         counts.read += 1;
         if cancelled() {
             return Err(Error::Cancelled);

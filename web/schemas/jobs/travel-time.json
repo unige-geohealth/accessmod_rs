@@ -15,6 +15,20 @@
         }
       ]
     },
+    "FacilityId": {
+      "anyOf": [
+        {
+          "description": "Integer identifier.",
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "description": "Text identifier.",
+          "type": "string"
+        }
+      ],
+      "description": "Value of a facility identifier in a selection."
+    },
     "FacilityIssues": {
       "description": "Handling of facilities outside the grid, on a barrier or without a\nusable geometry.",
       "oneOf": [
@@ -37,6 +51,16 @@
         "id_field": {
           "description": "Field holding the facility identifier.",
           "type": "string"
+        },
+        "ids": {
+          "description": "Optional selection: only the facilities whose `id_field` value is\nlisted, combined with `where`. Every listed identifier must exist.",
+          "items": {
+            "$ref": "#/$defs/FacilityId"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "layer": {
           "description": "Layer name; the first layer when omitted.",

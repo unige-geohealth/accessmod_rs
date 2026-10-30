@@ -74,6 +74,30 @@ pub struct FacilitySource {
     /// `"type = 'hospital'"`; all features when omitted.
     #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
+    /// Optional selection: only the facilities whose `id_field` value is
+    /// listed, combined with `where`. Every listed identifier must exist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ids: Option<Vec<FacilityId>>,
+}
+
+/// Value of a facility identifier in a selection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum FacilityId {
+    /// Integer identifier.
+    Integer(i64),
+    /// Text identifier.
+    Text(String),
+}
+
+impl FacilityId {
+    /// Comparison key, as [`crate::vector::id_key`] gives for a value read.
+    pub fn key(&self) -> String {
+        match self {
+            FacilityId::Integer(v) => v.to_string(),
+            FacilityId::Text(v) => v.clone(),
+        }
+    }
 }
 
 /// Mobility of one land-cover class.

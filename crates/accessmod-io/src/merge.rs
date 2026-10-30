@@ -12,7 +12,6 @@ use std::time::Instant;
 
 use accessmod_core::merge::{MergeCell, bridge_row};
 use accessmod_core::store::{StoreStats, TileGeometry, TiledGrid};
-use gdal::vector::LayerAccess;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -546,7 +545,7 @@ fn plan_road(
     // Class → (features, first non-empty label).
     let mut found: BTreeMap<i64, (u64, Option<String>)> = BTreeMap::new();
     let mut without_class = 0u64;
-    for (index, feature) in layer.features().enumerate() {
+    for (index, feature) in vector.features(&mut layer)?.enumerate() {
         if index % 4096 == 0 && cancelled() {
             return Err(Error::Cancelled);
         }

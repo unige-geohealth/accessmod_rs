@@ -55,6 +55,7 @@ fn demo_job(root: &Path, output_dir: &Path) -> CoverageJob {
             layer: None,
             id_field: "cat".into(),
             filter: None,
+            ids: None,
         },
         capacity_field: Some("capacity".into()),
         name_field: Some("name".into()),

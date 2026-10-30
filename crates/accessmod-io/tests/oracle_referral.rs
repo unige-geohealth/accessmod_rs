@@ -65,6 +65,7 @@ fn job(neighbourhood: Neighbourhood, out: &Path) -> ReferralJob {
         layer: None,
         id_field: "cat".into(),
         filter: None,
+        ids: None,
     };
     let entry = |class, mode, speed_kmh| ScenarioEntry {
         class,

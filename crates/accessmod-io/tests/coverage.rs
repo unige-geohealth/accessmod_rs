@@ -78,6 +78,7 @@ fn fixture(dir: &Path, cols: usize, rows: usize, limit_s: f64) -> CoverageJob {
             layer: None,
             id_field: "id".into(),
             filter: None,
+            ids: None,
         },
         capacity_field: Some("capacity".into()),
         name_field: None,

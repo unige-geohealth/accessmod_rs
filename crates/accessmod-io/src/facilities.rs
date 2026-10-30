@@ -1,5 +1,7 @@
 //! Facility points: reading, explicit reprojection, location on the grid.
 
+use std::collections::{BTreeSet, HashSet};
+
 use accessmod_core::solver::{Facility, InputCell};
 use accessmod_core::store::TiledGrid;
 use gdal::vector::{Geometry, LayerAccess, OGRwkbGeometryType, geometry_type_flatten};
@@ -7,8 +9,8 @@ use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::job::FacilitySource;
-use crate::vector::{VectorLayer, json_attribute};
+use crate::job::{FacilityId, FacilitySource};
+use crate::vector::{VectorLayer, id_key, json_attribute};
 
 /// A facility used by the solver.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -91,6 +93,65 @@ fn single_point(geometry: &Geometry) -> std::result::Result<(f64, f64), String> 
     ))
 }
 
+/// Open a facility layer with its attribute filter (`where`) and its
+/// `ids` selection. Every selected identifier must name a feature matching
+/// `where`: a selection saved from a table and replayed on another layer
+/// fails instead of silently running on fewer facilities.
+pub fn open_facilities(
+    source: &FacilitySource,
+    grid: &GridSpec,
+    role: &str,
+) -> Result<VectorLayer> {
+    let vector = VectorLayer::open(
+        &source.path,
+        source.layer.as_deref(),
+        source.filter.as_deref(),
+        grid,
+        role,
+    )?;
+    let Some(ids) = &source.ids else {
+        return Ok(vector);
+    };
+    if ids.is_empty() {
+        return Err(vector.invalid("ids selects no facility (omit it to use all)".into()));
+    }
+    let keys: HashSet<String> = ids.iter().map(FacilityId::key).collect();
+    let dataset = vector.dataset()?;
+    let mut layer = vector.layer(&dataset)?;
+    let field_index = vector.field_index(&layer, &source.id_field)?;
+    let mut missing: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
+    for feature in layer.features() {
+        let id = json_attribute(
+            feature
+                .field(field_index)
+                .map_err(Error::gdal(&source.path))?,
+        );
+        if let Some(id) = id {
+            missing.remove(id_key(&id).as_str());
+        }
+        if missing.is_empty() {
+            break;
+        }
+    }
+    if !missing.is_empty() {
+        let shown: Vec<&str> = missing.iter().take(10).copied().collect();
+        let more = missing.len() - shown.len();
+        let tail = if more > 0 {
+            format!(" and {more} more")
+        } else {
+            String::new()
+        };
+        let filter = source.filter.as_deref().map(|f| format!(" where {f}"));
+        return Err(vector.invalid(format!(
+            "ids not found in {:?}{}: {}{tail}",
+            source.id_field,
+            filter.unwrap_or_default(),
+            shown.join(", ")
+        )));
+    }
+    Ok(vector.select(&source.id_field, keys))
+}
+
 /// Read the facilities, reproject them to the grid CRS when needed and
 /// locate them. Facilities outside the grid, on a barrier or without a
 /// usable point are returned as issues; the caller decides whether they are
@@ -101,13 +162,7 @@ pub fn load_facilities(
     inputs: &mut TiledGrid<InputCell>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<LoadedFacilities> {
-    let vector = VectorLayer::open(
-        &source.path,
-        source.layer.as_deref(),
-        source.filter.as_deref(),
-        grid,
-        "facilities",
-    )?;
+    let vector = open_facilities(source, grid, "facilities")?;
     let dataset = vector.dataset()?;
     let mut layer = vector.layer(&dataset)?;
     let field_index = vector.field_index(&layer, &source.id_field)?;
@@ -116,7 +171,7 @@ pub fn load_facilities(
 
     let mut kept = Vec::new();
     let mut issues = Vec::new();
-    for (index, feature) in layer.features().enumerate() {
+    for (index, feature) in vector.features(&mut layer)?.enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
         }

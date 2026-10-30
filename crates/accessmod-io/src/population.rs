@@ -275,7 +275,7 @@ fn read_targets(
     let mut targets = Vec::new();
     let mut missing = 0;
     let mut issues = Vec::new();
-    for (index, feature) in layer.features().enumerate() {
+    for (index, feature) in vector.features(&mut layer)?.enumerate() {
         if cancelled() {
             return Err(Error::Cancelled);
         }
@@ -525,7 +525,7 @@ pub fn run(
     let mut layer = vector.layer(&dataset)?;
     let id_index = vector.field_index(&layer, &job.zones.id_field)?;
     let mut zone = 0usize;
-    for feature in layer.features() {
+    for feature in vector.features(&mut layer)? {
         if cancelled() {
             return Err(Error::Cancelled);
         }

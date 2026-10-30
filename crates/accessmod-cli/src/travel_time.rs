@@ -195,6 +195,7 @@ fn job(args: &RunArgs) -> Result<TravelTimeJob, Error> {
             layer: d.facilities_layer.clone(),
             id_field: id_field.clone(),
             filter: d.facilities_where.clone(),
+            ids: None,
         },
         scenario,
         method,
