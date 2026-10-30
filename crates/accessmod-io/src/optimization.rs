@@ -14,14 +14,14 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use accessmod_core::optimization::{Candidate, ZoneQuota, select};
-use gdal::vector::{Envelope, Geometry, LayerAccess, OGRwkbGeometryType, geometry_type_flatten};
+use gdal::vector::{Envelope, Geometry, LayerAccess, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::analysis::{Analysis, Monitor, Output};
 use crate::class::DataClass;
 use crate::error::{Error, Result};
-use crate::facilities::open_facilities;
+use crate::facilities::{open_facilities, single_point};
 use crate::grid::GridSpec;
 use crate::job::{FacilitySource, JobFile, check_files, check_schema_version};
 use crate::output::{self, CsvWriter, Staging, csv_field};
@@ -270,16 +270,14 @@ fn facility_zones(
             issues.push(issue(problem("has no geometry")));
             continue;
         };
-        if geometry_type_flatten(geometry.geometry_type()) != OGRwkbGeometryType::wkbPoint {
-            issues.push(issue(problem("is not a point")));
-            continue;
-        }
-        match vector.to_grid_geometry(geometry) {
-            Ok(point) => {
-                let (x, y, _) = point.get_point(0);
-                points.push((id_key(&id), x, y));
-            }
-            Err(why) => issues.push(issue(problem(why))),
+        // A point or a one-point multipoint (shapefiles), as every facility layer.
+        let point = vector
+            .to_grid_geometry(geometry)
+            .map_err(str::to_string)
+            .and_then(|g| single_point(&g));
+        match point {
+            Ok((x, y)) => points.push((id_key(&id), x, y)),
+            Err(why) => issues.push(issue(problem(&why))),
         }
     }
     if !issues.is_empty() {

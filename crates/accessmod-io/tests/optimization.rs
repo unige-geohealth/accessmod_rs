@@ -194,6 +194,29 @@ fn zone_minimum_takes_a_facility_in_every_zone() {
     assert_eq!(column(&out, "facility_id"), ["1", "3"]);
     assert_eq!(column(&out, "zone_id"), ["west", "east"]);
 
+    // One-point multipoints (shapefile facilities, the demo) are points.
+    let multi: Vec<(String, Vec<Option<FieldValue>>)> = points
+        .iter()
+        .map(|(w, v)| (w.replace("POINT (", "MULTIPOINT (("), v.clone()))
+        .map(|(w, v)| (format!("{w})"), v))
+        .collect();
+    let multi: Vec<(&str, Vec<Option<FieldValue>>)> =
+        multi.iter().map(|(w, v)| (w.as_str(), v.clone())).collect();
+    write_features(
+        &dir.path().join("multi.gpkg"),
+        "facilities",
+        EPSG,
+        &[("code", OGRFieldType::OFTInteger64)],
+        &multi,
+    );
+    let mut multi_job = job.clone();
+    multi_job.output_dir = dir.path().join("multi");
+    if let Some(quota) = multi_job.zone_quota.as_mut() {
+        quota.facilities.path = dir.path().join("multi.gpkg");
+    }
+    let out = run_job::<Optimization>(multi_job, &settings(64 << 20, 1)).expect("multipoints");
+    assert_eq!(column(&out, "facility_id"), ["1", "3"]);
+
     // Two zones of one facility each exceed one facility.
     job.max_facilities = 1;
     job.output_dir = dir.path().join("too-few");
