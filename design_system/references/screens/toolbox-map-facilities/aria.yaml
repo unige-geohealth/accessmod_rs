@@ -1,0 +1,53 @@
+- tabpanel:
+  - radio "map icon Interactive map" [checked]
+  - text:  Interactive map
+  - radio "list icon Merge land cover"
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - tablist:
+    - tab "map icon Options" [selected]:  Options
+    - tab "B Raster" [selected]
+    - tab "hospital icon Facilities" [expanded] [selected]:  Facilities
+    - tabpanel "hospital icon Facilities":
+      - text: Select facilities to use (vector) (v) facility [demo]
+      - textbox "Select facilities to use (vector)"
+      - text: Label (any field) cat
+      - combobox "Label (any field)"
+      - text: Relocate save mode
+      - radio "Update existing layer" [checked]
+      - text: Update existing layer
+      - radio "Create new facilities layer"
+      - text: Create new facilities layer
+      - separator
+      - button "Save changes" [disabled]
+      - separator
+      - text: "Info:  Number of facilities relocated : 0 Output dataset:  facility [demo] ( overwrite )"
+  - img "1"
+  - img "2"
+  - img "3"
+  - img "4"
+  - img "5"
+  - img "6"
+  - img "7"
+  - img "8"
+  - img "9"
+  - img "10"
+  - button "Zoom in": +
+  - button "Zoom out": −
+  - button ""
+  - link "":
+    - /url: "#"
+  - link "":
+    - /url: "#"
+  - link "":
+    - /url: "#"
+  - text: 50 km 30 mi
+  - link "Leaflet":
+    - /url: https://leafletjs.com
+  - text: "|"
+  - link "© MapTiler":
+    - /url: https://www.maptiler.com/copyright/
+  - link "© OpenStreetMap contributors":
+    - /url: https://www.openstreetmap.org/copyright

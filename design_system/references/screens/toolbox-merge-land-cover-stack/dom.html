@@ -1,0 +1,201 @@
+<!-- AM5 Toolbox › Merge land cover › Merge (stack): visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_toolbox" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12"><div id="toolSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">  <label for="toolSelector"></label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool2" name="toolSelector" value="tool_map_preview" checked="checked" style="">    <i class="far fa-map" role="presentation" aria-label="map icon"></i>    <span data-amt_id="tools_map_btn">Interactive map</span>  </label>  <label class="btn btn-default btn-inline active">    <input type="radio" id="tool1" name="toolSelector" value="tool_merge_landcover" style="">    <i class="fas fa-list" role="presentation" aria-label="list icon"></i>    <span data-amt_id="tools_merge_lc_btn">Merge land cover</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool3" name="toolSelector" value="tool_pop_correction" style="">    <i class="fas fa-users" role="presentation" aria-label="users icon"></i>    <span data-amt_id="tools_correct_pop_btn">Adjust population distribution</span>  </label></div></div>
+            <hr>
+            <div class="col-sm-12">
+              <div class="shiny-panel-conditional" data-display-if="
+      input.toolSelector=='tool_merge_landcover'
+      " data-ns-prefix="" style="">
+                <div class="row">
+                  <div id="helpPanelAccessibility" class="shiny-html-output shiny-bound-output recalculating" aria-live="polite"></div>
+                  <h2 style="text-align:center;margin-top:50px">
+                    <span data-amt_id="toolbox_land_cover_merge_main">Merge land cover</span>
+                  </h2>
+                  <p style="text-align:center">
+                    <span data-amt_id="toolbox_land_cover_merge_main_sub">Module for ordering and merging the data listed in the 'stack' into a new land cover layer</span>
+                  </p>
+                  <hr>
+                  <div class="col-sm-12">
+                    <div class="tabbable">
+                      <ul class="nav nav-tabs" data-tabsetid="1925" role="tablist">
+                        <li class="" role="presentation">
+                          <a href="#tab-1925-1" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_tab&quot;&gt;Land cover&lt;/span&gt;" role="tab" id="ui-tab-497" tabindex="-1" aria-selected="false" aria-controls="tab-1925-1" aria-expanded="false">
+                            <span data-amt_id="toolbox_land_cover_tab">Land cover</span>
+                          </a>
+                        </li>
+                        <li role="presentation" class="">
+                          <a href="#tab-1925-2" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_roads_tab&quot;&gt;Roads&lt;/span&gt;" role="tab" id="ui-tab-55" tabindex="-1" aria-selected="false" aria-controls="tab-1925-2" aria-expanded="false">
+                            <span data-amt_id="toolbox_land_cover_roads_tab">Roads</span>
+                          </a>
+                        </li>
+                        <li role="presentation" class="">
+                          <a href="#tab-1925-3" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_barrier_tab&quot;&gt;Barriers&lt;/span&gt;" role="tab" id="ui-tab-563" tabindex="-1" aria-selected="false" aria-controls="tab-1925-3" aria-expanded="false">
+                            <span data-amt_id="toolbox_land_cover_barrier_tab">Barriers</span>
+                          </a>
+                        </li>
+                        <li role="presentation" class="active">
+                          <a href="#tab-1925-4" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_merge_tab&quot;&gt;Merge&lt;/span&gt;" role="tab" id="ui-tab-294" tabindex="0" aria-selected="true" aria-controls="tab-1925-4" aria-expanded="true">
+                            <span data-amt_id="toolbox_land_cover_merge_tab">Merge</span>
+                          </a>
+                        </li>
+                      </ul>
+                      <div class="tab-content" data-tabsetid="1925">
+                        
+                        
+                        
+                        <div class="tab-pane active" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_merge_tab&quot;&gt;Merge&lt;/span&gt;" id="tab-1925-4" role="tabpanel" tabindex="0" aria-hidden="false" aria-labelledby="ui-tab-294">
+                          <div class="row am-tab-content">
+                            <div class="col-sm-4">
+                              <form class="well" role="complementary">
+                                <h3 style="text-align:center;margin-top:50px">
+                                  <span data-amt_id="toolbox_land_cover_merge_title">Merge</span>
+                                </h3>
+                                <p style="text-align:center">
+                                  <span data-amt_id="toolbox_land_cover_merge_sub">Order and merge the stack</span>
+                                </p>
+                                <hr>
+                                <p>
+                                  <b>
+                                    <span data-amt_id="toolbox_land_cover_merge_manage">Manage stack items</span>
+                                  </b>
+                                </p>
+                                <button id="btnStackAllSkip" type="button" class="btn btn-default action-button shiny-bound-input">
+                                  <span data-amt_id="toolbox_land_cover_merge_skip_btn">Skip all items</span>
+                                </button>
+                                <button id="btnStackAllProcess" type="button" class="btn btn-default action-button shiny-bound-input">
+                                  <span data-amt_id="toolbox_land_cover_merge_all_btn">Use all items</span>
+                                </button>
+                                <button id="btnDeleteStack" type="button" class="btn btn-default action-button shiny-bound-input">
+                                  <span data-amt_id="toolbox_land_cover_merge_del_btn">Delete skipped items</span>
+                                </button>
+                                <p>
+                                  <b>
+                                    <span data-amt_id="toolbox_land_cover_merge_option">Option</span>
+                                  </b>
+                                </p>
+                                <div class="form-group shiny-input-container">
+                                  <div class="checkbox">
+                                    <label>
+                                      <input id="cleanArtefact" type="checkbox" class="shiny-input-checkbox shiny-bound-input" checked="checked" style="">
+                                      <span>
+                                        <div>
+                                          <span data-amt_id="toolbox_land_cover_merge_clean_artefact">Clean bridges &amp; artefacts (may be lengthy)</span>
+                                          <small class="text-muted">
+                                            <span data-amt_id="toolbox_land_cover_merge_clean_artefact_desc">Identifies and cleans artefacts such as bridges. An additional layer highlighting these cells is added.</span>
+                                          </small>
+                                        </div>
+                                      </span>
+                                    </label>
+                                  </div>
+                                </div>
+                                <div id="stackWarning" class="shiny-html-output shiny-bound-output" aria-live="polite"><b>Validation issues:</b>
+<div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> At least one land cover stack item is required to proceed. </div></div>
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="stackTag-label" for="stackTag">
+                                    <span data-amt_id="toolbox_land_cover_merge_tag">Add short tags</span>
+                                  </label>
+                                  <input id="stackTag" type="text" class="shiny-input-text form-control shiny-bound-input" value="" style="">
+                                </div>
+                                <div id="stackNameInfo" class="shiny-html-output shiny-bound-output" aria-live="polite"></div>
+                                <button id="btnMerge" type="button" class="btn action-button shiny-bound-input btn-danger" disabled="">
+                                  <span data-amt_id="toolbox_land_cover_merge_btn">Merge the items in the stack</span>
+                                </button>
+                              </form>
+                            </div>
+                            <div class="col-xs-12 col-md-8 col-lg-8">
+                              <div class="panel-group" id="stackTable" role="tablist" aria-multiselectable="true">
+                                <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                                  <div class="panel-heading" role="presentation">
+                                    <h4 class="panel-title" role="presentation">
+                                      <a data-toggle="collapse" data-parent="#stackTable" href="#stackTable1" id="ui-collapse-478" aria-controls="stackTable1" role="tab" aria-selected="true" aria-expanded="true" tabindex="0" class="">
+                                        <span data-amt_id="toolbox_land_cover_merge_order">Order and merge the stack</span>
+                                      </a>
+                                    </h4>
+                                  </div>
+                                  <div id="stackTable1" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="ui-collapse-478" tabindex="0" aria-hidden="false" aria-expanded="true" style="">
+                                    <div class="panel-body">
+                                      <p>
+                                        <span data-amt_id="toolbox_land_cover_merge_reorder_mouse">Reorder and move stack items using the mouse.</span>
+                                      </p>
+                                      <div class="row" role="presentation">
+                                        <div class="col-md-6 col-xs-12" role="presentation">
+                                          <h3>
+                                            <span data-amt_id="toolbox_land_cover_merge_items_to_use">Stack items to use</span>
+                                          </h3>
+                                          <div id="stackMapList_1" class="stackMapList_link list-group am_dbl_srt_input am_dbl_srt_box ui-sortable shiny-bound-input" role="presentation"></div>
+                                        </div>
+                                        <div class="col-md-6 col-xs-12" role="presentation">
+                                          <h3>
+                                            <span data-amt_id="toolbox_land_cover_merge_items_to_skip">Stack items to skip</span>
+                                          </h3>
+                                          <div id="stackMapList_2" class="stackMapList_link list-group am_dbl_srt_input am_dbl_srt_box ui-sortable shiny-bound-input" role="presentation"><div class="list-group-item am_dbl_srt_item" data-input="rStackBarrier__demo_river_line@demo">
+  <span>stack barrier [demo river line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackBarrier__demo_wetland_area@demo">
+  <span>stack barrier [demo wetland area]</span>
+  <span class="icon-grid_area"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackBarrier__demo_wetland_line@demo">
+  <span>stack barrier [demo wetland line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackLandCover__demo_grid@demo">
+  <span>stack land cover [demo grid]</span>
+  <span class="icon-grid_full"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackRoad__Main_road_64_fixed_line@demo">
+  <span>stack road [Main road 64 fixed line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackRoad__Main_road_demo_line@demo">
+  <span>stack road [Main road demo line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackRoad__Secondary_64_fixed_line@demo">
+  <span>stack road [Secondary 64 fixed line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackRoad__Secondary_demo_line@demo">
+  <span>stack road [Secondary demo line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackRoad__Tertiary_64_fixed_line@demo">
+  <span>stack road [Tertiary 64 fixed line]</span>
+  <span class="icon-grid_line"></span>
+</div>
+<div class="list-group-item am_dbl_srt_item" data-input="rStackRoad__Tertiary_demo_line@demo">
+  <span>stack road [Tertiary demo line]</span>
+  <span class="icon-grid_line"></span>
+</div></div>
+                                        </div>
+                                      </div>
+                                      
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                                  <div class="panel-heading" role="presentation">
+                                    <h4 class="panel-title" role="presentation">
+                                      <a data-toggle="collapse" data-parent="#stackTable" href="#stackTable2" id="ui-collapse-631" aria-controls="stackTable2" role="tab" aria-selected="false" aria-expanded="false" tabindex="-1">
+                                        <span data-amt_id="toolbox_land_cover_merge_conflict_warning">If any, conflicting classes among items in the stack</span>
+                                      </a>
+                                    </h4>
+                                  </div>
+                                  
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              
+            </div>
+          </div>
+        </div>

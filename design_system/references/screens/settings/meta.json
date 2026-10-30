@@ -1,0 +1,97 @@
+{
+  "id": "settings",
+  "name": "Settings",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_settings"
+    }
+  ],
+  "source": [
+    "modules/amManageSettings/amUi.R"
+  ],
+  "icons": [],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "settings_advanced_tools",
+      "text": "Enable advanced options in modules",
+      "fr": "Activer les options avancées dans les modules",
+      "es": "Activar las opciones avanzadas en los módulos",
+      "pt": "Ativar as opções avançadas nos módulos"
+    },
+    {
+      "key": "settings_admin_tools",
+      "text": "Show advanced settings",
+      "fr": "Afficher les paramètres avancés",
+      "es": "Mostrar ajustes avanzados",
+      "pt": "Mostrar configurações avançadas"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:17:01.308Z"
+}

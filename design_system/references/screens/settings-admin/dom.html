@@ -1,0 +1,87 @@
+<!-- AM5 Settings › Admin tools: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_settings" aria-hidden="false" tabindex="0">
+          <div class="col-sm-4">
+            <form class="well" role="complementary">
+              <h4>
+                <img src="logo/icons/logo32x32.png">
+                <span id="amVersionTitle">AccessMod 5 ( 5.9.2-beta.6 )</span>
+              </h4>
+              <div class="form-group shiny-input-container">
+                <div class="checkbox">
+                  <label>
+                    <input id="showAdvancedTools" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                    <span>
+                      <span data-amt_id="settings_advanced_tools">Enable advanced options in modules</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div class="form-group shiny-input-container">
+                <div class="checkbox">
+                  <label>
+                    <input id="showAdminTools" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                    <span>
+                      <span data-amt_id="settings_admin_tools">Show advanced settings</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div class="shiny-panel-conditional" data-display-if="input.showAdminTools==true" data-ns-prefix="" style="">
+                <h3>
+                  <span data-amt_id="settings_system_info_title">System information</span>
+                </h3>
+                <div id="uiDiskUsage" class="shiny-html-output shiny-bound-output" aria-live="polite"><h4>Disk usage</h4>
+<ul>
+  <li>
+    <label>Free:</label>
+    210.33 GB ( 368 % )
+  </li>
+  <li>
+    <label>Used:</label>
+    -153.111 GB ( -268 % )
+  </li>
+  <li>
+    <label>Total:</label>
+    57.219 GB
+  </li>
+</ul></div>
+                <button id="btnRestart" type="button" class="btn btn-default action-button shiny-bound-input">
+                  <span data-amt_id="settings_restart_am_btn">Restart Accessmod</span>
+                </button>
+                <button id="btnClearCache" type="button" class="btn btn-default action-button shiny-bound-input">
+                  <span data-amt_id="settings_clear_cache_restart_btn">Clear cache and restart</span>
+                </button>
+                <button id="btnClearArchives" type="button" class="btn btn-default action-button shiny-bound-input">
+                  <span data-amt_id="settings_clear_archives_btn">Remove all archives of this project</span>
+                </button>
+                <div class="form-group shiny-input-container">
+                  <div class="checkbox">
+                    <label>
+                      <input id="showDevelTools" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                      <span>
+                        <span data-amt_id="settings_expert_options">Show expert options</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div class="shiny-panel-conditional" data-display-if="input.showDevelTools == true" data-ns-prefix="" style="">
+                  <p>
+                    <span data-amt_id="settings_warning_unstable">Warning: these options could make AccessMod unstable</span>
+                  </p>
+                  <div class="form-group shiny-input-container">
+                    <label class="control-label" id="numSetUploadLimit-label" for="numSetUploadLimit">
+                      <span data-amt_id="settings_upload_limit_import">Temporary limit for data importing (Megabytes)</span>
+                    </label>
+                    <input id="numSetUploadLimit" type="number" class="shiny-input-number form-control shiny-bound-input" value="2000" min="10" max="1000" step="1" style="">
+                  </div>
+                  <button id="btnSetFileSizeLimit" type="button" class="btn btn-default action-button shiny-bound-input">
+                    <span data-amt_id="settings_upload_limit_btn">Apply the temporary data importing limit</span>
+                  </button>
+                  <button id="grassResetRegion" type="button" class="btn btn-default action-button shiny-bound-input">
+                    <span data-amt_id="settings_reload_spatial_btn">Reload spatial settings</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>

@@ -1,0 +1,166 @@
+{
+  "id": "settings-admin",
+  "name": "Settings › Admin tools",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_settings"
+    },
+    {
+      "check": "#showAdminTools"
+    },
+    {
+      "check": "#showDevelTools"
+    }
+  ],
+  "source": [
+    "modules/amManageSettings/amUi.R"
+  ],
+  "icons": [],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "settings_advanced_tools",
+      "text": "Enable advanced options in modules",
+      "fr": "Activer les options avancées dans les modules",
+      "es": "Activar las opciones avanzadas en los módulos",
+      "pt": "Ativar as opções avançadas nos módulos"
+    },
+    {
+      "key": "settings_admin_tools",
+      "text": "Show advanced settings",
+      "fr": "Afficher les paramètres avancés",
+      "es": "Mostrar ajustes avanzados",
+      "pt": "Mostrar configurações avançadas"
+    },
+    {
+      "key": "settings_system_info_title",
+      "text": "System information",
+      "fr": "Informations système",
+      "es": "Información sistema",
+      "pt": "Informação sistema"
+    },
+    {
+      "key": "settings_restart_am_btn",
+      "text": "Restart Accessmod",
+      "fr": "Redémarrer Accessmod",
+      "es": "Reiniciar Accessmod",
+      "pt": "Reiniciar o Accessmod"
+    },
+    {
+      "key": "settings_clear_cache_restart_btn",
+      "text": "Clear cache and restart",
+      "fr": "Vider le cache et redémarrer",
+      "es": "Vaciar caché y reiniciar",
+      "pt": "Limpar o cache e reiniciar"
+    },
+    {
+      "key": "settings_clear_archives_btn",
+      "text": "Remove all archives of this project",
+      "fr": "Supprimer toutes les archives de ce projet",
+      "es": "Eliminar todos los archivos de este proyecto",
+      "pt": "Eliminar todos os arquivos deste projeto"
+    },
+    {
+      "key": "settings_expert_options",
+      "text": "Show expert options",
+      "fr": "Afficher les options expert",
+      "es": "Mostrar opciones de experto",
+      "pt": "Mostrar opções de experto"
+    },
+    {
+      "key": "settings_warning_unstable",
+      "text": "Warning: these options could make AccessMod unstable",
+      "fr": "Attention: ces options pourraient rendre AccessMod instable",
+      "es": "Advertencia: estas opciones pueden hacer que AccessMod sea inestable",
+      "pt": "Aviso: estas opções podem tornar o AccessMod instável"
+    },
+    {
+      "key": "settings_upload_limit_import",
+      "text": "Temporary limit for data importing (Megabytes)",
+      "fr": "Limite temporaire d'importation de données (Megabytes)",
+      "es": "Límite temporal para la importación de datos (Megabytes)",
+      "pt": "Limite temporário para a importação de dados (Megabytes)"
+    },
+    {
+      "key": "settings_upload_limit_btn",
+      "text": "Apply the temporary data importing limit",
+      "fr": "Appliquer la limite d'importation temporaire de données",
+      "es": "Aplicar el límite temporal de importación de datos",
+      "pt": "Aplicar o limite temporário de importação de dados"
+    },
+    {
+      "key": "settings_reload_spatial_btn",
+      "text": "Reload spatial settings",
+      "fr": "Recharger les paramètres spatiaux",
+      "es": "Recargar los parámetros espaciales",
+      "pt": "Recarregar os parâmetros espaciais"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:17:10.163Z"
+}

@@ -1,0 +1,68 @@
+<!-- AM5 Logs: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_logs" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-4">
+              <form class="well" role="complementary">
+                <h4>
+                  <span data-amt_id="logs_title">Logs</span>
+                </h4>
+                <div class="form-group shiny-input-container">
+                  <label class="control-label" id="nLogsToKeep-label" for="nLogsToKeep">
+                    <span data-amt_id="logs_to_show">Number of last logs to show</span>
+                  </label>
+                  <span class="irs irs--shiny js-irs-1 irs-with-grid"><span class="irs"><span class="irs-line" tabindex="0"></span><span class="irs-min" style="visibility: visible;">1</span><span class="irs-max" style="visibility: visible;">5,000</span><span class="irs-single" style="left: 5.22496%;">300</span></span><span class="irs-grid" style="width: 93.3333%; left: 3.23333%;"><span class="irs-grid-pol" style="left: 0%"></span><span class="irs-grid-text js-grid-text-0" style="left: 0%; margin-left: -1.66903%;">1</span><span class="irs-grid-pol small" style="left: 6.668000266720011%"></span><span class="irs-grid-pol small" style="left: 3.3340001333600053%"></span><span class="irs-grid-pol" style="left: 10.002000400080016%"></span><span class="irs-grid-text js-grid-text-1" style="left: 10.002%; visibility: visible; margin-left: -3.18418%;">501</span><span class="irs-grid-pol small" style="left: 16.67000066680003%"></span><span class="irs-grid-pol small" style="left: 13.336000533440021%"></span><span class="irs-grid-pol" style="left: 20.004000800160032%"></span><span class="irs-grid-text js-grid-text-2" style="left: 20.004%; visibility: visible; margin-left: -4.32291%;">1,001</span><span class="irs-grid-pol small" style="left: 26.672001066880043%"></span><span class="irs-grid-pol small" style="left: 23.33800093352004%"></span><span class="irs-grid-pol" style="left: 30.00600120024005%"></span><span class="irs-grid-text js-grid-text-3" style="left: 30.006%; visibility: visible; margin-left: -4.32291%;">1,501</span><span class="irs-grid-pol small" style="left: 36.67400146696006%"></span><span class="irs-grid-pol small" style="left: 33.34000133360006%"></span><span class="irs-grid-pol" style="left: 40.008001600320064%"></span><span class="irs-grid-text js-grid-text-4" style="left: 40.008%; margin-left: -4.32291%;">2,001</span><span class="irs-grid-pol small" style="left: 46.67600186704007%"></span><span class="irs-grid-pol small" style="left: 43.34200173368007%"></span><span class="irs-grid-pol" style="left: 50.01000200040008%"></span><span class="irs-grid-text js-grid-text-5" style="left: 50.01%; visibility: visible; margin-left: -4.32291%;">2,501</span><span class="irs-grid-pol small" style="left: 56.67800226712009%"></span><span class="irs-grid-pol small" style="left: 53.344002133760085%"></span><span class="irs-grid-pol" style="left: 60.0120024004801%"></span><span class="irs-grid-text js-grid-text-6" style="left: 60.012%; visibility: visible; margin-left: -4.32291%;">3,001</span><span class="irs-grid-pol small" style="left: 66.6800026672001%"></span><span class="irs-grid-pol small" style="left: 63.3460025338401%"></span><span class="irs-grid-pol" style="left: 70.0140028005601%"></span><span class="irs-grid-text js-grid-text-7" style="left: 70.014%; visibility: visible; margin-left: -4.32291%;">3,501</span><span class="irs-grid-pol small" style="left: 76.68200306728012%"></span><span class="irs-grid-pol small" style="left: 73.34800293392011%"></span><span class="irs-grid-pol" style="left: 80.01600320064013%"></span><span class="irs-grid-text js-grid-text-8" style="left: 80.016%; margin-left: -4.32291%;">4,001</span><span class="irs-grid-pol small" style="left: 86.68400346736014%"></span><span class="irs-grid-pol small" style="left: 83.35000333400014%"></span><span class="irs-grid-pol" style="left: 90.01800360072015%"></span><span class="irs-grid-text js-grid-text-9" style="left: 90.018%; visibility: visible; margin-left: -4.32291%;">4,501</span><span class="irs-grid-pol small" style="left: 96.67266786690672%"></span><span class="irs-grid-pol small" style="left: 93.34533573381343%"></span><span class="irs-grid-pol" style="left: 100%"></span><span class="irs-grid-text js-grid-text-10" style="left: 100%; visibility: visible; margin-left: -4.32291%;">5,000</span></span><span class="irs-bar irs-bar--single" style="left: 0px; width: 8.91578%;"></span><span class="irs-handle single" style="left: 5.58245%;"><i></i><i></i><i></i></span></span><input class="js-range-slider irs-hidden-input shiny-bound-input" id="nLogsToKeep" data-skin="shiny" data-min="1" data-max="5000" data-from="300" data-step="100" data-grid="true" data-grid-num="9.998" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number" tabindex="-1" readonly="" style="">
+                </div>
+                <div id="filterLogs" class="form-group shiny-input-radiogroup shiny-input-container shiny-bound-input">
+                  <label>
+                    <span data-amt_id="logs_filter">Filter</span>
+                  </label>
+                  <div class="shiny-options-group">
+                    <div class="radio">
+                      <label>
+                        <input type="radio" name="filterLogs" value="error" checked="checked" style="">
+                        <span data-amt_id="logs_filter_error">Errors</span>
+                      </label>
+                    </div>
+                    <div class="radio">
+                      <label>
+                        <input type="radio" name="filterLogs" value="warning" style="">
+                        <span data-amt_id="logs_filter_warning">Warnings</span>
+                      </label>
+                    </div>
+                    <div class="radio">
+                      <label>
+                        <input type="radio" name="filterLogs" value="message" style="">
+                        <span data-amt_id="logs_filter_message">Messages</span>
+                      </label>
+                    </div>
+                    <div class="radio">
+                      <label>
+                        <input type="radio" name="filterLogs" value="log" style="">
+                        <span data-amt_id="logs_filter_log">Logs</span>
+                      </label>
+                    </div>
+                    <div class="radio">
+                      <label>
+                        <input type="radio" name="filterLogs" value="all" style="">
+                        <span data-amt_id="logs_filter_all">All</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div class="btn-group-vertical am-log-actions">
+                  <a id="downloadLogs" class="btn btn-default shiny-download-link shiny-bound-output" href="session/705e1ec6f916a770f1be6dba4127f681/download/downloadLogs?w=" target="_blank" download="" aria-live="polite">
+                    <i class="fas fa-download" role="presentation" aria-label="download icon"></i>
+                    <span data-amt_id="logs_download">Download logs</span>
+                  </a>
+                  <button id="clearLogs" type="button" class="btn btn-default action-button shiny-bound-input">
+                    <i class="far fa-trash-can" role="presentation" aria-label="trash-can icon"></i>
+                    <span data-amt_id="logs_clear">Clear logs</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div class="col-sm-8" role="main">
+              <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="logsTable" style="width: 100%; height: 400px; visibility: inherit;" aria-live="polite"><div class="tabulator" role="grid" tabulator-layout="fitDataFill" style="height: 100%;"><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="time" style="min-width: 40px; width: 64px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">time</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="type" style="min-width: 40px; width: 64px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">type</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="msg" style="min-width: 40px; width: 63px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">msg</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell" role="gridcell" tabulator-field="time" style="height: 23px; width: 64px;">&nbsp;</div><div class="tabulator-cell" role="gridcell" tabulator-field="type" style="height: 23px; width: 64px;">&nbsp;</div><div class="tabulator-cell" role="gridcell" tabulator-field="msg" style="height: 23px; width: 63px;">&nbsp;</div></div></div></div></div></div>
+            </div>
+          </div>
+        </div>

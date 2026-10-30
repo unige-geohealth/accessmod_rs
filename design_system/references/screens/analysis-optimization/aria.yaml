@@ -1,0 +1,43 @@
+- tabpanel:
+  - radio "clock icon Accessibility"
+  - text:  Accessibility
+  - radio "hospital icon Geographic coverage"
+  - text:  Geographic coverage
+  - radio "table icon Referral"
+  - text:  Referral
+  - radio "chart-bar icon Zonal statistics"
+  - text:  Zonal statistics
+  - radio "plus icon Scaling up"
+  - text: + Scaling up
+  - radio "star icon Optimization" [checked]
+  - text:  Optimization
+  - separator
+  - heading "right-to-bracket icon Data input" [level=3]:  Data input
+  - paragraph: Select the data to be used in this analysis
+  - separator
+  - text: Select catchment layer (s) catchment [demo]
+  - textbox "Select catchment layer"
+  - text: Catchment ID field cat_join
+  - combobox "Catchment ID field"
+  - text: Select population layer (raster) (r) population [demo patients]
+  - textbox "Select population layer (raster)"
+  - text: Select existing health facilities layer (vector) (v) facility [demo]
+  - textbox "Select existing health facilities layer (vector)"
+  - text: Select facilities ID field (unique) cat
+  - combobox "Select facilities ID field (unique)"
+  - text: Select facility name field (text) name
+  - combobox "Select facility name field (text)"
+  - heading "wrench icon Analysis settings" [level=3]:  Analysis settings
+  - paragraph: Configure parameters for this analysis.
+  - separator
+  - text: Total number of facilities to select
+  - spinbutton "Total number of facilities to select": "10"
+  - text: Options
+  - checkbox "Ensure minimum facilities per admin unit"
+  - text: Ensure minimum facilities per admin unit Add short tags
+  - textbox "Add short tags"
+  - heading "square-check icon Validation" [level=3]:  Validation
+  - paragraph: Review validation issues and compute.
+  - separator
+  - text: "Issue:  Please enter at least one tag."
+  - button "Compute" [disabled]

@@ -1,0 +1,118 @@
+{
+  "id": "about",
+  "name": "About",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_about"
+    }
+  ],
+  "source": [
+    "modules/amAbout/amUi.R"
+  ],
+  "icons": [],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "about_license",
+      "text": "License",
+      "fr": "Licence",
+      "es": "Licencia",
+      "pt": "Licença"
+    },
+    {
+      "key": "about_license_text",
+      "text": "The license attached to AccessMod is the GNU GPL V3. However, there is in addition a WHO 'TERMS OF USE AND SOFTWARE LICENSE AGREEMENT' that you must comply to in order to use AccessMod. Please read carefully this document that comes with the download of AccessMod ver. 5.",
+      "fr": "La licence attachée à AccessMod est la GNU GPL V3. Cependant, il existe également un 'TERMS OF USE AND SOFTWARE LICENSE AGREEMENT' DE L'OMS auquel vous devez vous conformer pour pouvoir utiliser AccessMod. Veuillez lire attentivement ce document qui est distribué avec le téléchargement d'AccessMod version 5.",
+      "es": "La licencia adjunta a AccessMod es la GNU GPL V3. Sin embargo, existe además un 'TERMS OF USE AND SOFTWARE LICENSE AGREEMENT' que debe cumplir para poder utilizar AccessMod. Por favor, lea atentamente este documento que viene con la descarga de AccessMod ver. 5.",
+      "pt": "A licença associada ao AccessMod é a GNU GPL V3. No entanto, existe adicionalmente um 'TERMS OF USE AND SOFTWARE LICENSE AGREEMENT' da OMS que tem que cumprir para poder utilizar o AccessMod. Leia atentamente este documento que acompanha o download do AccessMod ver. 5."
+    },
+    {
+      "key": "about_acknowledge",
+      "text": "Acknowledgements",
+      "fr": "Remerciements",
+      "es": "Agradecimientos",
+      "pt": "Agradecimentos"
+    },
+    {
+      "key": "about_acknowledge_text",
+      "text": "AccessMod 5 and previous versions have been developed thanks to the support of the WHO Department of Health Systems Financing (WHO/HSS/HSF), the University of Geneva/GeoHealth group, the AeHIN GIS Lab, the eHealth unit (WHO/IER/KMS/EHL), the department of Making Pregnancy Safer (WHO/FCH/MPS), the Networks of Centres of Excellence (GEOIDE), the Faculty of Medicine/University of Sherbrooke, and the School of Mathematical and Geospatial Sciences/RMIT University/Melbourne.",
+      "fr": "AccessMod 5 et les versions précédentes ont été développées grâce au soutien de WHO Department of Health Systems Financing (WHO/HSS/HSF), de l'Université de Genève/GeoHealth group, du AeHIN GIS Lab, du eHealth unit (WHO/IER/KMS/EHL), le département Making Pregnancy Safer (WHO/FCH/MPS), the Networks of Centres of Excellence (GEOIDE), la Faculté de médecine de l'Université de Sherbrooke, et the School of Mathematical and Geospatial Sciences/RMIT University/Melbourne.",
+      "es": "AccessMod 5 y las versiones anteriores se han desarrollado gracias al apoyo del WHO Department of Health Systems Financing (WHO/HSS/HSF), el grupo GeoHealth de la Universidad de Ginebra, el AeHIN GIS Lab, el eHealth unit (WHO/IER/KMS/EHL), el departamento Making Pregnancy Safer (WHO/FCH/MPS), the Networks of Centres of Excellence (GEOIDE), la Facultad de Medicina de la Universidad de Sherbrooke y the School of Mathematical and Geospatial Sciences/RMIT University/Melbourne.",
+      "pt": "O AccessMod 5 e as versões anteriores foram desenvolvidos graças ao apoio do WHO Department of Health Systems Financing (WHO/HSS/HSF), do grupo GeoHealth da Universidade de Genebra, do AeHIN GIS Lab, do eHealth unit (WHO/IER/KMS/EHL), do departamento Making Pregnancy Safer (WHO/FCH/MPS), do Networks of Centres of Excellence (GEOIDE), da Faculdade de Medicina da Universidade de Sherbrooke e da School of Mathematical and Geospatial Sciences/RMIT University/Melbourne."
+    },
+    {
+      "key": "help_learn_accessmod",
+      "text": "Learn how to use AccessMod",
+      "fr": "Apprendre à utiliser AccessMod",
+      "es": "Aprender a utilizar AccessMod",
+      "pt": "Aprender como utilizar o AccessMod"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:17:17.962Z"
+}

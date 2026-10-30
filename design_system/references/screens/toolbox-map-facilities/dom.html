@@ -1,0 +1,137 @@
+<!-- AM5 Toolbox › Interactive map › Facilities: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_toolbox" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12"><div id="toolSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">  <label for="toolSelector"></label>  <label class="btn btn-default btn-inline active">    <input type="radio" id="tool2" name="toolSelector" value="tool_map_preview" checked="checked" style="">    <i class="far fa-map" role="presentation" aria-label="map icon"></i>    <span data-amt_id="tools_map_btn">Interactive map</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool1" name="toolSelector" value="tool_merge_landcover" style="">    <i class="fas fa-list" role="presentation" aria-label="list icon"></i>    <span data-amt_id="tools_merge_lc_btn">Merge land cover</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool3" name="toolSelector" value="tool_pop_correction" style="">    <i class="fas fa-users" role="presentation" aria-label="users icon"></i>    <span data-amt_id="tools_correct_pop_btn">Adjust population distribution</span>  </label></div></div>
+            <hr>
+            <div class="col-sm-12">
+              
+              <div class="shiny-panel-conditional" data-display-if="
+      input.toolSelector=='tool_map_preview'
+      " data-ns-prefix="">
+                <div class="row">
+                  <div class="col-xs-12 col-md-4">
+                    <div class="panel-group" id="mapTools" role="tablist" aria-multiselectable="true">
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools1" id="ui-collapse-315" aria-controls="mapTools1" role="tab" aria-selected="true" aria-expanded="false" tabindex="0" class="collapsed">
+                              <div role="presentation">
+                                <i class="far fa-map" role="presentation" aria-label="map icon"></i>
+                                <span data-amt_id="tool_map_options">Options</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        
+                      </div>
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools2" id="ui-collapse-702" aria-controls="mapTools2" role="tab" aria-selected="true" aria-expanded="false" tabindex="0" class="collapsed">
+                              <div role="presentation">
+                                <span class="icon-grid_area_before"></span>
+                                <span data-amt_id="tool_map_raster">Raster</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        
+                      </div>
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools3" id="ui-collapse-579" aria-controls="mapTools3" role="tab" aria-selected="true" aria-expanded="true" tabindex="0" class="">
+                              <div role="presentation">
+                                <i class="far fa-hospital" role="presentation" aria-label="hospital icon"></i>
+                                <span data-amt_id="tool_map_facilities">Facilities</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        <div id="mapTools3" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="ui-collapse-579" tabindex="0" aria-hidden="false" aria-expanded="true" style="">
+                          <div class="panel-body">
+                            <div class="form-group shiny-input-container" role="presentation">
+                              <label class="control-label" id="selectFacilitiesToMap-label" for="selectFacilitiesToMap-selectized">
+                                <span data-amt_id="toolbox_map_facilities_select">Select facilities to use (vector)</span>
+                              </label>
+                              <div role="presentation">
+                                <div class="shiny-input-select form-control shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="vFacility__demo@demo">(v) facility [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="0" id="selectFacilitiesToMap-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                                
+                              </div>
+                            </div>
+                            <div class="form-group shiny-input-container" role="presentation">
+                              <label class="control-label" id="selectFacilitiesLabel-label" for="selectFacilitiesLabel-selectized">
+                                <span data-amt_id="toolbox_map_facilities_select_label">Label (any field)</span>
+                              </label>
+                              <div role="presentation">
+                                <div class="shiny-input-select form-control shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items has-options full has-items"><div class="item" data-value="cat">cat</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="selectFacilitiesLabel-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="vjklj537df" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                                
+                              </div>
+                            </div>
+                            <div id="relocateSaveMode" class="form-group shiny-input-radiogroup shiny-input-container shiny-bound-input" role="presentation">
+                              <label>
+                                <span data-amt_id="toolbox_map_relocate_save_mode">Relocate save mode</span>
+                              </label>
+                              <div class="shiny-options-group" role="presentation">
+                                <div class="radio" role="presentation">
+                                  <label>
+                                    <input type="radio" name="relocateSaveMode" value="update" checked="checked" style="">
+                                    <span data-amt_id="toolbox_map_relocate_save_mode_update">Update existing layer</span>
+                                  </label>
+                                </div>
+                                <div class="radio" role="presentation">
+                                  <label>
+                                    <input type="radio" name="relocateSaveMode" value="new" style="">
+                                    <span data-amt_id="toolbox_map_relocate_save_mode_new">Create new facilities layer</span>
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                            <hr>
+                            
+                            <button id="btnRelocateSave" type="button" class="btn action-button shiny-bound-input btn-danger" disabled="">
+                              <span data-amt_id="toolbox_map_relocate_save">Save changes</span>
+                            </button>
+                            <hr>
+                            <div id="uiValidationRelocate" class="shiny-html-output shiny-bound-output" role="presentation" aria-live="polite"><div>
+  <b>
+    <span data-amt_id="tool_map_validation_info_notice">Info:</span>
+  </b>
+  <div class="text-info">
+    <div>
+      <i class="fas fa-circle-info" role="presentation" aria-label="circle-info icon"></i>
+      <b>
+        <span data-amt_id="tool_map_relocate_changes_count">
+          Number of facilities relocated :
+          <span>0</span>
+        </span>
+      </b>
+    </div>
+  </div>
+</div>
+<b>
+  <span data-amt_id="tool_map_relocate_out_name">Output dataset:</span>
+</b>
+<div class="text-info">
+  <div>
+    <i class="fas fa-right-from-bracket" role="presentation" aria-label="right-from-bracket icon"></i>
+    <b class="text-warning">
+      facility [demo]
+      ( overwrite )
+    </b>
+  </div>
+</div></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-xs-12 col-md-8">
+                    <div class="leaflet html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" id="mapPreview" style="width: 100%; height: 500px; visibility: inherit; position: relative;" aria-live="polite" tabindex="0"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 0px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"></div></div><div class="leaflet-pane leaflet-shadow-pane"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(381px, 287px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(415px, 281px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(348px, 204px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(446px, 261px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(446px, 233px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(322px, 242px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(429px, 203px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(325px, 271px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(401px, 218px, 0px);"><img src="modules/leaflet/img/marker-shadow.png" class="leaflet-marker-shadow leaflet-zoom-animated" alt="" style="margin-left: -12px; margin-top: -41px; width: 41px; height: 41px; opacity: 0.9; transform: translate3d(379px, 227px, 0px);"></div><div class="leaflet-pane leaflet-overlay-pane"><img class="leaflet-image-layer leaflet-zoom-animated" src="cache/rPriority__demo__33.787_-16.533_35.92_-14.744.png" alt="" style="z-index: 1; opacity: 0.8; transform: translate3d(191px, 81px, 0px); width: 388px; height: 338px;"></div><div class="leaflet-pane leaflet-marker-pane"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="1" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(381px, 287px, 0px); z-index: 287;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="2" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(415px, 281px, 0px); z-index: 281;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="3" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(348px, 204px, 0px); z-index: 204;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="4" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(446px, 261px, 0px); z-index: 261;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="5" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(446px, 233px, 0px); z-index: 233;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="6" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(322px, 242px, 0px); z-index: 242;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="7" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(429px, 203px, 0px); z-index: 203;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="8" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(325px, 271px, 0px); z-index: 271;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="9" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(401px, 218px, 0px); z-index: 218;"><img src="modules/leaflet/img/marker-icon-2x-green.png" class="leaflet-marker-icon leaflet-zoom-animated leaflet-interactive" title="10" alt="" tabindex="0" style="margin-left: -12px; margin-top: -41px; width: 25px; height: 41px; opacity: 0.9; transform: translate3d(379px, 227px, 0px); z-index: 227;"></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(39112.9px, 35651.3px, 0px) scale(128);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in">+</a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out">−</a></div><div class="leaflet-bar easy-button-container leaflet-control"><button class="easy-button-button leaflet-bar-part leaflet-interactive unnamed-state-active" type="button" id="[object Object]" title="Home"><span class="button-state state-unnamed-state unnamed-state-active"><span class="fa fa-home"></span></span></button></div></div><div class="leaflet-top leaflet-right"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="fa fa-pencil" href="#" title="Edit"><span></span></a><a class="fa fa-step-forward leaflet-disabled" href="#" title="Next"><span></span></a><a class="fa fa-undo leaflet-disabled" href="#" title="Undo"><span></span></a></div></div><div class="leaflet-bottom leaflet-left"><div class="leaflet-control-scale leaflet-control"><div class="leaflet-control-scale-line" style="width: 85px;">50 km</div><div class="leaflet-control-scale-line" style="width: 82px;">30 mi</div></div></div><div class="leaflet-bottom leaflet-right"><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> | <a href="https://www.maptiler.com/copyright/" target="_blank">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a></div></div></div></div>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        </div>

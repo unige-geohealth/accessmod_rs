@@ -1,0 +1,30 @@
+- tabpanel:
+  - tablist:
+    - tab "circle-play icon Open" [expanded] [selected]:  Open
+    - tabpanel "circle-play icon Open":
+      - text: Select the project demo
+      - combobox "Select the project"
+    - tab "circle-plus icon New / Import":  New / Import
+    - tab "trash-can icon Delete":  Delete
+    - tab "up-right-from-square icon Export":  Export
+    - tab "language icon Language":  Language
+  - heading "Project summary" [level=2]
+  - paragraph: Spatial summary of the current project.
+  - separator
+  - tablist:
+    - tab "Location map" [expanded] [selected]
+    - tabpanel "Location map":
+      - img
+      - button "Zoom in": +
+      - button "Zoom out": −
+      - link "Leaflet":
+        - /url: https://leafletjs.com
+      - text: "|"
+      - link "© MapTiler":
+        - /url: https://www.maptiler.com/copyright/
+      - link "© OpenStreetMap contributors":
+        - /url: https://www.openstreetmap.org/copyright
+    - tab "Projection system"
+    - tab "Grid parameters"
+    - tab "Extent (metric)"
+    - tab "Extent (decimal degrees)"

@@ -1,0 +1,32 @@
+- tabpanel:
+  - radio "map icon Interactive map"
+  - text:  Interactive map
+  - radio "list icon Merge land cover"
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution" [checked]
+  - text:  Adjust population distribution
+  - separator
+  - heading "Adjust population distribution" [level=2]
+  - paragraph: Redistribute population on barriers or adjust population to known values within defined zones
+  - separator
+  - complementary:
+    - heading "Configuration" [level=3]
+    - paragraph: Select population, merged land cover and administrative zones
+    - separator
+    - text: Select population (raster) (r) population [demo patients]
+    - textbox "Select population (raster)"
+    - text: Select land cover merged (raster) (r) land cover merged [demo]
+    - textbox "Select land cover merged (raster)"
+    - separator
+    - text: Correction mode
+    - radio "Population value known"
+    - text: Population value known
+    - radio "Population value not known" [checked]
+    - text: Population value not known Select zones (vector) (v) zone for stat [demo]
+    - textbox "Select zones (vector)"
+    - separator
+    - text: Add short tag
+    - textbox "Add short tag"
+    - text: "Issue(s):  Missing tag(s)"
+    - button "Compute" [disabled]
+    - heading [level=4]

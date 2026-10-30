@@ -1,0 +1,34 @@
+- tabpanel:
+  - radio "map icon Interactive map" [checked]
+  - text:  Interactive map
+  - radio "list icon Merge land cover"
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - tablist:
+    - tab "map icon Options":  Options
+    - tab "B Raster" [expanded] [selected]
+    - tabpanel "B Raster":
+      - text: Select layer to use (raster) (r) priority [demo]
+      - textbox "Select layer to use (raster)"
+      - text: Set layer opacity 0 1 0.8 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1
+      - textbox "Set layer opacity": "0.8"
+      - text: Click the map to query the selected raster.
+      - list:
+        - listitem: "Easting : -"
+        - listitem: "Northing : -"
+        - listitem: "Value : -"
+        - listitem: "Label : -"
+    - tab "hospital icon Facilities":  Facilities
+  - button "Zoom in": +
+  - button "Zoom out": −
+  - button ""
+  - text: 50 km 30 mi
+  - link "Leaflet":
+    - /url: https://leafletjs.com
+  - text: "|"
+  - link "© MapTiler":
+    - /url: https://www.maptiler.com/copyright/
+  - link "© OpenStreetMap contributors":
+    - /url: https://www.openstreetmap.org/copyright

@@ -1,0 +1,236 @@
+{
+  "table.all": {
+    "en": "All",
+    "fr": "Tout",
+    "es": "Todo",
+    "pt": "Tudo"
+  },
+  "table.none": {
+    "en": "None",
+    "fr": "Aucun",
+    "es": "Ninguno",
+    "pt": "Nenhum"
+  },
+  "table.select": {
+    "en": "Select",
+    "fr": "Sélectionner",
+    "es": "Seleccionar",
+    "pt": "Selecionar"
+  },
+  "table.unselect": {
+    "en": "Unselect",
+    "fr": "Désélectionner",
+    "es": "Deseleccionar",
+    "pt": "Desmarcar"
+  },
+  "table.column": {
+    "en": "Column",
+    "fr": "Colonne",
+    "es": "Columna",
+    "pt": "Coluna"
+  },
+  "table.operator": {
+    "en": "Operator",
+    "fr": "Opérateur",
+    "es": "Operador",
+    "pt": "Operador"
+  },
+  "table.value": {
+    "en": "Value",
+    "fr": "Valeur",
+    "es": "Valor",
+    "pt": "Valor"
+  },
+  "theme.title": {
+    "en": "Theme",
+    "fr": "Thème",
+    "es": "Tema",
+    "pt": "Tema"
+  },
+  "theme.light": {
+    "en": "Light",
+    "fr": "Clair",
+    "es": "Claro",
+    "pt": "Claro"
+  },
+  "theme.dark": {
+    "en": "Dark",
+    "fr": "Sombre",
+    "es": "Oscuro",
+    "pt": "Escuro"
+  },
+  "theme.system": {
+    "en": "System",
+    "fr": "Système",
+    "es": "Sistema",
+    "pt": "Sistema"
+  },
+  "nav.toggle": {
+    "en": "Toggle navigation",
+    "fr": "Afficher/masquer la navigation",
+    "es": "Mostrar/ocultar navegación",
+    "pt": "Mostrar/ocultar navegação"
+  },
+  "table.download_csv": {
+    "en": "Download CSV",
+    "fr": "Télécharger CSV",
+    "es": "Descargar CSV",
+    "pt": "Baixar CSV"
+  },
+  "table.download_json": {
+    "en": "Download JSON",
+    "fr": "Télécharger JSON",
+    "es": "Descargar JSON",
+    "pt": "Baixar JSON"
+  },
+  "map.zoom_in": {
+    "en": "Zoom in",
+    "fr": "Zoom avant",
+    "es": "Acercar",
+    "pt": "Aproximar"
+  },
+  "map.zoom_out": {
+    "en": "Zoom out",
+    "fr": "Zoom arrière",
+    "es": "Alejar",
+    "pt": "Afastar"
+  },
+  "map.home": {
+    "en": "Project extent",
+    "fr": "Étendue du projet",
+    "es": "Extensión del proyecto",
+    "pt": "Extensão do projeto"
+  },
+  "map.edit": {
+    "en": "Move facilities",
+    "fr": "Déplacer les structures",
+    "es": "Mover instalaciones",
+    "pt": "Mover instalações"
+  },
+  "map.next": {
+    "en": "Next facility",
+    "fr": "Structure suivante",
+    "es": "Siguiente instalación",
+    "pt": "Próxima instalação"
+  },
+  "map.undo": {
+    "en": "Undo",
+    "fr": "Annuler",
+    "es": "Deshacer",
+    "pt": "Desfazer"
+  },
+  "map.redo": {
+    "en": "Redo",
+    "fr": "Rétablir",
+    "es": "Rehacer",
+    "pt": "Refazer"
+  },
+  "stack.empty": {
+    "en": "Drop items here",
+    "fr": "Déposer les éléments ici",
+    "es": "Soltar elementos aquí",
+    "pt": "Solte os itens aqui"
+  },
+  "stack.move": {
+    "en": "Move to the other list",
+    "fr": "Déplacer vers l’autre liste",
+    "es": "Mover a la otra lista",
+    "pt": "Mover para a outra lista"
+  },
+  "job.saved": {
+    "en": "Saved jobs",
+    "fr": "Paramètres enregistrés",
+    "es": "Parámetros guardados",
+    "pt": "Parâmetros salvos"
+  },
+  "job.new": {
+    "en": "New",
+    "fr": "Nouveau",
+    "es": "Nuevo",
+    "pt": "Novo"
+  },
+  "job.name": {
+    "en": "Job name",
+    "fr": "Nom des paramètres",
+    "es": "Nombre de los parámetros",
+    "pt": "Nome dos parâmetros"
+  },
+  "job.save": {
+    "en": "Save",
+    "fr": "Enregistrer",
+    "es": "Guardar",
+    "pt": "Salvar"
+  },
+  "job.validate": {
+    "en": "Validate",
+    "fr": "Valider",
+    "es": "Validar",
+    "pt": "Validar"
+  },
+  "job.run": {
+    "en": "Run",
+    "fr": "Lancer",
+    "es": "Ejecutar",
+    "pt": "Executar"
+  },
+  "job.undo": {
+    "en": "Undo",
+    "fr": "Annuler",
+    "es": "Deshacer",
+    "pt": "Desfazer"
+  },
+  "job.redo": {
+    "en": "Redo",
+    "fr": "Rétablir",
+    "es": "Rehacer",
+    "pt": "Refazer"
+  },
+  "job.valid": {
+    "en": "Valid",
+    "fr": "Valide",
+    "es": "Válido",
+    "pt": "Válido"
+  },
+  "job.queued": {
+    "en": "Run queued: follow it in Logs.",
+    "fr": "Calcul en file d'attente : suivez-le dans Logs.",
+    "es": "Cálculo en cola: sígalo en Logs.",
+    "pt": "Cálculo na fila: acompanhe-o em Logs."
+  },
+  "common.loading": {
+    "en": "Loading…",
+    "fr": "Chargement…",
+    "es": "Cargando…",
+    "pt": "Carregando…"
+  },
+  "common.error": {
+    "en": "Error",
+    "fr": "Erreur",
+    "es": "Error",
+    "pt": "Erro"
+  },
+  "data.preview": {
+    "en": "Preview",
+    "fr": "Aperçu",
+    "es": "Vista previa",
+    "pt": "Pré-visualização"
+  },
+  "data.empty": {
+    "en": "No dataset.",
+    "fr": "Aucune donnée.",
+    "es": "Ningún dato.",
+    "pt": "Nenhum dado."
+  },
+  "logs.empty": {
+    "en": "No run yet.",
+    "fr": "Aucun calcul.",
+    "es": "Ningún cálculo.",
+    "pt": "Nenhum cálculo."
+  },
+  "map.value": {
+    "en": "Value",
+    "fr": "Valeur",
+    "es": "Valor",
+    "pt": "Valor"
+  }
+}

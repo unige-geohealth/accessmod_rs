@@ -1,0 +1,163 @@
+{
+  "id": "toolbox-map-raster",
+  "name": "Toolbox › Interactive map",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_toolbox"
+    },
+    {
+      "radio": "toolSelector",
+      "value": "tool_map_preview"
+    },
+    {
+      "panel": "#mapTools",
+      "index": 2
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageToolbox/amUi.R",
+    "modules/amGisPreview/amUi.R"
+  ],
+  "icons": [
+    "fa-map",
+    "fa-list",
+    "fa-users",
+    "fa-hospital"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "tools_map_btn",
+      "text": "Interactive map",
+      "fr": "Carte interactive",
+      "es": "Mapa interactivo",
+      "pt": "Mapa interativo"
+    },
+    {
+      "key": "tools_merge_lc_btn",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura de suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "tools_correct_pop_btn",
+      "text": "Adjust population distribution",
+      "fr": "Ajuster la distribution de la population",
+      "es": "Ajustar la distribución de la población",
+      "pt": "Ajustar a distribuição da população"
+    },
+    {
+      "key": "tool_map_options",
+      "text": "Options",
+      "fr": "Options",
+      "es": "Opciones",
+      "pt": "Opções"
+    },
+    {
+      "key": "tool_map_raster",
+      "text": "Raster",
+      "fr": "Raster",
+      "es": "Raster",
+      "pt": "Raster"
+    },
+    {
+      "key": "toolbox_map_raster_select",
+      "text": "Select layer to use (raster)",
+      "fr": "Sélectionnez la couche à utiliser (raster)",
+      "es": "Seleccione la capa a utilizar (raster)",
+      "pt": "Selecione a camada a utilizar (raster)"
+    },
+    {
+      "key": "toolbox_map_opacity",
+      "text": "Set layer opacity",
+      "fr": "Définir l'opacité de la couche",
+      "es": "Establecer la opacidad de la capa",
+      "pt": "Definir a opacidade da camada"
+    },
+    {
+      "key": "toolbox_map_click_map",
+      "text": "Click the map to query the selected raster.",
+      "fr": "Cliquez sur la carte pour interroger le raster sélectionné.",
+      "es": "Haga clic en el mapa para consultar el raster seleccionado.",
+      "pt": "Clique no mapa para consultar o raster selecionado."
+    },
+    {
+      "key": "tool_map_facilities",
+      "text": "Facilities",
+      "fr": "Structures",
+      "es": "Instalaciones",
+      "pt": "Instalações"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:15:20.570Z"
+}

@@ -1,0 +1,67 @@
+/* AM5 amtabulator skin on top of tabulator.min.css, driven by theme tokens. */
+.am-table .tabulator {
+  border: 0;
+  background-color: var(--background);
+  font-size: 12px; /* AM5 cells */
+  color: var(--foreground);
+}
+.am-table .tabulator .tabulator-header {
+  border-bottom: 1px solid var(--table-header-rule);
+  background-color: var(--table-header);
+  color: var(--foreground);
+  font-weight: 700;
+}
+.am-table .tabulator .tabulator-header .tabulator-col {
+  border-right: 0;
+  background: var(--table-header);
+}
+.am-table .tabulator .tabulator-header .tabulator-col:hover,
+.am-table .tabulator .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
+  background-color: var(--table-row-hover);
+}
+.am-table .tabulator .tabulator-header .tabulator-col .tabulator-col-sorter .tabulator-arrow {
+  border-bottom-color: var(--table-sorter);
+}
+.am-table .tabulator .tabulator-tableholder {
+  background-color: var(--background);
+}
+.am-table .tabulator .tabulator-tableholder .tabulator-table {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+.am-table .tabulator-row {
+  background-color: var(--background);
+  border-bottom: 1px solid var(--table-row-border);
+  min-height: 0;
+}
+.am-table .tabulator-row.tabulator-row-even {
+  background-color: var(--table-row-alt);
+}
+.am-table .tabulator-row.tabulator-selectable:hover {
+  background-color: var(--table-row-hover);
+}
+.am-table .tabulator-row.tabulator-selected,
+.am-table .tabulator-row.tabulator-selected:hover {
+  background-color: var(--table-row-selected);
+}
+.am-table .tabulator-row .tabulator-cell {
+  border-right: 1px solid var(--table-row-border);
+  padding: 3px 6px;
+}
+.am-table .tabulator-row .tabulator-cell.tabulator-editing {
+  border: 1px solid var(--ring);
+}
+.am-table .tabulator-row .tabulator-cell.tabulator-editing input {
+  background: var(--input-background);
+  color: var(--foreground);
+}
+.am-table .tabulator .tabulator-row .tabulator-frozen,
+.am-table .tabulator .tabulator-header .tabulator-frozen {
+  background-color: inherit;
+}
+.am-table .tabulator input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+.am-table .tabulator .tabulator-frozen.tabulator-frozen-left {
+  border-right: 1px solid var(--table-row-border);
+}

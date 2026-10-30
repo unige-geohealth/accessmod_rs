@@ -1,0 +1,39 @@
+- tabpanel:
+  - radio "map icon Interactive map"
+  - text:  Interactive map
+  - radio "list icon Merge land cover" [checked]
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - heading "Merge land cover" [level=2]
+  - paragraph: Module for ordering and merging the data listed in the 'stack' into a new land cover layer
+  - separator
+  - tablist:
+    - tab "Land cover"
+    - tab "Roads"
+    - tab "Barriers"
+    - tab "Merge" [expanded] [selected]
+  - tabpanel "Merge":
+    - complementary:
+      - heading "Merge" [level=3]
+      - paragraph: Order and merge the stack
+      - separator
+      - paragraph: Manage stack items
+      - button "Skip all items"
+      - button "Use all items"
+      - button "Delete skipped items"
+      - paragraph: Option
+      - checkbox "Clean bridges & artefacts (may be lengthy) Identifies and cleans artefacts such as bridges. An additional layer highlighting these cells is added." [checked]
+      - text: "Clean bridges & artefacts (may be lengthy) Identifies and cleans artefacts such as bridges. An additional layer highlighting these cells is added. Validation issues:  At least one land cover stack item is required to proceed. Add short tags"
+      - textbox "Add short tags"
+      - button "Merge the items in the stack" [disabled]
+    - tablist:
+      - tab "Order and merge the stack" [expanded] [selected]
+      - tabpanel "Order and merge the stack":
+        - paragraph: Reorder and move stack items using the mouse.
+        - heading "Stack items to use" [level=3]
+        - text: 
+        - heading "Stack items to skip" [level=3]
+        - text:   stack barrier [demo river line] C  stack barrier [demo wetland area] B  stack barrier [demo wetland line] C  stack land cover [demo grid] A  stack road [Main road 64 fixed line] C  stack road [Main road demo line] C  stack road [Secondary 64 fixed line] C  stack road [Secondary demo line] C  stack road [Tertiary 64 fixed line] C  stack road [Tertiary demo line] C
+      - tab "If any, conflicting classes among items in the stack"

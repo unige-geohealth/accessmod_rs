@@ -1,0 +1,166 @@
+/*
+ * AccessMod design tokens.
+ *
+ * Light = AM5 5.9.2 as measured from the running app
+ * (references/tokens.am5.json; Bootstrap 3 + AdminLTE skin-black + AM5
+ * style.css). Dark = same structure, designed for this rewrite; the
+ * sidebar stays black in both themes, as in AM5.
+ *
+ * Light deviates from AM5 only where AM5 fails WCAG AA (4.5:1): the
+ * original value is noted next to each such token.
+ *
+ * Components use only these semantic names, never raw colours.
+ */
+
+:root {
+  --radius: 4px; /* inputs, selects, wells; buttons and panels are square */
+  --sidebar-width: 230px;
+  --header-height: 50px;
+  --content-padding: 20px;
+
+  --background: #ffffff;
+  --foreground: #333333;
+  --muted: #f5f5f5;
+  --muted-foreground: #707070; /* AM5 #777, darkened for AA */
+  --accent: #f4f4f4; /* hover surface */
+  --popover: #ffffff;
+  --border: #dddddd;
+  --separator: #eeeeee; /* <hr> under titles */
+  --ring: #66afe9; /* Bootstrap focus */
+
+  --primary: #32769e; /* AdminLTE blue #3c8dbc, darkened for AA */
+  --primary-foreground: #ffffff;
+  --link: #32769e;
+  --link-hover: #3c8dbc;
+
+  --header: #ffffff;
+  --header-foreground: #333333;
+  --header-border: #eeeeee;
+
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-muted: #b8c7ce; /* inactive items */
+  --sidebar-accent: #1e282c; /* active and hover item */
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-primary: #ffffff; /* active item left bar */
+  --sidebar-border: #555555;
+
+  --well: #f5f5f5;
+  --well-border: #e3e3e3;
+  --panel: #ffffff;
+  --panel-border: #dddddd;
+  --panel-heading: #f5f5f5;
+  --panel-heading-foreground: #333333;
+
+  --input: #cccccc; /* border */
+  --input-background: #ffffff;
+
+  --button: #f4f4f4;
+  --button-foreground: #444444;
+  --button-border: #dddddd;
+  --button-hover: #e7e7e7;
+  --button-active: #e6e6e6;
+  --button-border-active: #adadad;
+
+  --danger: #d04736; /* Compute, Delete; AM5 #dd4b39, darkened for AA */
+  --danger-foreground: #ffffff;
+  --danger-border: #b93d2e;
+  --danger-hover: #b93d2e;
+
+  --callout: #32769e; /* .callout-info, AM5 #3c8dbc */
+  --callout-foreground: #ffffff;
+  --callout-border: #2a6485;
+  --warning: #ab6600; /* AM5 #ff9800 (2.2:1), darkened for text */
+
+  --table-border: #dddddd;
+  --table-header: #ffffff;
+  --table-header-rule: #999999;
+  --table-row-alt: #f9f9f9;
+  --table-row-border: #eeeeee;
+  --table-row-hover: #eeeeee;
+  --table-row-selected: #d6e8f3;
+  --table-sorter: #bbbbbb;
+  --table-toolbar: #f5f5f5;
+
+  --map-background: #f2f2f2; /* no-basemap fallback */
+  --map-land: #f4f4f4; /* AM5 MapTiler dataviz-light look */
+  --map-water: #dcdfe2;
+  --map-border: #c4c8cc;
+  --map-control: #ffffff;
+  --map-control-border: #cccccc;
+  --map-control-hover: #f4f4f4;
+}
+
+.dark {
+  --background: #15181b;
+  --foreground: #d9dde1;
+  --muted: #1d2125;
+  --muted-foreground: #9aa3ab;
+  --accent: #262b30;
+  --popover: #1d2125;
+  --border: #343a40;
+  --separator: #2a2f34;
+  --ring: #5aa9dd;
+
+  --primary: #4d9fd0;
+  --primary-foreground: #0b0d0f;
+  --link: #6db3de;
+  --link-hover: #9ccbea;
+
+  --header: #15181b;
+  --header-foreground: #d9dde1;
+  --header-border: #2a2f34;
+
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-muted: #b8c7ce;
+  --sidebar-accent: #1e282c;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-primary: #ffffff;
+  --sidebar-border: #3a3a3a;
+
+  --well: #1b1f23;
+  --well-border: #2c3238;
+  --panel: #15181b;
+  --panel-border: #343a40;
+  --panel-heading: #1f2428;
+  --panel-heading-foreground: #d9dde1;
+
+  --input: #3d444b;
+  --input-background: #101315;
+
+  --button: #252a2f;
+  --button-foreground: #d9dde1;
+  --button-border: #3d444b;
+  --button-hover: #2e343a;
+  --button-active: #353c43;
+  --button-border-active: #5b646d;
+
+  --danger: #c0392b;
+  --danger-foreground: #ffffff;
+  --danger-border: #a93226;
+  --danger-hover: #a93226;
+
+  --callout: #245d80;
+  --callout-foreground: #ffffff;
+  --callout-border: #4d9fd0;
+  --warning: #ffad33;
+
+  --table-border: #343a40;
+  --table-header: #1b1f23;
+  --table-header-rule: #5b646d;
+  --table-row-alt: #1a1d21;
+  --table-row-border: #262b30;
+  --table-row-hover: #262b30;
+  --table-row-selected: #1f3a4d;
+  --table-sorter: #6c757d;
+  --table-toolbar: #1b1f23;
+
+  --map-background: #1d2125;
+  --map-land: #1f2327;
+  --map-water: #121518;
+  --map-border: #3d444b;
+  --map-control: #1f2428;
+  --map-control-border: #3d444b;
+  --map-control-hover: #2e343a;
+}

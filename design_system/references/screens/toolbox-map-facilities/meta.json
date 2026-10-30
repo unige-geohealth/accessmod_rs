@@ -1,0 +1,207 @@
+{
+  "id": "toolbox-map-facilities",
+  "name": "Toolbox › Interactive map › Facilities",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_toolbox"
+    },
+    {
+      "radio": "toolSelector",
+      "value": "tool_map_preview"
+    },
+    {
+      "panel": "#mapTools",
+      "index": 3
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageToolbox/amUi.R",
+    "modules/amGisPreview/amUi.R"
+  ],
+  "icons": [
+    "fa-map",
+    "fa-list",
+    "fa-users",
+    "fa-hospital",
+    "fa-circle-info",
+    "fa-right-from-bracket"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "tools_map_btn",
+      "text": "Interactive map",
+      "fr": "Carte interactive",
+      "es": "Mapa interactivo",
+      "pt": "Mapa interativo"
+    },
+    {
+      "key": "tools_merge_lc_btn",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura de suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "tools_correct_pop_btn",
+      "text": "Adjust population distribution",
+      "fr": "Ajuster la distribution de la population",
+      "es": "Ajustar la distribución de la población",
+      "pt": "Ajustar a distribuição da população"
+    },
+    {
+      "key": "tool_map_options",
+      "text": "Options",
+      "fr": "Options",
+      "es": "Opciones",
+      "pt": "Opções"
+    },
+    {
+      "key": "tool_map_raster",
+      "text": "Raster",
+      "fr": "Raster",
+      "es": "Raster",
+      "pt": "Raster"
+    },
+    {
+      "key": "tool_map_facilities",
+      "text": "Facilities",
+      "fr": "Structures",
+      "es": "Instalaciones",
+      "pt": "Instalações"
+    },
+    {
+      "key": "toolbox_map_facilities_select",
+      "text": "Select facilities to use (vector)",
+      "fr": "Sélectionnez les structures à utiliser (vecteur)",
+      "es": "Seleccione las instalaciones a utilizar (vector)",
+      "pt": "Selecione as instalações a utilizar (vetor)"
+    },
+    {
+      "key": "toolbox_map_facilities_select_label",
+      "text": "Label (any field)",
+      "fr": "Etiquette (n'importe quel champ)",
+      "es": "Etiqueta (cualquier campo)",
+      "pt": "Etiqueta (qualquer campo)"
+    },
+    {
+      "key": "toolbox_map_relocate_save_mode",
+      "text": "Relocate save mode",
+      "fr": "Mode de sauvegarde des structures relocalisées",
+      "es": "Modo de guardar estructuras reubicadas",
+      "pt": "Modo de salvar estruturas relocalizadas"
+    },
+    {
+      "key": "toolbox_map_relocate_save_mode_update",
+      "text": "Update existing layer",
+      "fr": "Mettre à jour la couche existante",
+      "es": "Actualizar la capa existente",
+      "pt": "Atualizar a camada existente"
+    },
+    {
+      "key": "toolbox_map_relocate_save_mode_new",
+      "text": "Create new facilities layer",
+      "fr": "Créer une nouvelle couche de structures",
+      "es": "Crear una nueva capa de instalaciones",
+      "pt": "Criar uma nova camada de instalações"
+    },
+    {
+      "key": "toolbox_map_relocate_save",
+      "text": "Save changes",
+      "fr": "Enregistrer les modifications",
+      "es": "Guardar cambios",
+      "pt": "Salvar alterações"
+    },
+    {
+      "key": "tool_map_validation_info_notice",
+      "text": "Info:",
+      "fr": "Info:",
+      "es": "Información:",
+      "pt": "Informação:"
+    },
+    {
+      "key": "tool_map_relocate_changes_count",
+      "text": "Number of facilities relocated : 0",
+      "fr": "Nombre de structures relocalisées : 0",
+      "es": "Número de instalaciones reubicadas : 0",
+      "pt": "Número de instalações relocalizadas : 0"
+    },
+    {
+      "key": "tool_map_relocate_out_name",
+      "text": "Output dataset:",
+      "fr": "Jeu de données en sortie:",
+      "es": "Conjunto de datos de salida:",
+      "pt": "Conjunto de dados de saída:"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:15:44.323Z"
+}

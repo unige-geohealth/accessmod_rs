@@ -1,0 +1,14 @@
+{
+  "name": "am5-capture",
+  "private": true,
+  "type": "module",
+  "description": "Capture AccessMod 5 reference screens, DOM, aria snapshots and computed tokens",
+  "scripts": {
+    "probe": "node probe.mjs",
+    "capture": "node capture.mjs && node inventory.mjs",
+    "inventory": "node inventory.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

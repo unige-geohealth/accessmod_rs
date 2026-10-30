@@ -1,0 +1,103 @@
+<!-- AM5 Toolbox › Adjust population distribution: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_toolbox" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12"><div id="toolSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">  <label for="toolSelector"></label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool2" name="toolSelector" value="tool_map_preview" checked="checked" style="">    <i class="far fa-map" role="presentation" aria-label="map icon"></i>    <span data-amt_id="tools_map_btn">Interactive map</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool1" name="toolSelector" value="tool_merge_landcover" style="">    <i class="fas fa-list" role="presentation" aria-label="list icon"></i>    <span data-amt_id="tools_merge_lc_btn">Merge land cover</span>  </label>  <label class="btn btn-default btn-inline active">    <input type="radio" id="tool3" name="toolSelector" value="tool_pop_correction" style="">    <i class="fas fa-users" role="presentation" aria-label="users icon"></i>    <span data-amt_id="tools_correct_pop_btn">Adjust population distribution</span>  </label></div></div>
+            <hr>
+            <div class="col-sm-12">
+              
+              
+              <div class="shiny-panel-conditional" data-display-if="
+      input.toolSelector=='tool_pop_correction'
+      " data-ns-prefix="" style="">
+                <div class="row">
+                  <div id="helpPanelPopCor" class="shiny-html-output shiny-bound-output recalculating" aria-live="polite"></div>
+                  <h2 style="text-align:center;margin-top:50px">
+                    <span data-amt_id="toolbox_popcor_main_title">Adjust population distribution</span>
+                  </h2>
+                  <p style="text-align:center">
+                    <span data-amt_id="toolbox_popcor_sub">Redistribute population on barriers or adjust population to known values within defined zones</span>
+                  </p>
+                  <hr>
+                  <div class="col-sm-12">
+                    <div class="col-sm-4">
+                      <form class="well" role="complementary">
+                        <h3 style="text-align:center;margin-top:50px">
+                          <span data-amt_id="toolbox_popcor_config_title">Configuration</span>
+                        </h3>
+                        <p style="text-align:center">
+                          <span data-amt_id="toolbox_popcor_config_sub">Select population, merged land cover and administrative zones</span>
+                        </p>
+                        <hr>
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="selectPopCorPopulation-label" for="selectPopCorPopulation-selectized">
+                            <span data-amt_id="toolbox_popcor_select_pop_raster">Select population (raster)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="rPopulation__demo_patients@demo">(r) population [demo patients]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="selectPopCorPopulation-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                            
+                          </div>
+                        </div>
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="selectPopCorLandCoverMerged-label" for="selectPopCorLandCoverMerged-selectized">
+                            <span data-amt_id="toolbox_popcor_select_merged_lc_raster">Select land cover merged (raster)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="rLandCoverMerged__demo@demo">(r) land cover merged [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="selectPopCorLandCoverMerged-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                            
+                          </div>
+                        </div>
+                        <hr>
+                        <div id="toolbox_popcor_mode" class="form-group shiny-input-radiogroup shiny-input-container shiny-bound-input">
+                          <label>
+                            <div>
+                              <span data-amt_id="toolbox_popcor_mode">Correction mode</span>
+                            </div>
+                          </label>
+                          <div class="shiny-options-group">
+                            <div class="radio">
+                              <label>
+                                <input type="radio" name="toolbox_popcor_mode" value="known" style="">
+                                <span data-amt_id="toolbox_popcor_mode_pop_known">Population value known</span>
+                              </label>
+                            </div>
+                            <div class="radio">
+                              <label>
+                                <input type="radio" name="toolbox_popcor_mode" value="unknown" checked="checked" style="">
+                                <span data-amt_id="toolbox_popcor_mode_pop_not_known">Population value not known</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="selectPopCorZones-label" for="selectPopCorZones-selectized">
+                            <span data-amt_id="toolbox_popcor_select_zones_vector">Select zones (vector)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="vZone__demo@demo">(v) zone for stat [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="selectPopCorZones-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                            
+                          </div>
+                        </div>
+                        
+                        <hr>
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="txtPopCorTags-label" for="txtPopCorTags">
+                            <span data-amt_id="toolbox_popcor_add_tag">Add short tag</span>
+                          </label>
+                          <input id="txtPopCorTags" type="text" class="shiny-input-text form-control shiny-bound-input" value="" style="">
+                        </div>
+                        <div id="uiPopCorValidation" class="shiny-html-output shiny-bound-output" aria-live="polite"><b>Issue(s):</b>
+<div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> Missing tag(s) </div></div>
+                        <button id="btnPopCorCompute" type="button" class="btn action-button shiny-bound-input btn-danger" disabled="">
+                          <span data-amt_id="toolbox_popcor_compute_btn">Compute</span>
+                        </button>
+                        <div class="col-xs-12 col-md-8 col-lg-6">
+                          <h4></h4>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>

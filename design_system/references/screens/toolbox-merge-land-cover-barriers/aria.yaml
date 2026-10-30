@@ -1,0 +1,49 @@
+- tabpanel:
+  - radio "map icon Interactive map"
+  - text:  Interactive map
+  - radio "list icon Merge land cover" [checked]
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - heading "Merge land cover" [level=2]
+  - paragraph: Module for ordering and merging the data listed in the 'stack' into a new land cover layer
+  - separator
+  - tablist:
+    - tab "Land cover"
+    - tab "Roads"
+    - tab "Barriers" [expanded] [selected]
+    - tab "Merge" [expanded] [selected]
+  - tabpanel "Barriers":
+    - complementary:
+      - heading "Barriers" [level=3]
+      - paragraph: Add barriers to the stack
+      - separator
+      - paragraph: You can add several barriers to the stack
+      - text: Select barrier layer (vector) (v) barrier [demo river]
+      - textbox "Select barrier layer (vector)"
+      - text: Select barrier type
+      - radio "Polygons"
+      - text: Polygons
+      - radio "Lines" [checked]
+      - text: Lines
+      - radio "Points"
+      - text: Points
+      - button "Add to the stack"
+    - heading "Selected barrier layer content" [level=4]
+    - grid:
+      - rowgroup:
+        - rowgroup:
+          - row "type count":
+            - columnheader "type"
+            - columnheader "count"
+      - rowgroup:
+        - row "Lines 1888":
+          - gridcell "Lines"
+          - gridcell "1888"
+        - row "Polygons 0":
+          - gridcell "Polygons"
+          - gridcell "0"
+        - row "Points 0":
+          - gridcell "Points"
+          - gridcell "0"

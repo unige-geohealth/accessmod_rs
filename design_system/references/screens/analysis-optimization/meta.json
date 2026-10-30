@@ -1,0 +1,265 @@
+{
+  "id": "analysis-optimization",
+  "name": "Analysis › Optimization",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 1304
+  },
+  "steps": [
+    {
+      "tab": "module_analysis"
+    },
+    {
+      "radio": "moduleSelector",
+      "value": "module_7"
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageAnalysis/amUi.R",
+    "modules/amAnalysisAccessibility/amUi.R",
+    "modules/amAnalysisAccessibility/amUi_modulesData.R",
+    "modules/amAnalysisAccessibility/amUi_modulesSettings.R"
+  ],
+  "icons": [
+    "fa-clock",
+    "fa-hospital",
+    "fa-table",
+    "fa-chart-bar",
+    "fa-plus",
+    "fa-star",
+    "fa-right-to-bracket",
+    "fa-wrench",
+    "fa-square-check",
+    "fa-triangle-exclamation"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "analysis_accessibility_main_tab",
+      "text": "Accessibility",
+      "fr": "Accessibilité",
+      "es": "Accesibilidad",
+      "pt": "Acessibilidade"
+    },
+    {
+      "key": "analysis_coverage_main_tab",
+      "text": "Geographic coverage",
+      "fr": "Couverture géographique",
+      "es": "Cobertura geográfica",
+      "pt": "Cobertura geográfica"
+    },
+    {
+      "key": "analysis_referral_main_tab",
+      "text": "Referral",
+      "fr": "Référence",
+      "es": "Derivación",
+      "pt": "Encaminhamento"
+    },
+    {
+      "key": "analysis_zonal_stats_main_tab",
+      "text": "Zonal statistics",
+      "fr": "Statistiques zonales",
+      "es": "Estadísticas zonales",
+      "pt": "Estatísticas zonais"
+    },
+    {
+      "key": "analysis_scalingup_main_tab",
+      "text": "Scaling up",
+      "fr": "Mise à l'échelle",
+      "es": "Ampliación",
+      "pt": "Ampliação"
+    },
+    {
+      "key": "analysis_optimization_main_tab",
+      "text": "Optimization",
+      "fr": "Optimisation",
+      "es": "Optimización",
+      "pt": "Otimização"
+    },
+    {
+      "key": "analysis_data_input_title",
+      "text": "Data input",
+      "fr": "Données en entrée",
+      "es": "Datos de entrada",
+      "pt": "Dados de entrada"
+    },
+    {
+      "key": "analysis_data_input_sub",
+      "text": "Select the data to be used in this analysis",
+      "fr": "Sélectionnez les données à utiliser dans cette analyse",
+      "es": "Seleccione los datos que se utilizarán en este análisis",
+      "pt": "Selecione os dados a utilizar nesta análise"
+    },
+    {
+      "key": "analysis_select_catchment_layer",
+      "text": "Select catchment layer",
+      "fr": "Sélectionnez la couche d'aire de captage",
+      "es": "Seleccione la capa de área de captación",
+      "pt": "Selecione a camada de área de abrangência"
+    },
+    {
+      "key": "analysis_select_catchment_id_field",
+      "text": "Catchment ID field",
+      "fr": "Champ d'identifiant de l'aire de captage",
+      "es": "Campo de identificación del área de captación",
+      "pt": "Campo de identificação da área de abrangência"
+    },
+    {
+      "key": "analysis_select_pop_raster",
+      "text": "Select population layer (raster)",
+      "fr": "Sélectionnez la couche de population (raster)",
+      "es": "Seleccione la capa de población (raster)",
+      "pt": "Selecione a camada de população (raster)"
+    },
+    {
+      "key": "analysis_select_health_facility_vector",
+      "text": "Select existing health facilities layer (vector)",
+      "fr": "Sélectionnez la couche existante des structures (vecteur)",
+      "es": "Seleccione la capa de instalaciones existentes (vector)",
+      "pt": "Selecione a camada de instalações existentes (vetor)"
+    },
+    {
+      "key": "analysis_select_health_facility_id_field",
+      "text": "Select facilities ID field (unique)",
+      "fr": "Sélectionnez le champ ID des structures (unique)",
+      "es": "Seleccione el campo ID de las instalaciones (único)",
+      "pt": "Selecione o campo ID das instalações (único)"
+    },
+    {
+      "key": "analysis_select_health_facility_name_field",
+      "text": "Select facility name field (text)",
+      "fr": "Sélectionnez le champ des noms de structures (texte)",
+      "es": "Seleccione el campo de los nombres de las instalaciones (texto)",
+      "pt": "Selecione o campo dos nomes das instalações (texto)"
+    },
+    {
+      "key": "analysis_settings_title",
+      "text": "Analysis settings",
+      "fr": "Paramètres d'analyse",
+      "es": "Parámetros de análisis",
+      "pt": "Parâmetros de análise"
+    },
+    {
+      "key": "analysis_settings_sub",
+      "text": "Configure parameters for this analysis.",
+      "fr": "Configuration des paramètres pour cette analyse.",
+      "es": "Ajustes de los parámetros para este análisis.",
+      "pt": "configuração dos parâmetros para esta análise."
+    },
+    {
+      "key": "analysis_optimization_n_tot",
+      "text": "Total number of facilities to select",
+      "fr": "Nombre total d'établissements à sélectionner",
+      "es": "Número total de instalaciones a seleccionar",
+      "pt": "Número total de instalações a selecionar"
+    },
+    {
+      "key": "analysis_optimization_options",
+      "text": "Options",
+      "fr": "Options",
+      "es": "Opciones",
+      "pt": "Opções"
+    },
+    {
+      "key": "analysis_optimization_admin_check",
+      "text": "Ensure minimum facilities per admin unit",
+      "fr": "Assurer un minimum d'établissements par unité administrative",
+      "es": "Asegurar un mínimo de instalaciones por unidad administrativa",
+      "pt": "Garantir um mínimo de instalações por unidade administrativa"
+    },
+    {
+      "key": "analysis_settings_add_tag",
+      "text": "Add short tags",
+      "fr": "Ajoutez des tags courts",
+      "es": "Añada una etiqueta corta",
+      "pt": "Insira uma etiqueta curta"
+    },
+    {
+      "key": "analysis_validation_title",
+      "text": "Validation",
+      "fr": "Validation",
+      "es": "Validación",
+      "pt": "Validação"
+    },
+    {
+      "key": "analysis_validation_sub",
+      "text": "Review validation issues and compute.",
+      "fr": "Vérification des problèmes de validation et calcul.",
+      "es": "Verificación de los problemas de validación y calcular.",
+      "pt": "Verificação dos problemas de validação e calcular."
+    },
+    {
+      "key": "analysis_validation_compute_btn",
+      "text": "Compute",
+      "fr": "Calculer",
+      "es": "Calcular",
+      "pt": "Calcular"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:15:07.391Z"
+}

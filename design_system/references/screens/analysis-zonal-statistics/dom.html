@@ -1,0 +1,250 @@
+<!-- AM5 Analysis › Zonal statistics: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_analysis" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12">
+              <div id="moduleSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">
+                <label for="moduleSelector"></label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms2" name="moduleSelector" value="module_2" checked="checked" style="">
+                  <i class="far fa-clock" role="presentation" aria-label="clock icon"></i>
+                  <span data-amt_id="analysis_accessibility_main_tab">Accessibility</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms3" name="moduleSelector" value="module_3" style="">
+                  <i class="far fa-hospital" role="presentation" aria-label="hospital icon"></i>
+                  <span data-amt_id="analysis_coverage_main_tab">Geographic coverage</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms4" name="moduleSelector" value="module_4" style="">
+                  <i class="fas fa-table" role="presentation" aria-label="table icon"></i>
+                  <span data-amt_id="analysis_referral_main_tab">Referral</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 active">
+                  <input type="radio" id="ms5" name="moduleSelector" value="module_5" style="">
+                  <i class="far fa-chart-bar" role="presentation" aria-label="chart-bar icon"></i>
+                  <span data-amt_id="analysis_zonal_stats_main_tab">Zonal statistics</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 ">
+                  <input type="radio" id="ms6" name="moduleSelector" value="module_6" style="">
+                  <i class="fas fa-plus" role="presentation" aria-label="plus icon"></i>
+                  <span data-amt_id="analysis_scalingup_main_tab">Scaling up</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 ">
+                  <input type="radio" id="ms7" name="moduleSelector" value="module_7" style="">
+                  <i class="far fa-star" role="presentation" aria-label="star icon"></i>
+                  <span data-amt_id="analysis_optimization_main_tab">Optimization</span>
+                </label>
+              </div>
+            </div>
+            <hr>
+            <div class="col-sm-12">
+              <div class="shiny-panel-conditional" data-display-if="
+      input.moduleSelector=='module_2' ||
+      input.moduleSelector=='module_3' ||
+      input.moduleSelector=='module_4' ||
+      input.moduleSelector=='module_5' ||
+      input.moduleSelector=='module_6' ||
+      input.moduleSelector=='module_7'
+      " data-ns-prefix="">
+                <div class="row">
+                  <div class="col-sm-4">
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="fas fa-right-to-bracket" role="presentation" aria-label="right-to-bracket icon"></i>
+                          <span data-amt_id="analysis_data_input_title">Data input</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_data_input_sub">Select the data to be used in this analysis</span>
+                      </p>
+                      <hr>
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+    input.moduleSelector=='module_3' |
+      input.moduleSelector=='module_5' |
+      input.moduleSelector=='module_6' |
+      input.moduleSelector=='module_7'
+    )" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="popSelect-label" for="popSelect-selectized">
+                            <span data-amt_id="analysis_select_pop_raster">Select population layer (raster)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items full has-options has-items"><div class="item" data-value="rPopulation__demo_patients@demo">(r) population [demo patients]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="popSelect-selectized" style="width: 4px;"></div></div>
+                            
+                          </div>
+                        </div>
+                      </div>
+                      
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector=='module_5'
+  )" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="travelTimeSelect-label" for="travelTimeSelect-selectized">
+                            <span data-amt_id="analysis_select_travel_time_raster">Select travel time layer (raster)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="rTravelTime__ca@demo">(r) travel time [ca]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="travelTimeSelect-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                            
+                          </div>
+                        </div>
+                      </div>
+                      <div class="shiny-panel-conditional" data-display-if="
+  (
+    input.moduleSelector=='module_3' &amp;
+    input.mod3param.indexOf('zonalPop') != -1
+  ) |
+  input.moduleSelector=='module_5' |
+  (
+    input.moduleSelector == 'module_7' &amp;&amp;
+    input.mod7param &amp;&amp; input.mod7param.indexOf('adminCheck') !== -1
+  )
+" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="zoneSelect-label" for="zoneSelect-selectized">
+                            <span data-amt_id="analysis_select_zone_vector">Select zones layer (vector)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="vZone__demo@demo">(v) zone for stat [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="zoneSelect-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                            
+                          </div>
+                        </div>
+                        <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.zoneSelect)" data-ns-prefix="" style="">
+                          <div style="margin-left:10%;">
+                            <div class="form-group shiny-input-container">
+                              <label class="control-label" id="zoneId-label" for="zoneId-selectized">
+                                <span data-amt_id="analysis_select_zone_id_integer">Select zone unique ID (integer)</span>
+                              </label>
+                              <div>
+                                <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="cat">cat</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="zoneId-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="u68f46iaim" style="width: 4px;"></div></div>
+                                
+                              </div>
+                            </div>
+                            <div class="form-group shiny-input-container">
+                              <label class="control-label" id="zoneLabel-label" for="zoneLabel-selectized">
+                                <span data-amt_id="analysis_select_zone_name_text">Select zone name (text)</span>
+                              </label>
+                              <div>
+                                <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="admin_name">admin_name</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="zoneLabel-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="6dqp3q8y22" style="width: 4px;"></div></div>
+                                
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector=='module_5' &amp;&amp;
+    isNotEmpty(input.popSelect) &amp;&amp;
+    isNotEmpty(input.travelTimeSelect) &amp;&amp;
+    isNotEmpty(input.zoneSelect)
+  )" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="textTimeCumCosts-label" for="textTimeCumCosts">
+                            <div>
+                              <span data-amt_id="analysis_select_max_travel_time">Select maximum travel time [minutes]</span>
+                              <br>
+                              <small class="text-muted">
+                                <span data-amt_id="analysis_select_max_travel_time_desc">Separate multiple values by a comma. E.g. '10, 20, 120'.  Non-numeric characters or duplicated values will be ignored.</span>
+                              </small>
+                              <small class="text-muted" id="txtZonalMinMax">min=1, max=1351</small>
+                            </div>
+                          </label>
+                          <input id="textTimeCumCosts" type="text" class="shiny-input-text form-control shiny-bound-input" value="0" style="">
+                        </div>
+                      </div>
+                      
+                    </div>
+                    
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="fas fa-wrench" role="presentation" aria-label="wrench icon"></i>
+                          <span data-amt_id="analysis_settings_title">Analysis settings</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_settings_sub">Configure parameters for this analysis.</span>
+                      </p>
+                      <hr>
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector == 'module_5'
+  )" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkZoneTableWide" type="checkbox" class="shiny-input-checkbox shiny-bound-input" checked="checked" style="">
+                              <span>
+                                <div>
+                                  <span data-amt_id="analysis_zonal_stat_check_table_wide">Format table to get individual columns for each time step</span>
+                                  <br>
+                                  <small class="text-muted">
+                                    <span data-amt_id="analysis_zonal_stat_check_table_wide_desc">Instead of using a single columns for time and population coverage, individual columns will be produced for each time step. E.g. popTravelTime_50, popCoveredPercent_50, etc.</span>
+                                  </small>
+                                </div>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="far fa-square-check" role="presentation" aria-label="square-check icon"></i>
+                          <span data-amt_id="analysis_validation_title">Validation</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_validation_sub">Review validation issues and compute.</span>
+                      </p>
+                      <hr>
+                      <div id="msgModule3" class="shiny-html-output shiny-bound-output" aria-live="polite"></div>
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector=='module_5'
+  )" data-ns-prefix="" style="">
+                        <button id="btnZonalStat" type="button" class="btn action-button shiny-bound-input btn-default">
+                          <span data-amt_id="analysis_validation_update_btn">Update</span>
+                        </button>
+                      </div>
+                      
+                    </div>
+                  </div>
+                  <div class="col-xs-12 col-md-8 col-lg-7">
+                    
+                    <div class="shiny-panel-conditional" data-display-if="input.moduleSelector=='module_5'" data-ns-prefix="" style="">
+                      <div class="row amTableMargin">
+                        <h2 style="text-align:center;margin-top:50px">
+                          <span data-amt_id="analysis_zonal_stat_title">Zonal statistics</span>
+                        </h2>
+                        <p style="text-align:center">
+                          <span data-amt_id="analysis_zonal_stat_sub">Population coverage by zone(s) for the selected maximum travel time</span>
+                        </p>
+                        <hr>
+                        
+                        <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.popSelect) &amp;&amp;
+    isNotEmpty(input.travelTimeSelect) &amp;&amp;
+    isNotEmpty(input.zoneSelect) " data-ns-prefix="" style="">
+                          <a id="helpLinkZoneCoverageTable" href="#" class="action-button shiny-bound-input">
+                            <i class="far fa-circle-question" role="presentation" aria-label="circle-question icon"></i>
+                            
+                          </a>
+                          <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="zoneCoverageTable" style="width: 100%; height: 80vh; visibility: inherit;" aria-live="polite"><div class="tabulator tabulator-with-exportbar" role="grid" tabulator-layout="fitData" style="height: 100%;"><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="cat" style="min-width: 40px; position: sticky; left: 0px; width: 57px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">cat</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="admin_name" style="min-width: 40px; width: 114px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">admin_name</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="popTotal" style="min-width: 40px; width: 134px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">popTotal</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="popTravelTime_1351" style="min-width: 40px; width: 158px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">popTravelTime_1351</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="popCoveredPercent_1351" style="min-width: 40px; width: 189px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">popCoveredPercent_1351</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="cat" style="position: sticky; left: 0px; height: 23px; width: 57px;">1</div><div class="tabulator-cell" role="gridcell" tabulator-field="admin_name" style="height: 23px; width: 114px;">South West</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTotal" style="height: 23px; width: 134px;">1634957.715299514</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTravelTime_1351" style="height: 23px; width: 158px;">1634957.715299514</div><div class="tabulator-cell" role="gridcell" tabulator-field="popCoveredPercent_1351" style="height: 23px; width: 189px;">100</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="cat" style="position: sticky; left: 0px; height: 23px; width: 57px;">2</div><div class="tabulator-cell" role="gridcell" tabulator-field="admin_name" style="height: 23px; width: 114px;">North East</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTotal" style="height: 23px; width: 134px;">1325294.544360217</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTravelTime_1351" style="height: 23px; width: 158px;">1321071.030634936</div><div class="tabulator-cell" role="gridcell" tabulator-field="popCoveredPercent_1351" style="height: 23px; width: 189px;">99.68131509004893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="cat" style="position: sticky; left: 0px; height: 23px; width: 57px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="admin_name" style="height: 23px; width: 114px;">South East</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTotal" style="height: 23px; width: 134px;">1146542.042503255</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTravelTime_1351" style="height: 23px; width: 158px;">1146542.042503255</div><div class="tabulator-cell" role="gridcell" tabulator-field="popCoveredPercent_1351" style="height: 23px; width: 189px;">100</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="cat" style="position: sticky; left: 0px; height: 23px; width: 57px;">4</div><div class="tabulator-cell" role="gridcell" tabulator-field="admin_name" style="height: 23px; width: 114px;">North West</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTotal" style="height: 23px; width: 134px;">33635.1243987084</div><div class="tabulator-cell" role="gridcell" tabulator-field="popTravelTime_1351" style="height: 23px; width: 158px;">33635.1243987084</div><div class="tabulator-cell" role="gridcell" tabulator-field="popCoveredPercent_1351" style="height: 23px; width: 189px;">100</div></div></div></div><div class="tabulator-export-bar"><span class="export-controls"><a class="link-button" href="#">[Download CSV]</a> <a class="link-button" href="#">[Download JSON]</a></span></div></div></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>

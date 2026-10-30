@@ -1,0 +1,461 @@
+{
+  "id": "analysis-referral",
+  "name": "Analysis › Referral",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 2696
+  },
+  "steps": [
+    {
+      "tab": "module_analysis"
+    },
+    {
+      "radio": "moduleSelector",
+      "value": "module_4"
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageAnalysis/amUi.R",
+    "modules/amAnalysisAccessibility/amUi.R",
+    "modules/amAnalysisAccessibility/amUi_modulesData.R",
+    "modules/amAnalysisAccessibility/amUi_modulesSettings.R",
+    "modules/amAnalysisAccessibility/amUi_tablesFacilities.R"
+  ],
+  "icons": [
+    "fa-clock",
+    "fa-hospital",
+    "fa-table",
+    "fa-chart-bar",
+    "fa-plus",
+    "fa-star",
+    "fa-right-to-bracket",
+    "fa-play",
+    "fa-stop",
+    "fa-wrench",
+    "fa-square-check",
+    "fa-triangle-exclamation",
+    "fa-circle-info",
+    "fa-arrow-rotate-left",
+    "fa-wand-magic",
+    "fa-circle-question"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "analysis_accessibility_main_tab",
+      "text": "Accessibility",
+      "fr": "Accessibilité",
+      "es": "Accesibilidad",
+      "pt": "Acessibilidade"
+    },
+    {
+      "key": "analysis_coverage_main_tab",
+      "text": "Geographic coverage",
+      "fr": "Couverture géographique",
+      "es": "Cobertura geográfica",
+      "pt": "Cobertura geográfica"
+    },
+    {
+      "key": "analysis_referral_main_tab",
+      "text": "Referral",
+      "fr": "Référence",
+      "es": "Derivación",
+      "pt": "Encaminhamento"
+    },
+    {
+      "key": "analysis_zonal_stats_main_tab",
+      "text": "Zonal statistics",
+      "fr": "Statistiques zonales",
+      "es": "Estadísticas zonales",
+      "pt": "Estatísticas zonais"
+    },
+    {
+      "key": "analysis_scalingup_main_tab",
+      "text": "Scaling up",
+      "fr": "Mise à l'échelle",
+      "es": "Ampliación",
+      "pt": "Ampliação"
+    },
+    {
+      "key": "analysis_optimization_main_tab",
+      "text": "Optimization",
+      "fr": "Optimisation",
+      "es": "Optimización",
+      "pt": "Otimização"
+    },
+    {
+      "key": "analysis_data_input_title",
+      "text": "Data input",
+      "fr": "Données en entrée",
+      "es": "Datos de entrada",
+      "pt": "Dados de entrada"
+    },
+    {
+      "key": "analysis_data_input_sub",
+      "text": "Select the data to be used in this analysis",
+      "fr": "Sélectionnez les données à utiliser dans cette analyse",
+      "es": "Seleccione los datos que se utilizarán en este análisis",
+      "pt": "Selecione os dados a utilizar nesta análise"
+    },
+    {
+      "key": "analysis_select_merged_lc_raster",
+      "text": "Select merged land cover layer (raster)",
+      "fr": "Sélectionnez la couche d'occupation du sol fusionnée (raster)",
+      "es": "Seleccione a capa de cobertura del suelo fusionada (raster)",
+      "pt": "Selecione a camada de cobertura do solo fundida (raster)"
+    },
+    {
+      "key": "analysis_select_scenario_table",
+      "text": "Select scenario table (table)",
+      "fr": "Sélectionnez la table de scénario (table)",
+      "es": "Seleccione la tabla de escenarios (tabla)",
+      "pt": "Selecione a tabela de cenários (tabela)"
+    },
+    {
+      "key": "analysis_select_from",
+      "text": "From:",
+      "fr": "De:",
+      "es": "De:",
+      "pt": "De:"
+    },
+    {
+      "key": "analysis_select_health_facility_vector",
+      "text": "Select existing health facilities layer (vector)",
+      "fr": "Sélectionnez la couche existante des structures (vecteur)",
+      "es": "Seleccione la capa de instalaciones existentes (vector)",
+      "pt": "Selecione a camada de instalações existentes (vetor)"
+    },
+    {
+      "key": "analysis_select_health_facility_id_field",
+      "text": "Select facilities ID field (unique)",
+      "fr": "Sélectionnez le champ ID des structures (unique)",
+      "es": "Seleccione el campo ID de las instalaciones (único)",
+      "pt": "Selecione o campo ID das instalações (único)"
+    },
+    {
+      "key": "analysis_select_health_facility_name_field",
+      "text": "Select facility name field (text)",
+      "fr": "Sélectionnez le champ des noms de structures (texte)",
+      "es": "Seleccione el campo de los nombres de las instalaciones (texto)",
+      "pt": "Selecione o campo dos nomes das instalações (texto)"
+    },
+    {
+      "key": "analysis_select_to",
+      "text": "To:",
+      "fr": "A:",
+      "es": "Hacia:",
+      "pt": "Para:"
+    },
+    {
+      "key": "analysis_select_existing_health_facility_vector",
+      "text": "Select existing health facilities layer (vector)",
+      "fr": "Sélectionnez la couche existante des structures (vecteur)",
+      "es": "Seleccione la capa de instalaciones existentes (vector)",
+      "pt": "Selecione a camada de instalações existentes (vetor)"
+    },
+    {
+      "key": "analysis_select_health_facility_id_field_to",
+      "text": "Select facility ID field (unique)",
+      "fr": "Sélectionnez le champ ID des structures (valeur unique)",
+      "es": "Seleccione el campo ID de las instalaciones (único)",
+      "pt": "Selecione o campo ID das instalações (único)"
+    },
+    {
+      "key": "analysis_select_health_facility_name_field_to",
+      "text": "Select facility name field (text)",
+      "fr": "Sélectionnez le champ des noms de structures (texte)",
+      "es": "Seleccione el campo de los nombres de las instalaciones (texto)",
+      "pt": "Selecione o campo dos nomes das instalações (texto)"
+    },
+    {
+      "key": "analysis_settings_title",
+      "text": "Analysis settings",
+      "fr": "Paramètres d'analyse",
+      "es": "Parámetros de análisis",
+      "pt": "Parâmetros de análise"
+    },
+    {
+      "key": "analysis_settings_sub",
+      "text": "Configure parameters for this analysis.",
+      "fr": "Configuration des paramètres pour cette analyse.",
+      "es": "Ajustes de los parámetros para este análisis.",
+      "pt": "configuração dos parâmetros para esta análise."
+    },
+    {
+      "key": "analysis_settings_type",
+      "text": "Type of analysis",
+      "fr": "Type d'analyse",
+      "es": "Tipo de análisis",
+      "pt": "Tipo de análise"
+    },
+    {
+      "key": "analysis_settings_isotropic",
+      "text": "Isotropic ( ignore DEM )",
+      "fr": "Isotrope ( sans DEM )",
+      "es": "Isótropo ( ignorar MDE )",
+      "pt": "Isotrópico ( ignorar MDE )"
+    },
+    {
+      "key": "analysis_settings_anisotropic",
+      "text": "Anisotropic ( use DEM )",
+      "fr": "Anisotrope ( avec DEM )",
+      "es": "Anisótropo ( usar MDE )",
+      "pt": "Anisotrópico ( usar MDE )"
+    },
+    {
+      "key": "analysis_settings_knight_move",
+      "text": "Use \"Knight's move\"",
+      "fr": "Utiliser \"Knight's move\"",
+      "es": "Usar \"Knight's move\"",
+      "pt": "Utilizar \"Knight's move\""
+    },
+    {
+      "key": "analysis_settings_knight_move_desc",
+      "text": "If enabled, \"Knight's move\" will perform an analysis on 16 neighbors cells instead of 8. Slower, but more accurate.",
+      "fr": "Si activé, \"Knight's move\" effectuera une analyse sur 16 cellules voisines au lieu de 8. Plus lent, mais plus précis.",
+      "es": "Si se activa, o \"Knight's move\" realizará un análisis en 16 celdas vecinas en lugar de 8. Más lento, pero más preciso.",
+      "pt": "Se activado, o \"Knight's move\" efectuará uma análise em 16 células vizinhas em vez de 8. Mais lento, porém mais preciso."
+    },
+    {
+      "key": "analysis_settings_referral_permute_groups",
+      "text": "Permute groups",
+      "fr": "Permuter les groupes",
+      "es": "Permutar los grupos",
+      "pt": "Permutar os grupos"
+    },
+    {
+      "key": "analysis_settings_referral_permute_groups_desc",
+      "text": "If checked, this parameter could improve computation time when more facilities are selected in the starting group than in the destination one. But 'Limit the spatial analysis to the closest pair time-wise' is not possible with this option.",
+      "fr": "Si cochée, cette option permet d'améliorer le temps de calcul lorsqu'il y a plus de structures sélectionnées dans le groupe de départ que dans celui d'arrivée. Mais 'Limiter l'analyse spatiale aux paires les plus proches en temps' n'est pas possible avec cette option.",
+      "es": "Si se activa, este parámetro podría mejorar el tiempo de cálculo cuando se seleccionan más instalaciones en el grupo de partida que en el de destino. Sin embargo, esta opción no permite 'Limitar el análisis espacial a los pares más cercanos (en tiempo)'.",
+      "pt": "Se estiver selecionado, este parâmetro pode melhorar o tempo de cálculo quando forem selecionadas mais instalações no grupo de partida do que no grupo de destino. Mas esta opção não permite 'Limitar a análise espacial aos pares mais próximos em termos temporais'."
+    },
+    {
+      "key": "analysis_settings_referral_keep_network",
+      "text": "Output the layer of the paths among selected facilities",
+      "fr": "Sortir une couche de tous les chemins entre structures sélectionnées",
+      "es": "Producir una capa de los recorridos entre las instalaciones seleccionadas",
+      "pt": "Produzir uma camada dos percursos entre as instalações selecionadas"
+    },
+    {
+      "key": "analysis_settings_referral_use_parallel",
+      "text": "Enable parallelization",
+      "fr": "Activer la parallélisation",
+      "es": "Activar la paralelización",
+      "pt": "Ativar a paralelização"
+    },
+    {
+      "key": "analysis_settings_referral_use_parallel_desc",
+      "text": "Distribute the computation across multiple processors, if possible and when it makes sense memory-wise",
+      "fr": "Distribuer le calcul sur plusieurs processeurs, si possible et quand cela en vaut la peine en termes de mémoire",
+      "es": "Distribuir el cálculo entre varios procesadores, si es posible y si tiene sentido desde el punto de vista de la memoria.",
+      "pt": "Distribuir a computação por vários processadores, se possível e quando fizer sentido do ponto de vista da memória"
+    },
+    {
+      "key": "analysis_settings_referral_limit_closest",
+      "text": "Limit the spatial analysis to the closest pair time-wise",
+      "fr": "Limiter l'analyse spatiale aux paires les plus proches en temps",
+      "es": "Limitar el análisis espacial a los pares más cercanos (en tiempo)",
+      "pt": "Limitar a análise espacial aos pares mais próximos em termos temporais"
+    },
+    {
+      "key": "analysis_settings_referral_limit_closest_desc",
+      "text": "The travel time will be present in the output, but not the distance. Enabling groups permutation will uncheck and disable this option",
+      "fr": "Le temps de déplacement sera présent dans les résultats, mais pas la distance. Activer la permutation des groupes va désactiver et désélectionner cette option",
+      "es": "El tiempo de viaje estará presente en los resultados, pero no la distancia. Habilitar la permutación de grupos desmarcará y deshabilitará esta opción",
+      "pt": "O tempo de viagem estará presente nos resultados, mas não a distância. Habilitar a permutação de grupos desmarcará e desativará esta opção"
+    },
+    {
+      "key": "analysis_settings_referral_snap_grid",
+      "text": "Measure distances from cell center",
+      "fr": "Mesurer les distances du centre de la cellule",
+      "es": "Medir distancias desde el centro de la celda",
+      "pt": "Medir distâncias a partir do centro da célula"
+    },
+    {
+      "key": "analysis_settings_referral_snap_grid_desc",
+      "text": "If checked, the resulting distance will be measured between the center of the cells in which the FROM and TO facilities are located (corresponds to the shortest path by travel time). If unchecked, this measure of the distance will include the distance between each facility and the center of the cell in which they are located (extended path compare to the shortest path by travel time).",
+      "fr": "Si cette case est cochée, la distance résultante sera mesurée entre le centre des cellules dans lesquelles se trouvent les structures 'DE' et 'À' (correspond au chemin le plus court en temps de trajet). Si elle n'est pas cochée, cette mesure de la distance inclura la distance entre chaque structure et le centre de la cellule dans laquelle elle se trouve (chemin étendu par rapport au chemin le plus court en temps de trajet).",
+      "es": "Si está marcado, la distancia resultante se medirá entre el centro de las celdas en las que se encuentran las instalaciones DE y HACIA (corresponde al camino más rápido). Si no está marcado, esta medida de la distancia incluirá la distancia entre cada instalación y el centro de la celda en la que se encuentran (camino extendido comparado con el camino más rápido).",
+      "pt": "Se estiver selecionado, a distância resultante será medida entre o centro das células em que as instalações DE e PARA estão localizadas (corresponde ao caminho mais curto em termos temporais). Se não estiver selecionado, esta medida da distância incluirá a distância entre cada instalação e o centro da célula em que estão localizadas (caminho alargado comparado com o caminho mais rápido)."
+    },
+    {
+      "key": "analysis_settings_max_travel_time",
+      "text": "Maximum travel time [minutes]",
+      "fr": "Durée maximale du voyage [minutes]",
+      "es": "Tiempo máximo de desplazamiento [minutos]",
+      "pt": "Tempo máximo de deslocamento [minutos]"
+    },
+    {
+      "key": "analysis_settings_add_tag",
+      "text": "Add short tags",
+      "fr": "Ajoutez des tags courts",
+      "es": "Añada una etiqueta corta",
+      "pt": "Insira uma etiqueta curta"
+    },
+    {
+      "key": "analysis_validation_title",
+      "text": "Validation",
+      "fr": "Validation",
+      "es": "Validación",
+      "pt": "Validação"
+    },
+    {
+      "key": "analysis_validation_sub",
+      "text": "Review validation issues and compute.",
+      "fr": "Vérification des problèmes de validation et calcul.",
+      "es": "Verificación de los problemas de validación y calcular.",
+      "pt": "Verificação dos problemas de validação e calcular."
+    },
+    {
+      "key": "analysis_validation_compute_btn",
+      "text": "Compute",
+      "fr": "Calculer",
+      "es": "Calcular",
+      "pt": "Calcular"
+    },
+    {
+      "key": "analysis_travel_scenario_title",
+      "text": "Travel scenario",
+      "fr": "Scénario de voyage",
+      "es": "Escenario de desplazamiento",
+      "pt": "Cenário de deslocamento"
+    },
+    {
+      "key": "analysis_travel_scenario_sub",
+      "text": "Define the speed of travel for each land cover class.",
+      "fr": "Définir la vitesse de déplacement pour chaque classe d'occupation du sol.",
+      "es": "Definir la velocidad de desplazamiento para cada clase de cobertura del suelo.",
+      "pt": "Definir a velocidade de deslocamento para cada classe de cobertura do solo."
+    },
+    {
+      "key": "analysis_travel_scenario_processed",
+      "text": "Travel scenario to be processed",
+      "fr": "Scénario de voyage à utiliser",
+      "es": "Escenario de desplazamiento a procesar",
+      "pt": "Cenário de deslocamento a processar"
+    },
+    {
+      "key": "analysis_travel_scenario_reset",
+      "text": "Reset to original content",
+      "fr": "Réinitialiser au contenu original",
+      "es": "Volver al contenido original",
+      "pt": "Repor o conteúdo original"
+    },
+    {
+      "key": "analysis_travel_scenario_import_selected_table",
+      "text": "Import content from the selected scenario table",
+      "fr": "Importer le contenu de la table de scénarios sélectionnée",
+      "es": "Importar el contenido de la tabla de escenarios seleccionada",
+      "pt": "Importar o conteúdo da tabela de cenários selecionada"
+    },
+    {
+      "key": "analysis_travel_scenario_selected_table",
+      "text": "Selected scenario table",
+      "fr": "Table de scénario sélectionnée",
+      "es": "Tabla de escenarios seleccionados",
+      "pt": "Tabela de cenários selecionados"
+    },
+    {
+      "key": "analysis_facility_selection_title",
+      "text": "Facilities selection",
+      "fr": "Sélection des structures",
+      "es": "Selección de las instalaciones",
+      "pt": "Seleção das instalações"
+    },
+    {
+      "key": "analysis_facility_selection_sub",
+      "text": "Filter and select the facilities on which the analysis will be applied.",
+      "fr": "Filtrage et sélection des structures sur lesquelles l'analyse sera appliquée.",
+      "es": "Filtre y seleccione las instalaciones sobre las que se aplicará el análisis.",
+      "pt": "Filtre e selecione as instalações às quais será aplicada a análise."
+    },
+    {
+      "key": "analysis_facility_selected_facilities",
+      "text": "Selected facilities",
+      "fr": "Structures sélectionnées",
+      "es": "Instalaciones seleccionadas",
+      "pt": "Instalações selecionadas"
+    },
+    {
+      "key": "analysis_facility_selection_from",
+      "text": "From",
+      "fr": "De",
+      "es": "De",
+      "pt": "De"
+    },
+    {
+      "key": "analysis_facility_selection_to",
+      "text": "To",
+      "fr": "A",
+      "es": "Hacia",
+      "pt": "Para"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:13:45.387Z"
+}

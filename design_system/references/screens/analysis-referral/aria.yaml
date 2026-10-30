@@ -1,0 +1,464 @@
+- tabpanel:
+  - radio "clock icon Accessibility"
+  - text:  Accessibility
+  - radio "hospital icon Geographic coverage"
+  - text:  Geographic coverage
+  - radio "table icon Referral" [checked]
+  - text:  Referral
+  - radio "chart-bar icon Zonal statistics"
+  - text:  Zonal statistics
+  - radio "plus icon Scaling up"
+  - text: + Scaling up
+  - radio "star icon Optimization"
+  - text:  Optimization
+  - separator
+  - heading "right-to-bracket icon Data input" [level=3]:  Data input
+  - paragraph: Select the data to be used in this analysis
+  - separator
+  - text: Select merged land cover layer (raster) (r) land cover merged [demo]
+  - textbox "Select merged land cover layer (raster)"
+  - text: Select scenario table (table) (t) scenario processed [bicycling only]
+  - textbox "Select scenario table (table)"
+  - text: " From: Select existing health facilities layer (vector) (v) facility [demo]"
+  - textbox "Select existing health facilities layer (vector)"
+  - text: Select facilities ID field (unique) cat
+  - combobox "Select facilities ID field (unique)"
+  - text: Select facility name field (text) name
+  - combobox "Select facility name field (text)"
+  - text: " To: Select existing health facilities layer (vector) (v) facility [demo]"
+  - textbox "Select existing health facilities layer (vector)"
+  - text: Select facility ID field (unique) cat
+  - combobox "Select facility ID field (unique)"
+  - text: Select facility name field (text) name
+  - combobox "Select facility name field (text)"
+  - heading "wrench icon Analysis settings" [level=3]:  Analysis settings
+  - paragraph: Configure parameters for this analysis.
+  - separator
+  - text: Type of analysis
+  - radio "Isotropic ( ignore DEM )"
+  - text: Isotropic ( ignore DEM )
+  - radio "Anisotropic ( use DEM )" [checked]
+  - text: Anisotropic ( use DEM )
+  - checkbox "Use \"Knight's move\" If enabled, \"Knight's move\" will perform an analysis on 16 neighbors cells instead of 8. Slower, but more accurate."
+  - text: Use "Knight's move" If enabled, "Knight's move" will perform an analysis on 16 neighbors cells instead of 8. Slower, but more accurate.
+  - checkbox "Permute groups If checked, this parameter could improve computation time when more facilities are selected in the starting group than in the destination one. But 'Limit the spatial analysis to the closest pair time-wise' is not possible with this option."
+  - text: Permute groups If checked, this parameter could improve computation time when more facilities are selected in the starting group than in the destination one. But 'Limit the spatial analysis to the closest pair time-wise' is not possible with this option.
+  - checkbox "Output the layer of the paths among selected facilities"
+  - text: Output the layer of the paths among selected facilities
+  - checkbox "Enable parallelization Distribute the computation across multiple processors, if possible and when it makes sense memory-wise"
+  - text: Enable parallelization Distribute the computation across multiple processors, if possible and when it makes sense memory-wise
+  - checkbox "Limit the spatial analysis to the closest pair time-wise The travel time will be present in the output, but not the distance. Enabling groups permutation will uncheck and disable this option" [checked]
+  - text: Limit the spatial analysis to the closest pair time-wise The travel time will be present in the output, but not the distance. Enabling groups permutation will uncheck and disable this option
+  - checkbox "Measure distances from cell center If checked, the resulting distance will be measured between the center of the cells in which the FROM and TO facilities are located (corresponds to the shortest path by travel time). If unchecked, this measure of the distance will include the distance between each facility and the center of the cell in which they are located (extended path compare to the shortest path by travel time)." [checked]
+  - text: Measure distances from cell center If checked, the resulting distance will be measured between the center of the cells in which the FROM and TO facilities are located (corresponds to the shortest path by travel time). If unchecked, this measure of the distance will include the distance between each facility and the center of the cell in which they are located (extended path compare to the shortest path by travel time). Maximum travel time [minutes]
+  - spinbutton "Maximum travel time [minutes]": "120"
+  - text: Add short tags
+  - textbox "Add short tags"
+  - heading "square-check icon Validation" [level=3]:  Validation
+  - paragraph: Review validation issues and compute.
+  - separator
+  - text: "Issues:  Please enter at least one tag.  Select at least one facility in table 'FROM'.  Select at least one facility in table 'TO'. Information:  The scenario has one or more speed of 0 km/h configured. This will translate to “barrier cells” during the analysis. Population on those cells will remain outside all catchments. The population count will be available in the output table and / or in the additional columns if this option is selected."
+  - button "Compute" [disabled]
+  - heading "Travel scenario" [level=2]
+  - paragraph: Define the speed of travel for each land cover class.
+  - separator
+  - heading "Travel scenario to be processed" [level=4]
+  - link "arrow-rotate-left icon Reset to original content":
+    - /url: "#"
+    - text:  Reset to original content
+  - text: "|"
+  - link "wand-magic icon Import content from the selected scenario table":
+    - /url: "#"
+    - text:  Import content from the selected scenario table
+  - text: "|"
+  - link "circle-question icon":
+    - /url: "#"
+    - text: 
+  - grid:
+    - rowgroup:
+      - rowgroup:
+        - row "class label speed mode":
+          - columnheader "class"
+          - columnheader "label"
+          - columnheader "speed"
+          - columnheader "mode"
+    - rowgroup:
+      - row "1 no_label_1 0 WALKING":
+        - gridcell "1"
+        - gridcell "no_label_1"
+        - gridcell "0"
+        - gridcell "WALKING"
+      - row "2 no_label_2 0 WALKING":
+        - gridcell "2"
+        - gridcell "no_label_2"
+        - gridcell "0"
+        - gridcell "WALKING"
+      - row "3 no_label_3 0 WALKING":
+        - gridcell "3"
+        - gridcell "no_label_3"
+        - gridcell "0"
+        - gridcell "WALKING"
+      - row "1001 no_label_1001 0 WALKING":
+        - gridcell "1001"
+        - gridcell "no_label_1001"
+        - gridcell "0"
+        - gridcell "WALKING"
+      - row "1002 no_label_1002 0 WALKING":
+        - gridcell "1002"
+        - gridcell "no_label_1002"
+        - gridcell "0"
+        - gridcell "WALKING"
+      - row "1003 no_label_1003 0 WALKING":
+        - gridcell "1003"
+        - gridcell "no_label_1003"
+        - gridcell "0"
+        - gridcell "WALKING"
+  - heading "Selected scenario table" [level=4]
+  - grid:
+    - rowgroup:
+      - rowgroup:
+        - row "class label speed mode":
+          - columnheader "class"
+          - columnheader "label"
+          - columnheader "speed"
+          - columnheader "mode"
+    - rowgroup:
+      - row "1 Built_area 12 BICYCLING":
+        - gridcell "1"
+        - gridcell "Built_area"
+        - gridcell "12"
+        - gridcell "BICYCLING"
+      - row "2 Low_dense_vegetation 3 BICYCLING":
+        - gridcell "2"
+        - gridcell "Low_dense_vegetation"
+        - gridcell "3"
+        - gridcell "BICYCLING"
+      - row "3 Dense_vegetation 1 BICYCLING":
+        - gridcell "3"
+        - gridcell "Dense_vegetation"
+        - gridcell "1"
+        - gridcell "BICYCLING"
+      - row "1001 Main road 20 BICYCLING":
+        - gridcell "1001"
+        - gridcell "Main road"
+        - gridcell "20"
+        - gridcell "BICYCLING"
+      - row "1002 Secondary 20 BICYCLING":
+        - gridcell "1002"
+        - gridcell "Secondary"
+        - gridcell "20"
+        - gridcell "BICYCLING"
+      - row "1003 Tertiary 20 BICYCLING":
+        - gridcell "1003"
+        - gridcell "Tertiary"
+        - gridcell "20"
+        - gridcell "BICYCLING"
+  - text: "Information:  Some labels in the selected scenario table do not match those stored in the travel scenario to be processed. The later will be overwriten."
+  - heading "Facilities selection" [level=2]
+  - paragraph: Filter and select the facilities on which the analysis will be applied.
+  - separator
+  - heading "Selected facilities" [level=4]
+  - heading "From" [level=3]
+  - grid:
+    - link "[All]":
+      - /url: "#"
+    - link "[None]":
+      - /url: "#"
+    - combobox:
+      - option "cat" [selected]
+      - option "amOnBarrier"
+      - option "amOnZero"
+      - option "amCatLandCover"
+      - option "amPopCell"
+      - option "name"
+      - option "hf_type"
+      - option "capacity"
+    - combobox:
+      - option "=" [selected]
+      - option "!="
+      - option ">"
+      - option "<"
+      - option ">="
+      - option "<="
+    - spinbutton
+    - link "[Select]":
+      - /url: "#"
+    - link "[Unselect]":
+      - /url: "#"
+    - text: (0/10)
+    - rowgroup:
+      - rowgroup:
+        - row "Select Row cat amOnBarrier amOnZero amCatLandCover amPopCell name hf_type capacity":
+          - columnheader "Select Row":
+            - checkbox "Select Row"
+          - columnheader "cat"
+          - columnheader "amOnBarrier"
+          - columnheader "amOnZero"
+          - columnheader "amCatLandCover"
+          - columnheader "amPopCell"
+          - columnheader "name"
+          - columnheader "hf_type"
+          - columnheader "capacity"
+    - rowgroup:
+      - row "Select Row 1 no yes 3 233.3031616210938 Chabvala Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "1"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "233.3031616210938"
+        - gridcell "Chabvala Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 2 no yes 1003 3129.866943359375 Queen Elizabeth Centre Hospital Hospital Level 3 2875233":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "2"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "3129.866943359375"
+        - gridcell "Queen Elizabeth Centre Hospital"
+        - gridcell "Hospital Level 3"
+        - gridcell "2875233"
+      - row "Select Row 3 no yes 3 360.8482360839844 Neno Rural Hospital Hospital Level 1 78632":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "3"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "360.8482360839844"
+        - gridcell "Neno Rural Hospital"
+        - gridcell "Hospital Level 1"
+        - gridcell "78632"
+      - row "Select Row 4 no yes 1001 805.1980590820312 Chiradzulu District Hospital Hospital Level 2 505539":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "4"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1001"
+        - gridcell "805.1980590820312"
+        - gridcell "Chiradzulu District Hospital"
+        - gridcell "Hospital Level 2"
+        - gridcell "505539"
+      - row "Select Row 5 no yes 1002 551.0385131835938 Namadzi Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "5"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1002"
+        - gridcell "551.0385131835938"
+        - gridcell "Namadzi Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 6 no yes 1003 727.9598999023438 Mwanza District Hospital Hospital Level 2 505539":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "6"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "727.9598999023438"
+        - gridcell "Mwanza District Hospital"
+        - gridcell "Hospital Level 2"
+        - gridcell "505539"
+      - row "Select Row 7 no yes 1003 230.4904937744141 Chipini Rural Hospital Hospital Level 1 78632":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "7"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "230.4904937744141"
+        - gridcell "Chipini Rural Hospital"
+        - gridcell "Hospital Level 1"
+        - gridcell "78632"
+      - row "Select Row 8 no yes 3 89.55491638183594 Tulokhondo Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "8"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "89.55491638183594"
+        - gridcell "Tulokhondo Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 9 no yes 1003 240.6463623046875 Mdeka Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "9"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "240.6463623046875"
+        - gridcell "Mdeka Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 10 no yes 3 64.70561981201172 Nkula Clinic Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "10"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "64.70561981201172"
+        - gridcell "Nkula Clinic"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+  - heading "To" [level=3]
+  - grid:
+    - link "[All]":
+      - /url: "#"
+    - link "[None]":
+      - /url: "#"
+    - combobox:
+      - option "cat" [selected]
+      - option "amOnBarrier"
+      - option "amOnZero"
+      - option "amCatLandCover"
+      - option "amPopCell"
+      - option "name"
+      - option "hf_type"
+      - option "capacity"
+    - combobox:
+      - option "=" [selected]
+      - option "!="
+      - option ">"
+      - option "<"
+      - option ">="
+      - option "<="
+    - spinbutton
+    - link "[Select]":
+      - /url: "#"
+    - link "[Unselect]":
+      - /url: "#"
+    - text: (0/10)
+    - rowgroup:
+      - rowgroup:
+        - row "Select Row cat amOnBarrier amOnZero amCatLandCover amPopCell name hf_type capacity":
+          - columnheader "Select Row":
+            - checkbox "Select Row"
+          - columnheader "cat"
+          - columnheader "amOnBarrier"
+          - columnheader "amOnZero"
+          - columnheader "amCatLandCover"
+          - columnheader "amPopCell"
+          - columnheader "name"
+          - columnheader "hf_type"
+          - columnheader "capacity"
+    - rowgroup:
+      - row "Select Row 1 no yes 3 233.3031616210938 Chabvala Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "1"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "233.3031616210938"
+        - gridcell "Chabvala Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 2 no yes 1003 3129.866943359375 Queen Elizabeth Centre Hospital Hospital Level 3 2875233":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "2"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "3129.866943359375"
+        - gridcell "Queen Elizabeth Centre Hospital"
+        - gridcell "Hospital Level 3"
+        - gridcell "2875233"
+      - row "Select Row 3 no yes 3 360.8482360839844 Neno Rural Hospital Hospital Level 1 78632":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "3"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "360.8482360839844"
+        - gridcell "Neno Rural Hospital"
+        - gridcell "Hospital Level 1"
+        - gridcell "78632"
+      - row "Select Row 4 no yes 1001 805.1980590820312 Chiradzulu District Hospital Hospital Level 2 505539":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "4"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1001"
+        - gridcell "805.1980590820312"
+        - gridcell "Chiradzulu District Hospital"
+        - gridcell "Hospital Level 2"
+        - gridcell "505539"
+      - row "Select Row 5 no yes 1002 551.0385131835938 Namadzi Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "5"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1002"
+        - gridcell "551.0385131835938"
+        - gridcell "Namadzi Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 6 no yes 1003 727.9598999023438 Mwanza District Hospital Hospital Level 2 505539":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "6"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "727.9598999023438"
+        - gridcell "Mwanza District Hospital"
+        - gridcell "Hospital Level 2"
+        - gridcell "505539"
+      - row "Select Row 7 no yes 1003 230.4904937744141 Chipini Rural Hospital Hospital Level 1 78632":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "7"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "230.4904937744141"
+        - gridcell "Chipini Rural Hospital"
+        - gridcell "Hospital Level 1"
+        - gridcell "78632"
+      - row "Select Row 8 no yes 3 89.55491638183594 Tulokhondo Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "8"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "89.55491638183594"
+        - gridcell "Tulokhondo Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 9 no yes 1003 240.6463623046875 Mdeka Health Centre Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "9"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "1003"
+        - gridcell "240.6463623046875"
+        - gridcell "Mdeka Health Centre"
+        - gridcell "Health Centre"
+        - gridcell "5893"
+      - row "Select Row 10 no yes 3 64.70561981201172 Nkula Clinic Health Centre 5893":
+        - gridcell "Select Row":
+          - checkbox "Select Row"
+        - gridcell "10"
+        - gridcell "no"
+        - gridcell "yes"
+        - gridcell "3"
+        - gridcell "64.70561981201172"
+        - gridcell "Nkula Clinic"
+        - gridcell "Health Centre"
+        - gridcell "5893"

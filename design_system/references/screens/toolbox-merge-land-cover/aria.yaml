@@ -1,0 +1,73 @@
+- tabpanel:
+  - radio "map icon Interactive map"
+  - text:  Interactive map
+  - radio "list icon Merge land cover" [checked]
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - heading "Merge land cover" [level=2]
+  - paragraph: Module for ordering and merging the data listed in the 'stack' into a new land cover layer
+  - separator
+  - tablist:
+    - tab "Land cover" [expanded] [selected]
+    - tab "Roads" [expanded] [selected]
+    - tab "Barriers" [expanded] [selected]
+    - tab "Merge" [expanded] [selected]
+  - tabpanel "Land cover":
+    - complementary:
+      - heading "Land cover" [level=3]
+      - paragraph: Add land cover to the stack
+      - separator
+      - text: Select land cover layer (raster) (r) land cover [demo]
+      - textbox "Select land cover layer (raster)"
+      - text: Select land cover table (optional) (t) land cover [demo]
+      - textbox "Select land cover table (optional)"
+      - text: "Validation issues:  The table to be processed contains missing or \"0\" values. Please modify it accordingly."
+      - button "Add to stack" [disabled]
+    - heading "Labeling of land cover classes" [level=4]
+    - heading "Labels in the land cover layer (raster)" [level=5]
+    - link "arrow-rotate-left icon Reset to original values":
+      - /url: "#"
+      - text:  Reset to original values
+    - text: "|"
+    - link "wand-magic icon Import label(s) from the table below":
+      - /url: "#"
+      - text:  Import label(s) from the table below
+    - text: "|"
+    - link "circle-question icon":
+      - /url: "#"
+      - text: 
+    - grid:
+      - rowgroup:
+        - rowgroup:
+          - row "class label":
+            - columnheader "class"
+            - columnheader "label"
+      - rowgroup:
+        - row "1":
+          - gridcell "1"
+          - gridcell
+        - row "2":
+          - gridcell "2"
+          - gridcell
+        - row "3":
+          - gridcell "3"
+          - gridcell
+    - heading "Labels in the optional land cover table" [level=5]
+    - grid:
+      - rowgroup:
+        - rowgroup:
+          - row "class label":
+            - columnheader "class"
+            - columnheader "label"
+      - rowgroup:
+        - row "1 Built_area":
+          - gridcell "1"
+          - gridcell "Built_area"
+        - row "2 Low_dense_vegetation":
+          - gridcell "2"
+          - gridcell "Low_dense_vegetation"
+        - row "3 Dense_vegetation":
+          - gridcell "3"
+          - gridcell "Dense_vegetation"

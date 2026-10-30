@@ -1,0 +1,212 @@
+{
+  "id": "toolbox-merge-land-cover-roads",
+  "name": "Toolbox › Merge land cover › Roads",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 1164
+  },
+  "steps": [
+    {
+      "tab": "module_toolbox"
+    },
+    {
+      "radio": "toolSelector",
+      "value": "tool_merge_landcover"
+    },
+    {
+      "subtab": "toolbox_land_cover_roads_tab"
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageToolbox/amUi.R",
+    "modules/amAnalysisMergeLandCover/amUi.R"
+  ],
+  "icons": [
+    "fa-map",
+    "fa-list",
+    "fa-users",
+    "fa-triangle-exclamation",
+    "fa-circle-question"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "tools_map_btn",
+      "text": "Interactive map",
+      "fr": "Carte interactive",
+      "es": "Mapa interactivo",
+      "pt": "Mapa interativo"
+    },
+    {
+      "key": "tools_merge_lc_btn",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura de suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "tools_correct_pop_btn",
+      "text": "Adjust population distribution",
+      "fr": "Ajuster la distribution de la population",
+      "es": "Ajustar la distribución de la población",
+      "pt": "Ajustar a distribuição da população"
+    },
+    {
+      "key": "toolbox_land_cover_merge_main",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura del suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_merge_main_sub",
+      "text": "Module for ordering and merging the data listed in the 'stack' into a new land cover layer",
+      "fr": "Module pour mettre on ordre et fusionner les données listées dans la 'pile' en une nouvelle couche d'occupation du sol",
+      "es": "Módulo para ordenar y fusionar los datos de la 'pila' en una nueva capa de cobertura del suelo",
+      "pt": "Módulo para ordenar e fundir os dados listados na 'pilha' numa nova camada de cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_tab",
+      "text": "Land cover",
+      "fr": "Occupation du sol",
+      "es": "Cobertura de suelo",
+      "pt": "Cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_roads_tab",
+      "text": "Roads",
+      "fr": "Routes",
+      "es": "Carreteras",
+      "pt": "Estradas"
+    },
+    {
+      "key": "toolbox_land_cover_barrier_tab",
+      "text": "Barriers",
+      "fr": "Barrières",
+      "es": "Barreras",
+      "pt": "Barreiras"
+    },
+    {
+      "key": "toolbox_land_cover_merge_tab",
+      "text": "Merge",
+      "fr": "Fusionnement",
+      "es": "Fusión",
+      "pt": "Fusão"
+    },
+    {
+      "key": "toolbox_land_cover_roads_title",
+      "text": "Roads",
+      "fr": "Routes",
+      "es": "Carreteras",
+      "pt": "Estradas"
+    },
+    {
+      "key": "toolbox_land_cover_roads_sub",
+      "text": "Add roads to the stack",
+      "fr": "Ajout des routes à la pile",
+      "es": "Añadir carreteras a la pila",
+      "pt": "Adicionar estradas à pilha"
+    },
+    {
+      "key": "toolbox_land_cover_road_layer_vector",
+      "text": "Select road layer (vector)",
+      "fr": "Sélection de la couche des routes (vecteur)",
+      "es": "Seleccione la capa de carreteras (vector)",
+      "pt": "Selecione a camada de estradas (vetor)"
+    },
+    {
+      "key": "toolbox_land_cover_road_column",
+      "text": "Select road class column (32-bit integer)",
+      "fr": "Sélection de la colonne de classe de route (entier 32 bits)",
+      "es": "Selecione la columna de clase de carretera (entero de 32 bits)",
+      "pt": "Selecione a coluna de classe de estrada (inteiro 32 bits)"
+    },
+    {
+      "key": "toolbox_land_cover_road_label",
+      "text": "Select road label column (text)",
+      "fr": "Sélection de la colonne d'étiquette de route (texte)",
+      "es": "Seleccione la columna de etiqueta de carretera (texto)",
+      "pt": "Selecione a coluna de etiqueta de estrada (texto)"
+    },
+    {
+      "key": "toolbox_land_cover_road_add_btn",
+      "text": "Add to the stack",
+      "fr": "Ajouter à la pile",
+      "es": "Añadir a la pila",
+      "pt": "Adicionar à pilha"
+    },
+    {
+      "key": "toolbox_land_cover_road_class_label",
+      "text": "Labeling of road classes",
+      "fr": "Etiquetage des classes de route",
+      "es": "Etiquetado de las clases de carreteras",
+      "pt": "Etiquetagem das classes de estradas"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:16:08.507Z"
+}

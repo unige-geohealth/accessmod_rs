@@ -1,0 +1,16 @@
+- tabpanel:
+  - heading "License" [level=4]
+  - paragraph: The license attached to AccessMod is the GNU GPL V3. However, there is in addition a WHO 'TERMS OF USE AND SOFTWARE LICENSE AGREEMENT' that you must comply to in order to use AccessMod. Please read carefully this document that comes with the download of AccessMod ver. 5.
+  - separator
+  - heading "Acknowledgements" [level=4]
+  - paragraph: AccessMod 5 and previous versions have been developed thanks to the support of the WHO Department of Health Systems Financing (WHO/HSS/HSF), the University of Geneva/GeoHealth group, the AeHIN GIS Lab, the eHealth unit (WHO/IER/KMS/EHL), the department of Making Pregnancy Safer (WHO/FCH/MPS), the Networks of Centres of Excellence (GEOIDE), the Faculty of Medicine/University of Sherbrooke, and the School of Mathematical and Geospatial Sciences/RMIT University/Melbourne.
+  - separator
+  - heading "Learn how to use AccessMod" [level=4]
+  - paragraph:
+    - text: English
+    - link "Access to online user manual":
+      - /url: https://doc-accessmod.unepgrid.ch/display/EN/AccessMod+5+user+manual
+  - paragraph:
+    - text: Français
+    - link "Accès en ligne au manuel de l'utilisateur":
+      - /url: https://doc-accessmod.unepgrid.ch/display/FRAN/AccessMod+5+manuel+de+l%27utilisateur

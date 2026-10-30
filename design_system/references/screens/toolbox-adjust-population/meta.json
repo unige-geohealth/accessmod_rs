@@ -1,0 +1,201 @@
+{
+  "id": "toolbox-adjust-population",
+  "name": "Toolbox › Adjust population distribution",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 1010
+  },
+  "steps": [
+    {
+      "tab": "module_toolbox"
+    },
+    {
+      "radio": "toolSelector",
+      "value": "tool_pop_correction"
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageToolbox/amUi.R",
+    "modules/amPopulationBarrierCorrection/amUi.R"
+  ],
+  "icons": [
+    "fa-map",
+    "fa-list",
+    "fa-users",
+    "fa-triangle-exclamation"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "tools_map_btn",
+      "text": "Interactive map",
+      "fr": "Carte interactive",
+      "es": "Mapa interactivo",
+      "pt": "Mapa interativo"
+    },
+    {
+      "key": "tools_merge_lc_btn",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura de suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "tools_correct_pop_btn",
+      "text": "Adjust population distribution",
+      "fr": "Ajuster la distribution de la population",
+      "es": "Ajustar la distribución de la población",
+      "pt": "Ajustar a distribuição da população"
+    },
+    {
+      "key": "toolbox_popcor_main_title",
+      "text": "Adjust population distribution",
+      "fr": "Ajuster la distribution de la population",
+      "es": "Ajustar la distribución de la población",
+      "pt": "Ajustar a distribuição da população"
+    },
+    {
+      "key": "toolbox_popcor_sub",
+      "text": "Redistribute population on barriers or adjust population to known values within defined zones",
+      "fr": "Redistribuer la population sur les barrières ou ajuster la population à des valeurs connues à l'intérieur des zones administratives",
+      "es": "Redistribuir la población en las barreras o ajustar la población a los valores conocidos dentro de las zonas administrativas",
+      "pt": "Redistribuir a população nas barreiras ou ajustar a população a valores conhecidos dentro das zonas administrativas"
+    },
+    {
+      "key": "toolbox_popcor_config_title",
+      "text": "Configuration",
+      "fr": "Configuration",
+      "es": "Ajuste",
+      "pt": "Configuração"
+    },
+    {
+      "key": "toolbox_popcor_config_sub",
+      "text": "Select population, merged land cover and administrative zones",
+      "fr": "Sélectionner la population, l'occupation du sol fusionnée et les zones administratives",
+      "es": "Seleccione la población, la cobertura de suelo fusionada y las zonas administrativas",
+      "pt": "Selecione a população, a cobertura do solo fundida e as zonas administrativas"
+    },
+    {
+      "key": "toolbox_popcor_select_pop_raster",
+      "text": "Select population (raster)",
+      "fr": "Sélectionner la population (raster)",
+      "es": "Seleccione la población (raster)",
+      "pt": "Selecione a população (raster)"
+    },
+    {
+      "key": "toolbox_popcor_select_merged_lc_raster",
+      "text": "Select land cover merged (raster)",
+      "fr": "Sélectionner l'occupation du sol fusionnée (raster)",
+      "es": "Seleccione la cobertura de suelo fusionada (raster)",
+      "pt": "Selecione a cobertura do solo fundida (raster)"
+    },
+    {
+      "key": "toolbox_popcor_mode",
+      "text": "Correction mode",
+      "fr": "Mode de correction",
+      "es": "Modo de corrección",
+      "pt": "Modo de correção"
+    },
+    {
+      "key": "toolbox_popcor_mode_pop_known",
+      "text": "Population value known",
+      "fr": "Valeur de population connue",
+      "es": "Valor de población conocido",
+      "pt": "Valor populacional conhecido"
+    },
+    {
+      "key": "toolbox_popcor_mode_pop_not_known",
+      "text": "Population value not known",
+      "fr": "Valeur de population non-connue",
+      "es": "Valor poblacional desconocido",
+      "pt": "Valor populacional desconhecido"
+    },
+    {
+      "key": "toolbox_popcor_select_zones_vector",
+      "text": "Select zones (vector)",
+      "fr": "Sélectionner les zones (vecteur)",
+      "es": "Seleccione las zonas (vector)",
+      "pt": "Selecione as zonas (vetor)"
+    },
+    {
+      "key": "toolbox_popcor_add_tag",
+      "text": "Add short tag",
+      "fr": "Ajouter un tag court",
+      "es": "Añada una etiqueta corta",
+      "pt": "Insira uma etiqueta curta"
+    },
+    {
+      "key": "toolbox_popcor_compute_btn",
+      "text": "Compute",
+      "fr": "Calculer",
+      "es": "Calcular",
+      "pt": "Calcular"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:16:45.734Z"
+}

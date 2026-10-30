@@ -1,0 +1,235 @@
+{
+  "id": "toolbox-merge-land-cover",
+  "name": "Toolbox › Merge land cover",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 1051
+  },
+  "steps": [
+    {
+      "tab": "module_toolbox"
+    },
+    {
+      "radio": "toolSelector",
+      "value": "tool_merge_landcover"
+    },
+    {
+      "subtab": "toolbox_land_cover_tab"
+    },
+    {
+      "fill": true
+    }
+  ],
+  "source": [
+    "modules/amManageToolbox/amUi.R",
+    "modules/amAnalysisMergeLandCover/amUi.R"
+  ],
+  "icons": [
+    "fa-map",
+    "fa-list",
+    "fa-users",
+    "fa-triangle-exclamation",
+    "fa-arrow-rotate-left",
+    "fa-wand-magic",
+    "fa-circle-question"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "tools_map_btn",
+      "text": "Interactive map",
+      "fr": "Carte interactive",
+      "es": "Mapa interactivo",
+      "pt": "Mapa interativo"
+    },
+    {
+      "key": "tools_merge_lc_btn",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura de suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "tools_correct_pop_btn",
+      "text": "Adjust population distribution",
+      "fr": "Ajuster la distribution de la population",
+      "es": "Ajustar la distribución de la población",
+      "pt": "Ajustar a distribuição da população"
+    },
+    {
+      "key": "toolbox_land_cover_merge_main",
+      "text": "Merge land cover",
+      "fr": "Fusionner l'occupation du sol",
+      "es": "Fusionar la cobertura del suelo",
+      "pt": "Fundir a cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_merge_main_sub",
+      "text": "Module for ordering and merging the data listed in the 'stack' into a new land cover layer",
+      "fr": "Module pour mettre on ordre et fusionner les données listées dans la 'pile' en une nouvelle couche d'occupation du sol",
+      "es": "Módulo para ordenar y fusionar los datos de la 'pila' en una nueva capa de cobertura del suelo",
+      "pt": "Módulo para ordenar e fundir os dados listados na 'pilha' numa nova camada de cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_tab",
+      "text": "Land cover",
+      "fr": "Occupation du sol",
+      "es": "Cobertura de suelo",
+      "pt": "Cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_roads_tab",
+      "text": "Roads",
+      "fr": "Routes",
+      "es": "Carreteras",
+      "pt": "Estradas"
+    },
+    {
+      "key": "toolbox_land_cover_barrier_tab",
+      "text": "Barriers",
+      "fr": "Barrières",
+      "es": "Barreras",
+      "pt": "Barreiras"
+    },
+    {
+      "key": "toolbox_land_cover_merge_tab",
+      "text": "Merge",
+      "fr": "Fusionnement",
+      "es": "Fusión",
+      "pt": "Fusão"
+    },
+    {
+      "key": "toolbox_land_cover_title",
+      "text": "Land cover",
+      "fr": "Occupation du sol",
+      "es": "Cobertura del suelo",
+      "pt": "Cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_add_land_cover_sub",
+      "text": "Add land cover to the stack",
+      "fr": "Ajout de l'occupation du sol à la pile",
+      "es": "Añadir cobertura de suelo a la pila",
+      "pt": "Adicionar cobertura do solo à pilha"
+    },
+    {
+      "key": "toolbox_land_cover_select_raster",
+      "text": "Select land cover layer (raster)",
+      "fr": "Sélectionnez la couche d'occupation du sol (raster)",
+      "es": "Seleccione a capa de cobertura del suelo (raster)",
+      "pt": "Selecione a camada de cobertura do solo (raster)"
+    },
+    {
+      "key": "toolbox_land_cover_table",
+      "text": "Select land cover table (optional)",
+      "fr": "Sélectionnez la table d'occupation du sol (optionel)",
+      "es": "Seleccione la tabla de cobertura del suelo (opcional)",
+      "pt": "Selecione a tabela de cobertura do solo (opcional)"
+    },
+    {
+      "key": "toolbox_land_cover_add_to_stack_btn",
+      "text": "Add to stack",
+      "fr": "Ajouter à la pile",
+      "es": "Añadir a la pila",
+      "pt": "Adicionar à pilha"
+    },
+    {
+      "key": "toolbox_land_cover_labeling_table",
+      "text": "Labeling of land cover classes",
+      "fr": "Etiquetage des classes d'occupation du sol",
+      "es": "Etiquetado de las clases de cobertura del suelo",
+      "pt": "Etiquetagem das classes de cobertura do solo"
+    },
+    {
+      "key": "toolbox_land_cover_label_sub",
+      "text": "Labels in the land cover layer (raster)",
+      "fr": "Étiquettes dans la couche d'occupation du sol (raster)",
+      "es": "Etiquetas en la capa de cobertura del suelo (raster)",
+      "pt": "Etiquetas na camada de cobertura do solo (raster)"
+    },
+    {
+      "key": "toolbox_land_cover_reset_to_original",
+      "text": "Reset to original values",
+      "fr": "Réinitialiser aux valeurs d'origine",
+      "es": "Restablecer los valores originales",
+      "pt": "Repor os valores originais"
+    },
+    {
+      "key": "toolbox_land_cover_import_labels",
+      "text": "Import label(s) from the table below",
+      "fr": "Importer les étiquettes du tableau ci-dessous",
+      "es": "Importar etiqueta(s) de la tabla abajo",
+      "pt": "Importar etiqueta(s) da tabela abaixo"
+    },
+    {
+      "key": "toolbox_land_cover_label_optional",
+      "text": "Labels in the optional land cover table",
+      "fr": "Étiquettes dans le tableau optionnel d'occupation du sol",
+      "es": "Etiquetas en la tabla opcional de cobertura del suelo",
+      "pt": "Etiquetas no quadro opcional de cobertura do solo"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:15:56.340Z"
+}

@@ -1,0 +1,107 @@
+<!-- AM5 Toolbox › Interactive map: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_toolbox" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12"><div id="toolSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">  <label for="toolSelector"></label>  <label class="btn btn-default btn-inline active">    <input type="radio" id="tool2" name="toolSelector" value="tool_map_preview" checked="checked" style="">    <i class="far fa-map" role="presentation" aria-label="map icon"></i>    <span data-amt_id="tools_map_btn">Interactive map</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool1" name="toolSelector" value="tool_merge_landcover" style="">    <i class="fas fa-list" role="presentation" aria-label="list icon"></i>    <span data-amt_id="tools_merge_lc_btn">Merge land cover</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool3" name="toolSelector" value="tool_pop_correction" style="">    <i class="fas fa-users" role="presentation" aria-label="users icon"></i>    <span data-amt_id="tools_correct_pop_btn">Adjust population distribution</span>  </label></div></div>
+            <hr>
+            <div class="col-sm-12">
+              
+              <div class="shiny-panel-conditional" data-display-if="
+      input.toolSelector=='tool_map_preview'
+      " data-ns-prefix="">
+                <div class="row">
+                  <div class="col-xs-12 col-md-4">
+                    <div class="panel-group" id="mapTools" role="tablist" aria-multiselectable="true">
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools1" id="ui-collapse-315" aria-controls="mapTools1" role="tab" aria-selected="false" aria-expanded="false" tabindex="0" class="collapsed">
+                              <div role="presentation">
+                                <i class="far fa-map" role="presentation" aria-label="map icon"></i>
+                                <span data-amt_id="tool_map_options">Options</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        
+                      </div>
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools2" id="ui-collapse-702" aria-controls="mapTools2" role="tab" aria-selected="true" aria-expanded="true" tabindex="0" class="">
+                              <div role="presentation">
+                                <span class="icon-grid_area_before"></span>
+                                <span data-amt_id="tool_map_raster">Raster</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        <div id="mapTools2" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="ui-collapse-702" tabindex="0" aria-hidden="false" aria-expanded="true" style="">
+                          <div class="panel-body">
+                            <div class="form-group shiny-input-container" role="presentation">
+                              <label class="control-label" id="selectRasterToMap-label" for="selectRasterToMap-selectized">
+                                <span data-amt_id="toolbox_map_raster_select">Select layer to use (raster)</span>
+                              </label>
+                              <div role="presentation">
+                                <div class="shiny-input-select form-control shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="rPriority__demo@demo">(r) priority [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="selectRasterToMap-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                                
+                              </div>
+                            </div>
+                            
+                            <div class="form-group shiny-input-container" role="presentation">
+                              <label class="control-label" id="previewOpacity-label" for="previewOpacity">
+                                <span data-amt_id="toolbox_map_opacity">Set layer opacity</span>
+                              </label>
+                              <span class="irs irs--shiny js-irs-0 irs-with-grid"><span class="irs"><span class="irs-line" tabindex="0"></span><span class="irs-min" style="visibility: visible;">0</span><span class="irs-max" style="visibility: visible;">1</span><span class="irs-single" style="left: 74.8969%;">0.8</span></span><span class="irs-grid" style="width: 93.4911%; left: 3.15444%;"><span class="irs-grid-pol" style="left: 0%"></span><span class="irs-grid-text js-grid-text-0" style="left: 0%; margin-left: -1.62953%;">0</span><span class="irs-grid-pol small" style="left: 6.666666666666666%"></span><span class="irs-grid-pol small" style="left: 3.333333333333333%"></span><span class="irs-grid-pol" style="left: 10%"></span><span class="irs-grid-text js-grid-text-1" style="left: 10%; visibility: visible; margin-left: -2.73899%;">0.1</span><span class="irs-grid-pol small" style="left: 16.666666666666668%"></span><span class="irs-grid-pol small" style="left: 13.333333333333332%"></span><span class="irs-grid-pol" style="left: 20%"></span><span class="irs-grid-text js-grid-text-2" style="left: 20%; visibility: visible; margin-left: -2.73899%;">0.2</span><span class="irs-grid-pol small" style="left: 26.666666666666668%"></span><span class="irs-grid-pol small" style="left: 23.333333333333332%"></span><span class="irs-grid-pol" style="left: 30%"></span><span class="irs-grid-text js-grid-text-3" style="left: 30%; visibility: visible; margin-left: -2.73899%;">0.3</span><span class="irs-grid-pol small" style="left: 36.666666666666664%"></span><span class="irs-grid-pol small" style="left: 33.333333333333336%"></span><span class="irs-grid-pol" style="left: 40%"></span><span class="irs-grid-text js-grid-text-4" style="left: 40%; margin-left: -2.73899%;">0.4</span><span class="irs-grid-pol small" style="left: 46.666666666666664%"></span><span class="irs-grid-pol small" style="left: 43.333333333333336%"></span><span class="irs-grid-pol" style="left: 50%"></span><span class="irs-grid-text js-grid-text-5" style="left: 50%; visibility: visible; margin-left: -2.73899%;">0.5</span><span class="irs-grid-pol small" style="left: 56.666666666666664%"></span><span class="irs-grid-pol small" style="left: 53.333333333333336%"></span><span class="irs-grid-pol" style="left: 60%"></span><span class="irs-grid-text js-grid-text-6" style="left: 60%; visibility: visible; margin-left: -2.73899%;">0.6</span><span class="irs-grid-pol small" style="left: 66.66666666666667%"></span><span class="irs-grid-pol small" style="left: 63.333333333333336%"></span><span class="irs-grid-pol" style="left: 70%"></span><span class="irs-grid-text js-grid-text-7" style="left: 70%; visibility: visible; margin-left: -2.73899%;">0.7</span><span class="irs-grid-pol small" style="left: 76.66666666666667%"></span><span class="irs-grid-pol small" style="left: 73.33333333333333%"></span><span class="irs-grid-pol" style="left: 80%"></span><span class="irs-grid-text js-grid-text-8" style="left: 80%; margin-left: -2.73899%;">0.8</span><span class="irs-grid-pol small" style="left: 86.66666666666667%"></span><span class="irs-grid-pol small" style="left: 83.33333333333333%"></span><span class="irs-grid-pol" style="left: 90%"></span><span class="irs-grid-text js-grid-text-9" style="left: 90%; visibility: visible; margin-left: -2.73899%;">0.9</span><span class="irs-grid-pol small" style="left: 96.66666666666667%"></span><span class="irs-grid-pol small" style="left: 93.33333333333333%"></span><span class="irs-grid-pol" style="left: 100%"></span><span class="irs-grid-text js-grid-text-10" style="left: 100%; visibility: visible; margin-left: -1.62953%;">1</span></span><span class="irs-bar irs-bar--single" style="left: 0px; width: 78.0473%;"></span><span class="irs-handle single" style="left: 74.7929%;"><i></i><i></i><i></i></span></span><input class="js-range-slider irs-hidden-input shiny-bound-input" id="previewOpacity" data-skin="shiny" data-min="0" data-max="1" data-from="0.8" data-step="0.1" data-grid="true" data-grid-num="10" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number" tabindex="-1" readonly="" style="">
+                            </div>
+                            <label>
+                              <span data-amt_id="toolbox_map_click_map">Click the map to query the selected raster.</span>
+                            </label>
+                            <div id="uiMapClickRasterValue" class="shiny-html-output shiny-bound-output" role="presentation" aria-live="polite"><ul class="list">
+  <li>
+    <label>Easting</label>
+    : 
+    -
+  </li>
+  <li>
+    <label>Northing</label>
+    : 
+    -
+  </li>
+  <li>
+    <label>Value</label>
+    : 
+    -
+  </li>
+  <li>
+    <label>Label</label>
+    : 
+    -
+  </li>
+</ul></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools3" id="ui-collapse-579" aria-controls="mapTools3" role="tab" aria-selected="false" aria-expanded="false" tabindex="-1" class="collapsed">
+                              <div role="presentation">
+                                <i class="far fa-hospital" role="presentation" aria-label="hospital icon"></i>
+                                <span data-amt_id="tool_map_facilities">Facilities</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-xs-12 col-md-8">
+                    <div class="leaflet html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" id="mapPreview" style="width: 100%; height: 500px; visibility: inherit; position: relative;" aria-live="polite" tabindex="0"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 0px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"></div></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-overlay-pane"></div><div class="leaflet-pane leaflet-marker-pane"></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(39112.9px, 35651.3px, 0px) scale(128);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in">+</a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out">−</a></div><div class="leaflet-bar easy-button-container leaflet-control"><button class="easy-button-button leaflet-bar-part leaflet-interactive unnamed-state-active" type="button" id="[object Object]" title="Home"><span class="button-state state-unnamed-state unnamed-state-active"><span class="fa fa-home"></span></span></button></div></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"><div class="leaflet-control-scale leaflet-control"><div class="leaflet-control-scale-line" style="width: 85px;">50 km</div><div class="leaflet-control-scale-line" style="width: 82px;">30 mi</div></div></div><div class="leaflet-bottom leaflet-right"><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> | <a href="https://www.maptiler.com/copyright/" target="_blank">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a></div></div></div></div>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        </div>

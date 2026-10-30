@@ -1,0 +1,246 @@
+<!-- AM5 Analysis › Optimization: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_analysis" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12">
+              <div id="moduleSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">
+                <label for="moduleSelector"></label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms2" name="moduleSelector" value="module_2" checked="checked" style="">
+                  <i class="far fa-clock" role="presentation" aria-label="clock icon"></i>
+                  <span data-amt_id="analysis_accessibility_main_tab">Accessibility</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms3" name="moduleSelector" value="module_3" style="">
+                  <i class="far fa-hospital" role="presentation" aria-label="hospital icon"></i>
+                  <span data-amt_id="analysis_coverage_main_tab">Geographic coverage</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms4" name="moduleSelector" value="module_4" style="">
+                  <i class="fas fa-table" role="presentation" aria-label="table icon"></i>
+                  <span data-amt_id="analysis_referral_main_tab">Referral</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms5" name="moduleSelector" value="module_5" style="">
+                  <i class="far fa-chart-bar" role="presentation" aria-label="chart-bar icon"></i>
+                  <span data-amt_id="analysis_zonal_stats_main_tab">Zonal statistics</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms6" name="moduleSelector" value="module_6" style="">
+                  <i class="fas fa-plus" role="presentation" aria-label="plus icon"></i>
+                  <span data-amt_id="analysis_scalingup_main_tab">Scaling up</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 active">
+                  <input type="radio" id="ms7" name="moduleSelector" value="module_7" style="">
+                  <i class="far fa-star" role="presentation" aria-label="star icon"></i>
+                  <span data-amt_id="analysis_optimization_main_tab">Optimization</span>
+                </label>
+              </div>
+            </div>
+            <hr>
+            <div class="col-sm-12">
+              <div class="shiny-panel-conditional" data-display-if="
+      input.moduleSelector=='module_2' ||
+      input.moduleSelector=='module_3' ||
+      input.moduleSelector=='module_4' ||
+      input.moduleSelector=='module_5' ||
+      input.moduleSelector=='module_6' ||
+      input.moduleSelector=='module_7'
+      " data-ns-prefix="">
+                <div class="row">
+                  <div class="col-sm-4">
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="fas fa-right-to-bracket" role="presentation" aria-label="right-to-bracket icon"></i>
+                          <span data-amt_id="analysis_data_input_title">Data input</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_data_input_sub">Select the data to be used in this analysis</span>
+                      </p>
+                      <hr>
+                      <div class="shiny-panel-conditional" data-display-if="input.moduleSelector == 'module_7'" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="catchmentSelect-label" for="catchmentSelect-selectized">
+                            <span data-amt_id="analysis_select_catchment_layer">Select catchment layer</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="vCatchment__demo@demo">(s) catchment [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="catchmentSelect-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                            
+                          </div>
+                        </div>
+                        <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.catchmentSelect)" data-ns-prefix="" style="">
+                          <div style="margin-left:10%;">
+                            <div class="form-group shiny-input-container">
+                              <label class="control-label" id="catchmentIdField-label" for="catchmentIdField-selectized">
+                                <span data-amt_id="analysis_select_catchment_id_field">Catchment ID field</span>
+                              </label>
+                              <div>
+                                <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="cat_join">cat_join</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="catchmentIdField-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="p7if7razuf" style="width: 4px;"></div></div>
+                                
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="shiny-panel-conditional" data-display-if="(
+    input.moduleSelector=='module_3' |
+      input.moduleSelector=='module_5' |
+      input.moduleSelector=='module_6' |
+      input.moduleSelector=='module_7'
+    )" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="popSelect-label" for="popSelect-selectized">
+                            <span data-amt_id="analysis_select_pop_raster">Select population layer (raster)</span>
+                          </label>
+                          <div>
+                            <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items full has-options has-items"><div class="item" data-value="rPopulation__demo_patients@demo">(r) population [demo patients]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="popSelect-selectized" style="width: 4px;"></div></div>
+                            
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div class="shiny-panel-conditional" data-display-if="
+  input.moduleSelector != 'module_5'
+  " data-ns-prefix="" style="">
+                        
+                        
+                        <div class="shiny-panel-conditional" data-display-if="
+        (!(input.moduleSelector=='module_6' &amp; input.useExistingHf == 'FALSE')) ||
+        (
+          input.moduleSelector == 'module_7' &amp;&amp;
+          input.mod7param &amp;&amp; input.mod7param.indexOf('adminCheck') !== -1
+        )
+      " data-ns-prefix="">
+                          <div class="form-group shiny-input-container">
+                            <label class="control-label" id="hfSelect-label" for="hfSelect-selectized">
+                              <span data-amt_id="analysis_select_health_facility_vector">Select existing health facilities layer (vector)</span>
+                            </label>
+                            <div>
+                              <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items full has-options has-items"><div class="item" data-value="vFacility__demo@demo">(v) facility [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfSelect-selectized" style="width: 4px;"></div></div>
+                              
+                            </div>
+                          </div>
+                          <div class="shiny-panel-conditional" data-display-if="
+      input.moduleSelector=='module_3' |
+        input.moduleSelector=='module_4' |
+        input.moduleSelector=='module_6' |
+        input.moduleSelector=='module_7'
+      " data-ns-prefix="" style="">
+                            <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.hfSelect) " data-ns-prefix="" style="">
+                              <div style="margin-left:10%;">
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="hfIdxField-label" for="hfIdxField-selectized">
+                                    <span data-amt_id="analysis_select_health_facility_id_field">Select facilities ID field (unique)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="cat">cat</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfIdxField-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="4n3sulg84m" style="width: 4px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="hfNameField-label" for="hfNameField-selectized">
+                                    <span data-amt_id="analysis_select_health_facility_name_field">Select facility name field (text)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="name">name</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfNameField-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="e28sm9e624" style="width: 4px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          
+                          
+                        </div>
+                      </div>
+                      
+                      
+                      
+                      
+                    </div>
+                    
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="fas fa-wrench" role="presentation" aria-label="wrench icon"></i>
+                          <span data-amt_id="analysis_settings_title">Analysis settings</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_settings_sub">Configure parameters for this analysis.</span>
+                      </p>
+                      <hr>
+                      
+                      
+                      <div class="shiny-panel-conditional" data-display-if="input.moduleSelector == 'module_7'" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="mod7nTot-label" for="mod7nTot">
+                            <span data-amt_id="analysis_optimization_n_tot">Total number of facilities to select</span>
+                          </label>
+                          <input id="mod7nTot" type="number" class="shiny-input-number form-control shiny-bound-input" value="10" min="1" step="1" style="">
+                        </div>
+                        <div id="mod7param" class="form-group shiny-input-checkboxgroup shiny-input-container shiny-bound-input">
+                          <label>
+                            <span data-amt_id="analysis_optimization_options">Options</span>
+                          </label>
+                          <div class="shiny-options-group">
+                            <div class="checkbox">
+                              <label>
+                                <input type="checkbox" name="mod7param" value="adminCheck" style="">
+                                <span data-amt_id="analysis_optimization_admin_check">Ensure minimum facilities per admin unit</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                        
+                      </div>
+                      
+                      
+                      
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector!='module_5'
+  )" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="costTag-label" for="costTag">
+                            <span data-amt_id="analysis_settings_add_tag">Add short tags</span>
+                          </label>
+                          <input id="costTag" type="text" class="shiny-input-text form-control shiny-bound-input" value="" style="">
+                        </div>
+                      </div>
+                      
+                    </div>
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="far fa-square-check" role="presentation" aria-label="square-check icon"></i>
+                          <span data-amt_id="analysis_validation_title">Validation</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_validation_sub">Review validation issues and compute.</span>
+                      </p>
+                      <hr>
+                      <div id="msgModule3" class="shiny-html-output shiny-bound-output" aria-live="polite"><b>Issue:</b>
+<div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> Please enter at least one tag. </div></div>
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector!='module_5'
+  )" data-ns-prefix="" style="">
+                        <button id="btnComputeAccessibility" type="button" class="btn action-button shiny-bound-input btn-danger" disabled="">
+                          <span data-amt_id="analysis_validation_compute_btn">Compute</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-xs-12 col-md-8 col-lg-7">
+                    
+                    
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>

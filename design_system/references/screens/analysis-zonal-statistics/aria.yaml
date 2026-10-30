@@ -1,0 +1,82 @@
+- tabpanel:
+  - radio "clock icon Accessibility"
+  - text:  Accessibility
+  - radio "hospital icon Geographic coverage"
+  - text:  Geographic coverage
+  - radio "table icon Referral"
+  - text:  Referral
+  - radio "chart-bar icon Zonal statistics" [checked]
+  - text:  Zonal statistics
+  - radio "plus icon Scaling up"
+  - text: + Scaling up
+  - radio "star icon Optimization"
+  - text:  Optimization
+  - separator
+  - heading "right-to-bracket icon Data input" [level=3]:  Data input
+  - paragraph: Select the data to be used in this analysis
+  - separator
+  - text: Select population layer (raster) (r) population [demo patients]
+  - textbox "Select population layer (raster)"
+  - text: Select travel time layer (raster) (r) travel time [ca]
+  - textbox "Select travel time layer (raster)"
+  - text: Select zones layer (vector) (v) zone for stat [demo]
+  - textbox "Select zones layer (vector)"
+  - text: Select zone unique ID (integer) cat
+  - combobox "Select zone unique ID (integer)"
+  - text: Select zone name (text) admin_name
+  - combobox "Select zone name (text)"
+  - text: Select maximum travel time [minutes] Separate multiple values by a comma. E.g. '10, 20, 120'. Non-numeric characters or duplicated values will be ignored. min=1, max=1351
+  - textbox "Select maximum travel time [minutes] Separate multiple values by a comma. E.g. '10, 20, 120'. Non-numeric characters or duplicated values will be ignored. min=1, max=1351": "1351"
+  - heading "wrench icon Analysis settings" [level=3]:  Analysis settings
+  - paragraph: Configure parameters for this analysis.
+  - separator
+  - checkbox "Format table to get individual columns for each time step Instead of using a single columns for time and population coverage, individual columns will be produced for each time step. E.g. popTravelTime_50, popCoveredPercent_50, etc." [checked]
+  - text: Format table to get individual columns for each time step Instead of using a single columns for time and population coverage, individual columns will be produced for each time step. E.g. popTravelTime_50, popCoveredPercent_50, etc.
+  - heading "square-check icon Validation" [level=3]:  Validation
+  - paragraph: Review validation issues and compute.
+  - separator
+  - button "Update"
+  - heading "Zonal statistics" [level=2]
+  - paragraph: Population coverage by zone(s) for the selected maximum travel time
+  - separator
+  - link "circle-question icon":
+    - /url: "#"
+    - text: 
+  - grid:
+    - rowgroup:
+      - rowgroup:
+        - row "cat admin_name popTotal popTravelTime_1351 popCoveredPercent_1351":
+          - columnheader "cat"
+          - columnheader "admin_name"
+          - columnheader "popTotal"
+          - columnheader "popTravelTime_1351"
+          - columnheader "popCoveredPercent_1351"
+    - rowgroup:
+      - row "1 South West 1634957.715299514 1634957.715299514 100":
+        - gridcell "1"
+        - gridcell "South West"
+        - gridcell "1634957.715299514"
+        - gridcell "1634957.715299514"
+        - gridcell "100"
+      - row "2 North East 1325294.544360217 1321071.030634936 99.68131509004893":
+        - gridcell "2"
+        - gridcell "North East"
+        - gridcell "1325294.544360217"
+        - gridcell "1321071.030634936"
+        - gridcell "99.68131509004893"
+      - row "3 South East 1146542.042503255 1146542.042503255 100":
+        - gridcell "3"
+        - gridcell "South East"
+        - gridcell "1146542.042503255"
+        - gridcell "1146542.042503255"
+        - gridcell "100"
+      - row "4 North West 33635.1243987084 33635.1243987084 100":
+        - gridcell "4"
+        - gridcell "North West"
+        - gridcell "33635.1243987084"
+        - gridcell "33635.1243987084"
+        - gridcell "100"
+    - link "[Download CSV]":
+      - /url: "#"
+    - link "[Download JSON]":
+      - /url: "#"

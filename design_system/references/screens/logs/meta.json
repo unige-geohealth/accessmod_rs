@@ -1,0 +1,156 @@
+{
+  "id": "logs",
+  "name": "Logs",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_logs"
+    }
+  ],
+  "source": [
+    "modules/amManageLogs/amUi.R"
+  ],
+  "icons": [
+    "fa-download",
+    "fa-trash-can"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "logs_title",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "logs_to_show",
+      "text": "Number of last logs to show",
+      "fr": "Nombre de derniers logs à afficher",
+      "es": "Número de los últimos registros a mostrar",
+      "pt": "Número dos últimos registos a mostrar"
+    },
+    {
+      "key": "logs_filter",
+      "text": "Filter",
+      "fr": "Filtre",
+      "es": "Filtro",
+      "pt": "Filtro"
+    },
+    {
+      "key": "logs_filter_error",
+      "text": "Errors",
+      "fr": "Erreurs",
+      "es": "Errores",
+      "pt": "Erros"
+    },
+    {
+      "key": "logs_filter_warning",
+      "text": "Warnings",
+      "fr": "Avertissements",
+      "es": "Advertencias",
+      "pt": "Avisos"
+    },
+    {
+      "key": "logs_filter_message",
+      "text": "Messages",
+      "fr": "Messages",
+      "es": "Mensajes",
+      "pt": "Mensagens"
+    },
+    {
+      "key": "logs_filter_log",
+      "text": "Logs",
+      "fr": "Journaux",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "logs_filter_all",
+      "text": "All",
+      "fr": "Tout",
+      "es": "Todo",
+      "pt": "Tudo"
+    },
+    {
+      "key": "logs_download",
+      "text": "Download logs",
+      "fr": "Télécharger les logs",
+      "es": "Descargar registros",
+      "pt": "Descarregar registos"
+    },
+    {
+      "key": "logs_clear",
+      "text": "Clear logs",
+      "fr": "Effacer les logs",
+      "es": "Borrar registros",
+      "pt": "Limpar registos"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:16:53.727Z"
+}

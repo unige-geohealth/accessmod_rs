@@ -1,0 +1,20 @@
+- tabpanel:
+  - tablist:
+    - tab "circle-play icon Open" [selected]:  Open
+    - tab "circle-plus icon New / Import" [selected]:  New / Import
+    - tab "trash-can icon Delete" [expanded] [selected]:  Delete
+    - tabpanel "trash-can icon Delete":
+      - text: Select the project to delete 446_skeleton
+      - combobox "Select the project to delete"
+      - button "Delete"
+    - tab "up-right-from-square icon Export":  Export
+    - tab "language icon Language":  Language
+  - heading "Project summary" [level=2]
+  - paragraph: Spatial summary of the current project.
+  - separator
+  - tablist:
+    - tab "Location map" [selected]
+    - tab "Projection system"
+    - tab "Grid parameters"
+    - tab "Extent (metric)"
+    - tab "Extent (decimal degrees)"

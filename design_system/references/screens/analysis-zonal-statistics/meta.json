@@ -1,0 +1,292 @@
+{
+  "id": "analysis-zonal-statistics",
+  "name": "Analysis › Zonal statistics",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 1226
+  },
+  "steps": [
+    {
+      "tab": "module_analysis"
+    },
+    {
+      "radio": "moduleSelector",
+      "value": "module_5"
+    },
+    {
+      "select": "#popSelect",
+      "label": "^\\(r\\) population \\[demo"
+    },
+    {
+      "select": "#travelTimeSelect",
+      "label": "\\[ca\\]"
+    },
+    {
+      "select": "#zoneSelect",
+      "label": "zone"
+    },
+    {
+      "fill": true
+    },
+    {
+      "input": "#textTimeCumCosts",
+      "value": "1351"
+    },
+    {
+      "click": "#btnZonalStat"
+    }
+  ],
+  "source": [
+    "modules/amManageAnalysis/amUi.R",
+    "modules/amAnalysisAccessibility/amUi.R",
+    "modules/amAnalysisAccessibility/amUi_modulesData.R",
+    "modules/amAnalysisAccessibility/amUi_zonalStat.R",
+    "modules/amAnalysisAccessibility/amUi_modulesValidation.R"
+  ],
+  "icons": [
+    "fa-clock",
+    "fa-hospital",
+    "fa-table",
+    "fa-chart-bar",
+    "fa-plus",
+    "fa-star",
+    "fa-right-to-bracket",
+    "fa-wrench",
+    "fa-square-check",
+    "fa-circle-question"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "analysis_accessibility_main_tab",
+      "text": "Accessibility",
+      "fr": "Accessibilité",
+      "es": "Accesibilidad",
+      "pt": "Acessibilidade"
+    },
+    {
+      "key": "analysis_coverage_main_tab",
+      "text": "Geographic coverage",
+      "fr": "Couverture géographique",
+      "es": "Cobertura geográfica",
+      "pt": "Cobertura geográfica"
+    },
+    {
+      "key": "analysis_referral_main_tab",
+      "text": "Referral",
+      "fr": "Référence",
+      "es": "Derivación",
+      "pt": "Encaminhamento"
+    },
+    {
+      "key": "analysis_zonal_stats_main_tab",
+      "text": "Zonal statistics",
+      "fr": "Statistiques zonales",
+      "es": "Estadísticas zonales",
+      "pt": "Estatísticas zonais"
+    },
+    {
+      "key": "analysis_scalingup_main_tab",
+      "text": "Scaling up",
+      "fr": "Mise à l'échelle",
+      "es": "Ampliación",
+      "pt": "Ampliação"
+    },
+    {
+      "key": "analysis_optimization_main_tab",
+      "text": "Optimization",
+      "fr": "Optimisation",
+      "es": "Optimización",
+      "pt": "Otimização"
+    },
+    {
+      "key": "analysis_data_input_title",
+      "text": "Data input",
+      "fr": "Données en entrée",
+      "es": "Datos de entrada",
+      "pt": "Dados de entrada"
+    },
+    {
+      "key": "analysis_data_input_sub",
+      "text": "Select the data to be used in this analysis",
+      "fr": "Sélectionnez les données à utiliser dans cette analyse",
+      "es": "Seleccione los datos que se utilizarán en este análisis",
+      "pt": "Selecione os dados a utilizar nesta análise"
+    },
+    {
+      "key": "analysis_select_pop_raster",
+      "text": "Select population layer (raster)",
+      "fr": "Sélectionnez la couche de population (raster)",
+      "es": "Seleccione la capa de población (raster)",
+      "pt": "Selecione a camada de população (raster)"
+    },
+    {
+      "key": "analysis_select_travel_time_raster",
+      "text": "Select travel time layer (raster)",
+      "fr": "Sélectionnez la couche des temps de voyage (raster)",
+      "es": "Seleccione la capa de tiempo de desplazamiento (raster)",
+      "pt": "Selecione a camada de tempo de deslocamento (raster)"
+    },
+    {
+      "key": "analysis_select_zone_vector",
+      "text": "Select zones layer (vector)",
+      "fr": "Sélectionnez la couche des zones (vecteur)",
+      "es": "Seleccione la capa de zonas (vector)",
+      "pt": "Selecione a camada de zonas (vetor)"
+    },
+    {
+      "key": "analysis_select_zone_id_integer",
+      "text": "Select zone unique ID (integer)",
+      "fr": "Sélectionnez le champ ID unique des zones (entier)",
+      "es": "Seleccione el campo ID único de las zonas (entero)",
+      "pt": "Selecione o campo ID único das zonas (número inteiro)"
+    },
+    {
+      "key": "analysis_select_zone_name_text",
+      "text": "Select zone name (text)",
+      "fr": "Sélectionnez le nom des zones (texte)",
+      "es": "Seleccione el nombre de las zonas (texto)",
+      "pt": "Selecione o nome das zonas (texto)"
+    },
+    {
+      "key": "analysis_select_max_travel_time",
+      "text": "Select maximum travel time [minutes]",
+      "fr": "Sélectionnez le temps de voyage maximum [minutes]",
+      "es": "Seleccione el tiempo máximo de desplazamiento [minutos]",
+      "pt": "Selecione o tempo máximo de deslocamento [minutos]"
+    },
+    {
+      "key": "analysis_select_max_travel_time_desc",
+      "text": "Separate multiple values by a comma. E.g. '10, 20, 120'. Non-numeric characters or duplicated values will be ignored.",
+      "fr": "Séparez plusieurs valeurs par une virgule. Ex. '10, 20, 120'. Les valeurs non-numériques ou dupliquées seront ignorées.",
+      "es": "Separe los diferentes valores con una coma. Por ejemplo, \"10, 20, 120\". Se ignorarán los caracteres no numéricos o los valores duplicados.",
+      "pt": "Separe os diferentes valores por uma vírgula. Por exemplo, \"10, 20, 120\". Os caracteres não numéricos ou os valores duplicados serão ignorados."
+    },
+    {
+      "key": "analysis_settings_title",
+      "text": "Analysis settings",
+      "fr": "Paramètres d'analyse",
+      "es": "Parámetros de análisis",
+      "pt": "Parâmetros de análise"
+    },
+    {
+      "key": "analysis_settings_sub",
+      "text": "Configure parameters for this analysis.",
+      "fr": "Configuration des paramètres pour cette analyse.",
+      "es": "Ajustes de los parámetros para este análisis.",
+      "pt": "configuração dos parâmetros para esta análise."
+    },
+    {
+      "key": "analysis_zonal_stat_check_table_wide",
+      "text": "Format table to get individual columns for each time step",
+      "fr": "Formater la table pour obtenir des colonnes individuelles pour chaque pas de temps",
+      "es": "Formatear la tabla para obtener columnas individuales para cada paso temporal",
+      "pt": "Formatar a tabela para obter colunas individuais para cada passo de tempo"
+    },
+    {
+      "key": "analysis_zonal_stat_check_table_wide_desc",
+      "text": "Instead of using a single columns for time and population coverage, individual columns will be produced for each time step. E.g. popTravelTime_50, popCoveredPercent_50, etc.",
+      "fr": "Au lieu de produire une seule colonne pour le temps et une pour la couverture de population, une colonne individuelle sera produite pour chaque pas de temps. Ex. popTravelTime_50, popCoveredPercent_50, etc.",
+      "es": "En lugar de utilizar una única columna para el tiempo y una para la cobertura de población, se producirán columnas individuales para cada paso temporal. Por ejemplo, popTravelTime_50, popCoveredPercent_50, etc.",
+      "pt": "Em vez de utilizar uma única coluna para o tempo e una para a cobertura da população, serão produzidas colunas individuais para cada passo de tempo. Por exemplo, popTravelTime_50, popCoveredPercent_50, etc."
+    },
+    {
+      "key": "analysis_validation_title",
+      "text": "Validation",
+      "fr": "Validation",
+      "es": "Validación",
+      "pt": "Validação"
+    },
+    {
+      "key": "analysis_validation_sub",
+      "text": "Review validation issues and compute.",
+      "fr": "Vérification des problèmes de validation et calcul.",
+      "es": "Verificación de los problemas de validación y calcular.",
+      "pt": "Verificação dos problemas de validação e calcular."
+    },
+    {
+      "key": "analysis_validation_update_btn",
+      "text": "Update",
+      "fr": "Mise à jour",
+      "es": "Actualización",
+      "pt": "Atualização"
+    },
+    {
+      "key": "analysis_zonal_stat_title",
+      "text": "Zonal statistics",
+      "fr": "Statistiques zonales",
+      "es": "Estadísticas zonales",
+      "pt": "Estatísticas zonais"
+    },
+    {
+      "key": "analysis_zonal_stat_sub",
+      "text": "Population coverage by zone(s) for the selected maximum travel time",
+      "fr": "Couverture de la population par zone(s) pour la durée de voyage maximale sélectionnée",
+      "es": "Cobertura de la población por zona(s) para el tiempo máximo de desplazamiento seleccionado",
+      "pt": "Cobertura da população por zona(s) para o tempo máximo de deslocamento selecionado"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:14:34.945Z"
+}

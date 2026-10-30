@@ -1,0 +1,459 @@
+<!-- AM5 Analysis › Referral: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_analysis" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12">
+              <div id="moduleSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">
+                <label for="moduleSelector"></label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms2" name="moduleSelector" value="module_2" checked="checked" style="">
+                  <i class="far fa-clock" role="presentation" aria-label="clock icon"></i>
+                  <span data-amt_id="analysis_accessibility_main_tab">Accessibility</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms3" name="moduleSelector" value="module_3" style="">
+                  <i class="far fa-hospital" role="presentation" aria-label="hospital icon"></i>
+                  <span data-amt_id="analysis_coverage_main_tab">Geographic coverage</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 active">
+                  <input type="radio" id="ms4" name="moduleSelector" value="module_4" style="">
+                  <i class="fas fa-table" role="presentation" aria-label="table icon"></i>
+                  <span data-amt_id="analysis_referral_main_tab">Referral</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100">
+                  <input type="radio" id="ms5" name="moduleSelector" value="module_5" style="">
+                  <i class="far fa-chart-bar" role="presentation" aria-label="chart-bar icon"></i>
+                  <span data-amt_id="analysis_zonal_stats_main_tab">Zonal statistics</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 ">
+                  <input type="radio" id="ms6" name="moduleSelector" value="module_6" style="">
+                  <i class="fas fa-plus" role="presentation" aria-label="plus icon"></i>
+                  <span data-amt_id="analysis_scalingup_main_tab">Scaling up</span>
+                </label>
+                <label class="btn btn-default btn-inline w5-100 ">
+                  <input type="radio" id="ms7" name="moduleSelector" value="module_7" style="">
+                  <i class="far fa-star" role="presentation" aria-label="star icon"></i>
+                  <span data-amt_id="analysis_optimization_main_tab">Optimization</span>
+                </label>
+              </div>
+            </div>
+            <hr>
+            <div class="col-sm-12">
+              <div class="shiny-panel-conditional" data-display-if="
+      input.moduleSelector=='module_2' ||
+      input.moduleSelector=='module_3' ||
+      input.moduleSelector=='module_4' ||
+      input.moduleSelector=='module_5' ||
+      input.moduleSelector=='module_6' ||
+      input.moduleSelector=='module_7'
+      " data-ns-prefix="">
+                <div class="row">
+                  <div class="col-sm-4">
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="fas fa-right-to-bracket" role="presentation" aria-label="right-to-bracket icon"></i>
+                          <span data-amt_id="analysis_data_input_title">Data input</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_data_input_sub">Select the data to be used in this analysis</span>
+                      </p>
+                      <hr>
+                      
+                      
+                      
+                      <div class="shiny-panel-conditional" data-display-if="
+  input.moduleSelector != 'module_5'
+  " data-ns-prefix="">
+                        <div class="shiny-panel-conditional" data-display-if="input.moduleSelector != 'module_7'" data-ns-prefix="">
+                          <div class="form-group shiny-input-container">
+                            <label class="control-label" id="mergedSelect-label" for="mergedSelect-selectized">
+                              <span data-amt_id="analysis_select_merged_lc_raster">Select merged land cover layer (raster)</span>
+                            </label>
+                            <div>
+                              <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items full has-options has-items"><div class="item" data-value="rLandCoverMerged__demo@demo">(r) land cover merged [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="mergedSelect-selectized" style="width: 4px;"></div></div>
+                              
+                            </div>
+                          </div>
+                          <div class="form-group shiny-input-container">
+                            <label class="control-label" id="modelSelect-label" for="modelSelect-selectized">
+                              <span data-amt_id="analysis_select_scenario_table">Select scenario table (table)</span>
+                            </label>
+                            <div>
+                              <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items full has-options has-items"><div class="item" data-value="tScenarioOut__bicycling_only@demo">(t) scenario processed [bicycling only]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="modelSelect-selectized" style="width: 4px;"></div></div>
+                              
+                            </div>
+                          </div>
+                        </div>
+                        <div class="shiny-panel-conditional" data-display-if="input.moduleSelector== 'module_4'" data-ns-prefix="" style="">
+                          <b>
+                            <i class="fas fa-play" role="presentation" aria-label="play icon"></i>
+                            <span data-amt_id="analysis_select_from">From:</span>
+                          </b>
+                        </div>
+                        <div class="shiny-panel-conditional" data-display-if="
+        (!(input.moduleSelector=='module_6' &amp; input.useExistingHf == 'FALSE')) ||
+        (
+          input.moduleSelector == 'module_7' &amp;&amp;
+          input.mod7param &amp;&amp; input.mod7param.indexOf('adminCheck') !== -1
+        )
+      " data-ns-prefix="">
+                          <div class="form-group shiny-input-container">
+                            <label class="control-label" id="hfSelect-label" for="hfSelect-selectized">
+                              <span data-amt_id="analysis_select_health_facility_vector">Select existing health facilities layer (vector)</span>
+                            </label>
+                            <div>
+                              <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items full has-options has-items"><div class="item" data-value="vFacility__demo@demo">(v) facility [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfSelect-selectized" style="width: 4px;"></div></div>
+                              
+                            </div>
+                          </div>
+                          <div class="shiny-panel-conditional" data-display-if="
+      input.moduleSelector=='module_3' |
+        input.moduleSelector=='module_4' |
+        input.moduleSelector=='module_6' |
+        input.moduleSelector=='module_7'
+      " data-ns-prefix="" style="">
+                            <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.hfSelect) " data-ns-prefix="" style="">
+                              <div style="margin-left:10%;">
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="hfIdxField-label" for="hfIdxField-selectized">
+                                    <span data-amt_id="analysis_select_health_facility_id_field">Select facilities ID field (unique)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="cat">cat</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfIdxField-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="392v9qxb56" style="width: 4px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="hfNameField-label" for="hfNameField-selectized">
+                                    <span data-amt_id="analysis_select_health_facility_name_field">Select facility name field (text)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="name">name</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfNameField-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="rc1s4bos8b" style="width: 4px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="shiny-panel-conditional" data-display-if="input.moduleSelector=='module_4'" data-ns-prefix="" style="">
+                            <b>
+                              <i class="fas fa-stop" role="presentation" aria-label="stop icon"></i>
+                              <span data-amt_id="analysis_select_to">To:</span>
+                            </b>
+                            <div class="form-group shiny-input-container">
+                              <label class="control-label" id="hfSelectTo-label" for="hfSelectTo-selectized">
+                                <span data-amt_id="analysis_select_existing_health_facility_vector">Select existing health facilities layer (vector)</span>
+                              </label>
+                              <div>
+                                <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="vFacility__demo@demo">(v) facility [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfSelectTo-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                                
+                              </div>
+                            </div>
+                            <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.hfSelectTo) " data-ns-prefix="" style="">
+                              <div style="margin-left:10%;">
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="hfIdxFieldTo-label" for="hfIdxFieldTo-selectized">
+                                    <span data-amt_id="analysis_select_health_facility_id_field_to">Select facility ID field (unique)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="cat">cat</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfIdxFieldTo-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="4rz534aooj" style="width: 4px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="hfNameFieldTo-label" for="hfNameFieldTo-selectized">
+                                    <span data-amt_id="analysis_select_health_facility_name_field_to">Select facility name field (text)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="name">name</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="hfNameFieldTo-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="1w3se6oovw" style="width: 4px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          
+                        </div>
+                      </div>
+                      
+                      
+                      
+                      
+                    </div>
+                    
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="fas fa-wrench" role="presentation" aria-label="wrench icon"></i>
+                          <span data-amt_id="analysis_settings_title">Analysis settings</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_settings_sub">Configure parameters for this analysis.</span>
+                      </p>
+                      <hr>
+                      <div class="shiny-panel-conditional" data-display-if="
+    input.moduleSelector=='module_2' |
+      input.moduleSelector=='module_3' |
+      input.moduleSelector=='module_4' |
+      input.moduleSelector=='module_6'
+    " data-ns-prefix="">
+                        
+                        <div id="typeAnalysis" class="form-group shiny-input-radiogroup shiny-input-container shiny-bound-input">
+                          <label>
+                            <span data-amt_id="analysis_settings_type">Type of analysis</span>
+                          </label>
+                          <div class="shiny-options-group">
+                            <div class="radio">
+                              <label>
+                                <input type="radio" name="typeAnalysis" value="isotropic" style="">
+                                <span data-amt_id="analysis_settings_isotropic">Isotropic ( ignore DEM )</span>
+                              </label>
+                            </div>
+                            <div class="radio">
+                              <label>
+                                <input type="radio" name="typeAnalysis" value="anisotropic" checked="checked" style="">
+                                <span data-amt_id="analysis_settings_anisotropic">Anisotropic ( use DEM )</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkKnightMove" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                              <span>
+                                <div>
+                                  <span data-amt_id="analysis_settings_knight_move">Use "Knight's move"</span>
+                                  <small class="text-muted">
+                                    <span data-amt_id="analysis_settings_knight_move_desc">If enabled, "Knight's move" will perform an analysis on 16 neighbors cells instead of 8. Slower, but more accurate.</span>
+                                  </small>
+                                </div>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      
+                      <div class="shiny-panel-conditional" data-display-if="input.moduleSelector == 'module_4'" data-ns-prefix="" style="">
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkReferralPermute" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                              <span>
+                                <div>
+                                  <span data-amt_id="analysis_settings_referral_permute_groups">Permute groups</span>
+                                  <small class="text-muted">
+                                    <span data-amt_id="analysis_settings_referral_permute_groups_desc">If checked, this parameter could improve computation time when more facilities are selected in the starting group than in the destination one. But 'Limit the spatial analysis to the closest pair time-wise' is not possible with this option.</span>
+                                  </small>
+                                </div>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkReferralKeepNetwork" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                              <span>
+                                <span data-amt_id="analysis_settings_referral_keep_network">Output the layer of the paths among selected facilities</span>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkReferralParallel" type="checkbox" class="shiny-input-checkbox shiny-bound-input" style="">
+                              <span>
+                                <div>
+                                  <span data-amt_id="analysis_settings_referral_use_parallel">Enable parallelization</span>
+                                  <small class="text-muted">
+                                    <span data-amt_id="analysis_settings_referral_use_parallel_desc">Distribute the computation across multiple processors, if possible and when it makes sense memory-wise</span>
+                                  </small>
+                                </div>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkReferralLimitClosest" type="checkbox" class="shiny-input-checkbox shiny-bound-input" checked="checked" style="">
+                              <span>
+                                <div>
+                                  <span data-amt_id="analysis_settings_referral_limit_closest">Limit the spatial analysis to the closest pair time-wise</span>
+                                  <br>
+                                  <small class="text-muted">
+                                    <span data-amt_id="analysis_settings_referral_limit_closest_desc">The travel time will be present in the output, but not the distance. Enabling groups permutation will uncheck and disable this option</span>
+                                  </small>
+                                </div>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                        <div class="form-group shiny-input-container">
+                          <div class="checkbox">
+                            <label>
+                              <input id="checkReferralSnapToGrid" type="checkbox" class="shiny-input-checkbox shiny-bound-input" checked="checked" style="">
+                              <span>
+                                <div>
+                                  <span data-amt_id="analysis_settings_referral_snap_grid">Measure distances from cell center</span>
+                                  <br>
+                                  <small class="text-muted">
+                                    <span data-amt_id="analysis_settings_referral_snap_grid_desc">If checked, the resulting distance will be measured between the center of the cells in which the FROM and TO facilities are located (corresponds to the shortest path by travel time). If unchecked, this measure of the distance will include the distance between each facility and the center of the cell in which they are located (extended path compare to the shortest path by travel time).</span>
+                                  </small>
+                                </div>
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="shiny-panel-conditional" data-display-if="(
+    input.moduleSelector=='module_2' |
+      input.moduleSelector=='module_3' |
+      input.moduleSelector=='module_4' |
+      input.moduleSelector=='module_6'
+    )" data-ns-prefix="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="maxTravelTime-label" for="maxTravelTime">
+                            <span data-amt_id="analysis_settings_max_travel_time">Maximum travel time [minutes]</span>
+                          </label>
+                          <input id="maxTravelTime" type="number" class="shiny-input-number form-control shiny-bound-input" value="120" min="0" max="2147483647" step="1" style="">
+                        </div>
+                        
+                      </div>
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector!='module_5' &amp;&amp;
+  input.moduleSelector!='module_7'
+  )" data-ns-prefix="">
+                        
+                      </div>
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector!='module_5'
+  )" data-ns-prefix="">
+                        <div class="form-group shiny-input-container">
+                          <label class="control-label" id="costTag-label" for="costTag">
+                            <span data-amt_id="analysis_settings_add_tag">Add short tags</span>
+                          </label>
+                          <input id="costTag" type="text" class="shiny-input-text form-control shiny-bound-input" value="" style="">
+                        </div>
+                      </div>
+                      
+                    </div>
+                    <div class="well">
+                      <h3 style="text-align:center;margin-top:0px">
+                        <div>
+                          <i class="far fa-square-check" role="presentation" aria-label="square-check icon"></i>
+                          <span data-amt_id="analysis_validation_title">Validation</span>
+                        </div>
+                      </h3>
+                      <p style="text-align:center">
+                        <span data-amt_id="analysis_validation_sub">Review validation issues and compute.</span>
+                      </p>
+                      <hr>
+                      <div id="msgModule3" class="shiny-html-output shiny-bound-output" aria-live="polite"><b>Issues:</b>
+<div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> Please enter at least one tag. </div><div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> Select at least one facility in table 'FROM'. </div><div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> Select at least one facility in table 'TO'. </div>
+<b>Information:</b>
+<div> <i class="fas fa-circle-info" role="presentation" aria-label="circle-info icon"></i> The scenario has one or more speed of 0 km/h configured. This will translate to “barrier cells” during the analysis. Population on those cells will remain outside all catchments. The population count will be available in the output table and / or in the additional columns if this option is selected. </div></div>
+                      
+                      <div class="shiny-panel-conditional" data-display-if="(
+  input.moduleSelector!='module_5'
+  )" data-ns-prefix="">
+                        <button id="btnComputeAccessibility" type="button" class="btn action-button shiny-bound-input btn-danger" disabled="">
+                          <span data-amt_id="analysis_validation_compute_btn">Compute</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-xs-12 col-md-8 col-lg-7">
+                    <div class="shiny-panel-conditional" data-display-if="input.moduleSelector!='module_5' &amp;&amp; input.moduleSelector!='module_7'" data-ns-prefix="">
+                      <div class="row">
+                        <h2 style="text-align:center;margin-top:50px">
+                          <span data-amt_id="analysis_travel_scenario_title">Travel scenario</span>
+                        </h2>
+                        <p style="text-align:center">
+                          <span data-amt_id="analysis_travel_scenario_sub">Define the speed of travel for each land cover class.</span>
+                        </p>
+                        <hr>
+                        <div class="row amRowTable">
+                          <h4>
+                            <span data-amt_id="analysis_travel_scenario_processed">Travel scenario to be processed</span>
+                          </h4>
+                          
+                          <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.mergedSelect)" data-ns-prefix="" style="">
+                            <a id="speedTableUndo" href="#" class="action-button shiny-bound-input">
+                              <i class="fas fa-arrow-rotate-left" role="presentation" aria-label="arrow-rotate-left icon"></i>
+                              <span data-amt_id="analysis_travel_scenario_reset">Reset to original content</span>
+                            </a>
+                            |
+                            <a id="speedTableMerge" href="#" class="action-button shiny-bound-input">
+                              <i class="fas fa-wand-magic" role="presentation" aria-label="wand-magic icon"></i>
+                              <span data-amt_id="analysis_travel_scenario_import_selected_table">Import content from the selected scenario table</span>
+                            </a>
+                            |
+                            <a id="helpLinkSpeedTable" href="#" class="action-button shiny-bound-input">
+                              <i class="far fa-circle-question" role="presentation" aria-label="circle-question icon"></i>
+                              
+                            </a>
+                            <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="speedRasterTable" style="width: 100%; height: 30vh; visibility: inherit;" aria-live="polite"><div class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: 100%;"><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen" role="columnheader" aria-sort="none" tabulator-field="class" style="min-width: 40px; width: 167px; position: sticky; left: 0px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">class</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="label" style="min-width: 40px; width: 167px; position: sticky; left: 167px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">label</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="speed" style="min-width: 40px; width: 167px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">speed</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="mode" style="min-width: 40px; width: 167px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">mode</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen" role="gridcell" tabulator-field="class" tabindex="0" style="width: 167px; position: sticky; left: 0px; height: 23px;">1</div><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" tabindex="0" style="width: 167px; position: sticky; left: 167px; height: 23px;">no_label_1</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="speed" tabindex="0" style="width: 167px; height: 23px;">0</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="mode" tabindex="0" style="width: 167px; height: 23px;">WALKING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen" role="gridcell" tabulator-field="class" tabindex="0" style="width: 167px; position: sticky; left: 0px; height: 23px;">2</div><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" tabindex="0" style="width: 167px; position: sticky; left: 167px; height: 23px;">no_label_2</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="speed" tabindex="0" style="width: 167px; height: 23px;">0</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="mode" tabindex="0" style="width: 167px; height: 23px;">WALKING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen" role="gridcell" tabulator-field="class" tabindex="0" style="width: 167px; position: sticky; left: 0px; height: 23px;">3</div><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" tabindex="0" style="width: 167px; position: sticky; left: 167px; height: 23px;">no_label_3</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="speed" tabindex="0" style="width: 167px; height: 23px;">0</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="mode" tabindex="0" style="width: 167px; height: 23px;">WALKING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen" role="gridcell" tabulator-field="class" tabindex="0" style="width: 167px; position: sticky; left: 0px; height: 23px;">1001</div><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" tabindex="0" style="width: 167px; position: sticky; left: 167px; height: 23px;">no_label_1001</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="speed" tabindex="0" style="width: 167px; height: 23px;">0</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="mode" tabindex="0" style="width: 167px; height: 23px;">WALKING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen" role="gridcell" tabulator-field="class" tabindex="0" style="width: 167px; position: sticky; left: 0px; height: 23px;">1002</div><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" tabindex="0" style="width: 167px; position: sticky; left: 167px; height: 23px;">no_label_1002</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="speed" tabindex="0" style="width: 167px; height: 23px;">0</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="mode" tabindex="0" style="width: 167px; height: 23px;">WALKING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen" role="gridcell" tabulator-field="class" tabindex="0" style="width: 167px; position: sticky; left: 0px; height: 23px;">1003</div><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" tabindex="0" style="width: 167px; position: sticky; left: 167px; height: 23px;">no_label_1003</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="speed" tabindex="0" style="width: 167px; height: 23px;">0</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="mode" tabindex="0" style="width: 167px; height: 23px;">WALKING</div></div></div></div></div></div>
+                            <h4>
+                              <span data-amt_id="analysis_travel_scenario_selected_table">Selected scenario table</span>
+                            </h4>
+                            
+                            <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.modelSelect)" data-ns-prefix="" style="">
+                              <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="speedSqliteTable" style="width: 100%; height: 30vh; visibility: inherit;" aria-live="polite"><div class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: 100%;"><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen" role="columnheader" aria-sort="none" tabulator-field="class" style="min-width: 40px; width: 167px; position: sticky; left: 0px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">class</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="label" style="min-width: 40px; width: 167px; position: sticky; left: 167px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">label</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="speed" style="min-width: 40px; width: 167px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">speed</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="mode" style="min-width: 40px; width: 167px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">mode</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="class" style="width: 167px; position: sticky; left: 0px; height: 23px;">1</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" style="width: 167px; position: sticky; left: 167px; height: 23px;">Built_area</div><div class="tabulator-cell" role="gridcell" tabulator-field="speed" style="width: 167px; height: 23px;">12</div><div class="tabulator-cell" role="gridcell" tabulator-field="mode" style="width: 167px; height: 23px;">BICYCLING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="class" style="width: 167px; position: sticky; left: 0px; height: 23px;">2</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" style="width: 167px; position: sticky; left: 167px; height: 23px;">Low_dense_vegetation</div><div class="tabulator-cell" role="gridcell" tabulator-field="speed" style="width: 167px; height: 23px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="mode" style="width: 167px; height: 23px;">BICYCLING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="class" style="width: 167px; position: sticky; left: 0px; height: 23px;">3</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" style="width: 167px; position: sticky; left: 167px; height: 23px;">Dense_vegetation</div><div class="tabulator-cell" role="gridcell" tabulator-field="speed" style="width: 167px; height: 23px;">1</div><div class="tabulator-cell" role="gridcell" tabulator-field="mode" style="width: 167px; height: 23px;">BICYCLING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="class" style="width: 167px; position: sticky; left: 0px; height: 23px;">1001</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" style="width: 167px; position: sticky; left: 167px; height: 23px;">Main road</div><div class="tabulator-cell" role="gridcell" tabulator-field="speed" style="width: 167px; height: 23px;">20</div><div class="tabulator-cell" role="gridcell" tabulator-field="mode" style="width: 167px; height: 23px;">BICYCLING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="class" style="width: 167px; position: sticky; left: 0px; height: 23px;">1002</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" style="width: 167px; position: sticky; left: 167px; height: 23px;">Secondary</div><div class="tabulator-cell" role="gridcell" tabulator-field="speed" style="width: 167px; height: 23px;">20</div><div class="tabulator-cell" role="gridcell" tabulator-field="mode" style="width: 167px; height: 23px;">BICYCLING</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="class" style="width: 167px; position: sticky; left: 0px; height: 23px;">1003</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="label" style="width: 167px; position: sticky; left: 167px; height: 23px;">Tertiary</div><div class="tabulator-cell" role="gridcell" tabulator-field="speed" style="width: 167px; height: 23px;">20</div><div class="tabulator-cell" role="gridcell" tabulator-field="mode" style="width: 167px; height: 23px;">BICYCLING</div></div></div></div></div></div>
+                              <div id="speedTableMergeValidation" class="shiny-html-output shiny-bound-output" aria-live="polite"><b>Information:</b>
+<div> <i class="fas fa-circle-info" role="presentation" aria-label="circle-info icon"></i> Some labels in the selected scenario table do not match those stored in the travel scenario to be processed. The later will be overwriten. </div></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div class="row">
+                        <h2 style="text-align:center;margin-top:50px">
+                          <span data-amt_id="analysis_facility_selection_title">Facilities selection</span>
+                        </h2>
+                        <p style="text-align:center">
+                          <span data-amt_id="analysis_facility_selection_sub">Filter and select the facilities on which the analysis will be applied.</span>
+                        </p>
+                        <hr>
+                        <div class="row amRowTable">
+                          <h4>
+                            <span data-amt_id="analysis_facility_selected_facilities">Selected facilities</span>
+                          </h4>
+                          
+                          <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.hfSelect) &amp;&amp; isNotEmpty(input.mergedSelect)" data-ns-prefix="" style="">
+                            <div class="amTableMargin">
+                              <div class="shiny-panel-conditional" data-display-if="input.moduleSelector=='module_4'" data-ns-prefix="" style="">
+                                <h3>
+                                  <span data-amt_id="analysis_facility_selection_from">From</span>
+                                </h3>
+                              </div>
+                              <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="hfTable" style="width: 100%; height: 75vh; visibility: inherit;" aria-live="polite"><div class="tabulator-with-toolbar tabulator" role="grid" tabulator-layout="fitDataFill" style="height: 100%;"><div class="tabulator-toolbar"><span class="selection-controls"><a class="link-button" href="#">[All]</a> <a class="link-button" href="#">[None]</a> </span><select class="column-selector"></select><select class="operator-selector"></select><input class="value-input" type="number"><span class="action-buttons"><a class="link-button" href="#">[Select]</a> <a class="link-button" href="#">[Unselect]</a></span><span class="selection-count">(0/10)</span></div><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-frozen" role="columnheader" aria-sort="none" style="min-width: 40px; width: 50px; position: sticky; left: 0px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title"><input type="checkbox" aria-label="Select Row"></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen" role="columnheader" aria-sort="none" tabulator-field="cat" style="min-width: 40px; position: sticky; left: 50px; width: 57px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">cat</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen" role="columnheader" aria-sort="none" tabulator-field="amOnBarrier" style="min-width: 40px; position: sticky; left: 107px; width: 113px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amOnBarrier</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="amOnZero" style="min-width: 40px; position: sticky; left: 220px; width: 110px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amOnZero</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="amCatLandCover" style="min-width: 40px; width: 140px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amCatLandCover</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="amPopCell" style="min-width: 40px; width: 139px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amPopCell</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="name" style="min-width: 40px; width: 199px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">name</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="hf_type" style="min-width: 40px; width: 105px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">hf_type</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="capacity" style="min-width: 40px; width: 88px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">capacity</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">1</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">233.3031616210938</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Chabvala Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">2</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">3129.866943359375</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Queen Elizabeth Centre Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 3</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">2875233</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">3</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">360.8482360839844</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Neno Rural Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 1</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">78632</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">4</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1001</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">805.1980590820312</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Chiradzulu District Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 2</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">505539</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">5</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1002</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">551.0385131835938</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Namadzi Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">6</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">727.9598999023438</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Mwanza District Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 2</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">505539</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">7</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">230.4904937744141</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Chipini Rural Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 1</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">78632</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">8</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">89.55491638183594</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Tulokhondo Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">9</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">240.6463623046875</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Mdeka Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">10</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">64.70561981201172</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Nkula Clinic</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div></div></div></div></div>
+                              <div class="shiny-panel-conditional" data-display-if="input.moduleSelector=='module_4'" data-ns-prefix="" style="">
+                                
+                                <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.hfSelectTo) &amp;&amp; isNotEmpty(input.mergedSelect)" data-ns-prefix="" style="">
+                                  <h3>
+                                    <span data-amt_id="analysis_facility_selection_to">To</span>
+                                  </h3>
+                                  <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="hfTableTo" style="width: 100%; height: 75vh; visibility: inherit;" aria-live="polite"><div class="tabulator tabulator-with-toolbar" role="grid" tabulator-layout="fitDataFill" style="height: 100%;"><div class="tabulator-toolbar"><span class="selection-controls"><a class="link-button" href="#">[All]</a> <a class="link-button" href="#">[None]</a> </span><select class="column-selector"></select><select class="operator-selector"></select><input class="value-input" type="number"><span class="action-buttons"><a class="link-button" href="#">[Select]</a> <a class="link-button" href="#">[Unselect]</a></span><span class="selection-count">(0/10)</span></div><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-frozen" role="columnheader" aria-sort="none" style="min-width: 40px; width: 50px; position: sticky; left: 0px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title"><input type="checkbox" aria-label="Select Row"></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen" role="columnheader" aria-sort="none" tabulator-field="cat" style="min-width: 40px; position: sticky; left: 50px; width: 57px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">cat</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen" role="columnheader" aria-sort="none" tabulator-field="amOnBarrier" style="min-width: 40px; position: sticky; left: 107px; width: 113px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amOnBarrier</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="amOnZero" style="min-width: 40px; position: sticky; left: 220px; width: 110px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amOnZero</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="amCatLandCover" style="min-width: 40px; width: 140px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amCatLandCover</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="amPopCell" style="min-width: 40px; width: 139px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">amPopCell</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="name" style="min-width: 40px; width: 199px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">name</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="hf_type" style="min-width: 40px; width: 105px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">hf_type</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="capacity" style="min-width: 40px; width: 88px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">capacity</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">1</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">233.3031616210938</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Chabvala Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">2</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">3129.866943359375</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Queen Elizabeth Centre Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 3</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">2875233</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">3</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">360.8482360839844</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Neno Rural Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 1</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">78632</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">4</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1001</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">805.1980590820312</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Chiradzulu District Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 2</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">505539</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">5</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1002</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">551.0385131835938</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Namadzi Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">6</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">727.9598999023438</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Mwanza District Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 2</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">505539</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">7</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">230.4904937744141</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Chipini Rural Hospital</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Hospital Level 1</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">78632</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">8</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">89.55491638183594</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Tulokhondo Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">9</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">1003</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">240.6463623046875</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Mdeka Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen" role="gridcell" style="width: 50px; position: sticky; left: 0px; height: 27px;"><input type="checkbox" aria-label="Select Row"></div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="cat" style="position: sticky; left: 50px; height: 27px; width: 57px;">10</div><div class="tabulator-cell tabulator-frozen" role="gridcell" tabulator-field="amOnBarrier" style="position: sticky; left: 107px; height: 27px; width: 113px;">no</div><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="amOnZero" style="position: sticky; left: 220px; height: 27px; width: 110px;">yes</div><div class="tabulator-cell" role="gridcell" tabulator-field="amCatLandCover" style="height: 27px; width: 140px;">3</div><div class="tabulator-cell" role="gridcell" tabulator-field="amPopCell" style="height: 27px; width: 139px;">64.70561981201172</div><div class="tabulator-cell" role="gridcell" tabulator-field="name" style="height: 27px; width: 199px;">Nkula Clinic</div><div class="tabulator-cell" role="gridcell" tabulator-field="hf_type" style="height: 27px; width: 105px;">Health Centre</div><div class="tabulator-cell" role="gridcell" tabulator-field="capacity" style="height: 27px; width: 88px;">5893</div></div></div></div></div></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>

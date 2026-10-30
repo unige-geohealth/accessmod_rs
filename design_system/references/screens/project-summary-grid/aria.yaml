@@ -1,0 +1,28 @@
+- tabpanel:
+  - tablist:
+    - tab "circle-play icon Open" [selected]:  Open
+    - tab "circle-plus icon New / Import" [selected]:  New / Import
+    - tab "trash-can icon Delete" [selected]:  Delete
+    - tab "up-right-from-square icon Export" [selected]:  Export
+    - tab "language icon Language" [selected]:  Language
+  - heading "Project summary" [level=2]
+  - paragraph: Spatial summary of the current project.
+  - separator
+  - tablist:
+    - tab "Location map" [selected]
+    - tab "Projection system"
+    - tab "Grid parameters" [expanded] [selected]
+    - tabpanel "Grid parameters":
+      - list:
+        - heading "nsres" [level=5]
+        - listitem: "1000"
+        - heading "ewres" [level=5]
+        - listitem: "1000"
+        - heading "rows" [level=5]
+        - listitem: "196"
+        - heading "cols" [level=5]
+        - listitem: "227"
+        - heading "cells" [level=5]
+        - listitem: "44492"
+    - tab "Extent (metric)"
+    - tab "Extent (decimal degrees)"

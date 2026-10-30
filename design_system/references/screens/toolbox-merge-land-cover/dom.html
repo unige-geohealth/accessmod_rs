@@ -1,0 +1,126 @@
+<!-- AM5 Toolbox › Merge land cover: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_toolbox" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12"><div id="toolSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">  <label for="toolSelector"></label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool2" name="toolSelector" value="tool_map_preview" checked="checked" style="">    <i class="far fa-map" role="presentation" aria-label="map icon"></i>    <span data-amt_id="tools_map_btn">Interactive map</span>  </label>  <label class="btn btn-default btn-inline active">    <input type="radio" id="tool1" name="toolSelector" value="tool_merge_landcover" style="">    <i class="fas fa-list" role="presentation" aria-label="list icon"></i>    <span data-amt_id="tools_merge_lc_btn">Merge land cover</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool3" name="toolSelector" value="tool_pop_correction" style="">    <i class="fas fa-users" role="presentation" aria-label="users icon"></i>    <span data-amt_id="tools_correct_pop_btn">Adjust population distribution</span>  </label></div></div>
+            <hr>
+            <div class="col-sm-12">
+              <div class="shiny-panel-conditional" data-display-if="
+      input.toolSelector=='tool_merge_landcover'
+      " data-ns-prefix="" style="">
+                <div class="row">
+                  <div id="helpPanelAccessibility" class="shiny-html-output shiny-bound-output recalculating" aria-live="polite"></div>
+                  <h2 style="text-align:center;margin-top:50px">
+                    <span data-amt_id="toolbox_land_cover_merge_main">Merge land cover</span>
+                  </h2>
+                  <p style="text-align:center">
+                    <span data-amt_id="toolbox_land_cover_merge_main_sub">Module for ordering and merging the data listed in the 'stack' into a new land cover layer</span>
+                  </p>
+                  <hr>
+                  <div class="col-sm-12">
+                    <div class="tabbable">
+                      <ul class="nav nav-tabs" data-tabsetid="1925" role="tablist">
+                        <li class="active" role="presentation">
+                          <a href="#tab-1925-1" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_tab&quot;&gt;Land cover&lt;/span&gt;" role="tab" id="ui-tab-497" tabindex="0" aria-selected="true" aria-controls="tab-1925-1" aria-expanded="true">
+                            <span data-amt_id="toolbox_land_cover_tab">Land cover</span>
+                          </a>
+                        </li>
+                        <li role="presentation">
+                          <a href="#tab-1925-2" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_roads_tab&quot;&gt;Roads&lt;/span&gt;" role="tab" id="ui-tab-55" tabindex="0" aria-selected="true" aria-controls="tab-1925-2" aria-expanded="true">
+                            <span data-amt_id="toolbox_land_cover_roads_tab">Roads</span>
+                          </a>
+                        </li>
+                        <li role="presentation">
+                          <a href="#tab-1925-3" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_barrier_tab&quot;&gt;Barriers&lt;/span&gt;" role="tab" id="ui-tab-563" tabindex="0" aria-selected="true" aria-controls="tab-1925-3" aria-expanded="true">
+                            <span data-amt_id="toolbox_land_cover_barrier_tab">Barriers</span>
+                          </a>
+                        </li>
+                        <li role="presentation">
+                          <a href="#tab-1925-4" data-toggle="tab" data-bs-toggle="tab" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_merge_tab&quot;&gt;Merge&lt;/span&gt;" role="tab" id="ui-tab-294" tabindex="0" aria-selected="true" aria-controls="tab-1925-4" aria-expanded="true">
+                            <span data-amt_id="toolbox_land_cover_merge_tab">Merge</span>
+                          </a>
+                        </li>
+                      </ul>
+                      <div class="tab-content" data-tabsetid="1925">
+                        <div class="tab-pane active" data-value="&lt;span data-amt_id=&quot;toolbox_land_cover_tab&quot;&gt;Land cover&lt;/span&gt;" id="tab-1925-1" role="tabpanel" tabindex="0" aria-hidden="false" aria-labelledby="ui-tab-497">
+                          <div class="row am-tab-content">
+                            <div class="col-sm-4">
+                              <form class="well" role="complementary">
+                                <h3 style="text-align:center;margin-top:50px">
+                                  <span data-amt_id="toolbox_land_cover_title">Land cover</span>
+                                </h3>
+                                <p style="text-align:center">
+                                  <span data-amt_id="toolbox_land_cover_add_land_cover_sub">Add land cover to the stack</span>
+                                </p>
+                                <hr>
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="landCoverSelect-label" for="landCoverSelect-selectized">
+                                    <span data-amt_id="toolbox_land_cover_select_raster">Select land cover layer (raster)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="rLandCover__demo@demo">(r) land cover [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="landCoverSelect-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                                <div class="form-group shiny-input-container">
+                                  <label class="control-label" id="landCoverSelectTable-label" for="landCoverSelectTable-selectized">
+                                    <span data-amt_id="toolbox_land_cover_table">Select land cover table (optional)</span>
+                                  </label>
+                                  <div>
+                                    <div class="shiny-input-select shiny-bound-input selectize-control single"><div class="selectize-input items has-options full has-items"><div class="item" data-value="tLandCover__demo@demo">(t) land cover [demo]</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="landCoverSelectTable-selectized" style="width: 4px; opacity: 0; position: absolute; left: 0px;"></div></div>
+                                    
+                                  </div>
+                                </div>
+                                <div id="stackLandcoverValidation" class="shiny-html-output shiny-bound-output" aria-live="polite"><b>Validation issues:</b>
+<div> <i class="fas fa-triangle-exclamation" role="presentation" aria-label="triangle-exclamation icon"></i> The table to be processed contains missing or "0" values. Please modify it accordingly. </div></div>
+                                <button id="btnAddStackLcv" type="button" class="btn action-button shiny-bound-input btn-danger" disabled="">
+                                  <span data-amt_id="toolbox_land_cover_add_to_stack_btn">Add to stack</span>
+                                </button>
+                              </form>
+                            </div>
+                            <div class="col-xs-12 col-md-8 col-lg-6">
+                              <h4>
+                                <span data-amt_id="toolbox_land_cover_labeling_table">Labeling of land cover classes</span>
+                              </h4>
+                              
+                              <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.landCoverSelect)" data-ns-prefix="" style="">
+                                <h5>
+                                  <span data-amt_id="toolbox_land_cover_label_sub">Labels in the land cover layer (raster)</span>
+                                </h5>
+                                <a id="mergeLcvUndo" href="#" class="action-button shiny-bound-input">
+                                  <i class="fas fa-arrow-rotate-left" role="presentation" aria-label="arrow-rotate-left icon"></i>
+                                  <span data-amt_id="toolbox_land_cover_reset_to_original">Reset to original values</span>
+                                </a>
+                                |
+                                <a id="mergeLcv" href="#" class="action-button shiny-bound-input">
+                                  <i class="fas fa-wand-magic" role="presentation" aria-label="wand-magic icon"></i>
+                                  <span data-amt_id="toolbox_land_cover_import_labels">Import label(s) from the table below</span>
+                                </a>
+                                |
+                                <a id="helpLinkLcvTable" href="#" class="action-button shiny-bound-input">
+                                  <i class="far fa-circle-question" role="presentation" aria-label="circle-question icon"></i>
+                                  
+                                </a>
+                                <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="landCoverRasterTable" style="width: 100%; height: 30vh; visibility: inherit;" aria-live="polite"><div class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: 100%;"><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="class" style="min-width: 40px; width: 284px; position: sticky; left: 0px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">class</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="label" style="min-width: 40px; width: 284px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">label</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="class" style="width: 284px; position: sticky; left: 0px; height: 23px;">1</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="label" tabindex="0" style="width: 284px; height: 23px;">&nbsp;</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="class" style="width: 284px; position: sticky; left: 0px; height: 23px;">2</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="label" tabindex="0" style="width: 284px; height: 23px;">&nbsp;</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="class" style="width: 284px; position: sticky; left: 0px; height: 23px;">3</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="label" tabindex="0" style="width: 284px; height: 23px;">&nbsp;</div></div></div></div></div></div>
+                              </div>
+                              <div class="shiny-panel-conditional" data-display-if="isNotEmpty(input.landCoverSelectTable)" data-ns-prefix="" style="">
+                                <h5>
+                                  <span data-amt_id="toolbox_land_cover_label_optional">Labels in the optional land cover table</span>
+                                </h5>
+                                <div class="amtabulator html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output" id="landCoverSqliteTable" style="width: 100%; height: 30vh; visibility: inherit;" aria-live="polite"><div class="tabulator" role="grid" tabulator-layout="fitColumns" style="height: 100%;"><div class="tabulator-header" role="rowgroup"><div class="tabulator-header-contents" role="rowgroup"><div class="tabulator-headers" role="row" style="height: 26px;"><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element tabulator-frozen tabulator-frozen-left" role="columnheader" aria-sort="none" tabulator-field="class" style="min-width: 40px; width: 284px; position: sticky; left: 0px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">class</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div><div class="tabulator-col tabulator-sortable tabulator-col-sorter-element" role="columnheader" aria-sort="none" tabulator-field="label" style="min-width: 40px; width: 284px; height: 26px;"><div class="tabulator-col-content"><div class="tabulator-col-title-holder"><div class="tabulator-col-title">label</div><div class="tabulator-col-sorter"><div class="tabulator-arrow"></div></div></div></div></div></div><br></div></div><div class="tabulator-tableholder" tabindex="0" style="height: calc(100% - 26px); max-height: calc(100% - 26px);"><div class="tabulator-table" role="rowgroup" style="padding-top: 0px; padding-bottom: 0px;"><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="class" tabindex="0" style="width: 284px; position: sticky; left: 0px; height: 23px;">1</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="label" tabindex="0" style="width: 284px; height: 23px;">Built_area</div></div><div class="tabulator-row tabulator-selectable tabulator-row-even" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="class" tabindex="0" style="width: 284px; position: sticky; left: 0px; height: 23px;">2</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="label" tabindex="0" style="width: 284px; height: 23px;">Low_dense_vegetation</div></div><div class="tabulator-row tabulator-selectable tabulator-row-odd" role="row"><div class="tabulator-cell tabulator-editable tabulator-frozen tabulator-frozen-left" role="gridcell" tabulator-field="class" tabindex="0" style="width: 284px; position: sticky; left: 0px; height: 23px;">3</div><div class="tabulator-cell tabulator-editable" role="gridcell" tabulator-field="label" tabindex="0" style="width: 284px; height: 23px;">Dense_vegetation</div></div></div></div></div></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        
+                        
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              
+            </div>
+          </div>
+        </div>

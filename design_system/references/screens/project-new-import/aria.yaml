@@ -1,0 +1,22 @@
+- tabpanel:
+  - tablist:
+    - tab "circle-play icon Open" [selected]:  Open
+    - tab "circle-plus icon New / Import" [expanded] [selected]:  New / Import
+    - tabpanel "circle-plus icon New / Import":
+      - text: Enter a new project name (min 4 characters)
+      - textbox "Enter a new project name (min 4 characters)"
+      - paragraph:  Enter 4 more characters
+      - text: Choose DEM or project
+      - button "Choose DEM or project" [disabled]
+    - tab "trash-can icon Delete":  Delete
+    - tab "up-right-from-square icon Export":  Export
+    - tab "language icon Language":  Language
+  - heading "Project summary" [level=2]
+  - paragraph: Spatial summary of the current project.
+  - separator
+  - tablist:
+    - tab "Location map" [selected]
+    - tab "Projection system"
+    - tab "Grid parameters"
+    - tab "Extent (metric)"
+    - tab "Extent (decimal degrees)"

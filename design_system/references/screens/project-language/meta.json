@@ -1,0 +1,184 @@
+{
+  "id": "project-language",
+  "name": "Project › Language",
+  "am5Version": "Version 5.9.2-beta.6",
+  "project": "DEMO",
+  "url": "http://localhost:3080/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "page": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "tab": "module_project"
+    },
+    {
+      "panel": "#manageProject",
+      "index": 5
+    }
+  ],
+  "source": [
+    "modules/amManageProject/amUi.R"
+  ],
+  "icons": [
+    "fa-circle-play",
+    "fa-circle-plus",
+    "fa-trash-can",
+    "fa-up-right-from-square",
+    "fa-language"
+  ],
+  "i18n": [
+    {
+      "key": "main_ui_current_project",
+      "text": "Current Project:",
+      "fr": "Projet courant:",
+      "es": "Proyecto actual:",
+      "pt": "Projeto atual:"
+    },
+    {
+      "key": "main_ui_tab_project",
+      "text": "Project",
+      "fr": "Projet",
+      "es": "Proyecto",
+      "pt": "Projeto"
+    },
+    {
+      "key": "main_ui_tab_data",
+      "text": "Data",
+      "fr": "Données",
+      "es": "Datos",
+      "pt": "Dados"
+    },
+    {
+      "key": "main_ui_tab_analysis",
+      "text": "Analysis",
+      "fr": "Analyses",
+      "es": "Análisis",
+      "pt": "Análise"
+    },
+    {
+      "key": "main_ui_tab_toolbox",
+      "text": "Toolbox",
+      "fr": "Outils",
+      "es": "Caja de herramientas",
+      "pt": "Caixa de ferramentas"
+    },
+    {
+      "key": "main_ui_tab_logs",
+      "text": "Logs",
+      "fr": "Logs",
+      "es": "Registros",
+      "pt": "Registos"
+    },
+    {
+      "key": "main_ui_tab_settings",
+      "text": "Settings",
+      "fr": "Configuration",
+      "es": "Ajustes",
+      "pt": "Configurações"
+    },
+    {
+      "key": "main_ui_tab_about",
+      "text": "About",
+      "fr": "À propos",
+      "es": "Acerca de",
+      "pt": "Sobre"
+    },
+    {
+      "key": "project_open_title",
+      "text": "Open",
+      "fr": "Ouvrir",
+      "es": "Abrir",
+      "pt": "Abrir"
+    },
+    {
+      "key": "project_new_import_title",
+      "text": "New / Import",
+      "fr": "Nouveau / Importer",
+      "es": "Nuevo / Importar",
+      "pt": "Novo / Importar"
+    },
+    {
+      "key": "project_delete_title",
+      "text": "Delete",
+      "fr": "Supprimer",
+      "es": "Eliminar",
+      "pt": "Eliminar"
+    },
+    {
+      "key": "project_export_title",
+      "text": "Export",
+      "fr": "Exporter",
+      "es": "Exportar",
+      "pt": "Exportar"
+    },
+    {
+      "key": "project_language_title",
+      "text": "Language",
+      "fr": "Langue",
+      "es": "Idioma",
+      "pt": "Língua"
+    },
+    {
+      "key": "project_language_select",
+      "text": "Select the language",
+      "fr": "Sélectionnez la langue",
+      "es": "Seleccione el idioma",
+      "pt": "Selecione a língua"
+    },
+    {
+      "key": "project_summary_title",
+      "text": "Project summary",
+      "fr": "Résumé du projet",
+      "es": "Resumen del proyecto",
+      "pt": "Resumo do projeto"
+    },
+    {
+      "key": "project_summary_sub",
+      "text": "Spatial summary of the current project.",
+      "fr": "Résumé des variables spatiales du projet en cours.",
+      "es": "Resumen de las variables espaciales del proyecto actual.",
+      "pt": "Resumo das variáveis espaciais do projeto atual."
+    },
+    {
+      "key": "project_location_map_title",
+      "text": "Location map",
+      "fr": "Carte de localisation",
+      "es": "Mapa de situación",
+      "pt": "Mapa de localização"
+    },
+    {
+      "key": "project_projection_system_title",
+      "text": "Projection system",
+      "fr": "Système de projection",
+      "es": "Sistema de proyección",
+      "pt": "Sistema de projeção"
+    },
+    {
+      "key": "project_grid_parameter_title",
+      "text": "Grid parameters",
+      "fr": "Paramètres du grid",
+      "es": "Parámetros de la rejilla",
+      "pt": "Parâmetros da grelha"
+    },
+    {
+      "key": "project_extent_metric_title",
+      "text": "Extent (metric)",
+      "fr": "Etendue (métrique)",
+      "es": "Extensión (sist. métrico)",
+      "pt": "Extensão (sist. métrico)"
+    },
+    {
+      "key": "project_extent_degrees_title",
+      "text": "Extent (decimal degrees)",
+      "fr": "Etendue (degrés décimaux)",
+      "es": "Extensión (grados decimales)",
+      "pt": "Extensão (graus decimais)"
+    }
+  ],
+  "capturedAt": "2026-10-30T09:12:09.037Z"
+}

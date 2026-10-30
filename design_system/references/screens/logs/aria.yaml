@@ -1,0 +1,33 @@
+- tabpanel:
+  - complementary:
+    - heading "Logs" [level=4]
+    - text: Number of last logs to show 1 5,000 300 1 501 1,001 1,501 2,001 2,501 3,001 3,501 4,001 4,501 5,000
+    - textbox "Number of last logs to show": "300"
+    - text: Filter
+    - radio "Errors" [checked]
+    - text: Errors
+    - radio "Warnings"
+    - text: Warnings
+    - radio "Messages"
+    - text: Messages
+    - radio "Logs"
+    - text: Logs
+    - radio "All"
+    - text: All
+    - link "download icon Download logs":
+      - /url: session/705e1ec6f916a770f1be6dba4127f681/download/downloadLogs?w=
+      - text:  Download logs
+    - button "trash-can icon Clear logs":  Clear logs
+  - main:
+    - grid:
+      - rowgroup:
+        - rowgroup:
+          - row "time type msg":
+            - columnheader "time"
+            - columnheader "type"
+            - columnheader "msg"
+      - rowgroup:
+        - row:
+          - gridcell
+          - gridcell
+          - gridcell

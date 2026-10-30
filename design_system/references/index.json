@@ -1,0 +1,364 @@
+{
+  "capturedAt": "2026-10-30T09:19:00.403Z",
+  "url": "http://localhost:3080/",
+  "project": "demo",
+  "languages": [
+    "en",
+    "fr",
+    "es",
+    "pt"
+  ],
+  "screens": [
+    {
+      "id": "project-open",
+      "name": "Project › Open",
+      "source": [
+        "modules/amManageProject/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 913
+      }
+    },
+    {
+      "id": "project-new-import",
+      "name": "Project › New / Import",
+      "source": [
+        "modules/amManageProject/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "project-delete",
+      "name": "Project › Delete",
+      "source": [
+        "modules/amManageProject/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "project-export",
+      "name": "Project › Export",
+      "source": [
+        "modules/amManageProject/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "project-language",
+      "name": "Project › Language",
+      "source": [
+        "modules/amManageProject/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "project-summary-grid",
+      "name": "Project › Summary › Grid parameters",
+      "source": [
+        "modules/amManageProject/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "data-import",
+      "name": "Data › Import",
+      "source": [
+        "modules/amManageData/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1044
+      }
+    },
+    {
+      "id": "data-filter",
+      "name": "Data › Filter",
+      "source": [
+        "modules/amManageData/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1044
+      }
+    },
+    {
+      "id": "data-rename",
+      "name": "Data › Rename",
+      "source": [
+        "modules/amManageData/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1044
+      }
+    },
+    {
+      "id": "data-archive",
+      "name": "Data › Archive",
+      "source": [
+        "modules/amManageData/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1044
+      }
+    },
+    {
+      "id": "data-delete",
+      "name": "Data › Delete",
+      "source": [
+        "modules/amManageData/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1044
+      }
+    },
+    {
+      "id": "analysis-accessibility",
+      "name": "Analysis › Accessibility",
+      "source": [
+        "modules/amManageAnalysis/amUi.R",
+        "modules/amAnalysisAccessibility/amUi.R",
+        "modules/amAnalysisAccessibility/amUi_modulesData.R",
+        "modules/amAnalysisAccessibility/amUi_modulesSettings.R",
+        "modules/amAnalysisAccessibility/amUi_tableScenario.R",
+        "modules/amAnalysisAccessibility/amUi_tablesFacilities.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1912
+      }
+    },
+    {
+      "id": "analysis-coverage",
+      "name": "Analysis › Geographic coverage",
+      "source": [
+        "modules/amManageAnalysis/amUi.R",
+        "modules/amAnalysisAccessibility/amUi.R",
+        "modules/amAnalysisAccessibility/amUi_modulesData.R",
+        "modules/amAnalysisAccessibility/amUi_modulesSettings.R",
+        "modules/amAnalysisAccessibility/amUi_tablesFacilities.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 2353
+      }
+    },
+    {
+      "id": "analysis-referral",
+      "name": "Analysis › Referral",
+      "source": [
+        "modules/amManageAnalysis/amUi.R",
+        "modules/amAnalysisAccessibility/amUi.R",
+        "modules/amAnalysisAccessibility/amUi_modulesData.R",
+        "modules/amAnalysisAccessibility/amUi_modulesSettings.R",
+        "modules/amAnalysisAccessibility/amUi_tablesFacilities.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 2696
+      }
+    },
+    {
+      "id": "analysis-zonal-statistics",
+      "name": "Analysis › Zonal statistics",
+      "source": [
+        "modules/amManageAnalysis/amUi.R",
+        "modules/amAnalysisAccessibility/amUi.R",
+        "modules/amAnalysisAccessibility/amUi_modulesData.R",
+        "modules/amAnalysisAccessibility/amUi_zonalStat.R",
+        "modules/amAnalysisAccessibility/amUi_modulesValidation.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1226
+      }
+    },
+    {
+      "id": "analysis-scaling-up",
+      "name": "Analysis › Scaling up",
+      "source": [
+        "modules/amManageAnalysis/amUi.R",
+        "modules/amAnalysisAccessibility/amUi.R",
+        "modules/amAnalysisAccessibility/amUi_modulesData.R",
+        "modules/amAnalysisAccessibility/amUi_scalingUpTablesSettings.R",
+        "modules/amAnalysisAccessibility/amUi_tablesScalingUp.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 2854
+      }
+    },
+    {
+      "id": "analysis-optimization",
+      "name": "Analysis › Optimization",
+      "source": [
+        "modules/amManageAnalysis/amUi.R",
+        "modules/amAnalysisAccessibility/amUi.R",
+        "modules/amAnalysisAccessibility/amUi_modulesData.R",
+        "modules/amAnalysisAccessibility/amUi_modulesSettings.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1304
+      }
+    },
+    {
+      "id": "toolbox-map-raster",
+      "name": "Toolbox › Interactive map",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amGisPreview/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "toolbox-map-options",
+      "name": "Toolbox › Interactive map › Options",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amGisPreview/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "toolbox-map-facilities",
+      "name": "Toolbox › Interactive map › Facilities",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amGisPreview/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "toolbox-merge-land-cover",
+      "name": "Toolbox › Merge land cover",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amAnalysisMergeLandCover/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1051
+      }
+    },
+    {
+      "id": "toolbox-merge-land-cover-roads",
+      "name": "Toolbox › Merge land cover › Roads",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amAnalysisMergeLandCover/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1164
+      }
+    },
+    {
+      "id": "toolbox-merge-land-cover-barriers",
+      "name": "Toolbox › Merge land cover › Barriers",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amAnalysisMergeLandCover/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1134
+      }
+    },
+    {
+      "id": "toolbox-merge-land-cover-stack",
+      "name": "Toolbox › Merge land cover › Merge (stack)",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amAnalysisMergeLandCover/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1025
+      }
+    },
+    {
+      "id": "toolbox-adjust-population",
+      "name": "Toolbox › Adjust population distribution",
+      "source": [
+        "modules/amManageToolbox/amUi.R",
+        "modules/amPopulationBarrierCorrection/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 1010
+      }
+    },
+    {
+      "id": "logs",
+      "name": "Logs",
+      "source": [
+        "modules/amManageLogs/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "source": [
+        "modules/amManageSettings/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "settings-admin",
+      "name": "Settings › Admin tools",
+      "source": [
+        "modules/amManageSettings/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "id": "about",
+      "name": "About",
+      "source": [
+        "modules/amAbout/amUi.R"
+      ],
+      "page": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+<!-- AM5 Toolbox › Interactive map › Options: visible DOM of the active tab -->
+<div role="tabpanel" class="tab-pane active" id="shiny-tab-module_toolbox" aria-hidden="false" tabindex="0">
+          <div class="row">
+            <div class="col-sm-12"><div id="toolSelector" class="form-group shiny-input-radiogroup shiny-input-container-inline shiny-flow-layout shiny-bound-input" data-toggle="buttons" style="line-height:37px;">  <label for="toolSelector"></label>  <label class="btn btn-default btn-inline active">    <input type="radio" id="tool2" name="toolSelector" value="tool_map_preview" checked="checked" style="">    <i class="far fa-map" role="presentation" aria-label="map icon"></i>    <span data-amt_id="tools_map_btn">Interactive map</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool1" name="toolSelector" value="tool_merge_landcover" style="">    <i class="fas fa-list" role="presentation" aria-label="list icon"></i>    <span data-amt_id="tools_merge_lc_btn">Merge land cover</span>  </label>  <label class="btn btn-default btn-inline">    <input type="radio" id="tool3" name="toolSelector" value="tool_pop_correction" style="">    <i class="fas fa-users" role="presentation" aria-label="users icon"></i>    <span data-amt_id="tools_correct_pop_btn">Adjust population distribution</span>  </label></div></div>
+            <hr>
+            <div class="col-sm-12">
+              
+              <div class="shiny-panel-conditional" data-display-if="
+      input.toolSelector=='tool_map_preview'
+      " data-ns-prefix="">
+                <div class="row">
+                  <div class="col-xs-12 col-md-4">
+                    <div class="panel-group" id="mapTools" role="tablist" aria-multiselectable="true">
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools1" id="ui-collapse-315" aria-controls="mapTools1" role="tab" aria-selected="true" aria-expanded="true" tabindex="0" class="">
+                              <div role="presentation">
+                                <i class="far fa-map" role="presentation" aria-label="map icon"></i>
+                                <span data-amt_id="tool_map_options">Options</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        <div id="mapTools1" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="ui-collapse-315" tabindex="0" aria-expanded="true" aria-hidden="false" style="">
+                          <div class="panel-body">
+                            <div class="form-group shiny-input-container" role="presentation">
+                              <label class="control-label" id="selBaseMap-label" for="selBaseMap-selectized">
+                                <span data-amt_id="toolbox_map_basemap_select">Select a basemap</span>
+                              </label>
+                              <div role="presentation">
+                                <div class="shiny-input-select form-control selectize-control single plugin-selectize-plugin-a11y"><div class="selectize-input items full has-options has-items"><div class="item" data-value="simple">Simple I</div><input type="text" autocomplete="new-password" autofill="no" tabindex="" id="selBaseMap-selectized" role="combobox" aria-expanded="false" haspopup="listbox" aria-owns="kb8niich3u" style="width: 4px;"></div></div>
+                                
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools2" id="ui-collapse-702" aria-controls="mapTools2" role="tab" aria-selected="true" aria-expanded="false" tabindex="0" class="collapsed">
+                              <div role="presentation">
+                                <span class="icon-grid_area_before"></span>
+                                <span data-amt_id="tool_map_raster">Raster</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        
+                      </div>
+                      <div style="" class="panel panel-default" data-display-if="true" role="presentation">
+                        <div class="panel-heading" role="presentation">
+                          <h4 class="panel-title" role="presentation">
+                            <a data-toggle="collapse" data-parent="#mapTools" href="#mapTools3" id="ui-collapse-579" aria-controls="mapTools3" role="tab" aria-selected="false" aria-expanded="false" tabindex="-1" class="collapsed">
+                              <div role="presentation">
+                                <i class="far fa-hospital" role="presentation" aria-label="hospital icon"></i>
+                                <span data-amt_id="tool_map_facilities">Facilities</span>
+                              </div>
+                            </a>
+                          </h4>
+                        </div>
+                        
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-xs-12 col-md-8">
+                    <div class="leaflet html-widget html-widget-output shiny-report-size html-fill-item shiny-bound-output leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" id="mapPreview" style="width: 100%; height: 500px; visibility: inherit; position: relative;" aria-live="polite" tabindex="0"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 0px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"></div></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-overlay-pane"><img class="leaflet-image-layer leaflet-zoom-animated" src="cache/rPriority__demo__33.787_-16.533_35.92_-14.744.png" alt="" style="z-index: 1; opacity: 0.8; transform: translate3d(191px, 81px, 0px); width: 388px; height: 338px;"></div><div class="leaflet-pane leaflet-marker-pane"></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(39112.9px, 35651.3px, 0px) scale(128);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in">+</a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out">−</a></div><div class="leaflet-bar easy-button-container leaflet-control"><button class="easy-button-button leaflet-bar-part leaflet-interactive unnamed-state-active" type="button" id="[object Object]" title="Home"><span class="button-state state-unnamed-state unnamed-state-active"><span class="fa fa-home"></span></span></button></div></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"><div class="leaflet-control-scale leaflet-control"><div class="leaflet-control-scale-line" style="width: 85px;">50 km</div><div class="leaflet-control-scale-line" style="width: 82px;">30 mi</div></div></div><div class="leaflet-bottom leaflet-right"><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> | <a href="https://www.maptiler.com/copyright/" target="_blank">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a></div></div></div></div>
+                  </div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        </div>

@@ -1,0 +1,43 @@
+- tabpanel:
+  - radio "map icon Interactive map"
+  - text:  Interactive map
+  - radio "list icon Merge land cover" [checked]
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - heading "Merge land cover" [level=2]
+  - paragraph: Module for ordering and merging the data listed in the 'stack' into a new land cover layer
+  - separator
+  - tablist:
+    - tab "Land cover"
+    - tab "Roads" [expanded] [selected]
+    - tab "Barriers" [expanded] [selected]
+    - tab "Merge" [expanded] [selected]
+  - tabpanel "Roads":
+    - complementary:
+      - heading "Roads" [level=3]
+      - paragraph: Add roads to the stack
+      - separator
+      - text: Select road layer (vector) (v) road [64]
+      - textbox "Select road layer (vector)"
+      - text: Select road class column (32-bit integer)
+      - combobox "Select road class column (32-bit integer)"
+      - text: Select road label column (text) newclass
+      - combobox "Select road label column (text)"
+      - text: "Validation issues:  No 32-bit integer column found. Re-export the road layer with the class column as a 32-bit integer."
+      - button "Add to the stack" [disabled]
+    - heading "Labeling of road classes" [level=4]
+    - link "circle-question icon":
+      - /url: "#"
+      - text: 
+    - grid:
+      - rowgroup:
+        - rowgroup:
+          - row "class label":
+            - columnheader "class"
+            - columnheader "label"
+      - rowgroup:
+        - row "- -":
+          - gridcell "-"
+          - gridcell "-"

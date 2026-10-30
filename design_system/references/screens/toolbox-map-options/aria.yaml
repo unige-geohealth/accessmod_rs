@@ -1,0 +1,26 @@
+- tabpanel:
+  - radio "map icon Interactive map" [checked]
+  - text:  Interactive map
+  - radio "list icon Merge land cover"
+  - text:  Merge land cover
+  - radio "users icon Adjust population distribution"
+  - text:  Adjust population distribution
+  - separator
+  - tablist:
+    - tab "map icon Options" [expanded] [selected]:  Options
+    - tabpanel "map icon Options":
+      - text: Select a basemap Simple I
+      - combobox "Select a basemap"
+    - tab "B Raster" [selected]
+    - tab "hospital icon Facilities":  Facilities
+  - button "Zoom in": +
+  - button "Zoom out": −
+  - button ""
+  - text: 50 km 30 mi
+  - link "Leaflet":
+    - /url: https://leafletjs.com
+  - text: "|"
+  - link "© MapTiler":
+    - /url: https://www.maptiler.com/copyright/
+  - link "© OpenStreetMap contributors":
+    - /url: https://www.openstreetmap.org/copyright
