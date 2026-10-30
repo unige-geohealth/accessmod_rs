@@ -543,6 +543,12 @@ async fn rows_page_vector_attributes_and_tables() {
     assert_eq!(page["columns"], json!(["hf_id"]));
     assert_eq!(page["rows"], json!([[7]]));
     assert_eq!(page["total"], 1);
+    // Land cover at the facility: class 1.
+    let (status, page) = s.call("GET", &rows("3/rows?sample=2,2"), None).await;
+    assert_eq!(
+        (status, page["samples"].clone()),
+        (StatusCode::OK, json!([[1.0, 1.0]]))
+    );
     let (status, page) = s
         .call("GET", &rows("3/rows?where=hf_id%20%3E%207"), None)
         .await;
@@ -570,6 +576,11 @@ async fn rows_page_vector_attributes_and_tables() {
         ("3/rows?limit=abc", StatusCode::BAD_REQUEST),
         ("4/rows?where=class%3D1", StatusCode::BAD_REQUEST),
         ("2/rows", StatusCode::BAD_REQUEST),
+        ("3/rows?sample=3", StatusCode::BAD_REQUEST),
+        ("3/rows?sample=x", StatusCode::BAD_REQUEST),
+        ("3/rows?sample=99", StatusCode::NOT_FOUND),
+        ("3/rows?sample=2,2,2,2,2", StatusCode::UNPROCESSABLE_ENTITY),
+        ("4/rows?sample=2", StatusCode::BAD_REQUEST),
         ("99/rows", StatusCode::NOT_FOUND),
     ] {
         let (status, body) = s.call("GET", &rows(query), None).await;

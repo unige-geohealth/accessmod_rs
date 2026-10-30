@@ -74,7 +74,7 @@ impl LoadedFacilities {
 }
 
 /// Single point of a geometry: a point or a one-point multipoint.
-fn single_point(geometry: &Geometry) -> std::result::Result<(f64, f64), String> {
+pub fn single_point(geometry: &Geometry) -> std::result::Result<(f64, f64), String> {
     let kind = geometry_type_flatten(geometry.geometry_type());
     if kind == OGRwkbGeometryType::wkbPoint {
         if geometry.is_empty() {

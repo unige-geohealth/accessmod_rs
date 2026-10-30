@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{Error, Result};
+use crate::facilities::single_point;
 use crate::output::read_csv;
+use crate::tiles::PointSampler;
 use crate::vector::{json_attribute, open_dataset, set_filter};
 
 /// Rows of a page at most.
@@ -26,15 +28,31 @@ pub struct Rows {
     /// Values of each row, in column order (`null`: no value). Table values
     /// are text, as stored.
     pub rows: Vec<Vec<Value>>,
+    /// Values of the sampled rasters at the point of each row, in the order
+    /// requested (`null`: no point, outside the raster or NoData). Empty
+    /// when no raster is sampled.
+    #[serde(default)]
+    pub samples: Vec<Vec<Option<f64>>>,
     /// Rows before this page.
     pub offset: u64,
     /// Rows matching the filter, every page included.
     pub total: u64,
 }
 
+/// Rasters sampled per row at most.
+pub const MAX_SAMPLED: usize = 4;
+
 /// Page of the attributes of the first layer of vector `path`, geometries
-/// left out, in layer order. `filter` is an OGR SQL `WHERE`.
-pub fn vector_rows(path: &Path, filter: Option<&str>, offset: u64, limit: usize) -> Result<Rows> {
+/// left out, in layer order. `filter` is an OGR SQL `WHERE`. Each raster of
+/// `sample` is read at the point of each row (a point or one-point
+/// multipoint), e.g. land cover and population at facilities.
+pub fn vector_rows(
+    path: &Path,
+    filter: Option<&str>,
+    offset: u64,
+    limit: usize,
+    sample: &[&Path],
+) -> Result<Rows> {
     let limit = limit.min(MAX_PAGE);
     let dataset = open_dataset(path)?;
     let invalid = |issue: String| Error::invalid(format!("{}: {issue}", path.display()));
@@ -44,8 +62,18 @@ pub fn vector_rows(path: &Path, filter: Option<&str>, offset: u64, limit: usize)
     if let Some(filter) = filter {
         set_filter(&dataset, &mut layer, filter).map_err(invalid)?;
     }
+    if sample.len() > MAX_SAMPLED {
+        return Err(invalid(format!(
+            "more than {MAX_SAMPLED} rasters to sample"
+        )));
+    }
+    let samplers = sample
+        .iter()
+        .map(|raster| PointSampler::open(raster, layer.spatial_ref()))
+        .collect::<Result<Vec<_>>>()?;
     let columns: Vec<String> = layer.defn().fields().map(|f| f.name()).collect();
     let mut rows = Vec::new();
+    let mut samples = Vec::new();
     let mut total = 0u64;
     for feature in layer.features() {
         if total >= offset && rows.len() < limit {
@@ -55,12 +83,24 @@ pub fn vector_rows(path: &Path, filter: Option<&str>, offset: u64, limit: usize)
                 row.push(json_attribute(value).unwrap_or(Value::Null));
             }
             rows.push(row);
+            if !samplers.is_empty() {
+                let point = feature.geometry().and_then(|g| single_point(g).ok());
+                let values = samplers
+                    .iter()
+                    .map(|sampler| match point {
+                        Some((x, y)) => sampler.sample(x, y),
+                        None => Ok(None),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                samples.push(values);
+            }
         }
         total += 1;
     }
     Ok(Rows {
         columns,
         rows,
+        samples,
         offset,
         total,
     })
@@ -98,6 +138,7 @@ pub fn table_rows(path: &Path, offset: u64, limit: usize) -> Result<Rows> {
     Ok(Rows {
         columns,
         rows,
+        samples: Vec::new(),
         offset,
         total,
     })
@@ -128,7 +169,7 @@ mod tests {
     fn vector_pages_are_bounded_and_filtered() {
         let dir = tempfile::tempdir().expect("temp dir");
         let path = layer(dir.path());
-        let page = vector_rows(&path, None, 20, 10).expect("page");
+        let page = vector_rows(&path, None, 20, 10, &[]).expect("page");
         assert_eq!(page.columns, ["id"]);
         assert_eq!(page.total, 25);
         let ids: Vec<i64> = page
@@ -138,16 +179,60 @@ mod tests {
             .collect();
         assert_eq!(ids, [20, 21, 22, 23, 24]);
 
-        let page = vector_rows(&path, Some("id < 3"), 0, 10).expect("filtered");
+        let page = vector_rows(&path, Some("id < 3"), 0, 10, &[]).expect("filtered");
         assert_eq!((page.total, page.rows.len()), (3, 3));
 
-        let page = vector_rows(&path, None, 0, usize::MAX).expect("capped");
+        let page = vector_rows(&path, None, 0, usize::MAX, &[]).expect("capped");
         assert_eq!(page.rows.len(), 25);
 
-        let err = vector_rows(&path, Some("id <<< 3"), 0, 10).expect_err("bad filter");
+        let err = vector_rows(&path, Some("id <<< 3"), 0, 10, &[]).expect_err("bad filter");
         assert!(err.to_string().contains("invalid filter"), "{err}");
-        let err = vector_rows(&path, Some("nope = 1"), 0, 10).expect_err("unknown field");
+        let err = vector_rows(&path, Some("nope = 1"), 0, 10, &[]).expect_err("unknown field");
         assert!(err.to_string().contains("invalid filter"), "{err}");
+    }
+
+    #[test]
+    fn rasters_are_sampled_at_points() {
+        use crate::fixtures::{X0, Y0, geo_transform, grid, write_raster};
+        let dir = tempfile::tempdir().expect("temp dir");
+        let raster = dir.path().join("lc.tif");
+        write_raster::<u8>(
+            &raster,
+            3,
+            2,
+            geo_transform(X0, Y0),
+            vec![1, 2, 3, 0, 5, 6],
+            Some(0.0),
+        );
+        let (x, y) = grid(3, 2).cell_centre(0, 2);
+        let (xn, yn) = grid(3, 2).cell_centre(1, 0);
+        let path = dir.path().join("hf.gpkg");
+        let inside = format!("POINT ({x} {y})");
+        let nodata = format!("POINT ({xn} {yn})");
+        let outside = format!("POINT ({} {y})", X0 - 50.0);
+        let features: Vec<(Option<FieldValue>, &str)> = [&inside, &nodata, &outside]
+            .iter()
+            .enumerate()
+            .map(|(i, wkt)| (Some(FieldValue::Integer64Value(i as i64)), wkt.as_str()))
+            .collect();
+        write_layer(
+            &path,
+            "hf",
+            EPSG,
+            ("id", OGRFieldType::OFTInteger64),
+            &features,
+        );
+        let page = vector_rows(&path, None, 0, 10, &[&raster, &raster]).expect("page");
+        assert_eq!(
+            page.samples,
+            [
+                vec![Some(3.0), Some(3.0)],
+                vec![None, None],
+                vec![None, None]
+            ]
+        );
+        let many = [raster.as_path(); MAX_SAMPLED + 1];
+        assert!(vector_rows(&path, None, 0, 10, &many).is_err());
     }
 
     #[test]

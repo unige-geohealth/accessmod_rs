@@ -23,6 +23,21 @@
       },
       "type": "array"
     },
+    "samples": {
+      "default": [],
+      "description": "Values of the sampled rasters at the point of each row, in the order\nrequested (`null`: no point, outside the raster or NoData). Empty\nwhen no raster is sampled.",
+      "items": {
+        "items": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "type": "array"
+      },
+      "type": "array"
+    },
     "total": {
       "description": "Rows matching the filter, every page included.",
       "format": "uint64",

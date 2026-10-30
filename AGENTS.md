@@ -189,9 +189,9 @@ determinism, memory budget, cancellation and error messages included.
 | Memory plan and execution settings | `accessmod_io::resources` |
 | Staging directory, GeoTIFF blocks, CSV, `finish` | `accessmod_io::output` |
 | Raster overviews in an external `.ovr`, statistics (range, histogram, classes) | `accessmod_io::preview` |
-| Map previews: raster tiles in Web Mercator (PNG, through the overviews), GeoJSON in WGS 84, values at a point, bounds | `accessmod_io::tiles` |
+| Map previews: raster tiles in Web Mercator (PNG, through the overviews), GeoJSON in WGS 84, values at a point (`PointSampler`), bounds | `accessmod_io::tiles` |
 | RFC 4180 CSV reading (quoted fields, bounded records) | `accessmod_io::output::read_csv` |
-| Paged attribute rows of a vector layer or a table (bounded pages, filter, total) | `accessmod_io::rows` |
+| Paged attribute rows of a vector layer or a table (bounded pages, filter, total, rasters sampled at points) | `accessmod_io::rows` |
 | Data classes (AccessMod 5 identifiers), `x-accessmod-class` on job fields | `accessmod_io::class` |
 | `run.json` (`Report`, `Execution`), fingerprints, warnings | `accessmod_io::report` |
 | `prepare` / `run` contract driven by the CLI and `accessmod serve`, progress (`Monitor`), registry of analyses (`for_each`) | `accessmod_io::analysis` |

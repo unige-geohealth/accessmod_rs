@@ -6,7 +6,7 @@
 //! grid never reads the whole grid.
 
 use std::ffi::{CString, c_char, c_int};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use gdal::raster::{Buffer, GdalType};
 use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
@@ -273,32 +273,78 @@ fn traditional(mut srs: SpatialRef) -> SpatialRef {
 /// Value of band 1 of `path` at longitude `lon`, latitude `lat`; `None`
 /// outside the raster or on NoData.
 pub fn value_at(path: &Path, lon: f64, lat: f64) -> Result<Option<f64>> {
-    let dataset = Dataset::open(path).map_err(Error::gdal(path))?;
-    let srs = traditional(dataset.spatial_ref().map_err(Error::gdal(path))?);
-    let transform = CoordTransform::new(&wgs84()?, &srs).map_err(Error::gdal(path))?;
-    let (mut xs, mut ys) = ([lon], [lat]);
-    if transform
-        .transform_coords(&mut xs, &mut ys, &mut [])
-        .is_err()
-    {
-        return Ok(None);
+    PointSampler::open(path, Some(wgs84()?))?.sample(lon, lat)
+}
+
+/// Values of band 1 of a raster at points, one cell read each.
+#[derive(Debug)]
+pub struct PointSampler {
+    dataset: Dataset,
+    path: PathBuf,
+    geo_transform: [f64; 6],
+    nodata: Option<f64>,
+    transform: Option<CoordTransform>,
+}
+
+impl PointSampler {
+    /// Open the raster at `path` for points in CRS `from` (the raster CRS
+    /// when `None`).
+    pub fn open(path: &Path, from: Option<SpatialRef>) -> Result<Self> {
+        let dataset = Dataset::open(path).map_err(Error::gdal(path))?;
+        let transform = match from {
+            Some(from) => {
+                let to = traditional(dataset.spatial_ref().map_err(Error::gdal(path))?);
+                let from = traditional(from);
+                (from != to)
+                    .then(|| CoordTransform::new(&from, &to))
+                    .transpose()
+                    .map_err(Error::gdal(path))?
+            }
+            None => None,
+        };
+        let geo_transform = dataset.geo_transform().map_err(Error::gdal(path))?;
+        let nodata = dataset
+            .rasterband(1)
+            .map_err(Error::gdal(path))?
+            .no_data_value();
+        Ok(Self {
+            dataset,
+            path: path.to_path_buf(),
+            geo_transform,
+            nodata,
+            transform,
+        })
     }
-    let gt = dataset.geo_transform().map_err(Error::gdal(path))?;
-    let col = ((xs[0] - gt[0]) / gt[1]).floor();
-    let row = ((ys[0] - gt[3]) / gt[5]).floor();
-    let (cols, rows) = dataset.raster_size();
-    if !(col >= 0.0 && row >= 0.0 && col < cols as f64 && row < rows as f64) {
-        return Ok(None);
+
+    /// Value at `(x, y)`; `None` outside the raster, on NoData or when the
+    /// point cannot be reprojected.
+    pub fn sample(&self, x: f64, y: f64) -> Result<Option<f64>> {
+        let (mut xs, mut ys) = ([x], [y]);
+        if let Some(transform) = &self.transform
+            && transform
+                .transform_coords(&mut xs, &mut ys, &mut [])
+                .is_err()
+        {
+            return Ok(None);
+        }
+        let gt = &self.geo_transform;
+        let col = ((xs[0] - gt[0]) / gt[1]).floor();
+        let row = ((ys[0] - gt[3]) / gt[5]).floor();
+        let (cols, rows) = self.dataset.raster_size();
+        if !(col >= 0.0 && row >= 0.0 && col < cols as f64 && row < rows as f64) {
+            return Ok(None);
+        }
+        let path = &self.path;
+        let band = self.dataset.rasterband(1).map_err(Error::gdal(path))?;
+        let value = band
+            .read_as::<f64>((col as isize, row as isize), (1, 1), (1, 1), None)
+            .map_err(Error::gdal(path))?
+            .into_shape_and_vec()
+            .1
+            .first()
+            .copied();
+        Ok(value.and_then(|v| valid_value(v, self.nodata)))
     }
-    let band = dataset.rasterband(1).map_err(Error::gdal(path))?;
-    let value = band
-        .read_as::<f64>((col as isize, row as isize), (1, 1), (1, 1), None)
-        .map_err(Error::gdal(path))?
-        .into_shape_and_vec()
-        .1
-        .first()
-        .copied();
-    Ok(value.and_then(|v| valid_value(v, band.no_data_value())))
 }
 
 /// Bounds of the raster at `path` in WGS 84: `[west, south, east, north]`

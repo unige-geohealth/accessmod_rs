@@ -210,6 +210,9 @@ pub struct RowsQuery {
     /// OGR SQL attribute filter, vector datasets only.
     #[serde(rename = "where")]
     pub filter: Option<String>,
+    /// Raster dataset ids, comma separated, read at the point of each row
+    /// of a vector dataset.
+    pub sample: Option<String>,
 }
 
 /// `GET /api/projects/{project}/datasets/{id}/rows`: a page of the
@@ -228,13 +231,32 @@ pub async fn rows(
         let offset = query.offset.unwrap_or(0);
         let limit = query.limit.unwrap_or(rows::MAX_PAGE);
         let filter = query.filter.as_deref().filter(|f| !f.trim().is_empty());
-        match (record.class.kind(), filter) {
-            (Kind::Vector, filter) => Ok(rows::vector_rows(&path, filter, offset, limit)?),
-            (Kind::Table, None) => Ok(rows::table_rows(&path, offset, limit)?),
-            (Kind::Table, Some(_)) => Err(ApiError::BadRequest(
-                "a filter applies to vector datasets only".into(),
+        let mut sampled = Vec::new();
+        for raster in query.sample.iter().flat_map(|s| s.split(',')) {
+            let raster: Id = raster
+                .trim()
+                .parse()
+                .map_err(|_| ApiError::BadRequest(format!("sample: {raster:?} is not an id")))?;
+            let record = p
+                .dataset(raster)
+                .map_err(|_| ApiError::NotFound(format!("no dataset {raster}")))?;
+            if record.class.kind() != Kind::Raster {
+                return Err(ApiError::BadRequest(format!(
+                    "sample: dataset {raster} is not a raster"
+                )));
+            }
+            sampled.push(p.resolve(std::path::Path::new(&record.file))?);
+        }
+        let sampled: Vec<&std::path::Path> = sampled.iter().map(|p| p.as_path()).collect();
+        match (record.class.kind(), filter, sampled.is_empty()) {
+            (Kind::Vector, filter, _) => {
+                Ok(rows::vector_rows(&path, filter, offset, limit, &sampled)?)
+            }
+            (Kind::Table, None, true) => Ok(rows::table_rows(&path, offset, limit)?),
+            (Kind::Table, _, _) => Err(ApiError::BadRequest(
+                "a filter or samples apply to vector datasets only".into(),
             )),
-            (kind, _) => Err(ApiError::BadRequest(format!(
+            (kind, _, _) => Err(ApiError::BadRequest(format!(
                 "dataset {id} is a {kind:?} dataset, without rows"
             ))),
         }
