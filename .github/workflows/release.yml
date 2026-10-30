@@ -49,6 +49,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      # PROJ builds proj.db with the sqlite3 command; Windows runners lack it.
+      - name: sqlite3 (Windows)
+        if: runner.os == 'Windows'
+        run: choco install sqlite -y --no-progress
+
       - name: Signing keychain and notary key (macOS)
         if: runner.os == 'macOS' && env.SIGNING == 'true'
         env:
