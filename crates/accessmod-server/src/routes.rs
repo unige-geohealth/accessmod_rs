@@ -6,10 +6,14 @@ use accessmod_io::project::{DatasetRecord, Id, ProjectInfo, RunRecord, SavedJob}
 use accessmod_io::rows::{self, Rows};
 use axum::Json;
 use axum::body::Bytes;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, Query, Request, State};
+use axum::http::{HeaderValue, header};
+use axum::response::{IntoResponse, Response};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tower::ServiceExt;
+use tower_http::services::ServeFile;
 
 use crate::auth::{Principal, Requirement, Role};
 use crate::commands::{self, CommandInfo};
@@ -263,6 +267,94 @@ pub async fn rows(
     })
     .await
     .map(Json)
+}
+
+/// Format of `GET …/download`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DownloadFormat {
+    /// The table as stored.
+    #[default]
+    Csv,
+    /// An array of objects keyed by column.
+    Json,
+}
+
+/// Query of `GET …/download`.
+#[derive(Debug, Deserialize)]
+pub struct DownloadQuery {
+    /// File format.
+    #[serde(default)]
+    pub format: DownloadFormat,
+}
+
+/// File name of a download: class code and tags, e.g.
+/// `tZonalStat_demo.csv`; only ASCII letters, digits, `-` and `_`.
+fn download_name(record: &DatasetRecord, extension: &str) -> String {
+    let stem: String = std::iter::once(record.class.code())
+        .chain(record.tags.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join("_")
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{stem}.{extension}")
+}
+
+/// `GET /api/projects/{project}/datasets/{id}/download`: a table dataset as
+/// CSV (streamed) or JSON.
+pub async fn download(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, id)): Path<(String, Id)>,
+    Query(query): Query<DownloadQuery>,
+    request: Request,
+) -> ApiResult<Response> {
+    let format = query.format;
+    let (record, path, json) = with_project(&state, principal, slug, Role::Viewer, move |_, p| {
+        let record = p
+            .dataset(id)
+            .map_err(|_| ApiError::NotFound(format!("no dataset {id}")))?;
+        if record.class.kind() != Kind::Table {
+            return Err(ApiError::BadRequest(format!("dataset {id} is not a table")));
+        }
+        let path = p.resolve(std::path::Path::new(&record.file))?;
+        let json = match format {
+            DownloadFormat::Csv => None,
+            DownloadFormat::Json => Some(rows::table_json(&path)?),
+        };
+        Ok((record, path, json))
+    })
+    .await?;
+    let (mut response, extension) = match json {
+        Some(json) => (
+            ([(header::CONTENT_TYPE, "application/json")], json).into_response(),
+            "json",
+        ),
+        None => {
+            let served = ServeFile::new(&path)
+                .oneshot(request)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            (served.into_response(), "csv")
+        }
+    };
+    let disposition = format!(
+        "attachment; filename=\"{}\"",
+        download_name(&record, extension)
+    );
+    if let Ok(value) = HeaderValue::from_str(&disposition) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, value);
+    }
+    Ok(response)
 }
 
 /// `GET /api/projects/{project}/jobs`.

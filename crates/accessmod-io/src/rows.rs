@@ -144,6 +144,62 @@ pub fn table_rows(path: &Path, offset: u64, limit: usize) -> Result<Rows> {
     })
 }
 
+/// Bytes of a table converted to JSON at most.
+pub const MAX_JSON_BYTES: usize = 64 << 20;
+
+/// CSV table `path` as a JSON array of objects keyed by column, values as
+/// text; larger than [`MAX_JSON_BYTES`] is an error (the CSV itself has
+/// no limit).
+pub fn table_json(path: &Path) -> Result<Vec<u8>> {
+    let file = std::fs::File::open(path).map_err(Error::file(path))?;
+    let too_large = || {
+        Error::invalid(format!(
+            "{}: larger than {} MiB as JSON; download it as CSV",
+            path.display(),
+            MAX_JSON_BYTES >> 20
+        ))
+    };
+    let mut columns: Option<Vec<String>> = None;
+    let mut out = b"[".to_vec();
+    read_csv(file, MAX_RECORD_BYTES, |record| {
+        let Some(columns) = &columns else {
+            columns = Some(
+                record
+                    .iter()
+                    .map(|c| c.trim_start_matches('\u{feff}').trim().to_owned())
+                    .collect(),
+            );
+            return Ok(());
+        };
+        let object: serde_json::Map<String, Value> = columns
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                (
+                    c.clone(),
+                    record
+                        .get(i)
+                        .map_or(Value::Null, |v| Value::from(v.as_str())),
+                )
+            })
+            .collect();
+        if out.len() > 1 {
+            out.push(b',');
+        }
+        serde_json::to_writer(&mut out, &object).map_err(|e| Error::invalid(e.to_string()))?;
+        if out.len() > MAX_JSON_BYTES {
+            return Err(too_large());
+        }
+        Ok(())
+    })
+    .map_err(|e| Error::invalid(format!("{}: {e}", path.display())))?;
+    if columns.is_none() {
+        return Err(Error::invalid(format!("{}: empty table", path.display())));
+    }
+    out.push(b']');
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,7 +306,17 @@ mod tests {
                 vec![Value::from("3"), Value::from("c")]
             ]
         );
+        let json: Value = serde_json::from_slice(&table_json(&path).expect("json")).expect("parse");
+        assert_eq!(
+            json,
+            serde_json::json!([
+                {"class": "1", "label": "a, b"},
+                {"class": "002", "label": null},
+                {"class": "3", "label": "c"}
+            ])
+        );
         std::fs::write(&path, "").expect("write");
         assert!(table_rows(&path, 0, 10).is_err());
+        assert!(table_json(&path).is_err());
     }
 }

@@ -597,6 +597,72 @@ async fn rows_page_vector_attributes_and_tables() {
 }
 
 #[tokio::test]
+async fn tables_download_as_csv_or_json() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let csv = "class,label,speed,mode\n1,\"forest, dense\",5,WALKING\n";
+    std::fs::write(s.dir.path().join("scenario.csv"), csv).expect("write");
+    let (status, body) = s
+        .command(
+            "dataset.import",
+            json!({"project": slug, "source": {"path": s.path("scenario.csv")}, "class": "tScenario", "tags": ["base", "dry season"]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let get = |query: &str| {
+        Request::builder()
+            .uri(format!("/api/projects/{slug}/datasets/{query}"))
+            .body(Body::empty())
+            .expect("request")
+    };
+    let response = s
+        .app
+        .clone()
+        .oneshot(get("4/download"))
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()["content-disposition"],
+        "attachment; filename=\"tScenario_base_dry_season.csv\""
+    );
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    let stored = String::from_utf8_lossy(&bytes);
+    assert!(stored.contains("forest, dense"), "{stored}");
+
+    let (status, json) = s
+        .call(
+            "GET",
+            &format!("/api/projects/{slug}/datasets/4/download?format=json"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json[0]["label"], "forest, dense");
+
+    for (query, expected) in [
+        ("2/download", StatusCode::BAD_REQUEST),
+        ("3/download?format=json", StatusCode::BAD_REQUEST),
+        ("4/download?format=xml", StatusCode::BAD_REQUEST),
+        ("99/download", StatusCode::NOT_FOUND),
+    ] {
+        let (status, body) = s
+            .call(
+                "GET",
+                &format!("/api/projects/{slug}/datasets/{query}"),
+                None,
+            )
+            .await;
+        assert_eq!(status, expected, "{query}: {body}");
+    }
+}
+
+#[tokio::test]
 async fn malformed_bodies_get_json_errors() {
     let s = server(true);
     let request = Request::builder()
