@@ -59,12 +59,36 @@ pub enum Part {
     Point((f64, f64)),
 }
 
-fn open_dataset(path: &Path) -> Result<Dataset> {
+/// Open a vector dataset read-only.
+pub fn open_dataset(path: &Path) -> Result<Dataset> {
     let options = DatasetOptions {
         open_flags: GdalOpenFlags::GDAL_OF_VECTOR | GdalOpenFlags::GDAL_OF_READONLY,
         ..DatasetOptions::default()
     };
     Dataset::open_ex(path, options).map_err(Error::gdal(path))
+}
+
+/// Set the attribute filter (OGR SQL `WHERE`) of `layer` of `dataset`,
+/// checked up front.
+pub fn set_filter(
+    dataset: &Dataset,
+    layer: &mut Layer<'_>,
+    filter: &str,
+) -> std::result::Result<(), String> {
+    // Some drivers (GeoPackage) accept any filter and fail only when
+    // reading; a query with the same dialect fails up front. It runs first:
+    // releasing a generic OGR SQL result clears the filter of its source
+    // layer (FlatGeobuf).
+    let query = format!(
+        "SELECT * FROM \"{}\" WHERE {filter}",
+        layer.name().replace('"', "\"\"")
+    );
+    dataset
+        .execute_sql(&query, None, gdal::vector::sql::Dialect::DEFAULT)
+        .map_err(|e| format!("invalid filter {filter:?} ({e})"))?;
+    layer
+        .set_attribute_filter(filter)
+        .map_err(|e| format!("invalid filter {filter:?} ({e})"))
 }
 
 fn traditional(mut srs: SpatialRef) -> SpatialRef {
@@ -105,18 +129,7 @@ impl VectorLayer {
             Some(CoordTransform::new(&from, &to).map_err(Error::gdal(path))?)
         };
         if let Some(filter) = filter {
-            found
-                .set_attribute_filter(filter)
-                .map_err(|e| invalid(format!("invalid filter {filter:?} ({e})")))?;
-            // Some drivers (GeoPackage) accept any filter and fail only when
-            // reading; a query with the same dialect fails up front.
-            let query = format!(
-                "SELECT * FROM \"{}\" WHERE {filter}",
-                name.replace('"', "\"\"")
-            );
-            dataset
-                .execute_sql(&query, None, gdal::vector::sql::Dialect::DEFAULT)
-                .map_err(|e| invalid(format!("invalid filter {filter:?} ({e})")))?;
+            set_filter(&dataset, &mut found, filter).map_err(invalid)?;
         }
         Ok(Self {
             name,

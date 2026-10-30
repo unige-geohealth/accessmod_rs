@@ -521,6 +521,71 @@ async fn map_previews_tiles_features_values_and_bounds() {
 }
 
 #[tokio::test]
+async fn rows_page_vector_attributes_and_tables() {
+    let s = server(true);
+    let slug = s.demo().await;
+    std::fs::write(
+        s.dir.path().join("scenario.csv"),
+        "class,label,speed,mode\n1,forest,5,WALKING\n2,road,60,MOTORIZED\n",
+    )
+    .expect("write");
+    let (status, body) = s
+        .command(
+            "dataset.import",
+            json!({"project": slug, "source": {"path": s.path("scenario.csv")}, "class": "tScenario", "tags": ["base"]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let rows = |query: &str| format!("/api/projects/{slug}/datasets/{query}");
+
+    let (status, page) = s.call("GET", &rows("3/rows"), None).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_eq!(page["columns"], json!(["hf_id"]));
+    assert_eq!(page["rows"], json!([[7]]));
+    assert_eq!(page["total"], 1);
+    let (status, page) = s
+        .call("GET", &rows("3/rows?where=hf_id%20%3E%207"), None)
+        .await;
+    assert_eq!((status, page["total"].clone()), (StatusCode::OK, json!(0)));
+
+    let (status, page) = s.call("GET", &rows("4/rows?offset=1&limit=5"), None).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_eq!(page["rows"], json!([["2", "road", "60", "MOTORIZED"]]));
+    assert_eq!(
+        (page["offset"].clone(), page["total"].clone()),
+        (json!(1), json!(2))
+    );
+
+    // Hostile or misplaced queries are client errors, never a crash.
+    for (query, expected) in [
+        (
+            "3/rows?where=hf_id%20%3C%3C%3C",
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            "3/rows?where=1%3D1%3B%20DROP%20TABLE%20x",
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        ("3/rows?offset=-1", StatusCode::BAD_REQUEST),
+        ("3/rows?limit=abc", StatusCode::BAD_REQUEST),
+        ("4/rows?where=class%3D1", StatusCode::BAD_REQUEST),
+        ("2/rows", StatusCode::BAD_REQUEST),
+        ("99/rows", StatusCode::NOT_FOUND),
+    ] {
+        let (status, body) = s.call("GET", &rows(query), None).await;
+        assert_eq!(status, expected, "{query}: {body}");
+    }
+    let (status, page) = s
+        .call(
+            "GET",
+            &rows("3/rows?offset=18446744073709551615&limit=99999999"),
+            None,
+        )
+        .await;
+    assert_eq!((status, page["rows"].clone()), (StatusCode::OK, json!([])));
+}
+
+#[tokio::test]
 async fn malformed_bodies_get_json_errors() {
     let s = server(true);
     let request = Request::builder()

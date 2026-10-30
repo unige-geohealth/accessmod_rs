@@ -26,6 +26,7 @@ pub mod raster;
 pub mod referral;
 pub mod report;
 pub mod resources;
+pub mod rows;
 pub mod scaling_up;
 pub mod tiles;
 pub mod travel_time;

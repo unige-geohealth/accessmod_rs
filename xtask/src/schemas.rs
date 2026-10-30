@@ -105,6 +105,7 @@ fn types() -> Vec<(&'static str, Value)> {
         ("dataset", schema::<project::DatasetRecord>()),
         ("saved-job", schema::<project::SavedJob>()),
         ("run", schema::<project::RunRecord>()),
+        ("rows", schema::<accessmod_io::rows::Rows>()),
         ("event", schema::<accessmod_server::events::Event>()),
         (
             "project-entry",

@@ -191,6 +191,7 @@ determinism, memory budget, cancellation and error messages included.
 | Raster overviews in an external `.ovr`, statistics (range, histogram, classes) | `accessmod_io::preview` |
 | Map previews: raster tiles in Web Mercator (PNG, through the overviews), GeoJSON in WGS 84, values at a point, bounds | `accessmod_io::tiles` |
 | RFC 4180 CSV reading (quoted fields, bounded records) | `accessmod_io::output::read_csv` |
+| Paged attribute rows of a vector layer or a table (bounded pages, filter, total) | `accessmod_io::rows` |
 | Data classes (AccessMod 5 identifiers), `x-accessmod-class` on job fields | `accessmod_io::class` |
 | `run.json` (`Report`, `Execution`), fingerprints, warnings | `accessmod_io::report` |
 | `prepare` / `run` contract driven by the CLI and `accessmod serve`, progress (`Monitor`), registry of analyses (`for_each`) | `accessmod_io::analysis` |
@@ -294,7 +295,12 @@ Things learned the hard way; check here before re-investigating.
   results held in memory; Codex reviews caught these twice.
 - GeoPackage accepts any attribute filter in `set_attribute_filter` and
   fails only when reading (no feature, an error on stderr). Validate a
-  filter by running `SELECT * FROM "layer" WHERE …` with `execute_sql`.
+  filter by running `SELECT * FROM "layer" WHERE …` with `execute_sql`
+  (`vector::set_filter`), before setting it: releasing a generic OGR SQL
+  result clears the filter of its source layer (FlatGeobuf).
+- OGR SQL fails ("memory exhausted") on an `IN` list of thousands of
+  values, except on GeoPackage (SQLite). Facility `ids` are applied while
+  reading (`VectorLayer::select`, `VectorLayer::features`).
 
 ### Tooling
 

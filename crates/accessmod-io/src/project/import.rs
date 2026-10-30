@@ -541,32 +541,13 @@ fn xlsx_to_csv(
     out.finish()
 }
 
-/// Largest CSV record read, bytes.
-const MAX_RECORD_BYTES: usize = 1 << 20;
-
 /// Header and record count of a CSV file (RFC 4180).
 fn table_summary(path: &Path) -> Result<TableSummary> {
-    let file = std::fs::File::open(path).map_err(Error::file(path))?;
-    let mut columns: Option<Vec<String>> = None;
-    let mut rows = 0u64;
-    crate::output::read_csv(file, MAX_RECORD_BYTES, |record| {
-        match &columns {
-            None => {
-                columns = Some(
-                    record
-                        .iter()
-                        .map(|c| c.trim_start_matches('\u{feff}').trim().to_owned())
-                        .collect(),
-                );
-            }
-            Some(_) => rows += 1,
-        }
-        Ok(())
+    let page = crate::rows::table_rows(path, 0, 0)?;
+    Ok(TableSummary {
+        rows: page.total,
+        columns: page.columns,
     })
-    .map_err(|e| Error::invalid(format!("{}: {e}", path.display())))?;
-    let columns =
-        columns.ok_or_else(|| Error::invalid(format!("{}: empty table", path.display())))?;
-    Ok(TableSummary { rows, columns })
 }
 
 /// GDAL drivers a file sent by a user may be read with: formats that never

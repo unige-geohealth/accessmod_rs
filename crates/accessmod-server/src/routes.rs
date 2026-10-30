@@ -1,8 +1,9 @@
 //! Read endpoints (queries) and the command endpoint.
 
 use accessmod_io::analysis::{Monitor, job_schemas};
-use accessmod_io::class::DataClass;
+use accessmod_io::class::{DataClass, Kind};
 use accessmod_io::project::{DatasetRecord, Id, ProjectInfo, RunRecord, SavedJob};
+use accessmod_io::rows::{self, Rows};
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
@@ -194,6 +195,49 @@ pub async fn dataset(
     with_project(&state, principal, slug, Role::Viewer, move |_, p| {
         p.dataset(id)
             .map_err(|_| ApiError::NotFound(format!("no dataset {id}")))
+    })
+    .await
+    .map(Json)
+}
+
+/// Query of `GET …/rows`.
+#[derive(Debug, Deserialize)]
+pub struct RowsQuery {
+    /// Rows to skip.
+    pub offset: Option<u64>,
+    /// Rows at most (capped at [`rows::MAX_PAGE`]).
+    pub limit: Option<usize>,
+    /// OGR SQL attribute filter, vector datasets only.
+    #[serde(rename = "where")]
+    pub filter: Option<String>,
+}
+
+/// `GET /api/projects/{project}/datasets/{id}/rows`: a page of the
+/// attributes of a vector dataset or of the records of a table.
+pub async fn rows(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, id)): Path<(String, Id)>,
+    Query(query): Query<RowsQuery>,
+) -> ApiResult<Json<Rows>> {
+    with_project(&state, principal, slug, Role::Viewer, move |_, p| {
+        let record = p
+            .dataset(id)
+            .map_err(|_| ApiError::NotFound(format!("no dataset {id}")))?;
+        let path = p.resolve(std::path::Path::new(&record.file))?;
+        let offset = query.offset.unwrap_or(0);
+        let limit = query.limit.unwrap_or(rows::MAX_PAGE);
+        let filter = query.filter.as_deref().filter(|f| !f.trim().is_empty());
+        match (record.class.kind(), filter) {
+            (Kind::Vector, filter) => Ok(rows::vector_rows(&path, filter, offset, limit)?),
+            (Kind::Table, None) => Ok(rows::table_rows(&path, offset, limit)?),
+            (Kind::Table, Some(_)) => Err(ApiError::BadRequest(
+                "a filter applies to vector datasets only".into(),
+            )),
+            (kind, _) => Err(ApiError::BadRequest(format!(
+                "dataset {id} is a {kind:?} dataset, without rows"
+            ))),
+        }
     })
     .await
     .map(Json)

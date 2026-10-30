@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One page of rows.",
+  "properties": {
+    "columns": {
+      "description": "Column names, in order.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "offset": {
+      "description": "Rows before this page.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "rows": {
+      "description": "Values of each row, in column order (`null`: no value). Table values\nare text, as stored.",
+      "items": {
+        "items": true,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "total": {
+      "description": "Rows matching the filter, every page included.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "columns",
+    "rows",
+    "offset",
+    "total"
+  ],
+  "title": "Rows",
+  "type": "object"
+}
