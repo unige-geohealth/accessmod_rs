@@ -5,6 +5,7 @@
 import type { Key } from "@accessmod/ui/i18n";
 import type { Jobs } from "../generated/jobs";
 import type { Api } from "../generated/types";
+import { fileOf } from "./catalogue";
 import { mergeTable, type ScenarioRow, toScenario } from "./scenario";
 
 /** AM5 default maximum travel time, minutes; 0: no limit. */
@@ -107,9 +108,6 @@ export interface Context {
   scenario: readonly ScenarioRow[];
 }
 
-/** Project path of a dataset. */
-export const fileOf = (context: Pick<Context, "datasets">, id: number | null): string | undefined =>
-  id === null ? undefined : context.datasets.get(id)?.file;
 
 /** The travel part of a job, or `undefined` while incomplete. */
 export interface Travel {

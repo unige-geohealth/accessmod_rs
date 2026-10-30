@@ -96,11 +96,16 @@ export function updateFacilities(input: FacilityInput, message: FacilityMessage)
   }
 }
 
-/** The input as shown: AM5 preselects the first layer and its `cat` field. */
-export function withFacilityDefaults(input: FacilityInput, layer: number | null, fieldsOf: (layer: number | null) => readonly string[]): FacilityInput {
+/** The input as shown: AM5 preselects the first layer and its `cat` field (or the first of `prefer` present). */
+export function withFacilityDefaults(
+  input: FacilityInput,
+  layer: number | null,
+  fieldsOf: (layer: number | null) => readonly string[],
+  prefer: readonly string[] = ["cat"],
+): FacilityInput {
   const chosen = input.layer ?? layer;
   const fields = fieldsOf(chosen);
-  const idField = pickField(input.idField, fields, ["cat"]);
+  const idField = pickField(input.idField, fields, prefer);
   return chosen === input.layer && idField === input.idField ? input : { ...input, layer: chosen, idField };
 }
 

@@ -123,3 +123,19 @@ test("referral: From and To groups, closest pair, run", async ({ page }) => {
   await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
   await expect(dialog).toContainText("[ref]");
 });
+
+test("optimization: catchments of the coverage run, minimum per zone, run", async ({ page }) => {
+  await page.goto(`/#/${project}/analysis/optimization`);
+  // The catchments are the ones written by the geographic coverage test.
+  await expect(page.getByLabel("Select catchment layer")).toContainText("[cov]");
+  await page.getByLabel("Total number of facilities to select").fill("3");
+  await page.getByLabel("Ensure minimum facilities per admin unit").click();
+  await expect(page.getByLabel("Select zones layer (vector)")).toBeVisible();
+  await page.getByLabel("Add short tags").fill("opt");
+  await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
+  await shot(page, "analysis-optimization");
+  await page.getByRole("button", { name: "Compute", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(dialog).toContainText("[opt]");
+});

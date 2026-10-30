@@ -179,3 +179,7 @@ export function pickField(chosen: string, fields: readonly string[], prefer: rea
   if (chosen !== "" && fields.includes(chosen)) return chosen;
   return prefer.find((p) => fields.includes(p)) ?? fields[0] ?? "";
 }
+
+/** Project path of a dataset of the catalogue. */
+export const fileOf = (context: { datasets: ReadonlyMap<number, Api.Dataset> }, id: number | null): string | undefined =>
+  id === null ? undefined : context.datasets.get(id)?.file;

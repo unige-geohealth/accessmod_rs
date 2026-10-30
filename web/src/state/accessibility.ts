@@ -4,9 +4,9 @@
 // issues, the job) are selectors, never stored.
 import type { Key } from "@accessmod/ui/i18n";
 import type { Jobs } from "../generated/jobs";
-import { tagsOf } from "./catalogue";
+import { fileOf, tagsOf } from "./catalogue";
 import { type FacilityInput, type FacilityMessage, facilityIssues, NO_FACILITIES, toFacilitySource, updateFacilities } from "./facility-selection";
-import { type Context, fileOf, isTravelMessage, limitSeconds, TRAVEL, type TravelDraft, type TravelMessage, travelJob, updateTravel } from "./travel";
+import { type Context, isTravelMessage, limitSeconds, TRAVEL, type TravelDraft, type TravelMessage, travelJob, updateTravel } from "./travel";
 
 export const ANALYSIS = "travel-time";
 

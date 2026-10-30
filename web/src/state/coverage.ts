@@ -2,9 +2,9 @@
 // order, take the population they reach up to their capacity.
 import type { Key } from "@accessmod/ui/i18n";
 import type { Jobs } from "../generated/jobs";
-import { pickField, tagsOf } from "./catalogue";
+import { fileOf, pickField, tagsOf } from "./catalogue";
 import { type FacilityInput, type FacilityMessage, facilityIssues, NO_FACILITIES, toFacilitySource, updateFacilities } from "./facility-selection";
-import { type Context, fileOf, isTravelMessage, limitSeconds, TRAVEL, type TravelDraft, type TravelMessage, travelJob, updateTravel } from "./travel";
+import { type Context, isTravelMessage, limitSeconds, TRAVEL, type TravelDraft, type TravelMessage, travelJob, updateTravel } from "./travel";
 import { NO_ZONES, toZoneLayer, type ZoneInput, type ZoneMessage, updateZones, zoneIssues } from "./zones";
 
 export const ANALYSIS = "geographic-coverage";
