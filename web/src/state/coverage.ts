@@ -26,7 +26,7 @@ export interface CoverageDraft extends TravelDraft, Record<CoverageOption, boole
   /** AM5 "table order" (a field) or "travel time" (population reached first). */
   order: "field" | "population";
   orderField: string;
-  /** Travel time of the "travel time" order, minutes as typed. */
+  /** Travel time of the "travel time" order, minutes as typed; 0: unlimited (AM5). */
   orderMinutes: string;
   zones: ZoneInput;
 }
@@ -120,7 +120,7 @@ export function buildJob(draft: CoverageDraft, context: Context): Built {
     ...travel.scenarioIssues,
     ...(population === undefined ? ["srv_analysis_accessibility_select_population" as const] : []),
     ...(facilities !== undefined && !draft.ignoreCapacity && draft.capacityField === "" ? ["srv_analysis_accessibility_set_capacity_warning" as const] : []),
-    ...(draft.order === "population" && (orderLimit === undefined || orderLimit === null) ? ["analysis.order_travel_time" as const] : []),
+    ...(draft.order === "population" && orderLimit === undefined ? ["analysis.order_travel_time" as const] : []),
     ...(draft.order === "field" && facilities !== undefined && draft.orderField === "" ? ["analysis.order_field_missing" as const] : []),
     ...(draft.zonal ? zoneIssues(draft.zones, zones) : []),
   ];
@@ -135,7 +135,7 @@ export function buildJob(draft: CoverageDraft, context: Context): Built {
   const order: Jobs.CoverageOrder =
     draft.order === "field"
       ? { field: { field: draft.orderField, descending: draft.descending } }
-      : { population: { limit_s: orderLimit ?? 0, descending: draft.descending } };
+      : { population: { limit_s: orderLimit ?? UNLIMITED_S, descending: draft.descending } };
   return {
     document: {
       schema_version: 1,

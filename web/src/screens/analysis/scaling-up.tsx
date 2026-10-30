@@ -10,7 +10,7 @@ import { useRows } from "../../api/queries";
 import { datasetOptions, fieldClasses } from "../../state/catalogue";
 import { draftStore } from "../../state/drafts";
 import { type FacilityMessage, withFacilityDefaults } from "../../state/facility-selection";
-import { ANALYSIS, buildJob, EMPTY, type ScalingUpDraft, shownRows, type Table, updateScalingUp } from "../../state/scaling-up";
+import { ANALYSIS, buildJob, EMPTY, type ScalingUpDraft, shownRows, type Table, type TableStatus, updateScalingUp } from "../../state/scaling-up";
 import { capacityRows, exclusionRows, factorRows } from "../../state/scaling-up-tables";
 import { hasZero } from "../../state/scenario";
 import { useStore } from "../../state/store";
@@ -57,9 +57,23 @@ export function ScalingUp({ project }: { project: string }) {
     factorTable: stored.factorTable ?? firstOf(options.factors),
     exclusionTable: stored.exclusionTable ?? firstOf(options.exclusions),
   };
-  const capacityTable = useRows(project, draft.capacityTable, WHOLE).data;
-  const factorTable = useRows(project, draft.factorTable, WHOLE).data;
-  const exclusionTable = useRows(project, draft.exclusionTable, WHOLE).data;
+  const reads = {
+    capacities: useRows(project, draft.capacityTable, WHOLE),
+    factors: useRows(project, draft.factorTable, WHOLE),
+    exclusions: useRows(project, draft.exclusionTable, WHOLE),
+  };
+  // Only a table read whole and current is used: no rows of a previous selection.
+  const usable = (q: (typeof reads)["capacities"]) => (q.isSuccess && !q.isPlaceholderData && q.data.rows.length >= q.data.total ? q.data : undefined);
+  const capacityTable = usable(reads.capacities);
+  const factorTable = usable(reads.factors);
+  const exclusionTable = usable(reads.exclusions);
+  const status = Object.fromEntries(
+    TABLES.flatMap(([table, field]) => {
+      const q = reads[table];
+      if (draft[field] === null || usable(q) !== undefined) return [];
+      return [[table, q.isSuccess && !q.isPlaceholderData ? "too_large" : "pending"]];
+    }),
+  ) as Partial<Record<Table, TableStatus>>;
   const tables = useMemo(
     () => ({
       capacities: capacityTable && capacityRows(capacityTable),
@@ -70,7 +84,7 @@ export function ScalingUp({ project }: { project: string }) {
   );
   const rows = shownRows(draft, tables);
   const { scenario } = travel;
-  const built = buildJob(draft, { datasets: byId, dem, scenario }, rows);
+  const built = buildJob(draft, { datasets: byId, dem, scenario }, rows, status);
   const onFacilities = (message: FacilityMessage) => dispatch({ type: "facilities", message });
   const limit = (name: "coverPercent" | "newFacilities" | "maxMinutes") => (text: string) => dispatch({ type: "limit", limit: name, text });
 

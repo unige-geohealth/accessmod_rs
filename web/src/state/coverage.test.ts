@@ -64,7 +64,7 @@ describe("geographic coverage draft", () => {
     let draft = ready;
     for (const message of [
       { type: "order", order: "population" },
-      { type: "orderMinutes", text: "30" },
+      { type: "orderMinutes", text: "0" },
       { type: "option", option: "descending", on: false },
       { type: "option", option: "removeCovered", on: false },
       { type: "option", option: "zonal", on: true },
@@ -79,7 +79,7 @@ describe("geographic coverage draft", () => {
     expect(built.notices).toEqual(["srv_analysis_accessibility_max_travel_time_set_0min", "srv_analysis_accessibility_facilities_processing_order"]);
     expect(built.document).toMatchObject({
       limit_s: UNLIMITED_S,
-      order: { population: { limit_s: 1800, descending: false } },
+      order: { population: { limit_s: UNLIMITED_S, descending: false } },
       remove_covered: false,
       zones: { path: "datasets/5.x", id_field: "cat", label_field: "name" },
     });

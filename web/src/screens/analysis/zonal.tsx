@@ -27,8 +27,8 @@ const ZONES = fieldClasses(schema, "zones");
 
 /** Rows per page of the long table. */
 const PAGE = 200;
-/** Rows read at most for one column per time step (zones × limits). */
-const WIDE = 5000;
+/** Rows read at most for one column per time step (zones × limits): one server page. */
+const WIDE = 1000;
 
 /** AM5 hint under the limits: the range of the travel time, whole minutes. */
 function rangeHint(dataset: Api.Dataset | undefined): string | null {
@@ -137,13 +137,15 @@ function ZonalResult({ project, ready, wide, datasets }: { project: string; read
 /** An output table read through `rows`: pages of the long table, or the whole table pivoted when it is small enough. */
 function ZonalTable({ project, output, wide }: { project: string; output: number; wide: boolean }) {
   const [offset, setOffset] = useState(0);
-  const rows = useRows(project, output, wide ? { limit: WIDE } : { offset, limit: PAGE }).data;
-  const complete = rows !== undefined && rows.rows.length >= rows.total;
-  const pivot = wide && complete;
+  // One column per time step needs the whole table in one read; else pages of the long table.
+  const whole = useRows(project, wide ? output : null, { limit: WIDE }).data;
+  const pivot = whole !== undefined && whole.rows.length >= whole.total;
+  const page = useRows(project, wide && (whole === undefined || pivot) ? null : output, { offset, limit: PAGE }).data;
+  const rows = pivot ? whole : page;
   const table = useMemo(() => zonalTable(rows, pivot), [rows, pivot]);
   return (
     <>
-      {wide && rows !== undefined && !complete && <MessageList messages={[{ kind: "info", k: "analysis.wide_too_large" }]} />}
+      {wide && whole !== undefined && !pivot && <MessageList messages={[{ kind: "info", k: "analysis.wide_too_large" }]} />}
       <LinkActions
         actions={(["csv", "json"] as const).map((format) => ({
           icon: "download" as const,

@@ -123,6 +123,19 @@ export function shownRows(draft: ScalingUpDraft, tables: TableRows) {
   };
 }
 
+/** Reading of a selected AM5 table: still loading (or failed), or longer than one read. */
+export type TableStatus = "pending" | "too_large";
+
+/** Selected tables whose rows are not usable yet; edited rows no longer depend on their table. */
+export function tableIssues(draft: ScalingUpDraft, status: Partial<Record<Table, TableStatus>>): Issue[] {
+  return (["capacities", "factors", "exclusions"] as const).flatMap((table): Issue[] => {
+    if (draft[table] !== null) return [];
+    if (status[table] === "pending") return ["analysis.table_loading"];
+    if (status[table] === "too_large") return ["analysis.table_too_large"];
+    return [];
+  });
+}
+
 /** A number above or equal to 0 as typed, or `undefined`. */
 function nonNegative(text: string): number | undefined {
   const n = Number(text.trim());
@@ -136,7 +149,12 @@ export interface Built {
   tags: string[];
 }
 
-export function buildJob(draft: ScalingUpDraft, context: Context, rows: ReturnType<typeof shownRows>): Built {
+export function buildJob(
+  draft: ScalingUpDraft,
+  context: Context,
+  rows: ReturnType<typeof shownRows>,
+  status: Partial<Record<Table, TableStatus>> = {},
+): Built {
   const travel = travelJob(draft, context);
   const population = fileOf(context, draft.population);
   const residual = fileOf(context, draft.residual);
@@ -157,6 +175,7 @@ export function buildJob(draft: ScalingUpDraft, context: Context, rows: ReturnTy
     ...tagIssues,
     ...travel.scenarioIssues,
     ...(population === undefined ? ["srv_analysis_accessibility_select_population" as const] : []),
+    ...tableIssues(draft, status),
     ...capacity.issues,
     ...(rows.factors.length === 0 ? ["srv_analysis_accessibility_suitability_table_missing_value" as const] : []),
     ...(!draft.useExisting && onlyFacilities ? ["srv_analysis_accessibility_suitability_table_add_non_dynamic_layer" as const] : []),

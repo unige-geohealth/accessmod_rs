@@ -498,10 +498,10 @@
     "pt": "O servidor respondeu com uma página em vez de dados: provavelmente é mais antigo do que esta interface. Reinicie-o a partir da versão atual."
   },
   "analysis.order_travel_time": {
-    "en": "Set a travel time above 0 minutes for the processing order.",
-    "fr": "Indiquez un temps de déplacement supérieur à 0 minute pour l'ordre de traitement.",
-    "es": "Indique un tiempo de desplazamiento superior a 0 minutos para el orden de procesamiento.",
-    "pt": "Indique um tempo de deslocação superior a 0 minutos para a ordem de processamento."
+    "en": "Set a travel time of 0 minutes or more for the processing order (0: unlimited).",
+    "fr": "Indiquez un temps de déplacement de 0 minute ou plus pour l'ordre de traitement (0 : illimité).",
+    "es": "Indique un tiempo de desplazamiento de 0 minutos o más para el orden de procesamiento (0: ilimitado).",
+    "pt": "Indique um tempo de deslocação de 0 minutos ou mais para a ordem de processamento (0: ilimitado)."
   },
   "analysis.order_field_missing": {
     "en": "Select the field giving the processing order.",
@@ -556,5 +556,17 @@
     "fr": "Cliquez sur Mettre à jour pour calculer le tableau.",
     "es": "Pulse Actualizar para calcular la tabla.",
     "pt": "Clique em «Atualização» para calcular a tabela."
+  },
+  "analysis.table_loading": {
+    "en": "Reading the selected table…",
+    "fr": "Lecture du tableau sélectionné…",
+    "es": "Leyendo la tabla seleccionada…",
+    "pt": "A ler a tabela selecionada…"
+  },
+  "analysis.table_too_large": {
+    "en": "The selected table has more than 1000 rows: it cannot be used here.",
+    "fr": "Le tableau sélectionné a plus de 1000 lignes : il ne peut pas être utilisé ici.",
+    "es": "La tabla seleccionada tiene más de 1000 filas: no se puede usar aquí.",
+    "pt": "A tabela selecionada tem mais de 1000 linhas: não pode ser usada aqui."
   }
 }

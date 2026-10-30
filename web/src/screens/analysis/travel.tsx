@@ -101,12 +101,14 @@ export function ScenarioSection({ project, travel, dispatch }: { project: string
   const f = useFmt();
   const { scenario, scenarioTable } = travel;
   const table = useRows(project, scenarioTable, WHOLE);
-  const notices = tableNotices(scenario, table.data);
+  // Never the rows of the previously selected table while the new one loads.
+  const current = table.isPlaceholderData ? undefined : table.data;
+  const notices = tableNotices(scenario, current);
   const messages: Message[] = [
     ...(notices.unknownMode ? [{ kind: "info" as const, text: f("srv_analysis_access_unmatched_transport_warning", MODES.join(","), "WALKING") }] : []),
     ...(notices.unmatched ? [{ kind: "info" as const, k: "srv_analysis_access_unmatched_scenario_labels_warning" as const }] : []),
   ];
-  const selected = useMemo(() => tableRows(table.data), [table.data]);
+  const selected = useMemo(() => tableRows(current), [current]);
   return (
     <>
       <CenterTitle title="analysis_travel_scenario_title" sub="analysis_travel_scenario_sub" />

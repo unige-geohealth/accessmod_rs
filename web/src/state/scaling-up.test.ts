@@ -126,6 +126,17 @@ describe("scaling-up draft", () => {
     });
   });
 
+  it("waits for a selected table, refuses one longer than a read", () => {
+    const fresh = { ...ready, capacities: null };
+    expect(buildJob(fresh, context, shownRows(fresh, {}), { capacities: "pending", factors: "too_large" }).issues).toEqual([
+      "analysis.table_loading",
+      "analysis.table_too_large",
+      "srv_analysis_accessibility_scaleup_table_min_max_equality",
+    ]);
+    // Edited rows no longer depend on their table.
+    expect(buildJob(ready, context, shownRows(ready, {}), { capacities: "pending" }).issues).toEqual([]);
+  });
+
   it("reads a newly selected table again", () => {
     const edited = updateScalingUp(ready, { type: "table", table: "capacities", id: 9 });
     expect([edited.capacityTable, edited.capacities]).toEqual([9, null]);
