@@ -54,6 +54,11 @@ subtracts catchments). Consequences:
   GeoPackage writes on GDAL 3.8. `rusqlite` is held at 0.37, whose
   `libsqlite3-sys` 0.35 is the newest `gdal-src` accepts (a `links` key
   admits one version per build).
+- System GDAL 3.8 of Ubuntu 24.04 (linked with spatialite) aborts with
+  "double free or corruption" when threads create GeoPackages at once, even
+  from Python in separate files (reproduced in Docker, 9 runs out of 10).
+  AccessMod only reads GeoPackages, which is safe; the test fixtures create
+  them one at a time. The bundled GDAL has no spatialite.
 - The bundled GDAL opens no VRT raster: an upload holding a VRT cannot make
   it read another file (`check_self_contained` keeps refusing it where the
   system GDAL would read it).

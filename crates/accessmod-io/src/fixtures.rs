@@ -81,6 +81,13 @@ pub fn write_layer(
     write_features(path, layer, epsg, &[field], &features);
 }
 
+/// GeoPackages are created one at a time: GDAL 3.8 of Ubuntu 24.04 (linked
+/// with spatialite) aborts with "double free or corruption" when threads
+/// create GeoPackages at once, even from Python and in separate files. Tests
+/// run in parallel threads; the program itself only reads GeoPackages, which
+/// is safe (docs/distribution.md).
+static GPKG_CREATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Write a GeoPackage layer `layer` in EPSG `epsg` with attributes `fields`
 /// and features `(WKT, values)`, one value per field (`None`: null).
 pub fn write_features(
@@ -90,6 +97,9 @@ pub fn write_features(
     fields: &[(&str, gdal::vector::OGRFieldType::Type)],
     features: &[(&str, Vec<Option<FieldValue>>)],
 ) {
+    let _one_at_a_time = GPKG_CREATION
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let driver = DriverManager::get_driver_by_name("GPKG").expect("GPKG driver");
     let mut ds = driver.create_vector_only(path).expect("create gpkg");
     let srs = SpatialRef::from_epsg(epsg).expect("srs");
