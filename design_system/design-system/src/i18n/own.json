@@ -376,5 +376,119 @@
     "fr": "Enregistré : %s",
     "es": "Guardado: %s",
     "pt": "Salvo: %s"
+  },
+  "analysis.id_field_missing": {
+    "en": "Select the facilities ID field.",
+    "fr": "Sélectionnez le champ identifiant des structures.",
+    "es": "Seleccione el campo identificador de los establecimientos.",
+    "pt": "Selecione o campo identificador dos estabelecimentos."
+  },
+  "analysis.scenario_no_speed": {
+    "en": "Set a speed above 0 km/h for at least one land cover class: classes at 0 km/h are barriers.",
+    "fr": "Indiquez une vitesse supérieure à 0 km/h pour au moins une classe d'occupation du sol : les classes à 0 km/h sont des barrières.",
+    "es": "Indique una velocidad superior a 0 km/h para al menos una clase de cobertura del suelo: las clases a 0 km/h son barreras.",
+    "pt": "Indique uma velocidade superior a 0 km/h para pelo menos uma classe de cobertura do solo: as classes a 0 km/h são barreiras."
+  },
+  "analysis.facilities_selected": {
+    "en": "%1$s of %2$s facilities selected",
+    "fr": "%1$s structures sélectionnées sur %2$s",
+    "es": "%1$s de %2$s establecimientos seleccionados",
+    "pt": "%1$s de %2$s estabelecimentos selecionados"
+  },
+  "analysis.facility_filter": {
+    "en": "Attribute filter (e.g. type = 'hospital')",
+    "fr": "Filtre attributaire (p. ex. type = 'hospital')",
+    "es": "Filtro de atributos (p. ej. type = 'hospital')",
+    "pt": "Filtro de atributos (p. ex. type = 'hospital')"
+  },
+  "analysis.apply_filter": {
+    "en": "Apply",
+    "fr": "Appliquer",
+    "es": "Aplicar",
+    "pt": "Aplicar"
+  },
+  "analysis.rows_page": {
+    "en": "Rows %1$s–%2$s of %3$s",
+    "fr": "Lignes %1$s–%2$s sur %3$s",
+    "es": "Filas %1$s–%2$s de %3$s",
+    "pt": "Linhas %1$s–%2$s de %3$s"
+  },
+  "analysis.previous": {
+    "en": "Previous",
+    "fr": "Précédent",
+    "es": "Anterior",
+    "pt": "Anterior"
+  },
+  "analysis.next": {
+    "en": "Next",
+    "fr": "Suivant",
+    "es": "Siguiente",
+    "pt": "Seguinte"
+  },
+  "analysis.cancel": {
+    "en": "Cancel the computation",
+    "fr": "Annuler le calcul",
+    "es": "Cancelar el cálculo",
+    "pt": "Cancelar o cálculo"
+  },
+  "analysis.queued": {
+    "en": "Waiting for the computation to start…",
+    "fr": "En attente du début du calcul…",
+    "es": "Esperando el inicio del cálculo…",
+    "pt": "À espera do início do cálculo…"
+  },
+  "analysis.running": {
+    "en": "Computing: %s",
+    "fr": "Calcul en cours : %s",
+    "es": "Calculando: %s",
+    "pt": "A calcular: %s"
+  },
+  "analysis.validating": {
+    "en": "Checking the inputs…",
+    "fr": "Vérification des données…",
+    "es": "Verificando los datos…",
+    "pt": "A verificar os dados…"
+  },
+  "analysis.valid": {
+    "en": "Ready to compute.",
+    "fr": "Prêt pour le calcul.",
+    "es": "Listo para calcular.",
+    "pt": "Pronto para calcular."
+  },
+  "analysis.run_failed": {
+    "en": "Process failed",
+    "fr": "Échec du calcul",
+    "es": "El cálculo falló",
+    "pt": "O cálculo falhou"
+  },
+  "analysis.run_cancelled": {
+    "en": "Process cancelled",
+    "fr": "Calcul annulé",
+    "es": "Cálculo cancelado",
+    "pt": "Cálculo cancelado"
+  },
+  "analysis.download_job": {
+    "en": "Download the job (JSON), to run it again or on a server",
+    "fr": "Télécharger la tâche (JSON), pour la relancer ou l'exécuter sur un serveur",
+    "es": "Descargar la tarea (JSON), para volver a ejecutarla o en un servidor",
+    "pt": "Transferir a tarefa (JSON), para a executar novamente ou num servidor"
+  },
+  "analysis.no_rows": {
+    "en": "No facility matches.",
+    "fr": "Aucune structure ne correspond.",
+    "es": "Ningún establecimiento coincide.",
+    "pt": "Nenhum estabelecimento corresponde."
+  },
+  "data.last_results": {
+    "en": "Filter last results",
+    "fr": "Filtrer les derniers résultats",
+    "es": "Filtrar los últimos resultados",
+    "pt": "Filtrar os últimos resultados"
+  },
+  "analysis.ok": {
+    "en": "OK",
+    "fr": "OK",
+    "es": "Aceptar",
+    "pt": "OK"
   }
 }

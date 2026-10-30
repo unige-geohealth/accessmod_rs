@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Callout, AmButton, FilePicker, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
 import { ConfirmDialog } from "#ui/components/am/confirm-dialog";
+import { MessageDialog } from "#ui/components/am/message-dialog";
 import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
 import { DataTable } from "#ui/components/am/data-table";
 import { icons } from "#ui/components/am/icons";
@@ -37,6 +38,7 @@ export function Catalogue() {
   const [stack, setStack] = useState<Stack>({ use: stackMock.skip.slice(0, 2), skip: stackMock.skip.slice(2, 5) });
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [finished, setFinished] = useState(false);
 
   return (
     <div className="max-w-5xl">
@@ -82,6 +84,14 @@ export function Catalogue() {
           <ConfirmDialog open={confirming} onOpenChange={setConfirming} confirm="data_delete_permanently" onConfirm={() => {}}>
             <T k="data_delete_warning" />
           </ConfirmDialog>
+          <AmButton k="srv_analysis_accessibility_process_finished_message" onClick={() => setFinished(true)} />
+          <MessageDialog open={finished} onOpenChange={setFinished} title="srv_analysis_accessibility_process_finished_message">
+            <p>Process finished in 0.009 minutes. Output data names:</p>
+            <ul className="list-disc pl-10">
+              <li>travel time [test]</li>
+              <li>cost allocation [test]</li>
+            </ul>
+          </MessageDialog>
         </div>
       </Block>
 

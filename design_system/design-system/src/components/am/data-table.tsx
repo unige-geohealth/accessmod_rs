@@ -5,7 +5,13 @@ import { useEffect, useRef, useState } from "react";
 import { useI18n } from "#ui/i18n";
 
 export type Row = Record<string, string | number | boolean | null>;
-export type Column = { field: string; title?: string; editable?: boolean; width?: number };
+export type Column = {
+  field: string;
+  title?: string;
+  /** A text editor, or the given one: a number, or a choice among `values`. */
+  editable?: boolean | "number" | { values: string[] };
+  width?: number;
+};
 
 type DataTableProps = {
   columns: Column[];
@@ -28,7 +34,16 @@ type DataTableProps = {
   layout?: "fitColumns" | "fitData";
   /** Adds the AM5 export bar ([Download CSV] [Download JSON]); file name without extension. */
   exportName?: string;
+  /** The AM5 selection toolbar of a `selectable` table (default); off when the owner brings its own. */
+  toolbar?: boolean;
 };
+
+function editorOf(editable: Column["editable"]): Pick<ColumnDefinition, "editor" | "editorParams"> {
+  if (editable === true) return { editor: "input" };
+  if (editable === "number") return { editor: "number", editorParams: { min: 0 } };
+  if (editable) return { editor: "list", editorParams: { values: editable.values } };
+  return {};
+}
 
 /**
  * AM5 `amtabulator`: Tabulator with sortable headers, striped rows, square
@@ -46,6 +61,7 @@ export function DataTable({
   onCellEdited,
   layout = "fitColumns",
   exportName,
+  toolbar = true,
 }: DataTableProps) {
   const { t } = useI18n();
   const el = useRef<HTMLDivElement>(null);
@@ -104,7 +120,7 @@ export function DataTable({
     const defs: ColumnDefinition[] = columns.map((c) => ({
       field: c.field,
       title: c.title ?? c.field,
-      editor: c.editable ? "input" : undefined,
+      ...editorOf(c.editable),
       width: c.width,
       headerSort: true,
     }));
@@ -158,7 +174,7 @@ export function DataTable({
 
   return (
     <div className="am-table border border-table-border">
-      {selectable && (
+      {selectable && toolbar && (
         <SelectionToolbar
           columns={columns}
           selected={selected}

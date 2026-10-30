@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Columns } from "#ui/components/am/columns";
-import { DataTable } from "#ui/components/am/data-table";
+import { type Column, DataTable } from "#ui/components/am/data-table";
 import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
 import { AmButton, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
 import { PanelAccordion } from "#ui/components/am/panel-accordion";
@@ -19,7 +19,12 @@ const tabs: SectionTab<Module>[] = [
   { value: "optimization", label: "analysis_optimization_main_tab", icon: "optimization" },
 ];
 
-const scenarioColumns = ["class", "label", "speed", "mode"].map((field) => ({ field, editable: field !== "class" }));
+const scenarioColumns: Column[] = [
+  { field: "class" },
+  { field: "label" },
+  { field: "speed", editable: "number" },
+  { field: "mode", editable: { values: ["WALKING", "BICYCLING", "MOTORIZED"] } },
+];
 const facilityColumns = ["cat", "amOnBarrier", "amOnZero", "amCatLandCover", "amPopCell", "name"].map((field) => ({ field }));
 
 /** Analysis section: the same left column for every module, varying fields. */
