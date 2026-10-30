@@ -215,10 +215,20 @@ Metadata in SQLite, data in files:
     with it in the gallery overlay.
 - TypeScript (`strict`), Vite, React 19, MapLibre GL, Tabulator, TanStack
   Query. Types from `web/schemas` (`cargo xtask schemas`).
-- Node LTS pinned (`design_system/design-system/.nvmrc`, `engines`), npm
-  with committed lockfiles, Vitest, Playwright.
-- Where the client lives (its own package next to `design_system`, or the
-  design system as its library) is decided with slice 4.
+- Node LTS pinned (`.nvmrc`, `engines`), npm with one committed lockfile,
+  Vitest, Playwright.
+- **Where it lives** (decided 2026-10-30): `web/` is its own package,
+  `@accessmod/web`, in a root npm workspace with the design system,
+  `@accessmod/ui`. The client imports the design system's sources
+  (`@accessmod/ui/am/*`, `/i18n`, `/theme`, `/styles.css`); there is no
+  library build. The gallery stays in the design system, so the look is
+  reviewed apart from the data.
+- **Files from the browser**: `POST /api/uploads` streams one or more files
+  (a shapefile with its companions) to `<data>/uploads/<id>/`, bounded in
+  size, owned by the user; `project.create` and `dataset.import` take a
+  file source, `{"upload": {"id"}}` or, on desktop, `{"path"}`. A command
+  that succeeds removes its upload; leftovers are purged after a day.
+  Resumable uploads are slice 5.
 
 ## State
 
@@ -416,11 +426,17 @@ Each slice passes every check and is usable on its own.
    client (2026-10-23, generated forms) was removed: it was planned
    without a visual reference and did not look or flow like AccessMod 5.
    It stays in history (branch `claude/web`). Design system done
-   2026-10-30 (`design_system/`). Next: AccessMod 5 navigation, project
-   open and new, catalogue with import and map preview, the analysis and
-   toolbox screens built from their references with the AM5 layout (not
-   generated forms), runs with progress and cancellation, run history;
-   Playwright on the tutorial data.
+   2026-10-30 (`design_system/`).
+   - Milestone 1 (done 2026-10-30): the AM5 shell; Project (open, new with
+     a DEM upload, delete with `project.remove`, language, summary with
+     location map, projection, grid parameters, extents); Data (import by
+     upload, filter by type, text and tags in the URL, rename by editing
+     tags in the table, delete the selected rows). Project › Export and
+     Data › Archive are shown disabled. Playwright on the tutorial data,
+     light and dark screenshots.
+   - Next: the analysis and toolbox screens built from their references
+     with the AM5 layout (not generated forms), runs with progress and
+     cancellation, run history, map previews of datasets.
    Carried over from the first client's review (2026-10-23): drafts typed
    with the generated job types (one union per analysis); instant schema
    checks (Ajv) with errors on their controls and Run disabled while

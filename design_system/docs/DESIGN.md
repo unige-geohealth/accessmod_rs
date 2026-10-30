@@ -45,7 +45,19 @@ with the overlay.
 5. **Square and dense, like AM5.** Buttons, panels and tabs have no radius;
    inputs, selects and wells use `--radius` (4px). Body is 14px with a line
    height of 1.43. Do not add shadcn's roomier spacing.
-6. **Both themes.** Check every screen in light and dark (`npm run visual`).
+6. **Both themes.** Check every screen inThe design system is the npm workspace package `@accessmod/ui`; the web
+client (`web/`, `@accessmod/web`) imports its sources (`@accessmod/ui/am/*`,
+`/ui/*`, `/i18n`, `/theme`, `/styles.css`). Inside the package, imports use
+the package-scoped `#ui/*` (package.json `imports`), never an alias, so they
+resolve the same from the client. From the repository root:
+
+```
+npm ci                                   # the whole workspace, one lockfile
+npm -w @accessmod/ui run dev              # http://localhost:5180/#/analysis-accessibility
+npm -w @accessmod/ui run visual           # visual/report.html: AM5 | light | dark per route
+npm -w @accessmod/ui run contrast
+npm -w @accessmod/ui run build
+```and dark (`npm run visual`).
    The sidebar is black in both.
 7. **Contrast.** `npm run contrast` must pass (AA). Light deviates from AM5
    only where AM5 failed AA; the original values are in comments.
@@ -91,8 +103,8 @@ with the overlay.
 | `CenterTitle` | `amCenterTitle` | head of the right column (30px, centered, rule) |
 | `SubTitle` | `h4` | table titles |
 | `Columns` | `column(4)` + `col-md-8 col-lg-7` | two-column page |
-| `Field`, `SelectField`, `TextField`, `RadioField`, `CheckboxField` | Shiny inputs | forms; `indent` for dependent fields; `dataLabel()` formats `(r) class [tags]` |
-| `DataTable` | `amtabulator` | every table; `selectable` adds the selection toolbar, `exportName` the [Download CSV] [Download JSON] bar, `layout="fitData"` for result tables |
+| `Field`, `SelectField`, `TextField`, `RadioField`, `CheckboxField` | Shiny inputs | forms; `indent` for dependent fields; `RadioField inline` for `radio-inline` groups; `dataLabel()` formats `(r) class [tags]` |
+| `DataTable` | `amtabulator` | every table; `selectable` adds the selection toolbar, `exportName` the [Download CSV] [Download JSON] bar, `layout="fitData"` for result tables; `rowId` + `selected` make the selection state of the owner, `onCellEdited` reports edits of `editable` columns |
 | `StackList` | `amDoubleSortableInput` | Merge land cover stack: "use" / "skip" lists, drag to reorder (top wins) or move across; Alt+↑/↓ and Enter from the keyboard |
 | `MapFrame` | Leaflet maps | Project location map, Interactive map; see Maps |
 | `LinkActions` | `.link-button` rows | "↺ Reset \| ✎ Import … \| ?" above tables |
@@ -100,6 +112,8 @@ with the overlay.
 | `MessageList` | validation output | Issue(s) / Information lists |
 | `InfoList` | Data › Import notes | bullet notes with an info icon |
 | `AmButton` | `.btn` | `default`, `primary`, `danger` (Compute, Delete); `block` for full width |
+| `FilePicker` | Shiny `fileInput` buttons | "Choose and import data", "Choose DEM or project": an `AmButton` opening the browser file picker |
+| `ConfirmDialog` | `amUpdateModal` | "Confirmation" modal before a deletion: [Cancel] and the danger action |
 
 shadcn primitives in `components/ui` (button, select, tabs, accordion, table,
 dialog, slider, checkbox, radio-group, input, textarea, label, alert, tooltip,
@@ -163,13 +177,18 @@ table cells 12px, help 12px.
 
 ## Gallery
 
+The design system is the npm workspace package `@accessmod/ui`; the web
+client (`web/`, `@accessmod/web`) imports its sources (`@accessmod/ui/am/*`,
+`/ui/*`, `/i18n`, `/theme`, `/styles.css`). Inside the package, imports use
+the package-scoped `#ui/*` (package.json `imports`), never an alias, so they
+resolve the same from the client. From the repository root:
+
 ```
-cd design_system/design-system
-npm ci
-npm run dev        # http://localhost:5180/#/analysis-accessibility
-npm run visual     # visual/report.html: AM5 | light | dark per route
-npm run contrast
-npm run build
+npm ci                                   # the whole workspace, one lockfile
+npm -w @accessmod/ui run dev              # http://localhost:5180/#/analysis-accessibility
+npm -w @accessmod/ui run visual           # visual/report.html: AM5 | light | dark per route
+npm -w @accessmod/ui run contrast
+npm -w @accessmod/ui run build
 ```
 
 The floating panel switches screen, theme and language. **AM5 overlay**

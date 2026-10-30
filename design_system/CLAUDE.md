@@ -13,8 +13,11 @@ writing UI. In short:
 - Icons through `icons` (`components/am/icons.ts`).
 - Compose from `components/am` first.
 
-Checks (in `design-system/`): `npm run typecheck`, `npm run contrast`,
-`npm run build`; with `npm run dev` running, `npm run visual` and review
+The package is `@accessmod/ui` in the root npm workspace (`npm ci` at the
+root); internal imports use `#ui/*`, never `@/`.
+
+Checks (`npm -w @accessmod/ui run …`): `typecheck`, `contrast`,
+`build`; with `dev` running, `visual` and review
 `visual/report.html` in light and dark.
 
 The AM5 source is `../_am5/accessmod` (`sh scripts/fetch-am5.sh`, untracked);
