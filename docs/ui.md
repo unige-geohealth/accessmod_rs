@@ -425,7 +425,7 @@ Each slice passes every check and is usable on its own.
 4. **Client on the design system** (restarted 2026-10-30). The first web
    client (2026-10-23, generated forms) was removed: it was planned
    without a visual reference and did not look or flow like AccessMod 5.
-   It stays in history (branch `claude/web`). Design system done
+   It stays in history (last commit `d83098b`). Design system done
    2026-10-30 (`design_system/`).
    - Milestone 1 (done 2026-10-30): the AM5 shell; Project (open, new with
      a DEM upload, delete with `project.remove`, language, summary with
