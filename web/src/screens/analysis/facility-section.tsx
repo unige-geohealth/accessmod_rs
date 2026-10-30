@@ -5,7 +5,7 @@ import { type Column, DataTable, type Row } from "@accessmod/ui/am/data-table";
 import { TextField } from "@accessmod/ui/am/form";
 import { AmButton, MessageList } from "@accessmod/ui/am/messages";
 import { CenterTitle, SubTitle } from "@accessmod/ui/am/section";
-import { type Key, useI18n } from "@accessmod/ui/i18n";
+import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { useMemo, useState } from "react";
 import { api, issuesOf } from "../../api/client";
 import { useRows } from "../../api/queries";
@@ -59,6 +59,8 @@ export function FacilitySection({
   population,
   scenario,
   onMessage,
+  group,
+  titled = true,
 }: {
   project: string;
   input: FacilityInput;
@@ -67,6 +69,10 @@ export function FacilitySection({
   population?: number | null;
   scenario: readonly ScenarioRow[];
   onMessage: (message: FacilityMessage) => void;
+  /** Group heading, e.g. AM5 Referral "From" and "To". */
+  group?: Key;
+  /** With the "Facilities selection" titles (the first table of a tab). */
+  titled?: boolean;
 }) {
   const { layer: facilities, idField, selection } = input;
   const onSelection = (next: FacilityInput["selection"]) => onMessage({ type: "selection", selection: next });
@@ -112,8 +118,11 @@ export function FacilitySection({
   if (facilities === null) {
     return (
       <>
-        <CenterTitle title="analysis_facility_selection_title" sub="analysis_facility_selection_sub" />
-        <MessageList messages={[{ kind: "info", k: "analysis_facility_selection_add_data" }]} />
+        {titled && <CenterTitle title="analysis_facility_selection_title" sub="analysis_facility_selection_sub" />}
+        <div className="px-[15px]">
+          {group && <GroupTitle k={group} />}
+          <MessageList messages={[{ kind: "info", k: "analysis_facility_selection_add_data" }]} />
+        </div>
       </>
     );
   }
@@ -132,9 +141,10 @@ export function FacilitySection({
 
   return (
     <>
-      <CenterTitle title="analysis_facility_selection_title" sub="analysis_facility_selection_sub" />
+      {titled && <CenterTitle title="analysis_facility_selection_title" sub="analysis_facility_selection_sub" />}
       <div className="flex flex-col gap-2 px-[15px]">
-        <SubTitle k="analysis_facility_selected_facilities" />
+        {titled && <SubTitle k="analysis_facility_selected_facilities" />}
+        {group && <GroupTitle k={group} />}
         <form
           className="flex flex-wrap items-end gap-2"
           onSubmit={(e) => {
@@ -186,5 +196,13 @@ export function FacilitySection({
         )}
       </div>
     </>
+  );
+}
+
+function GroupTitle({ k }: { k: Key }) {
+  return (
+    <h3 className="text-xl">
+      <T k={k} />
+    </h3>
   );
 }

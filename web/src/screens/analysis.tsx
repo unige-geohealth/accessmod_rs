@@ -7,6 +7,7 @@ import { type SectionTab, SectionTabs } from "@accessmod/ui/am/section-tabs";
 import { navigate, type Route } from "../app/route";
 import { Accessibility } from "./analysis/accessibility";
 import { Coverage } from "./analysis/coverage";
+import { Referral } from "./analysis/referral";
 import { NotYet } from "./other";
 
 type Tab = "accessibility" | "coverage" | "referral" | "zonal" | "scalingUp" | "optimization";
@@ -31,6 +32,8 @@ export function AnalysisScreen({ route, project }: { route: Route; project: stri
         <Accessibility project={project} />
       ) : tab === "coverage" ? (
         <Coverage project={project} />
+      ) : tab === "referral" ? (
+        <Referral project={project} />
       ) : (
         <NotYet />
       )}

@@ -104,11 +104,11 @@ export function withFacilityDefaults(input: FacilityInput, layer: number | null,
   return chosen === input.layer && idField === input.idField ? input : { ...input, layer: chosen, idField };
 }
 
-/** Missing layer, missing identifier field, empty selection (AM5 messages). */
-export function facilityIssues(input: FacilityInput, path: string | undefined): Key[] {
+/** Missing layer, missing identifier field, empty selection (AM5 messages; `empty` for the last). */
+export function facilityIssues(input: FacilityInput, path: string | undefined, empty: Key = "srv_analysis_accessibility_select_facilities"): Key[] {
   if (path === undefined) return ["srv_analysis_accessibility_missing_facility_layer"];
   const issues: Key[] = [];
   if (input.idField === "") issues.push("analysis.id_field_missing");
-  if (input.selection.mode === "ids" && input.selection.ids.length === 0) issues.push("srv_analysis_accessibility_select_facilities");
+  if (input.selection.mode === "ids" && input.selection.ids.length === 0) issues.push(empty);
   return issues;
 }

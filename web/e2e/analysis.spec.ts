@@ -104,3 +104,22 @@ test("geographic coverage: capacity, zones, run", async ({ page }) => {
   await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
   await expect(dialog).toContainText("[cov]");
 });
+
+test("referral: From and To groups, closest pair, run", async ({ page }) => {
+  await page.goto(`/#/${project}/analysis/referral`);
+  await page.getByRole("button", { name: "Import content from the selected scenario table" }).click();
+  const tables = page.locator(".tabulator", { hasText: "amOnBarrier" });
+  await expect(tables).toHaveCount(2);
+  // To: three facilities only.
+  await page.getByRole("button", { name: "[None]" }).nth(1).click();
+  for (const i of [0, 1, 2]) await tables.nth(1).locator(".tabulator-row").nth(i).locator("input[type=checkbox]").check();
+  await expect(page.getByText(/^3 of \d+ facilities selected$/)).toBeVisible();
+  await page.getByLabel("Limit the spatial analysis to the closest pair time-wise", { exact: false }).first().click();
+  await page.getByLabel("Add short tags").fill("ref");
+  await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
+  await shot(page, "analysis-referral");
+  await page.getByRole("button", { name: "Compute", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(dialog).toContainText("[ref]");
+});
