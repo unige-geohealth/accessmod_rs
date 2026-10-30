@@ -1,6 +1,7 @@
-# Test and quality on every push and pull request: the Rust gate on Linux,
-# the tests on macOS (Apple silicon), the front-end gate and the end-to-end
-# tests. No packages: releases are built from tags (milestone 4).
+# Test and quality on every push and pull request: the Rust gate on Linux
+# (system GDAL), the tests on macOS with the bundled GDAL of the release
+# archives, the front-end gate and the end-to-end tests. No packages:
+# releases are built from tags (docs/distribution.md).
 name: ci
 
 on:
@@ -28,16 +29,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: sh scripts/check.sh
 
+  # The release build: GDAL, PROJ, GEOS and SQLite built from source and
+  # linked statically (Homebrew GDAL may be newer than the gdal crate knows).
   rust-macos:
-    name: Rust tests (macOS)
+    name: Rust tests, bundled GDAL (macOS)
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - name: GDAL and PROJ
-        run: brew install gdal
       - run: rustup show active-toolchain
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -q --workspace
+      - run: cargo test -q --workspace --features accessmod-io/bundled
+      - run: cargo run -q -p accessmod-cli --features bundled -- doctor
 
   web:
     name: Front end and end-to-end

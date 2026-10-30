@@ -299,7 +299,8 @@ This repository becomes the **canonical source** of the model, without R:
   `bundled` feature / `gdal-src`, or a minimal GeoTIFF + GPKG build) on the
   five targets; this is the main risk of the milestone.
 
-Status: engine done; distribution and CI to do (milestone 4).
+Status: engine done; distribution under way (milestone 4,
+[`distribution.md`](distribution.md)).
 
 ### Milestone 2 — analyses
 
@@ -355,7 +356,9 @@ Design, state rules and slices are in [`ui.md`](ui.md). In short:
 
 - Self-contained archives (binary, GDAL/PROJ, data, licences, embedded front
   end) and CI on the five targets; see milestone 1 and "Tests and acceptance
-  criteria".
+  criteria". Status (2026-10-30): bundled build and archive proven on macOS
+  arm64; CI tests on push; release workflow with macOS notarization written,
+  other targets experimental ([`distribution.md`](distribution.md)).
 
 ### Deferred — MCP and skill
 

@@ -5,6 +5,12 @@ import { defineConfig } from "@playwright/test";
 // server takes uploads only (no local paths), as a country server does.
 // One worker: the spec files share the server and its demo project.
 const data = `${process.env.TMPDIR ?? "/tmp"}/accessmod-e2e-${process.pid}`;
+// ACCESSMOD_E2E_BIN: a packaged binary (scripts/package.sh), which serves the
+// client it ships; by default the workspace build and web/dist.
+const bin = process.env.ACCESSMOD_E2E_BIN;
+const serve = bin
+  ? `"${bin}" serve --data ${data} --port 5198 --no-local-paths`
+  : `cargo run -q -p accessmod-cli -- serve --data ${data} --port 5198 --no-local-paths --web-dir web/dist`;
 
 export default defineConfig({
   testDir: "e2e",
@@ -12,7 +18,7 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: "http://127.0.0.1:5198", viewport: { width: 1440, height: 1000 } },
   webServer: {
-    command: `rm -rf ${data} && cargo run -q -p accessmod-cli -- serve --data ${data} --port 5198 --no-local-paths --web-dir web/dist`,
+    command: `rm -rf ${data} && ${serve}`,
     cwd: "..",
     url: "http://127.0.0.1:5198/api/health",
     timeout: 300_000,

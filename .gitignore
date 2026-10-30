@@ -43,3 +43,4 @@ web/dist/
 web/src/generated/
 web/test-results/
 web/playwright-report/
+/dist/

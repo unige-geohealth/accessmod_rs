@@ -103,6 +103,8 @@ cargo fmt --all --check
 cargo xtask lut [--check]  # regenerate (or verify) the bicycle LUT
 sh scripts/check.sh        # the whole gate, as before a commit
 sh scripts/release.sh 6.0.0-alpha.2 [--dry-run]  # from main: gates, version, commit, tag, push (CI publishes)
+sh scripts/package.sh [target]  # self-contained archive in dist/ (bundled GDAL, docs/distribution.md)
+ACCESSMOD_E2E_BIN=$PWD/dist/<name>/accessmod npm run e2e  # e2e against a packaged binary
 sh scripts/oracle/export.sh # export AccessMod 5 oracle artefacts into _oracle/ (Docker)
 cargo run -p accessmod-cli -- doctor --json
 cargo run -p accessmod-cli -- travel-time run --job job.json --json
