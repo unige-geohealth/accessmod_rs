@@ -129,7 +129,7 @@ function NewPanel() {
     <div className="flex flex-col gap-[15px]">
       <TextField label="project_new_name_text" value={name} onChange={setName} />
       {!validName(name) && <p className="text-xs text-muted-foreground">{t("project_new_name_unlock_dem")}</p>}
-      <FilePicker block k="project_import_btn" accept={ACCEPT.raster} disabled={!validName(name) || busy} onFiles={create} />
+      <FilePicker block multiple k="project_import_btn" accept={ACCEPT.raster} disabled={!validName(name) || busy} onFiles={create} />
       <TransferStatus transfer={state} doneKey="data.imported" />
     </div>
   );
