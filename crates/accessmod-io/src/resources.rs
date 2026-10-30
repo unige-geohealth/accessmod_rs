@@ -109,6 +109,27 @@ pub fn peak_rss() -> Option<u64> {
 mod tests {
     use super::*;
 
+    /// Runs in parallel (server, tests) once crashed reading a global GDAL
+    /// option another run had just replaced (Linux CI, SIGABRT): the cache
+    /// is sized through GDAL's locked setter, and no global option is set.
+    #[test]
+    fn gdal_cache_is_sized_without_a_global_option() {
+        let settings = ExecutionSettings {
+            memory_bytes: 1 << 30,
+            threads: 1,
+            tmp_dir: std::env::temp_dir(),
+        };
+        let plan = ResourcePlan::for_tiles(100, 100, &settings, 64, 0, 0).expect("plan");
+        plan.configure_gdal().expect("configure");
+        // SAFETY: reads a value.
+        let cache = unsafe { gdal_sys::GDALGetCacheMax64() };
+        assert_eq!(u64::try_from(cache).expect("size"), plan.gdal_cache_bytes);
+        assert_eq!(
+            gdal::config::get_config_option("GDAL_CACHEMAX", "unset").expect("option"),
+            "unset"
+        );
+    }
+
     #[test]
     fn sizes() {
         assert_eq!(parse_size("1024"), Some(1024));
@@ -184,10 +205,15 @@ pub struct ResourcePlan {
 }
 
 impl ResourcePlan {
-    /// Size GDAL's block cache (`GDAL_CACHEMAX`) as planned.
+    /// Size GDAL's block cache as planned. `GDALSetCacheMax64`, not the
+    /// `GDAL_CACHEMAX` option: setting a global option frees its previous
+    /// value while other threads (parallel runs, tests) may read it, and the
+    /// option is read only when the cache first starts anyway.
     pub fn configure_gdal(&self) -> Result<()> {
-        gdal::config::set_config_option("GDAL_CACHEMAX", &self.gdal_cache_bytes.to_string())
-            .map_err(Error::gdal("GDAL_CACHEMAX"))
+        let bytes = i64::try_from(self.gdal_cache_bytes).unwrap_or(i64::MAX);
+        // SAFETY: takes a value; GDAL guards the cache size with its own mutex.
+        unsafe { gdal_sys::GDALSetCacheMax64(bytes) };
+        Ok(())
     }
 
     /// Plan for tiled grids taking `per_tile` bytes per tile position, with
