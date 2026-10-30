@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: aarch64-apple-darwin, os: macos-14, experimental: false }
+          - { target: aarch64-apple-darwin, os: macos-15, experimental: false }
           - { target: x86_64-apple-darwin, os: macos-15-intel, experimental: true }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-24.04, experimental: true }
           - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, experimental: true }

@@ -33,7 +33,7 @@ jobs:
   # linked statically (Homebrew GDAL may be newer than the gdal crate knows).
   rust-macos:
     name: Rust tests, bundled GDAL (macOS)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - run: rustup show active-toolchain
