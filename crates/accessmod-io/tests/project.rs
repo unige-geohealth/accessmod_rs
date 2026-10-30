@@ -807,6 +807,11 @@ fn demo_project_holds_every_sample_dataset() {
     let datasets = project.datasets(None).expect("datasets");
     // The DEM, then every sample dataset.
     assert_eq!(datasets.len(), accessmod_io::demo::DATASETS.len() + 1);
+    assert!(
+        datasets
+            .iter()
+            .all(|d| d.tags.first().map(String::as_str) == Some(accessmod_io::demo::TAG))
+    );
     for (_, class, tags) in accessmod_io::demo::DATASETS {
         assert!(
             datasets

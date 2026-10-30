@@ -22,7 +22,7 @@ pub const TAG: &str = "demo";
 
 const DESCRIPTION: &str = "AccessMod 5 sample data: southern Malawi, 1 km grid.";
 
-/// The DEM, which defines the grid.
+/// The DEM, which defines the grid (tagged `demo` too).
 const DEM: &str = "rDEM.img";
 
 macro_rules! files {
@@ -99,6 +99,7 @@ pub fn create(
         settings,
         cancelled,
         |project| {
+            project.retag(project.info()?.dem, &[TAG.to_owned()])?;
             for (file, class, tags) in DATASETS {
                 let tags: Vec<String> = tags.iter().map(|t| (*t).to_owned()).collect();
                 project.import(

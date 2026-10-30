@@ -53,7 +53,7 @@
         },
         "demo": {
           "default": false,
-          "description": "Whether this is the demo project ([`crate::demo`]).",
+          "description": "Whether this is the demo project, built from the AccessMod 5 sample\ndata.",
           "type": "boolean"
         },
         "description": {

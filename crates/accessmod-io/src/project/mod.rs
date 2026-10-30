@@ -109,7 +109,8 @@ pub struct ProjectInfo {
     pub dem: Id,
     /// The project grid.
     pub grid: GridInfo,
-    /// Whether this is the demo project ([`crate::demo`]).
+    /// Whether this is the demo project, built from the AccessMod 5 sample
+    /// data.
     #[serde(default)]
     pub demo: bool,
 }
