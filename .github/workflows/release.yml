@@ -20,8 +20,8 @@ jobs:
   package:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    # New targets may fail while their bundled build is worked out; the
-    # release then holds the others (docs/distribution.md, "Next").
+    # Set experimental: true on a target while its bundled build is worked
+    # out: the release then holds the others.
     continue-on-error: ${{ matrix.experimental }}
     env:
       # Secrets cannot appear in an if: expose whether macOS signing is set up.
@@ -31,10 +31,10 @@ jobs:
       matrix:
         include:
           - { target: aarch64-apple-darwin, os: macos-15, experimental: false }
-          - { target: x86_64-apple-darwin, os: macos-15-intel, experimental: true }
-          - { target: x86_64-unknown-linux-gnu, os: ubuntu-24.04, experimental: true }
-          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, experimental: true }
-          - { target: x86_64-pc-windows-msvc, os: windows-2022, experimental: true }
+          - { target: x86_64-apple-darwin, os: macos-15-intel, experimental: false }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-24.04, experimental: false }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, experimental: false }
+          - { target: x86_64-pc-windows-msvc, os: windows-2022, experimental: false }
     defaults:
       run:
         shell: bash

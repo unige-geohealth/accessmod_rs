@@ -26,7 +26,7 @@ engine in the tests; its code is not copied.
 
 Release archives (binary with GDAL, PROJ and the web client, nothing else
 to install) come from the [releases](https://github.com/unige-geohealth/accessmod_rs/releases);
-macOS arm64 is ready, the other platforms are in progress
+Linux (x86_64, arm64), macOS (Apple silicon, Intel) and Windows (x86_64)
 ([`docs/distribution.md`](docs/distribution.md)).
 
 ```sh
@@ -53,7 +53,7 @@ and figures on a small synthetic landscape.
 | 1 | Travel-time engine on disk-backed tiled rasters, under a memory budget | ✅ |
 | 2 | Every analysis and tool as a command-line job, equal to AccessMod 5 | ✅ (referral network output 🗓) |
 | 3 | Projects and web interface (`accessmod serve`) | 🟡 analyses, data and projects ✅; toolbox, map, logs 🗓 |
-| 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives: macOS arm64 ✅, Linux and Windows 🗓, notarization in CI |
+| 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives for Linux, macOS and Windows ✅; macOS notarization in CI 🗓 |
 
 ## AccessMod 6 against AccessMod 5
 

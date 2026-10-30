@@ -2,9 +2,11 @@
 
 Self-contained archives of AccessMod 6: one binary with GDAL, PROJ, GEOS and
 SQLite linked statically, the PROJ database and the built web client next to
-it. Milestone 4 of [`plan.md`](plan.md). Status (2026-10-30): the recipe
-works on macOS arm64 (archive built, signed, tested); the other targets and
-the release workflow come next.
+it. Milestone 4 of [`plan.md`](plan.md). Status (2026-10-30): archives
+build in CI for the five targets (Linux x86_64 and arm64, macOS arm64 and
+x86_64, Windows x86_64; 17–20 MB each, `doctor` passing); macOS arm64 is
+also tested end to end locally. macOS notarization waits for the Apple
+secrets in this repository.
 
 ## Archive
 
@@ -113,9 +115,8 @@ until it is public).
 
 ## Next
 
-- Release workflow (`.github/workflows/release.yml`, on tags and by hand):
-  macOS arm64 is proven; the four other targets of `plan.md` are marked
-  experimental until their bundled build passes.
-- Windows: `gdal-sys` ships prebuilt bindings for `windows-gnu` only;
-  MSVC may need its `bindgen` feature.
+- Windows: PROJ builds `proj.db` with the `sqlite3` command (installed on
+  the runner); the build itself needs no other change. Windows code signing
+  needs a certificate (none yet).
+- End-to-end tests against the Linux and Windows archives in CI.
 - Later: a Tauri desktop package over the same binary.
