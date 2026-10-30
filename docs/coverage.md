@@ -1,91 +1,77 @@
 # Coverage of AccessMod 5 features
 
-What accessmod-rs covers today, what is planned, and what needs a graphical
-interface. Reference: AccessMod 5 `5.9.2-beta.6` (modules and `tools/R`
-paths are relative to `_am5/accessmod/`). Update this file with every
-feature change.
+What AccessMod 6 covers today, in the engine (command line, job files) and
+in the web interface (`accessmod serve`), and what is planned. Reference:
+AccessMod 5 `5.9.2-beta.6` (modules and `tools/R` paths are relative to
+`_am5/accessmod/`). Update this file with every feature change; the README
+points here for the project status.
 
 Status: ✅ available · 🟡 partial · 🗓 planned (milestone in
 [`plan.md`](plan.md)) · ➖ not planned as such (replaced or out of scope).
-Interface: **CLI** works from the command line or a job file; **UI** needs
-an interactive interface to be practical (map, drag-and-drop, tables).
+**Engine**: command line and job files, checked against AccessMod 5 (the
+oracle). **Web**: the screen in the web interface.
 
-_Last updated: 2026-10-16._
+_Last updated: 2026-10-30 (6.0.0-alpha.1)._
 
 ## Analyses
 
-| AccessMod 5 feature | Where in AM5 | accessmod-rs | Interface |
+| AccessMod 5 feature | Where in AM5 | Engine | Web |
 | --- | --- | --- | --- |
-| **Accessibility**: travel time to/from facilities | `amAnalysisTravelTime.R` | ✅ `travel-time run`; matches AM5 to 1e-15 (anisotropic) and 2⁻²⁴ (isotropic) on the demo project | CLI |
-| Isotropic / anisotropic | idem | ✅ | CLI |
-| From / towards facilities | idem | ✅ | CLI |
-| Knight's move (16 neighbours) | idem | ✅ | CLI |
-| Walking (Tobler), bicycling (LUT), motorized | `mobility.h` | ✅ bicycle LUT bit-identical | CLI |
-| Maximum travel time | idem | ✅ `limit_s` (seconds) | CLI |
-| Nearest facility (cost allocation) | idem | ✅ `nearest_facility.tif` + ID table | CLI |
-| Output in minutes, rounding (`ceil`/`round`/`floor`), min travel time, timeout value | `amCleanTravelTime` | 🗓 compatibility export; canonical output stays in seconds | CLI |
-| Path distance, movement direction | `r.walk` `outdir` | ✅ `path_distance_m.tif`, `direction.tif` | CLI |
-| Facility selection (subset of a layer) | `amFacilitiesSubset`, facility table | 🗓 attribute filter in the job; today: all features of the layer | CLI + UI (table selection) |
-| Facilities on barriers: detected, user deselects | facility validation | ✅ listed as errors, or skipped with `facility_issues: skip` | CLI |
+| **Accessibility**: travel time to/from facilities | `amAnalysisTravelTime.R` | ✅ `travel-time run`; matches AM5 to 1e-15 (anisotropic) and 2⁻²⁴ (isotropic) on the demo project | ✅ Analysis › Accessibility |
+| Isotropic / anisotropic, from / towards facilities, knight's move | idem | ✅ | ✅ |
+| Walking (Tobler), bicycling (LUT), motorized | `mobility.h` | ✅ bicycle LUT bit-identical | ✅ scenario table, editable |
+| Maximum travel time | idem | ✅ `limit_s` (seconds) | ✅ minutes |
+| Nearest facility (cost allocation) | idem | ✅ `nearest_facility.tif` + ID table | ✅ outputs |
+| Output in minutes, rounding, min travel time, timeout value | `amCleanTravelTime` | 🗓 compatibility export; canonical output stays in seconds | 🗓 |
+| Path distance, movement direction | `r.walk` `outdir` | ✅ `path_distance_m.tif`, `direction.tif` | ✅ outputs |
+| Facility selection (subset of a layer) | `amFacilitiesSubset`, facility table | ✅ `where` attribute filter and explicit `ids` in the job (a subset replays headless) | ✅ table with checks, filter, AM5 check columns |
+| Facilities on barriers: detected, user deselects | facility validation | ✅ listed as errors, or skipped with `facility_issues: skip` | ✅ `amOnBarrier`, `amOnZero` columns |
 | Region cropping by max speed × time | `amSpeedBufferRegion.R` | ➖ not needed: the limit is applied exactly during the search | — |
-| **Geographic coverage**: capacity-based population coverage, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | ✅ `geographic-coverage run`: equal to the AM5 demo replays (table, residual, catchments; extended columns, population on barriers, zonal coverage) ([`geographic-coverage.md`](geographic-coverage.md)); 🗓 circular-buffer order | CLI + UI (results review) |
-| **Zonal statistics**: population coverage by zone and time | `amAnalysisZonal.R` | ✅ `zonal-statistics run`: equal to AM5 on the demo ([`zonal-statistics.md`](zonal-statistics.md)) | CLI + UI (charts) |
-| **Referral**: time and distance between facilities, nearest by time or distance, network | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | ✅ `referral run`: many-to-many, nearest by time and distance; times equal AM5 (after its rounding) on the demo, distances within one cell ([`referral.md`](referral.md)); 🗓 network lines output | CLI |
-| **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | ✅ `scaling-up run`: equal to the AM5 demo replay (facilities, table, residual, catchments) ([`scaling-up.md`](scaling-up.md)) | CLI + UI (suitability tables) |
-| **Optimization**: greedy best population coverage | `amAnalysisOptimization.R` | ✅ `optimization run`: equal to the AM5 demo tests (with and without zone minimum) and on overlapping discs, values in single precision ([`optimization.md`](optimization.md)) | CLI |
-| Replay of saved analyses | `amAnalysisReplay.R` | 🟡 `job.json` / `job.resolved.json` replay any run; 🗓 converter from AM5 analysis configs | CLI |
+| **Geographic coverage**: capacity, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | ✅ `geographic-coverage run`: equal to the AM5 demo replays ([`geographic-coverage.md`](geographic-coverage.md)); 🗓 circular-buffer order | ✅ Analysis › Geographic coverage |
+| **Zonal statistics**: population coverage by zone and time | `amAnalysisZonal.R` | ✅ `zonal-statistics run`: equal to AM5 on the demo ([`zonal-statistics.md`](zonal-statistics.md)) | ✅ table in place, columns per time step, CSV/JSON |
+| **Referral**: time and distance between facilities | `amAnalysisReferralParallel.R`, `amAnalysisTimeDist.R` | ✅ `referral run`: times equal AM5 (after its rounding), distances within one cell ([`referral.md`](referral.md)); 🗓 network lines output | ✅ Analysis › Referral (From / To) |
+| **Scaling up**: suitability, exclusion, new facility placement | `amAnalysisScalingUp.R` | ✅ `scaling-up run`: equal to the AM5 demo replay ([`scaling-up.md`](scaling-up.md)) | ✅ capacity, suitability and exclusion tables |
+| **Optimization**: greedy best population coverage | `amAnalysisOptimization.R` | ✅ `optimization run`: equal to the AM5 demo tests ([`optimization.md`](optimization.md)) | ✅ Analysis › Optimization |
+| Replay of saved analyses | `amAnalysisReplay.R` | ✅ `job.json` / `job.resolved.json` replay any run; 🗓 converter from AM5 analysis configs | 🟡 Export job; 🗓 Import job |
 
 ## Toolbox
 
-| AccessMod 5 feature | Where in AM5 | accessmod-rs | Interface |
+| AccessMod 5 feature | Where in AM5 | Engine | Web |
 | --- | --- | --- | --- |
-| **Merge land cover**: stack land cover, roads (classes from an attribute) and barriers (lines, areas) in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: stack as an ordered list; 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); 🗓 polygon skeleton option | CLI (stack as a list) + UI (ordering, conflicts) |
-| Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges` (default on), `bridges.tif` identical to AM5 on the demo | CLI |
-| Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` on land-cover items (AM5 quick correction) | CLI + UI |
-| **Adjust population distribution**: population on barriers, redistribution | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: zone or known population; equal to AM5 within 6e-15 on the demo ([`adjust-population.md`](adjust-population.md)) | CLI |
-| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview`, toolbox | ➖ engine; 🗓 UI (plan: milestone 3) | UI |
+| **Merge land cover**: land cover, roads and barriers in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); 🗓 polygon skeleton option | 🗓 Toolbox screen |
+| Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges`, `bridges.tif` identical to AM5 on the demo | 🗓 |
+| Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` (AM5 quick correction) | 🗓 |
+| **Adjust population distribution** | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: equal to AM5 within 6e-15 ([`adjust-population.md`](adjust-population.md)) | 🗓 Toolbox screen |
+| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview` | ✅ tiles, values at a point (server) | 🗓 Toolbox › Interactive map |
+| Demo project (AM5 sample data) | image data | ✅ `project demo` | ✅ Toolbox › Demo project |
 
 ## Project and data
 
-| AccessMod 5 feature | Where in AM5 | accessmod-rs | Interface |
+| AccessMod 5 feature | Where in AM5 | Engine | Web |
 | --- | --- | --- | --- |
-| Project = GRASS location built from the DEM | `amProjectCreateFromDem` | ✅ `project init`: the DEM defines the grid; imported rasters must lie on its lattice (stricter than AM5, which resamples on import); 🗓 explicit resampling on import | CLI |
-| Raster import with CRS / extent checks | `amUploadRaster.R` | ✅ validation at run time (CRS, resolution, origin, overlap); no implicit resampling or reprojection | CLI |
-| Vector import (facilities) | `amUploadVector.R` | ✅ any GDAL point layer, explicit reprojection | CLI |
-| Vector import (roads, barriers, zones) | idem | ✅ roads and barriers (any GDAL line or polygon layer, explicit reprojection); 🗓 zones with zonal statistics | CLI |
-| Table import (scenarios, capacities) | `amUploadTable.R` | 🟡 scenario in the job JSON; 🗓 CSV scenarios and capacity tables | CLI + UI (table editing) |
-| Data catalogue: tags, filter, rename, archive, delete | `modules/amManageData` | ✅ `dataset import|list|tag|remove` (classes and tags as AM5); run outputs registered as datasets; 🗓 UI | CLI + UI |
-| Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 separate converter (plan: milestone 3) | CLI |
-| Data export | `amExport.R` | ✅ outputs are GeoTIFF and JSON directly | CLI |
-| Dataset inspection | data module | ✅ `dataset inspect` | CLI |
-| Logs | `modules/amManageLogs` | ✅ `run.json` per run, stderr messages | CLI + UI (history) |
-| Settings, languages (en, fr, es, pt) | `modules/amManageSettings`, `www/dictionary` | ➖ CLI flags; 🗓 UI (vocabulary follows the AM5 dictionary) | UI |
-| Resource checks before running | `amGetRessourceEstimate` | ✅ pre-flight memory and disk estimate, `--memory` budget | CLI |
+| Project built from the DEM | `amProjectCreateFromDem` | ✅ `project init`: the DEM defines the grid; imports must lie on its lattice (stricter than AM5, which resamples); 🗓 explicit resampling | ✅ Project › New / Import, summary, location map, delete |
+| Raster import with CRS / extent checks | `amUploadRaster.R` | ✅ GeoTIFF, ERDAS Imagine; no implicit resampling or reprojection | ✅ Data › Import (uploads) |
+| Vector import (facilities, roads, barriers, zones) | `amUploadVector.R` | ✅ shapefile, GeoPackage, FlatGeobuf, GeoJSON; explicit reprojection | ✅ |
+| Table import (scenarios, capacities, suitability, exclusion) | `amUploadTable.R` | ✅ CSV and XLSX | ✅ and editable in the analyses |
+| Data catalogue: tags, filter, rename, delete | `modules/amManageData` | ✅ `dataset import|list|tag|remove`; run outputs registered as datasets | ✅ Data (filter, last results, rename, delete) |
+| Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 converter | 🗓 |
+| Data export | `amExport.R` | ✅ GeoTIFF, FlatGeobuf, CSV, JSON | 🟡 tables as CSV/JSON |
+| Logs | `modules/amManageLogs` | ✅ `run.json` per run | 🗓 Logs screen |
+| Settings, languages (en, fr, es, pt) | `modules/amManageSettings`, `www/dictionary` | ➖ CLI flags | ✅ four languages, light and dark |
+| Resource checks before running | `amGetRessourceEstimate` | ✅ pre-flight memory and disk estimate, `--memory` budget | ✅ validation before Compute |
 
 ## Platform
 
-| AccessMod 5 | accessmod-rs |
+| AccessMod 5 | AccessMod 6 |
 | --- | --- |
-| R/Shiny web app + GRASS GIS + Docker, packaged as Electron app or VM | Single `accessmod` binary (CLI); 🗓 `accessmod serve`: web interface on the desktop or on a country server with accounts (milestone 3); 🗓 self-contained archives with GDAL/PROJ (milestone 4) |
-| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; ➖ MCP server for agents deferred |
+| R/Shiny + GRASS GIS + Docker, packaged as Electron app or VM | One `accessmod` binary: command line and `accessmod serve` (web interface on the desktop); 🟡 self-contained archives with GDAL/PROJ: macOS arm64 proven, other targets in progress ([`distribution.md`](distribution.md)); 🗓 country server with accounts; 🗓 desktop package (Tauri) |
+| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; every web action is a reproducible job; ➖ MCP server deferred |
 | Memory needs grow with the grid (GRASS segments) | Explicit memory budget, tiled disk storage, same results at any budget ([benchmarks](../benchmark/README.md)) |
-| Results in minutes (rounded) | Results in seconds and metres; minutes as a compatibility export (🗓) |
+| Results in minutes (rounded) | Results in seconds and metres; minutes in the interface, compatibility export 🗓 |
 
-## Where an interface is needed
+## Next in the interface
 
-The engine and CLI cover analyses end to end. An interface becomes
-necessary for:
-
-1. **Merge land cover**: ordering the stack, reviewing class conflicts and
-   bridges.
-2. **Scenario and capacity tables**: editing speeds and modes per class.
-3. **Facility selection and relocation**: picking facilities from a table,
-   moving misplaced points on a map.
-4. **Result exploration**: maps, coverage charts, zonal tables.
-5. **Data and project management**: catalogue, tags, history.
-
-The interface is the next milestone (3), on top of the CLI contracts: every
-action that computes maps to a reproducible job.
-
-Architecture, state rules, the screen-to-job mapping and the slices are in
+Toolbox screens (merge land cover, adjust population), the interactive map
+(previews, facility relocation), the Logs screen, Import job and `.am5p`
+import. Architecture, state rules and the screen-to-job mapping are in
 [`ui.md`](ui.md).

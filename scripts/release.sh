@@ -70,10 +70,12 @@ if [ "$current" != "$version" ]; then
 		sed -i.bak "s/\"version\": \"$current\"/\"version\": \"$version\"/" "$f"
 	done
 	sed -i.bak "s/\"@accessmod\/ui\": \"$current\"/\"@accessmod\/ui\": \"$version\"/" web/package.json
-	rm -f Cargo.toml.bak web/package.json.bak design_system/design-system/package.json.bak
+	# README badge: shields.io writes "-" as "--".
+	sed -i.bak "s/version-$(echo "$current" | sed 's/-/--/g')-/version-$(echo "$version" | sed 's/-/--/g')-/" README.md
+	rm -f Cargo.toml.bak web/package.json.bak design_system/design-system/package.json.bak README.md.bak
 	cargo update -q -w
 	npm install --package-lock-only --ignore-scripts --silent
-	git add Cargo.toml Cargo.lock package-lock.json web/package.json design_system/design-system/package.json
+	git add Cargo.toml Cargo.lock package-lock.json web/package.json design_system/design-system/package.json README.md
 	git commit -q -m "chore(release): $tag"
 fi
 [ "$(cargo run -q -p accessmod-cli -- --version)" = "accessmod $version" ] || fail "the binary does not report $version"
