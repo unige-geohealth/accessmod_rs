@@ -6,10 +6,11 @@
 // shared by several documents gives one TypeScript type.
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { compile } from "json-schema-to-typescript";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const schemas = join(root, "schemas");
 const out = join(root, "src", "generated");
 
