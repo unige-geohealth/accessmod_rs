@@ -107,6 +107,7 @@ cargo run -p accessmod-cli -- doctor --json
 cargo run -p accessmod-cli -- travel-time run --job job.json --json
 cargo run -p accessmod-cli -- referral run --job referral.json --json
 cargo run -p accessmod-cli -- project init p --dem dem.tif --name Demo
+cargo run -p accessmod-cli -- project demo demo   # the demo project (AM5 sample data, tagged demo)
 cargo run -p accessmod-cli -- dataset import lc.tif --class rLandCover --tags base --project p
 cargo run -p accessmod-cli -- project run travel-time --job job.json --project p   # paths relative to p
 sh benchmark/travel-time/run.sh 1000 2000   # benchmark vs AccessMod 5 (Docker), writes report.md
@@ -147,7 +148,7 @@ too (`e2e` when a screen changes).
 
 ```
 crates/accessmod-core   tiled storage, raster primitives, mobility and cost models, solver, referral, merge, population, zonal, capacity, scaling up, optimization, focal operations (no GDAL)
-crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/
+crates/accessmod-io     GDAL/PROJ boundary: GIS toolkit, jobs, analyses, outputs, reports; fixtures (tests); examples/; demo/ (AM5 sample data, embedded)
 crates/accessmod-cli    `accessmod` binary (clap): doctor, project, dataset, travel-time, referral, merge-land-cover, adjust-population-distribution, zonal-statistics, geographic-coverage, scaling-up, optimization
 crates/accessmod-server milestone 3 (not yet): `accessmod serve`, command registry, JSON API + events generic over `Analysis`, accounts and roles, run queue, tiles, embedded front end (feature `web`)
 design_system/          AM5 references (screens, DOM, i18n keys, measured styles) and the design system: tokens, components, gallery (React, Tailwind, shadcn/ui)

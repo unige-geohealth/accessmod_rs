@@ -164,6 +164,7 @@ Metadata in SQLite, data in files:
 ```text
 <data>/
   server.sqlite           users, roles, sessions, run queue (country server)
+  settings.json           server settings: the default project
   projects/<id>/
     project.sqlite        project, grid (from the DEM), datasets (class, tags,
                           origin, fingerprint, statistics), saved jobs, runs
@@ -190,7 +191,27 @@ Metadata in SQLite, data in files:
 - **Import**: a raster on the project lattice is converted to tiled GeoTIFF
   with `.ovr` overviews; a misaligned raster needs an explicit resampling step
   whose method is recorded, never an implicit one. Vectors are converted to
-  the project CRS.
+  the project CRS. Rasters are read from GeoTIFF or ERDAS Imagine (`.img`,
+  with its `.ige` spill and `.rrd` overview files); vectors from
+  shapefile, GeoPackage, FlatGeobuf or GeoJSON; tables from CSV, or a
+  sheet of an XLSX workbook (the first unless `layer` names one), stored
+  as CSV.
+- **Demo project** (`accessmod_io::demo`): the AccessMod 5 sample data
+  (southern Malawi, 227 × 196 cells of 1 km), embedded in the binary from
+  `crates/accessmod-io/demo/`; every dataset is tagged `demo` (the two
+  barriers also `rivers` and `wetlands`, since class and tags name one
+  dataset). It goes through the same imports as user files (ERDAS
+  Imagine, shapefiles, XLSX), and is marked `demo` in its metadata. The
+  server builds it, at slug `demo`, when it creates a new data directory,
+  and never again on its own: once removed, `demo.reset` (Toolbox › Demo
+  project) builds it again. `demo.reset` refuses a project at that slug
+  that is not the demo; no other project is given the slug.
+  `accessmod project demo <dir>` builds it from the CLI.
+- **Start project**: the client opens the server's `default_project`
+  (`settings.default_project`, Project › Open) when the URL names none,
+  else the demo. It is decided once, before the first render; a removed
+  default project clears the setting. Without either, the project screen
+  invites the user to rebuild the demo.
 - CLI (done): `accessmod project init|info|run|runs|recover`, `accessmod
   dataset import|list|tag|remove`. A run in a project gives the same bytes as
   the plain CLI on the same inputs (checked on the tutorial). Tags follow
@@ -228,7 +249,10 @@ Metadata in SQLite, data in files:
   size, owned by the user; `project.create` and `dataset.import` take a
   file source, `{"upload": {"id"}}` or, on desktop, `{"path"}`. A command
   that succeeds removes its upload; leftovers are purged after a day.
-  Resumable uploads are slice 5.
+  Resumable uploads are slice 5. An upload is opened only with drivers
+  that never read files they name (no VRT), and every file GDAL reports
+  for it (`GDALGetFileList`: spill, overview, companion files) must lie
+  in the upload directory.
 
 ## State
 
@@ -407,6 +431,7 @@ One binary and one data directory on a small server, run as a service
 | Toolbox › Merge land cover | `merge-land-cover run` (stack as an ordered list) |
 | Toolbox › Adjust population distribution | `adjust-population-distribution run` |
 | Toolbox › Interactive map | relocations edit a facility dataset (GeoPackage) |
+| Toolbox › Demo project (own) | `demo.reset` |
 | Logs | run history (`run.json`) |
 | Settings › Language | client i18n catalogue |
 
@@ -434,6 +459,9 @@ Each slice passes every check and is usable on its own.
      tags in the table, delete the selected rows). Project › Export and
      Data › Archive are shown disabled. Playwright on the tutorial data,
      light and dark screenshots.
+   - Demo project (done 2026-10-30): built in a new data directory and
+     opened first unless a default project is set (Project › Open);
+     Toolbox › Demo project rebuilds it; ERDAS Imagine and XLSX imports.
    - Next: the analysis and toolbox screens built from their references
      with the AM5 layout (not generated forms), runs with progress and
      cancellation, run history, map previews of datasets.
