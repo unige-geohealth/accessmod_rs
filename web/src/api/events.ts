@@ -25,6 +25,7 @@ function handle(event: Api.Event) {
   switch (event.type) {
     case "run":
       upsertRun(event.project, event.run);
+      void queryClient.invalidateQueries({ queryKey: keys.allRuns });
       if (event.run.status !== "queued" && event.run.status !== "running") {
         // A finished run registers its outputs as datasets.
         void queryClient.invalidateQueries({ queryKey: keys.datasets(event.project) });

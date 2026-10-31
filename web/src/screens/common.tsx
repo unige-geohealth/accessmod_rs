@@ -15,6 +15,17 @@ export function fmt(text: string, ...args: (string | number)[]): string {
     .replace(/%%/g, "%");
 }
 
+/** Save `value` as a JSON file (`name`.json) through the browser. */
+export function downloadJson(name: string, value: unknown) {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = window.document.createElement("a");
+  a.href = url;
+  a.download = `${name}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function useFmt() {
   const { t } = useI18n();
   return (key: Key, ...args: (string | number)[]) => fmt(t(key), ...args);

@@ -26,6 +26,8 @@ type AppShellProps = {
   onNavigate: (id: string) => void;
   /** Right side of the header bar, after the menu toggle. */
   headerExtra?: ReactNode;
+  /** Sidebar sections; default the seven AM5 ones. */
+  sections?: NavItem[];
   children: ReactNode;
 };
 
@@ -33,7 +35,7 @@ type AppShellProps = {
  * AM5 layout: black sidebar (230px) with the WHO logo on top of it, a white
  * header bar with the menu toggle, and the content area (padding 20px).
  */
-export function AppShell({ logo, product = "AccessMod 5", project, version, active, onNavigate, headerExtra, children }: AppShellProps) {
+export function AppShell({ logo, product = "AccessMod 5", project, version, active, onNavigate, headerExtra, sections: items = sections, children }: AppShellProps) {
   const [open, setOpen] = useState(true);
   const { t } = useI18n();
   const MenuIcon = icons.menu;
@@ -65,7 +67,7 @@ export function AppShell({ logo, product = "AccessMod 5", project, version, acti
       </header>
 
       <aside className="row-start-2 overflow-hidden bg-sidebar text-sidebar-foreground">
-        <Sidebar product={product} project={project} version={version} active={active} onNavigate={onNavigate} />
+        <Sidebar product={product} project={project} version={version} active={active} onNavigate={onNavigate} sections={items} />
       </aside>
 
       <main className="col-start-2 row-start-2 min-w-0 p-[var(--content-padding)]">{children}</main>
@@ -73,7 +75,7 @@ export function AppShell({ logo, product = "AccessMod 5", project, version, acti
   );
 }
 
-function Sidebar({ product, project, version, active, onNavigate }: Omit<AppShellProps, "logo" | "children" | "headerExtra">) {
+function Sidebar({ product, project, version, active, onNavigate, sections: items = sections }: Omit<AppShellProps, "logo" | "children" | "headerExtra">) {
   return (
     <div className="w-[var(--sidebar-width)]">
       <hr className="my-5 border-sidebar-border" />
@@ -87,7 +89,7 @@ function Sidebar({ product, project, version, active, onNavigate }: Omit<AppShel
       <hr className="my-5 border-sidebar-border" />
       <nav>
         <ul>
-          {sections.map((s) => {
+          {items.map((s) => {
             const Icon = icons[s.icon];
             const on = s.id === active;
             return (

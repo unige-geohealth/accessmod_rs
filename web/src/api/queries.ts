@@ -19,6 +19,7 @@ export const keys = {
   values: (slug: string, id: number, field: string, label: string) => ["project", slug, "values", id, field, label] as const,
   jobs: (slug: string) => ["project", slug, "jobs"] as const,
   runs: (slug: string) => ["project", slug, "runs"] as const,
+  allRuns: ["runs"] as const,
   /** Latest progress of each running run, written by events only. */
   progress: (slug: string) => ["project", slug, "progress"] as const,
 };
@@ -43,6 +44,9 @@ export const useDatasets = (slug: string | null) =>
 
 export const useRuns = (slug: string | null) =>
   useQuery({ queryKey: keys.runs(slug ?? ""), queryFn: () => api.runs(slug ?? ""), enabled: slug !== null });
+
+/** Runs of every project (Jobs). */
+export const useAllRuns = () => useQuery({ queryKey: keys.allRuns, queryFn: () => api.allRuns() });
 
 export const useJobs = (slug: string | null) =>
   useQuery({ queryKey: keys.jobs(slug ?? ""), queryFn: () => api.jobs(slug ?? ""), enabled: slug !== null });

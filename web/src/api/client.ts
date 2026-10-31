@@ -126,6 +126,8 @@ export const api = {
   downloadUrl: (slug: string, id: number, format: "csv" | "json") => `${project(slug)}/datasets/${id}/download?format=${format}`,
   jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),
   runs: (slug: string) => request<Api.RunRecord[]>("GET", `${project(slug)}/runs`),
+  /** The latest runs of every project, newest first. */
+  allRuns: () => request<Api.JobEntry[]>("GET", "/api/runs"),
   /** `prepare` on a job document: its validation summary, or an error with every issue. */
   validate: (slug: string, analysis: string, document: unknown, signal?: AbortSignal) =>
     request<Record<string, unknown>>("POST", `${project(slug)}/analyses/${encodeURIComponent(analysis)}/validate`, document, signal),

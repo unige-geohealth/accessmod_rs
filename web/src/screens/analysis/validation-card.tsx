@@ -14,7 +14,7 @@ import { classLabel } from "../../state/catalogue";
 import { type Issue, sessionStore } from "../../state/drafts";
 import { busy, minutes, percent, runView, type RunView } from "../../state/run";
 import { useStore } from "../../state/store";
-import { useFmt } from "../common";
+import { downloadJson, useFmt } from "../common";
 
 export function ValidationCard({
   project,
@@ -83,15 +83,6 @@ export function ValidationCard({
       setFailure(issuesOf(error, t));
     }
   };
-  const download = () => {
-    const blob = new Blob([`${JSON.stringify(document, null, 2)}\n`], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = window.document.createElement("a");
-    a.href = url;
-    a.download = `${analysis}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <SectionCard title="analysis_validation_title" sub="analysis_validation_sub" icon="validation">
@@ -107,7 +98,7 @@ export function ValidationCard({
       ) : (
         <AmButton variant="danger" block disabled={!ready} k={button} onClick={() => void compute()} />
       )}
-      {document !== null && <LinkActions actions={[{ icon: "download", k: "analysis.download_job", onClick: download }]} />}
+      {document !== null && <LinkActions actions={[{ icon: "download", k: "analysis.download_job", onClick: () => downloadJson(analysis, document) }]} />}
       <MessageDialog
         open={dialog && view.state === "done" && !acknowledged}
         onOpenChange={(open) => {

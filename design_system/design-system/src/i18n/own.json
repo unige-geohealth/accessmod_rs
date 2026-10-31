@@ -568,5 +568,155 @@
     "fr": "Le tableau sélectionné a plus de 1000 lignes : il ne peut pas être utilisé ici.",
     "es": "La tabla seleccionada tiene más de 1000 filas: no se puede usar aquí.",
     "pt": "A tabela selecionada tem mais de 1000 linhas: não pode ser usada aqui."
+  },
+  "jobs.nav": {
+    "en": "Jobs",
+    "fr": "Tâches",
+    "es": "Trabajos",
+    "pt": "Tarefas"
+  },
+  "jobs.title": {
+    "en": "Jobs",
+    "fr": "Tâches",
+    "es": "Trabajos",
+    "pt": "Tarefas"
+  },
+  "jobs.sub": {
+    "en": "Computations of every project: queued, running and finished",
+    "fr": "Calculs de tous les projets : en attente, en cours et terminés",
+    "es": "Cálculos de todos los proyectos: en espera, en curso y terminados",
+    "pt": "Cálculos de todos os projetos: em espera, em curso e terminados"
+  },
+  "jobs.summary": {
+    "en": "%s jobs: %s running, %s queued, %s failed. Computing time: %s",
+    "fr": "%s tâches : %s en cours, %s en attente, %s en échec. Temps de calcul : %s",
+    "es": "%s trabajos: %s en curso, %s en espera, %s fallidos. Tiempo de cálculo: %s",
+    "pt": "%s tarefas: %s em curso, %s em espera, %s falhadas. Tempo de cálculo: %s"
+  },
+  "jobs.scope": {
+    "en": "Show",
+    "fr": "Afficher",
+    "es": "Mostrar",
+    "pt": "Mostrar"
+  },
+  "jobs.scope_all": {
+    "en": "All projects",
+    "fr": "Tous les projets",
+    "es": "Todos los proyectos",
+    "pt": "Todos os projetos"
+  },
+  "jobs.scope_project": {
+    "en": "Current project",
+    "fr": "Projet courant",
+    "es": "Proyecto actual",
+    "pt": "Projeto atual"
+  },
+  "jobs.project": {
+    "en": "Project",
+    "fr": "Projet",
+    "es": "Proyecto",
+    "pt": "Projeto"
+  },
+  "jobs.analysis": {
+    "en": "Analysis",
+    "fr": "Analyse",
+    "es": "Análisis",
+    "pt": "Análise"
+  },
+  "jobs.tags": {
+    "en": "Tags",
+    "fr": "Étiquettes",
+    "es": "Etiquetas",
+    "pt": "Etiquetas"
+  },
+  "jobs.status": {
+    "en": "Status",
+    "fr": "État",
+    "es": "Estado",
+    "pt": "Estado"
+  },
+  "jobs.started": {
+    "en": "Started",
+    "fr": "Début",
+    "es": "Inicio",
+    "pt": "Início"
+  },
+  "jobs.duration": {
+    "en": "Duration",
+    "fr": "Durée",
+    "es": "Duración",
+    "pt": "Duração"
+  },
+  "jobs.outcome": {
+    "en": "Outcome",
+    "fr": "Résultat",
+    "es": "Resultado",
+    "pt": "Resultado"
+  },
+  "jobs.status_queued": {
+    "en": "queued",
+    "fr": "en attente",
+    "es": "en espera",
+    "pt": "em espera"
+  },
+  "jobs.status_running": {
+    "en": "running",
+    "fr": "en cours",
+    "es": "en curso",
+    "pt": "em curso"
+  },
+  "jobs.status_done": {
+    "en": "done",
+    "fr": "terminé",
+    "es": "terminado",
+    "pt": "terminado"
+  },
+  "jobs.status_failed": {
+    "en": "failed",
+    "fr": "échec",
+    "es": "fallido",
+    "pt": "falhado"
+  },
+  "jobs.status_cancelled": {
+    "en": "cancelled",
+    "fr": "annulé",
+    "es": "cancelado",
+    "pt": "cancelado"
+  },
+  "jobs.status_interrupted": {
+    "en": "interrupted",
+    "fr": "interrompu",
+    "es": "interrumpido",
+    "pt": "interrompido"
+  },
+  "jobs.details": {
+    "en": "Job details",
+    "fr": "Détails de la tâche",
+    "es": "Detalles del trabajo",
+    "pt": "Detalhes da tarefa"
+  },
+  "jobs.select": {
+    "en": "Select a job in the table to see its details.",
+    "fr": "Sélectionnez une tâche dans le tableau pour en voir les détails.",
+    "es": "Seleccione un trabajo en la tabla para ver sus detalles.",
+    "pt": "Selecione uma tarefa na tabela para ver os seus detalhes."
+  },
+  "jobs.outputs": {
+    "en": "Outputs",
+    "fr": "Sorties",
+    "es": "Salidas",
+    "pt": "Saídas"
+  },
+  "jobs.open_data": {
+    "en": "Show in Data",
+    "fr": "Afficher dans Données",
+    "es": "Mostrar en Datos",
+    "pt": "Mostrar em Dados"
+  },
+  "jobs.empty": {
+    "en": "No job yet.",
+    "fr": "Aucune tâche.",
+    "es": "Ningún trabajo.",
+    "pt": "Nenhuma tarefa."
   }
 }

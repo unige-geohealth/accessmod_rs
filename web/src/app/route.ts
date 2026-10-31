@@ -3,8 +3,8 @@
 // link shows the same screen, panel and filters.
 import { useSyncExternalStore } from "react";
 
-/** AM5 sections, in AM5 order; ids match `sections` of the design system. */
-export const SECTIONS = ["project", "data", "analysis", "toolbox", "logs", "settings", "about"] as const;
+/** AM5 sections, in AM5 order; Jobs takes the place of AM5 Logs. */
+export const SECTIONS = ["project", "data", "analysis", "toolbox", "jobs", "settings", "about"] as const;
 export type Section = (typeof SECTIONS)[number];
 
 export interface Route {
