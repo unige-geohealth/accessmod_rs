@@ -17,6 +17,8 @@ export const keys = {
   datasets: (slug: string) => ["project", slug, "datasets"] as const,
   rows: (slug: string, id: number, q: RowsQuery) => ["project", slug, "rows", id, q] as const,
   values: (slug: string, id: number, field: string, label: string) => ["project", slug, "values", id, field, label] as const,
+  features: (slug: string, id: number) => ["project", slug, "features", id] as const,
+  value: (slug: string, id: number, lon: number, lat: number) => ["project", slug, "value", id, lon, lat] as const,
   jobs: (slug: string) => ["project", slug, "jobs"] as const,
   runs: (slug: string) => ["project", slug, "runs"] as const,
   allRuns: ["runs"] as const,
@@ -75,6 +77,22 @@ export const useValues = (slug: string, id: number | null, field: string, label:
     queryKey: keys.values(slug, id ?? 0, field, label),
     queryFn: ({ signal }) => api.values(slug, id ?? 0, field, label, signal),
     enabled: id !== null && field !== "",
+  });
+
+/** Features of a vector dataset (GeoJSON, WGS 84); disabled without a dataset. */
+export const useFeatures = (slug: string, id: number | null) =>
+  useQuery({
+    queryKey: keys.features(slug, id ?? 0),
+    queryFn: ({ signal }) => api.features(slug, id ?? 0, signal),
+    enabled: id !== null,
+  });
+
+/** Value of a raster dataset at a point; disabled without a dataset or point. */
+export const useValue = (slug: string, id: number | null, point: { lon: number; lat: number } | null) =>
+  useQuery({
+    queryKey: keys.value(slug, id ?? 0, point?.lon ?? 0, point?.lat ?? 0),
+    queryFn: ({ signal }) => api.value(slug, id ?? 0, point?.lon ?? 0, point?.lat ?? 0, signal),
+    enabled: id !== null && point !== null,
   });
 
 /** Server validation (`prepare`) of a complete job document; `null` disables it. */

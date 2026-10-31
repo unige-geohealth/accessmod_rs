@@ -718,5 +718,29 @@
     "fr": "Aucune tâche.",
     "es": "Ningún trabajo.",
     "pt": "Nenhuma tarefa."
+  },
+  "map.longitude": {
+    "en": "Longitude",
+    "fr": "Longitude",
+    "es": "Longitud",
+    "pt": "Longitude"
+  },
+  "map.latitude": {
+    "en": "Latitude",
+    "fr": "Latitude",
+    "es": "Latitud",
+    "pt": "Latitude"
+  },
+  "map.relocate_hint": {
+    "en": "Turn on editing (pencil, top right of the map), then drag facilities to their place. The layer stays as it is: Save writes a new facilities layer.",
+    "fr": "Activez l'édition (crayon, en haut à droite de la carte), puis déplacez les structures. La couche reste telle quelle : Enregistrer écrit une nouvelle couche de structures.",
+    "es": "Active la edición (lápiz, arriba a la derecha del mapa) y arrastre las instalaciones a su lugar. La capa no cambia: Guardar escribe una nueva capa de instalaciones.",
+    "pt": "Ative a edição (lápis, no canto superior direito do mapa) e arraste as instalações para o seu lugar. A camada não muda: Guardar escreve uma nova camada de instalações."
+  },
+  "map.features_truncated": {
+    "en": "Only the first %s features are shown.",
+    "fr": "Seules les %s premières entités sont affichées.",
+    "es": "Solo se muestran las primeras %s entidades.",
+    "pt": "Apenas as primeiras %s entidades são mostradas."
   }
 }

@@ -59,6 +59,14 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   return value as T;
 }
 
+/** A GeoJSON feature of `GET …/features` (id: the feature id of the layer). */
+export interface Feature {
+  type: "Feature";
+  id?: number;
+  geometry: { type: string; coordinates: unknown } | null;
+  properties: Record<string, unknown> | null;
+}
+
 /** Commands the client sends: parameters and result. */
 interface Commands {
   "project.create": [Api.CreateProject, Api.CreatedProject];
@@ -67,6 +75,7 @@ interface Commands {
   "settings.default_project": [Api.DefaultProject, Api.Settings];
   "dataset.import": [Api.ImportDataset, Api.Dataset];
   "dataset.tag": [Api.TagDataset, Api.Dataset];
+  "dataset.relocate": [Api.RelocateFacilities, Api.Dataset];
   "dataset.remove": [Api.DatasetRef, null];
   "job.save": [Api.SaveJob, Api.SavedJob];
   "job.remove": [Api.JobRef, null];
@@ -122,6 +131,14 @@ export const api = {
       undefined,
       signal,
     ),
+  /** Features of a vector dataset as GeoJSON in WGS 84 (bounded; `truncated` when cut). */
+  features: (slug: string, id: number, signal?: AbortSignal) =>
+    request<{ type: "FeatureCollection"; features: Feature[]; truncated: boolean }>("GET", `${project(slug)}/datasets/${id}/features`, undefined, signal),
+  /** Value of a raster dataset at a point (WGS 84); `null` outside or on NoData. */
+  value: (slug: string, id: number, lon: number, lat: number, signal?: AbortSignal) =>
+    request<{ value: number | null }>("GET", `${project(slug)}/datasets/${id}/value?lon=${lon}&lat=${lat}`, undefined, signal),
+  /** Tile URL template of a raster dataset (MapLibre). */
+  tileUrl: (slug: string, id: number) => `${project(slug)}/datasets/${id}/tiles/{z}/{x}/{y}.png`,
   /** URL of a table dataset as a file. */
   downloadUrl: (slug: string, id: number, format: "csv" | "json") => `${project(slug)}/datasets/${id}/download?format=${format}`,
   jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),

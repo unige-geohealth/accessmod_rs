@@ -13,7 +13,7 @@ import { keys, queryClient } from "../api/queries";
 import { HOME, navigate, type Route } from "../app/route";
 import { useBatch } from "../state/batch";
 import { BatchStatus } from "./common";
-import { NotYet } from "./other";
+import { InteractiveMap } from "./toolbox/map";
 import { MergeLandCover } from "./toolbox/merge";
 import { AdjustPopulation } from "./toolbox/population";
 
@@ -29,7 +29,7 @@ const TABS: SectionTab<Tool>[] = [
 const isTool = (v: string | null): v is Tool => TABS.some((t) => t.value === v);
 
 const TOOLS: Record<Exclude<Tool, "demo">, (props: { project: string; route: Route }) => ReactNode> = {
-  map: NotYet,
+  map: InteractiveMap,
   merge: MergeLandCover,
   population: AdjustPopulation,
 };
