@@ -9,8 +9,9 @@ import { useHealth, useProject } from "../api/queries";
 import { AnalysisScreen } from "../screens/analysis";
 import { DataScreen } from "../screens/data";
 import { JobsScreen } from "../screens/jobs";
-import { AboutScreen, NotYet } from "../screens/other";
+import { AboutScreen } from "../screens/other";
 import { ProjectScreen } from "../screens/project";
+import { SettingsScreen } from "../screens/settings";
 import { ToolboxScreen } from "../screens/toolbox";
 import { goSection, type Route, SECTIONS, type Section, useRoute } from "./route";
 
@@ -56,7 +57,7 @@ function Screen({ route }: { route: Route }) {
     case "jobs":
       return <JobsScreen route={route} />;
     case "settings":
-      return <NotYet />;
+      return <SettingsScreen />;
     case "about":
       return <AboutScreen />;
   }

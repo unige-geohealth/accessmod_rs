@@ -163,7 +163,7 @@ function DeletePanel({ route }: { route: Route }) {
   );
 }
 
-function LanguagePanel() {
+export function LanguagePanel() {
   const { lang, setLang } = useI18n();
   return (
     <SelectField
