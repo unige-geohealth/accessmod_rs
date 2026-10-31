@@ -15,8 +15,8 @@ GIS, Docker) as one binary with a web interface, in Rust (repository
 
 **Status: alpha.** Every AccessMod 5 analysis runs from the command line
 and gives the same results as AccessMod 5 on its demo project; the web
-interface runs them all. Toolbox screens, the interactive map and `.am5p`
-import are next. What is done, feature by feature:
+interface runs them all, with the toolbox, the interactive map and a
+jobs view. `.am5p` import is next. What is done, feature by feature:
 [`docs/coverage.md`](docs/coverage.md).
 
 AccessMod 5 serves only as the numerical oracle: its outputs validate this
@@ -54,7 +54,7 @@ and figures on a small synthetic landscape.
 | --- | --- | --- |
 | 1 | Travel-time engine on disk-backed tiled rasters, under a memory budget | ✅ |
 | 2 | Every analysis and tool as a command-line job, equal to AccessMod 5 | ✅ (referral network output 🗓) |
-| 3 | Projects and web interface (`accessmod serve`) | 🟡 analyses, data and projects ✅; toolbox, map, logs 🗓 |
+| 3 | Projects and web interface (`accessmod serve`) | ✅ every section; `.am5p` import, project export 🗓 |
 | 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives for Linux, macOS and Windows ✅; desktop installers 🟡 (unsigned); macOS notarization in CI 🗓 |
 
 ## AccessMod 6 against AccessMod 5

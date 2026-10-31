@@ -29,7 +29,7 @@ The same server runs two ways:
 Reference: `5.9.2-beta.6`; paths are relative to `_am5/accessmod/`.
 
 - **Navigation**: a sidebar with Project, Data, Analysis, Toolbox, Logs,
-  Settings and About.
+  Settings and About (AccessMod 6: Jobs in place of Logs).
   - Analysis tabs: Accessibility, Geographic coverage, Referral, Zonal
     statistics, Scaling up, Optimization.
   - Toolbox tabs: Interactive map, Merge land cover, Adjust population
@@ -430,9 +430,9 @@ One binary and one data directory on a small server, run as a service
 | Analysis › Optimization | `optimization run` |
 | Toolbox › Merge land cover | `merge-land-cover run` (stack as an ordered list) |
 | Toolbox › Adjust population distribution | `adjust-population-distribution run` |
-| Toolbox › Interactive map | relocations edit a facility dataset (GeoPackage) |
+| Toolbox › Interactive map | `dataset.relocate`: a new facilities dataset (the source stays: runs reference it) |
 | Toolbox › Demo project (own) | `demo.reset` |
-| Logs | run history (`run.json`) |
+| Jobs (in place of Logs) | `GET /api/runs`, `run.cancel` |
 | Settings › Language | client i18n catalogue |
 
 ## Slices
@@ -462,9 +462,13 @@ Each slice passes every check and is usable on its own.
    - Demo project (done 2026-10-30): built in a new data directory and
      opened first unless a default project is set (Project › Open);
      Toolbox › Demo project rebuilds it; ERDAS Imagine and XLSX imports.
-   - Next: the analysis and toolbox screens built from their references
-     with the AM5 layout (not generated forms), runs with progress and
-     cancellation, run history, map previews of datasets.
+   - Analysis screens (done 2026-10-30): the six tabs, runs with progress
+     and cancellation, job export.
+   - Toolbox, Jobs and Settings (done 2026-10-31): Merge land cover (the
+     stack is the draft; adjacent road classes make one job item),
+     Adjust population distribution, Interactive map (relocation saved
+     as a new layer), Jobs in place of Logs (`GET /api/runs`), Settings
+     (theme follows the system).
    Carried over from the first client's review (2026-10-23): drafts typed
    with the generated job types (one union per analysis); instant schema
    checks (Ajv) with errors on their controls and Run disabled while

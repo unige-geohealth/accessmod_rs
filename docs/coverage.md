@@ -11,7 +11,7 @@ Status: ✅ available · 🟡 partial · 🗓 planned (milestone in
 **Engine**: command line and job files, checked against AccessMod 5 (the
 oracle). **Web**: the screen in the web interface.
 
-_Last updated: 2026-10-30 (6.0.0-alpha.1)._
+_Last updated: 2026-10-31 (6.0.0-alpha.1)._
 
 ## Analyses
 
@@ -38,11 +38,11 @@ _Last updated: 2026-10-30 (6.0.0-alpha.1)._
 
 | AccessMod 5 feature | Where in AM5 | Engine | Web |
 | --- | --- | --- | --- |
-| **Merge land cover**: land cover, roads and barriers in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); 🗓 polygon skeleton option | 🗓 Toolbox screen |
+| **Merge land cover**: land cover, roads and barriers in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); 🗓 polygon skeleton option | ✅ Toolbox › Merge land cover: land cover with editable labels, road classes, barriers (lines or polygons as the layer holds them, no type to choose), stack order, conflicts; 🗓 quick correction of conflicts |
 | Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges`, `bridges.tif` identical to AM5 on the demo | 🗓 |
 | Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` (AM5 quick correction) | 🗓 |
-| **Adjust population distribution** | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: equal to AM5 within 6e-15 ([`adjust-population.md`](adjust-population.md)) | 🗓 Toolbox screen |
-| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview` | ✅ tiles, values at a point (server) | 🗓 Toolbox › Interactive map |
+| **Adjust population distribution** | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: equal to AM5 within 6e-15 ([`adjust-population.md`](adjust-population.md)) | ✅ Toolbox › Adjust population distribution |
+| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview` | ✅ tiles, values at a point, `dataset.relocate` | ✅ Toolbox › Interactive map: a raster with opacity, value at a click, facilities with labels, relocation by drag (undo, redo) saved as a new facilities layer; ➖ updating the layer in place (runs reference it) |
 | Demo project (AM5 sample data) | image data | ✅ `project demo` | ✅ Toolbox › Demo project |
 
 ## Project and data
@@ -56,8 +56,8 @@ _Last updated: 2026-10-30 (6.0.0-alpha.1)._
 | Data catalogue: tags, filter, rename, delete | `modules/amManageData` | ✅ `dataset import|list|tag|remove`; run outputs registered as datasets | ✅ Data (filter, last results, rename, delete) |
 | Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 converter | 🗓 |
 | Data export | `amExport.R` | ✅ GeoTIFF, FlatGeobuf, CSV, JSON | 🟡 tables as CSV/JSON |
-| Logs | `modules/amManageLogs` | ✅ `run.json` per run | 🗓 Logs screen |
-| Settings, languages (en, fr, es, pt) | `modules/amManageSettings`, `www/dictionary` | ➖ CLI flags | ✅ four languages, light and dark |
+| Logs | `modules/amManageLogs` | ✅ `run.json` per run, `GET /api/runs` | ✅ Jobs, in place of Logs: runs of every project, progress, cancel, details, outputs, job export |
+| Settings, languages (en, fr, es, pt) | `modules/amManageSettings`, `www/dictionary` | ➖ CLI flags | ✅ Settings: theme (follows the system, or light, or dark), four languages, version; ➖ AM5 admin tools (restart, cache, upload limit) |
 | Resource checks before running | `amGetRessourceEstimate` | ✅ pre-flight memory and disk estimate, `--memory` budget | ✅ validation before Compute |
 
 ## Platform
@@ -71,9 +71,7 @@ _Last updated: 2026-10-30 (6.0.0-alpha.1)._
 
 ## Next in the interface
 
-Toolbox screens (merge land cover, adjust population), the interactive map
-(previews, facility relocation), a Jobs screen (runs of every project,
-queued and running ones with progress and cancel, past ones with duration,
-outcome, log and job export; it takes the place of AM5 Logs), Settings
-(theme: system, light or dark; language), Import job and `.am5p` import. Architecture, state rules and the screen-to-job mapping are in
-[`ui.md`](ui.md).
+Import job, `.am5p` import, Project › Export and Data › Archive, the
+quick correction of merge conflicts, the "next facility to check" of the
+interactive map. Architecture, state rules and the screen-to-job mapping
+are in [`ui.md`](ui.md).
