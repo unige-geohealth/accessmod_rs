@@ -53,12 +53,18 @@ licences under `desktop/`, then runs `cargo tauri build`:
 | Linux | `.deb`, `.AppImage` (needs `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libxdo-dev`, `patchelf`) |
 | Windows | setup `.exe` (NSIS; MSI refuses pre-release versions such as `6.0.0-alpha.1`) |
 
-A window over an engine already packaged (`dist/accessmod-<version>-<target>/`,
-which finds its `share/` beside it), without bundling:
+The window holds no copy of the client: `package-desktop.sh` builds
+`web/dist` and copies it into `desktop/share/` (ignored, rebuilt on every
+run). To see the client in the desktop webview (WebKit on macOS, as
+Safari) with live reload, a debug window opens the Vite dev server instead
+of starting an engine:
 
 ```sh
-cd desktop && ACCESSMOD_BIN=$PWD/../dist/accessmod-<version>-<target>/accessmod cargo run
+npm run dev                     # or dev:server and dev:web
+cd desktop && ACCESSMOD_DEV_URL=http://localhost:5173 cargo run
 ```
+
+`ACCESSMOD_BIN` runs another engine binary, e.g. one of `dist/`.
 
 ## Status
 

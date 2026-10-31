@@ -12,8 +12,9 @@
   ],
   "scripts": {
     "dev": "sh scripts/dev.sh",
+    "dev:server": "sh scripts/dev-server.sh",
     "dev:web": "npm -w @accessmod/web run dev",
-    "dev:ui": "npm -w @accessmod/ui run dev",
+    "dev:gallery": "npm -w @accessmod/ui run dev",
     "typecheck": "npm -w @accessmod/ui run typecheck && npm -w @accessmod/web run typecheck",
     "test": "npm -w @accessmod/web test",
     "contrast": "npm -w @accessmod/ui run contrast",

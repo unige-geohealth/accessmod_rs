@@ -1,24 +1,18 @@
 #!/bin/sh
-# Full-stack development: `accessmod serve` (API) in the background and the
-# client's Vite dev server (http://localhost:5173, proxying /api to it) in
-# the foreground. Ctrl-C stops both. Arguments go to `accessmod serve`, e.g.
-# `sh scripts/dev.sh --data _shared/dev-data`; ACCESSMOD_DEV_PORT sets the
-# API port (default 5099). Rust changes need a restart; client changes
-# reload live.
+# Full-stack development in one terminal: the development server
+# (scripts/dev-server.sh, restarted on Rust changes when watchexec is
+# installed) in the background and the client's Vite dev server
+# (http://localhost:5173, proxying /api to it) in the foreground. Ctrl-C
+# stops both. For separate logs, run `npm run dev:server` and
+# `npm run dev:web` in two terminals. Arguments go to `accessmod serve`.
 set -e
 cd "$(dirname "$0")/.."
 port=${ACCESSMOD_DEV_PORT:-5099}
-api="http://127.0.0.1:$port"
-if curl -s -o /dev/null "$api"; then
-  echo "port $port is in use: stop that server or set ACCESSMOD_DEV_PORT" >&2
-  exit 1
-fi
-cargo build -q -p accessmod-cli
-./target/debug/accessmod serve --port "$port" "$@" &
-serve=$!
-trap 'kill "$serve" 2>/dev/null' EXIT INT TERM
-until curl -sf -o /dev/null "$api/api/health"; do
-  kill -0 "$serve" 2>/dev/null || { echo "accessmod serve did not start" >&2; exit 1; }
-  sleep 0.2
+sh scripts/dev-server.sh "$@" &
+server=$!
+trap 'kill "$server" 2>/dev/null' EXIT INT TERM
+until curl -sf -o /dev/null "http://127.0.0.1:$port/api/health"; do
+	kill -0 "$server" 2>/dev/null || { echo "the development server did not start" >&2; exit 1; }
+	sleep 0.5
 done
-ACCESSMOD_API="$api" npm -w @accessmod/web run dev
+ACCESSMOD_DEV_PORT=$port npm -w @accessmod/web run dev

@@ -122,7 +122,9 @@ front end needs Node 24 and npm.
 ```sh
 sh scripts/check.sh   # Rust gate: fmt, clippy, tests, layers, LUT, schemas, i18n
 npm ci                # front-end dependencies (design system and client)
-npm run dev           # API (debug build, port 5099) + client, http://localhost:5173
+npm run dev:server    # API (debug build, port 5099), restarted on Rust changes (watchexec)
+npm run dev:web       # client with live reload, http://localhost:5173
+npm run dev           # both in one terminal
 npm run check         # front-end gate: typecheck, contrast, tests, builds
 npm run e2e           # Playwright end-to-end tests (after `npm run build`)
 sh scripts/package.sh # release archive in dist/ (bundled GDAL)

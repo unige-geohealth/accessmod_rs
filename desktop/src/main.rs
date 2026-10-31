@@ -49,7 +49,15 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(Engine::default())
         .setup(|app| {
-            open_window(app.handle())?;
+            if let Some(url) = dev_url() {
+                // Development: the window over `npm run dev`, no engine.
+                if let Ok(mut slot) = app.state::<Engine>().origin.lock() {
+                    *slot = Some(url.origin().ascii_serialization());
+                }
+                open_window(app.handle(), WebviewUrl::External(url))?;
+                return Ok(());
+            }
+            open_window(app.handle(), WebviewUrl::App("index.html".into()))?;
             let handle = app.handle().clone();
             std::thread::spawn(move || start(&handle));
             Ok(())
@@ -66,10 +74,22 @@ fn main() {
     });
 }
 
-fn open_window(app: &AppHandle) -> tauri::Result<()> {
+/// `ACCESSMOD_DEV_URL`, e.g. `http://localhost:5173` (Vite, hot reload):
+/// debug builds only, so an installed application always runs its engine.
+fn dev_url() -> Option<Url> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    let url = std::env::var("ACCESSMOD_DEV_URL").ok()?;
+    Url::parse(&url)
+        .inspect_err(|e| eprintln!("ACCESSMOD_DEV_URL {url:?}: {e}"))
+        .ok()
+}
+
+fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<()> {
     let navigation = app.clone();
     let downloads = app.clone();
-    WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("index.html".into()))
+    WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AccessMod 6")
         .inner_size(1400.0, 900.0)
         .min_inner_size(900.0, 600.0)

@@ -48,7 +48,6 @@ function handle(event: Api.Event) {
 export function useEvents(project: string | null) {
   useEffect(() => {
     const url = project === null ? "/api/events" : `/api/events?project=${encodeURIComponent(project)}`;
-    const source = new EventSource(url);
     const listener = (e: MessageEvent<string>) => {
       try {
         handle(JSON.parse(e.data) as Api.Event);
@@ -56,10 +55,24 @@ export function useEvents(project: string | null) {
         // A malformed event is ignored; the next query refresh catches up.
       }
     };
-    for (const name of NAMES) source.addEventListener(name, listener);
-    source.addEventListener("resync", resync);
-    // After a reconnection, events may have been missed: reload.
-    source.onopen = resync;
-    return () => source.close();
+    let source: EventSource;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const connect = () => {
+      source = new EventSource(url);
+      for (const name of NAMES) source.addEventListener(name, listener);
+      source.addEventListener("resync", resync);
+      // After a reconnection, events may have been missed: reload.
+      source.onopen = resync;
+      // EventSource retries a dropped stream itself, but gives up on an
+      // error status (a proxy answering while the server restarts).
+      source.onerror = () => {
+        if (source.readyState === EventSource.CLOSED) retry = setTimeout(connect, 2000);
+      };
+    };
+    connect();
+    return () => {
+      clearTimeout(retry);
+      source.close();
+    };
   }, [project]);
 }
