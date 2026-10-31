@@ -7,9 +7,9 @@ const ThemeContext = createContext<ThemeState | null>(null);
 
 const dark = (t: Theme) => t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
 
-/** Light is the AM5 look; dark is the only visual addition. Class `dark` on <html>. */
+/** Light is the AM5 look; dark is the only visual addition. Class `dark` on <html>; follows the system until a theme is chosen. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem("am.theme") as Theme) ?? "light");
+  const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem("am.theme") as Theme) ?? "system");
 
   useEffect(() => {
     const apply = () => document.documentElement.classList.toggle("dark", dark(theme));

@@ -72,6 +72,8 @@ _Last updated: 2026-10-30 (6.0.0-alpha.1)._
 ## Next in the interface
 
 Toolbox screens (merge land cover, adjust population), the interactive map
-(previews, facility relocation), the Logs screen, Import job and `.am5p`
-import. Architecture, state rules and the screen-to-job mapping are in
+(previews, facility relocation), a Jobs screen (runs of every project,
+queued and running ones with progress and cancel, past ones with duration,
+outcome, log and job export; it takes the place of AM5 Logs), Settings
+(theme: system, light or dark; language), Import job and `.am5p` import. Architecture, state rules and the screen-to-job mapping are in
 [`ui.md`](ui.md).
