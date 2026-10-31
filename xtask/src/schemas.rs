@@ -142,6 +142,10 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::commands::TagDataset>(),
         ),
         (
+            "relocate-facilities",
+            schema::<accessmod_server::commands::RelocateFacilities>(),
+        ),
+        (
             "dataset-ref",
             schema::<accessmod_server::commands::DatasetRef>(),
         ),

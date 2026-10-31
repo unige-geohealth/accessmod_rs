@@ -259,7 +259,8 @@ fn encode_png(rgba: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-fn wgs84() -> Result<SpatialRef> {
+/// WGS 84 in longitude, latitude order.
+pub(crate) fn wgs84() -> Result<SpatialRef> {
     let mut srs = SpatialRef::from_epsg(4326).map_err(Error::gdal("EPSG:4326"))?;
     srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
     Ok(srs)

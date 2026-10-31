@@ -144,6 +144,13 @@ pub fn registry() -> Vec<CommandSpec> {
             tag_dataset
         ),
         command!(
+            "dataset.relocate",
+            "A new facilities dataset with some facilities moved (interactive map)",
+            Requirement::Project(Role::Editor),
+            RelocateFacilities,
+            relocate_facilities
+        ),
+        command!(
             "dataset.remove",
             "Remove a dataset and its files",
             Requirement::Project(Role::Editor),
@@ -269,6 +276,20 @@ pub struct TagDataset {
     pub tags: Vec<String>,
 }
 
+/// `dataset.relocate`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RelocateFacilities {
+    /// Project slug.
+    pub project: String,
+    /// Facilities dataset; it stays as it is.
+    pub id: Id,
+    /// Facilities moved: feature id and new position (WGS 84).
+    pub moves: Vec<accessmod_io::vector::PointMove>,
+    /// Tags of the new dataset.
+    pub tags: Vec<String>,
+}
+
 /// A dataset of a project.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -380,6 +401,7 @@ scoped!(
     RenameProject,
     ImportDataset,
     TagDataset,
+    RelocateFacilities,
     DatasetRef,
     SaveJob,
     JobRef,
@@ -491,6 +513,22 @@ fn tag_dataset(state: &AppState, _: &Principal, params: TagDataset) -> ApiResult
     let record = state
         .open(&params.project)?
         .retag(params.id, &params.tags)?;
+    catalogue(state, &params.project);
+    Ok(record)
+}
+
+fn relocate_facilities(
+    state: &AppState,
+    _: &Principal,
+    params: RelocateFacilities,
+) -> ApiResult<DatasetRecord> {
+    let record = state.open(&params.project)?.relocate(
+        params.id,
+        &params.moves,
+        &params.tags,
+        &state.config().settings,
+        &|| false,
+    )?;
     catalogue(state, &params.project);
     Ok(record)
 }

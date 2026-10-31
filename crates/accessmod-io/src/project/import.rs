@@ -25,7 +25,7 @@ use crate::output::{CsvWriter, GeoTiff, csv_field};
 use crate::preview::{self, Resampling};
 use crate::raster::{AlignedBand, for_each_chunk, open_aligned_raster, open_class_raster};
 use crate::resources::ExecutionSettings;
-use crate::vector::{FeatureWriter, VectorLayer};
+use crate::vector::{FeatureWriter, PointMove, VectorLayer, relocate_points};
 
 /// Options of an import.
 #[derive(Debug, Clone, Default)]
@@ -76,6 +76,40 @@ impl Project {
                 ),
                 Kind::Table => copy_table(source, target, options.layer.as_deref(), cancelled),
                 Kind::Config => Err(config_is_a_job()),
+            },
+            cancelled,
+        )
+    }
+
+    /// A new facilities dataset (`tags`): facilities dataset `id` with the
+    /// facilities of `moves` placed anew (Toolbox › Interactive map). The
+    /// source stays as it is: runs that read it replay unchanged.
+    pub fn relocate(
+        &self,
+        id: super::Id,
+        moves: &[PointMove],
+        tags: &[String],
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<DatasetRecord> {
+        let record = self.dataset(id)?;
+        if record.class != DataClass::Facility {
+            return Err(Error::invalid(format!(
+                "dataset {id} is not a facilities dataset"
+            )));
+        }
+        if moves.is_empty() {
+            return Err(Error::invalid("no facility was moved"));
+        }
+        let source = self.resolve(Path::new(&record.file))?;
+        self.import_with(
+            &source,
+            DataClass::Facility,
+            tags,
+            &ImportOptions::default(),
+            |target| {
+                relocate_points(&source, target, moves)?;
+                summarise(target, DataClass::Facility, settings, cancelled)
             },
             cancelled,
         )

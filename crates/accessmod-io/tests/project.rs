@@ -874,3 +874,70 @@ fn uploads_read_by_another_driver_than_their_name_are_refused() {
     std::fs::write(&table, "class,label,speed\n1,\"forest, dense\",2\n").expect("write");
     accessmod_io::project::check_self_contained(&table).expect("a CSV table");
 }
+
+#[test]
+fn relocation_writes_a_new_facilities_dataset() {
+    use accessmod_io::vector::PointMove;
+    let dir = tempfile::tempdir().expect("tmp");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let facilities = project.dataset(3).expect("facilities");
+    let source = project.resolve(Path::new(&facilities.file)).expect("path");
+    let before = accessmod_io::tiles::geojson(&source, 10).expect("geojson");
+    let feature = &before["features"][0];
+    let fid = feature["id"].as_u64().expect("fid");
+    let [lon, lat] = [0, 1].map(|i| {
+        feature["geometry"]["coordinates"][i]
+            .as_f64()
+            .expect("coordinate")
+    });
+
+    let moved = PointMove {
+        fid,
+        lon: lon + 0.0005,
+        lat: lat - 0.0005,
+    };
+    let record = project
+        .relocate(3, &[moved], &tags(&["relocated"]), &settings, &|| false)
+        .expect("relocate");
+    assert_eq!(record.class, DataClass::Facility);
+    assert_eq!(record.tags, tags(&["relocated"]));
+    let after =
+        accessmod_io::tiles::geojson(&project.resolve(Path::new(&record.file)).expect("path"), 10)
+            .expect("geojson");
+    let feature = &after["features"][0];
+    assert_eq!(
+        feature["properties"],
+        json!({"hf_id": 7, "name": "Central"})
+    );
+    for (i, expected) in [moved.lon, moved.lat].into_iter().enumerate() {
+        let got = feature["geometry"]["coordinates"][i]
+            .as_f64()
+            .expect("coordinate");
+        assert!((got - expected).abs() < 1e-9, "{got} vs {expected}");
+    }
+    // The source is unchanged.
+    assert_eq!(
+        accessmod_io::tiles::geojson(&source, 10).expect("geojson"),
+        before
+    );
+
+    let unknown = PointMove {
+        fid: fid + 100,
+        ..moved
+    };
+    let error = project
+        .relocate(3, &[unknown], &tags(&["again"]), &settings, &|| false)
+        .expect_err("unknown feature");
+    assert!(error.to_string().contains("not found"), "{error}");
+    assert!(
+        project
+            .relocate(2, &[moved], &tags(&["x"]), &settings, &|| false)
+            .is_err()
+    );
+    assert!(
+        project
+            .relocate(3, &[], &tags(&["x"]), &settings, &|| false)
+            .is_err()
+    );
+}

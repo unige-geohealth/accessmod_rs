@@ -903,6 +903,95 @@ impl FeatureWriter {
     }
 }
 
+/// A point moved by [`relocate_points`]: feature id and its new place in
+/// WGS 84 (longitude, latitude), as the map gives it.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, schemars::JsonSchema)]
+pub struct PointMove {
+    /// Feature id in the source layer.
+    pub fid: u64,
+    /// Longitude, degrees.
+    pub lon: f64,
+    /// Latitude, degrees.
+    pub lat: f64,
+}
+
+/// Copy the first layer of point vector `source` to FlatGeobuf `target`,
+/// attributes and order kept, with the features of `moves` placed at
+/// their new position (Toolbox › Interactive map, facility relocation).
+/// A one-point multipoint stays a multipoint. Every moved feature must
+/// exist and be a point.
+pub fn relocate_points(source: &Path, target: &Path, moves: &[PointMove]) -> Result<()> {
+    let invalid = |issue: String| Error::invalid(format!("{}: {issue}", source.display()));
+    let dataset = open_dataset(source)?;
+    let mut layer = dataset
+        .layer(0)
+        .map_err(|_| invalid("has no layer".into()))?;
+    let mut srs = layer
+        .spatial_ref()
+        .ok_or_else(|| invalid("no CRS".into()))?;
+    srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
+    let transform =
+        CoordTransform::new(&crate::tiles::wgs84()?, &srs).map_err(Error::gdal(source))?;
+    let mut placed: std::collections::HashMap<u64, (f64, f64)> = std::collections::HashMap::new();
+    for m in moves {
+        if !(m.lon.is_finite() && m.lat.is_finite()) {
+            return Err(invalid(format!("feature {}: invalid position", m.fid)));
+        }
+        let (mut x, mut y, mut z) = ([m.lon], [m.lat], [0.0]);
+        transform
+            .transform_coords(&mut x, &mut y, &mut z)
+            .map_err(|e| invalid(format!("feature {}: {e}", m.fid)))?;
+        placed.insert(m.fid, (x[0], y[0]));
+    }
+    let fields: Vec<(String, gdal::vector::OGRFieldType::Type)> = layer
+        .defn()
+        .fields()
+        .map(|f| (f.name(), f.field_type()))
+        .collect();
+    let field_refs: Vec<(&str, gdal::vector::OGRFieldType::Type)> =
+        fields.iter().map(|(n, t)| (n.as_str(), *t)).collect();
+    let kind = layer.defn().geometry_type();
+    let name = layer.name();
+    let mut writer = FeatureWriter::create(target, &name, &srs, kind, &field_refs)?;
+    let mut found = 0usize;
+    for feature in layer.features() {
+        let values = (0..fields.len())
+            .map(|i| feature.field(i).map_err(Error::gdal(source)))
+            .collect::<Result<Vec<_>>>()?;
+        let Some(geometry) = feature.geometry() else {
+            continue;
+        };
+        let geometry = match feature.fid().and_then(|fid| placed.get(&fid)) {
+            Some(&(x, y)) => {
+                found += 1;
+                let point = match geometry_type_flatten(geometry.geometry_type()) {
+                    OGRwkbGeometryType::wkbPoint => format!("POINT ({x} {y})"),
+                    OGRwkbGeometryType::wkbMultiPoint if geometry.geometry_count() == 1 => {
+                        format!("MULTIPOINT (({x} {y}))")
+                    }
+                    _ => {
+                        return Err(invalid(format!(
+                            "feature {}: not a point",
+                            feature.fid().unwrap_or_default()
+                        )));
+                    }
+                };
+                Geometry::from_wkt(&point).map_err(Error::gdal(source))?
+            }
+            None => geometry.clone(),
+        };
+        writer.write(geometry, &values)?;
+    }
+    writer.close()?;
+    if found != placed.len() {
+        return Err(invalid(format!(
+            "{} moved feature(s) not found",
+            placed.len() - found
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

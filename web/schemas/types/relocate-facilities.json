@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "PointMove": {
+      "description": "A point moved by [`relocate_points`]: feature id and its new place in\nWGS 84 (longitude, latitude), as the map gives it.",
+      "properties": {
+        "fid": {
+          "description": "Feature id in the source layer.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lat": {
+          "description": "Latitude, degrees.",
+          "format": "double",
+          "type": "number"
+        },
+        "lon": {
+          "description": "Longitude, degrees.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fid",
+        "lon",
+        "lat"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`dataset.relocate`.",
+  "properties": {
+    "id": {
+      "description": "Facilities dataset; it stays as it is.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "moves": {
+      "description": "Facilities moved: feature id and new position (WGS 84).",
+      "items": {
+        "$ref": "#/$defs/PointMove"
+      },
+      "type": "array"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "tags": {
+      "description": "Tags of the new dataset.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "project",
+    "id",
+    "moves",
+    "tags"
+  ],
+  "title": "RelocateFacilities",
+  "type": "object"
+}
