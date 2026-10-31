@@ -14,6 +14,7 @@ import { HOME, navigate, type Route } from "../app/route";
 import { useBatch } from "../state/batch";
 import { BatchStatus } from "./common";
 import { NotYet } from "./other";
+import { MergeLandCover } from "./toolbox/merge";
 import { AdjustPopulation } from "./toolbox/population";
 
 type Tool = "map" | "merge" | "population" | "demo";
@@ -29,7 +30,7 @@ const isTool = (v: string | null): v is Tool => TABS.some((t) => t.value === v);
 
 const TOOLS: Record<Exclude<Tool, "demo">, (props: { project: string; route: Route }) => ReactNode> = {
   map: NotYet,
-  merge: NotYet,
+  merge: MergeLandCover,
   population: AdjustPopulation,
 };
 

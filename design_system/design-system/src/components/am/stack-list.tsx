@@ -30,7 +30,7 @@ export function StackList({
     const next: Stack = { use: [...value.use], skip: [...value.skip] };
     const [item] = next[from.side].splice(from.index, 1);
     const at = from.side === to.side && from.index < to.index ? to.index - 1 : to.index;
-    next[to.side].splice(at, 0, item);
+    if (item) next[to.side].splice(at, 0, item);
     onChange(next);
   };
 
