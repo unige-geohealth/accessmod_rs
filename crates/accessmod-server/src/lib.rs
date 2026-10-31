@@ -84,6 +84,10 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
             get(routes::rows),
         )
         .route(
+            "/api/projects/{project}/datasets/{id}/values",
+            get(routes::values),
+        )
+        .route(
             "/api/projects/{project}/datasets/{id}/download",
             get(routes::download),
         )

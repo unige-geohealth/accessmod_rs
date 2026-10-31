@@ -1,0 +1,51 @@
+{
+  "$defs": {
+    "FieldValue": {
+      "description": "One distinct value of a field.",
+      "properties": {
+        "count": {
+          "description": "Features holding it.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "label": {
+          "description": "The label of its first feature, when a label field is given.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "description": "The value (`null`: features without one)."
+        }
+      },
+      "required": [
+        "value",
+        "count"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Distinct values of a field of a vector layer, e.g. the classes of a\nroad layer and their labels.",
+  "properties": {
+    "complete": {
+      "description": "False when the layer has more than [`MAX_VALUES`] distinct values:\n`values` then holds the first ones met.",
+      "type": "boolean"
+    },
+    "values": {
+      "description": "Values, numbers ascending, then text, then `null`.",
+      "items": {
+        "$ref": "#/$defs/FieldValue"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "values",
+    "complete"
+  ],
+  "title": "FieldValues",
+  "type": "object"
+}

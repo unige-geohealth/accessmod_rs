@@ -1077,3 +1077,51 @@ async fn guard_needs_a_loopback_host_and_the_session_cookie() {
         .expect("response");
     assert_eq!(r.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn values_list_the_classes_of_a_field_with_labels() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let (x, y) = grid(COLS, ROWS).cell_centre(1, 1);
+    let line = format!("LINESTRING ({x} {y}, {} {y})", x + 10.0);
+    let road = |class: i32, label: &str| {
+        (
+            line.as_str(),
+            vec![
+                Some(FieldValue::IntegerValue(class)),
+                Some(FieldValue::StringValue(label.into())),
+            ],
+        )
+    };
+    write_features(
+        &s.dir.path().join("roads.gpkg"),
+        "roads",
+        EPSG,
+        &[
+            ("class_n", OGRFieldType::OFTInteger),
+            ("label", OGRFieldType::OFTString),
+        ],
+        &[road(3, "Tertiary"), road(1, "Main road"), road(3, "Track")],
+    );
+    let (status, body) = s
+        .command(
+            "dataset.import",
+            json!({"project": slug, "source": {"path": s.path("roads.gpkg")}, "class": "vRoad", "tags": ["roads"]}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let roads = body["id"].clone();
+    let url = |query: &str| format!("/api/projects/{slug}/datasets/{roads}/values?{query}");
+    let (status, body) = s.call("GET", &url("field=class_n&label=label"), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    // The label of the first feature of each class.
+    assert_eq!(
+        body,
+        json!({"complete": true, "values": [
+            {"value": 1, "label": "Main road", "count": 1},
+            {"value": 3, "label": "Tertiary", "count": 2},
+        ]})
+    );
+    let (status, body) = s.call("GET", &url("field=nope"), None).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+}

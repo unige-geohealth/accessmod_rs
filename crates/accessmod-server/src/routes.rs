@@ -274,6 +274,41 @@ pub async fn rows(
     .map(Json)
 }
 
+/// Query of `GET …/values`.
+#[derive(Debug, Deserialize)]
+pub struct ValuesQuery {
+    /// Field whose distinct values are listed.
+    pub field: String,
+    /// Field giving each value its label.
+    pub label: Option<String>,
+}
+
+/// `GET /api/projects/{project}/datasets/{id}/values`: distinct values of
+/// a field of a vector dataset (at most [`rows::MAX_VALUES`]), e.g. road
+/// classes and their labels.
+pub async fn values(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, id)): Path<(String, Id)>,
+    Query(query): Query<ValuesQuery>,
+) -> ApiResult<Json<rows::FieldValues>> {
+    with_project(&state, principal, slug, Role::Viewer, move |_, p| {
+        let record = p
+            .dataset(id)
+            .map_err(|_| ApiError::NotFound(format!("no dataset {id}")))?;
+        if record.class.kind() != Kind::Vector {
+            return Err(ApiError::BadRequest(format!(
+                "dataset {id} is not a vector dataset"
+            )));
+        }
+        let path = p.resolve(std::path::Path::new(&record.file))?;
+        let label = query.label.as_deref().filter(|l| !l.is_empty());
+        Ok(rows::field_values(&path, &query.field, label)?)
+    })
+    .await
+    .map(Json)
+}
+
 /// Format of `GET …/download`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]

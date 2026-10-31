@@ -16,6 +16,7 @@ export const keys = {
   bounds: (slug: string) => ["project", slug, "bounds"] as const,
   datasets: (slug: string) => ["project", slug, "datasets"] as const,
   rows: (slug: string, id: number, q: RowsQuery) => ["project", slug, "rows", id, q] as const,
+  values: (slug: string, id: number, field: string, label: string) => ["project", slug, "values", id, field, label] as const,
   jobs: (slug: string) => ["project", slug, "jobs"] as const,
   runs: (slug: string) => ["project", slug, "runs"] as const,
   /** Latest progress of each running run, written by events only. */
@@ -62,6 +63,14 @@ export const useRows = (slug: string, id: number | null, q: RowsQuery) =>
     queryFn: ({ signal }) => api.rows(slug, id ?? 0, q, signal),
     enabled: id !== null,
     placeholderData: (previous) => previous,
+  });
+
+/** Distinct values of `field` of a vector dataset; disabled without a dataset or field. */
+export const useValues = (slug: string, id: number | null, field: string, label: string) =>
+  useQuery({
+    queryKey: keys.values(slug, id ?? 0, field, label),
+    queryFn: ({ signal }) => api.values(slug, id ?? 0, field, label, signal),
+    enabled: id !== null && field !== "",
   });
 
 /** Server validation (`prepare`) of a complete job document; `null` disables it. */

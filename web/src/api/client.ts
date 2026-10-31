@@ -114,6 +114,14 @@ export const api = {
   datasets: (slug: string) => request<Api.Dataset[]>("GET", `${project(slug)}/datasets`),
   rows: (slug: string, id: number, q: RowsQuery, signal?: AbortSignal) =>
     request<Api.Rows>("GET", `${project(slug)}/datasets/${id}/rows${rowsSearch(q)}`, undefined, signal),
+  /** Distinct values of a field of a vector dataset, with the label of each. */
+  values: (slug: string, id: number, field: string, label: string, signal?: AbortSignal) =>
+    request<Api.FieldValues>(
+      "GET",
+      `${project(slug)}/datasets/${id}/values?${new URLSearchParams(label === "" ? { field } : { field, label }).toString()}`,
+      undefined,
+      signal,
+    ),
   /** URL of a table dataset as a file. */
   downloadUrl: (slug: string, id: number, format: "csv" | "json") => `${project(slug)}/datasets/${id}/download?format=${format}`,
   jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),

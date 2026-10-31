@@ -106,6 +106,106 @@ pub fn vector_rows(
     })
 }
 
+/// Distinct values of a field at most ([`field_values`]).
+pub const MAX_VALUES: usize = 1000;
+
+/// One distinct value of a field.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FieldValue {
+    /// The value (`null`: features without one).
+    pub value: Value,
+    /// The label of its first feature, when a label field is given.
+    pub label: Option<String>,
+    /// Features holding it.
+    pub count: u64,
+}
+
+/// Distinct values of a field of a vector layer, e.g. the classes of a
+/// road layer and their labels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FieldValues {
+    /// Values, numbers ascending, then text, then `null`.
+    pub values: Vec<FieldValue>,
+    /// False when the layer has more than [`MAX_VALUES`] distinct values:
+    /// `values` then holds the first ones met.
+    pub complete: bool,
+}
+
+/// Distinct values of `field` in the first layer of vector `path`, with
+/// the first value of `label` for each; one pass, memory bounded by
+/// [`MAX_VALUES`].
+pub fn field_values(path: &Path, field: &str, label: Option<&str>) -> Result<FieldValues> {
+    let dataset = open_dataset(path)?;
+    let invalid = |issue: String| Error::invalid(format!("{}: {issue}", path.display()));
+    let mut layer = dataset
+        .layer(0)
+        .map_err(|_| invalid("has no layer".into()))?;
+    let index = |name: &str| {
+        layer
+            .defn()
+            .fields()
+            .position(|f| f.name() == name)
+            .ok_or_else(|| invalid(format!("no field {name:?}")))
+    };
+    let field_index = index(field)?;
+    let label_index = label.map(index).transpose()?;
+    let mut seen: std::collections::HashMap<String, FieldValue> = std::collections::HashMap::new();
+    let mut complete = true;
+    for feature in layer.features() {
+        let value = json_attribute(feature.field(field_index).map_err(Error::gdal(path))?)
+            .unwrap_or(Value::Null);
+        let key = value.to_string();
+        if let Some(entry) = seen.get_mut(&key) {
+            entry.count += 1;
+            continue;
+        }
+        if seen.len() >= MAX_VALUES {
+            complete = false;
+            continue;
+        }
+        let label = match label_index {
+            Some(i) => {
+                json_attribute(feature.field(i).map_err(Error::gdal(path))?).map(|v| match v {
+                    Value::String(s) => s,
+                    other => other.to_string(),
+                })
+            }
+            None => None,
+        };
+        seen.insert(
+            key,
+            FieldValue {
+                value,
+                label,
+                count: 1,
+            },
+        );
+    }
+    let mut values: Vec<FieldValue> = seen.into_values().collect();
+    values.sort_by(|a, b| order(&a.value, &b.value));
+    Ok(FieldValues { values, complete })
+}
+
+/// Numbers ascending, then text, then `null`.
+fn order(a: &Value, b: &Value) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let rank = |v: &Value| match v {
+        Value::Number(_) => 0,
+        Value::Null => 2,
+        _ => 1,
+    };
+    match (a, b) {
+        (Value::Number(x), Value::Number(y)) => x
+            .as_f64()
+            .unwrap_or(f64::NAN)
+            .total_cmp(&y.as_f64().unwrap_or(f64::NAN)),
+        _ => rank(a).cmp(&rank(b)).then_with(|| match (a, b) {
+            (Value::String(x), Value::String(y)) => x.cmp(y),
+            _ => Ordering::Equal,
+        }),
+    }
+}
+
 /// Page of the records of CSV table `path` (header first, as the project
 /// stores tables).
 pub fn table_rows(path: &Path, offset: u64, limit: usize) -> Result<Rows> {
