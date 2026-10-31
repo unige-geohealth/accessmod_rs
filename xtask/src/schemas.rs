@@ -106,12 +106,13 @@ fn types() -> Vec<(&'static str, Value)> {
         ("saved-job", schema::<project::SavedJob>()),
         ("run", schema::<project::RunRecord>()),
         ("rows", schema::<accessmod_io::rows::Rows>()),
-        ("field_values", schema::<accessmod_io::rows::FieldValues>()),
+        ("field-values", schema::<accessmod_io::rows::FieldValues>()),
         ("event", schema::<accessmod_server::events::Event>()),
         (
             "project-entry",
             schema::<accessmod_server::routes::ProjectEntry>(),
         ),
+        ("job-entry", schema::<accessmod_server::routes::JobEntry>()),
         (
             "created-project",
             schema::<accessmod_server::commands::CreatedProject>(),

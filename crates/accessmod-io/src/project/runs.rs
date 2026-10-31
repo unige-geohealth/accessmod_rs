@@ -567,12 +567,20 @@ impl Project {
 
     /// Runs, by identifier.
     pub fn runs(&self) -> Result<Vec<RunRecord>> {
+        self.runs_of("SELECT id FROM runs ORDER BY id", [])
+    }
+
+    /// The `limit` latest runs, newest first.
+    pub fn recent_runs(&self, limit: usize) -> Result<Vec<RunRecord>> {
+        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+        self.runs_of("SELECT id FROM runs ORDER BY id DESC LIMIT ?1", [limit])
+    }
+
+    /// Records of the run ids selected by `sql`.
+    fn runs_of(&self, sql: &str, params: impl rusqlite::Params) -> Result<Vec<RunRecord>> {
         let ids: Vec<Id> = {
-            let mut stmt = self
-                .db
-                .prepare("SELECT id FROM runs ORDER BY id")
-                .map_err(self.db_error())?;
-            stmt.query_map([], |r| r.get(0))
+            let mut stmt = self.db.prepare(sql).map_err(self.db_error())?;
+            stmt.query_map(params, |r| r.get(0))
                 .map_err(self.db_error())?
                 .collect::<rusqlite::Result<_>>()
                 .map_err(self.db_error())?

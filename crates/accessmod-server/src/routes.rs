@@ -433,6 +433,74 @@ pub async fn runs(
         .map(Json)
 }
 
+/// Runs listed by `GET /api/runs` at most.
+pub const MAX_JOBS: usize = 1000;
+
+/// A run with its project (`GET /api/runs`).
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct JobEntry {
+    /// Project slug.
+    pub project: String,
+    /// Project name.
+    pub name: String,
+    /// The run.
+    pub run: RunRecord,
+}
+
+/// Query of `GET /api/runs`.
+#[derive(Debug, Deserialize)]
+pub struct JobsQuery {
+    /// Runs at most (default and cap [`MAX_JOBS`]).
+    pub limit: Option<usize>,
+}
+
+/// `GET /api/runs`: the latest runs of every project the user may see,
+/// newest first (runs share one queue).
+pub async fn all_runs(
+    State(state): State<AppState>,
+    principal: Principal,
+    Query(query): Query<JobsQuery>,
+) -> ApiResult<Json<Vec<JobEntry>>> {
+    let limit = query.limit.unwrap_or(MAX_JOBS).min(MAX_JOBS);
+    state
+        .blocking(move |state| {
+            let mut out = Vec::new();
+            for slug in state.project_slugs() {
+                if principal
+                    .authorize(Requirement::Project(Role::Viewer), Some(&slug))
+                    .is_err()
+                {
+                    continue;
+                }
+                let listed = state.open(&slug).and_then(|p| {
+                    let name = p.info()?.name;
+                    Ok(p.recent_runs(limit)?
+                        .into_iter()
+                        .map(|run| JobEntry {
+                            project: slug.clone(),
+                            name: name.clone(),
+                            run,
+                        })
+                        .collect::<Vec<_>>())
+                });
+                match listed {
+                    Ok(runs) => out.extend(runs),
+                    Err(e) => tracing::warn!("project {slug}: {e}"),
+                }
+            }
+            out.sort_by(|a, b| {
+                b.run
+                    .started
+                    .cmp(&a.run.started)
+                    .then_with(|| b.run.id.cmp(&a.run.id))
+            });
+            out.truncate(limit);
+            Ok(out)
+        })
+        .await
+        .map(Json)
+}
+
 /// `GET /api/projects/{project}/runs/{id}`.
 pub async fn run(
     State(state): State<AppState>,

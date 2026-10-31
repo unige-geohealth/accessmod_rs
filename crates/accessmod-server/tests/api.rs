@@ -329,6 +329,12 @@ async fn project_import_validate_and_run_with_events() {
         .call("GET", &format!("/api/projects/{slug}/runs/{id}"), None)
         .await;
     assert_eq!(record["status"], "done");
+    // Every project's runs, newest first, with the project.
+    let (status, jobs) = s.call("GET", "/api/runs?limit=5", None).await;
+    assert_eq!(status, StatusCode::OK, "{jobs}");
+    assert_eq!(jobs[0]["project"], json!(slug));
+    assert_eq!(jobs[0]["name"], "Demo");
+    assert_eq!(jobs[0]["run"]["id"], json!(id));
     let (_, outputs) = s
         .call(
             "GET",
