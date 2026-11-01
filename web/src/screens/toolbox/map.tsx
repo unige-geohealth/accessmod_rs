@@ -8,7 +8,7 @@ import { Field, SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
 import { AmButton, MessageList } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
-import { StackList } from "@accessmod/ui/am/stack-list";
+import { LayerList, LayerPicker } from "@accessmod/ui/am/layer-list";
 import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { Slider } from "@accessmod/ui/ui/slider";
 import { useQueries } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ import {
   EMPTY,
   MAX_LAYERS,
   type MapDraft,
+  type MapLayer,
   type MapMessage,
   type Move,
   moves,
@@ -313,16 +314,21 @@ function Layers({
   const { t } = useI18n();
   const f = useFmt();
   const vectors = datasets.filter((d) => kindOf(d.class) === "vector").sort((a, b) => b.id - a.id);
-  const item = (d: Api.Dataset) => ({ id: String(d.id), label: datasetLabel(t, d), kind: "vector" as const });
-  const shown = draft.layers.flatMap((id) => vectors.find((d) => d.id === id) ?? []);
-  const available = vectors.filter((d) => !draft.layers.includes(d.id));
+  const option = (d: Api.Dataset) => ({ id: String(d.id), label: datasetLabel(t, d), kind: geometryOf(d) });
+  const items = draft.layers.flatMap((l) => {
+    const d = vectors.find((v) => v.id === l.id);
+    return d ? [{ ...option(d), visible: l.visible }] : [];
+  });
+  const available = vectors.filter((d) => !draft.layers.some((l) => l.id === d.id)).map(option);
   return (
-    <div className="flex flex-col gap-[15px]">
+    <div className="flex flex-col gap-2.5">
       <p className="text-sm">{f("map.layers_sub", MAX_LAYERS)}</p>
-      <StackList
-        labels={{ use: "map.layers_shown", skip: "map.layers_available" }}
-        value={{ use: shown.map(item), skip: available.map(item) }}
-        onChange={(stack) => dispatch({ type: "layers", shown: stack.use.map((i) => Number(i.id)) })}
+      <LayerPicker options={available} disabled={draft.layers.length >= MAX_LAYERS} onAdd={(id) => dispatch({ type: "addLayer", id: Number(id) })} />
+      <LayerList
+        items={items}
+        onToggle={(id) => dispatch({ type: "toggleLayer", id: Number(id) })}
+        onRemove={(id) => dispatch({ type: "removeLayer", id: Number(id) })}
+        onOrder={(ids) => dispatch({ type: "orderLayers", ids: ids.map(Number) })}
       />
       {truncated.length > 0 && (
         <MessageList
@@ -378,14 +384,17 @@ function useRasterLayer(map: maplibregl.Map | null, url: string | null, opacity:
   }, [map, opacity]);
 }
 
-/** Geometry of a vector dataset, for its style. */
+/** Geometry of a vector dataset, for its style and icon. */
 function geometryOf(dataset: Api.Dataset | undefined): "polygon" | "point" | "line" {
   const geometry = dataset?.summary.kind === "vector" ? dataset.summary.geometry.toLowerCase() : "";
   return geometry.includes("polygon") ? "polygon" : geometry.includes("point") ? "point" : "line";
 }
 
 /** The additional layers in their order (top first), between the reference raster and the facilities; returns those shown in part. */
-function useVectorLayers(map: maplibregl.Map | null, project: string, layers: readonly number[], byId: ReadonlyMap<number, Api.Dataset>): number[] {
+function useVectorLayers(map: maplibregl.Map | null, project: string, all: readonly MapLayer[], byId: ReadonlyMap<number, Api.Dataset>): number[] {
+  // Hidden layers keep their data, not their drawing.
+  const layers = all.map((l) => l.id);
+  const visible = all.map((l) => l.visible);
   const results = useQueries({
     queries: layers.map((id) => ({
       queryKey: keys.features(project, id, null),
@@ -393,10 +402,10 @@ function useVectorLayers(map: maplibregl.Map | null, project: string, layers: re
       staleTime: Infinity,
     })),
   });
-  const latest = useRef({ data: results.map((r) => r.data), byId });
-  latest.current = { data: results.map((r) => r.data), byId };
+  const latest = useRef({ data: results.map((r) => r.data), visible, byId });
+  latest.current = { data: results.map((r) => r.data), visible, byId };
   // Redrawn when the order changes or a layer arrives.
-  const signature = layers.map((id, i) => `${id}:${results[i]?.data ? 1 : 0}`).join(",");
+  const signature = layers.map((id, i) => `${id}:${visible[i] ? 1 : 0}:${results[i]?.data ? 1 : 0}`).join(",");
 
   useEffect(() => {
     if (map === null) return;
@@ -405,9 +414,10 @@ function useVectorLayers(map: maplibregl.Map | null, project: string, layers: re
     for (let index = layers.length - 1; index >= 0; index--) {
       const id = layers[index];
       const data = latest.current.data[index];
-      if (id === undefined || data === undefined) continue;
+      if (id === undefined || data === undefined || !latest.current.visible[index]) continue;
       const source = `${VECTOR}${id}`;
-      const color = PALETTE[index % PALETTE.length] ?? "#7f7f7f";
+      // A layer keeps its colour when the order changes.
+      const color = PALETTE[id % PALETTE.length] ?? "#7f7f7f";
       const before = map.getLayer(FACILITIES) ? FACILITIES : undefined;
       map.addSource(source, { type: "geojson", data: data as Data });
       switch (geometryOf(latest.current.byId.get(id))) {

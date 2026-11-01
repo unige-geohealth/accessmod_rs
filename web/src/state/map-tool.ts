@@ -24,6 +24,12 @@ export type Basemap = (typeof BASEMAPS)[number];
 /** Additional layers shown at most. */
 export const MAX_LAYERS = 10;
 
+/** An additional layer: a vector dataset, shown or hidden. */
+export interface MapLayer {
+  id: number;
+  visible: boolean;
+}
+
 export interface MapDraft {
   /** Reference raster of the relocator (usually the merged land cover). */
   reference: number | null;
@@ -42,8 +48,8 @@ export interface MapDraft {
   tags: string;
   /** Facility Next went to. */
   selected: number | null;
-  /** Additional vector layers shown, top first. */
-  layers: readonly number[];
+  /** Additional vector layers, top first; a hidden one keeps its place. */
+  layers: readonly MapLayer[];
   basemap: Basemap;
   /** The online basemap failed to load: back to the schematic map, with a notice. */
   basemapFailed: boolean;
@@ -69,7 +75,12 @@ export const EMPTY: MapDraft = {
 export type MapMessage =
   | { type: "reference"; id: number | null }
   | { type: "select"; fid: number | null }
-  | { type: "layers"; shown: readonly number[] }
+  /** Added on top (at most `MAX_LAYERS`). */
+  | { type: "addLayer"; id: number }
+  | { type: "removeLayer"; id: number }
+  | { type: "toggleLayer"; id: number }
+  /** New order, top first. */
+  | { type: "orderLayers"; ids: readonly number[] }
   | { type: "basemap"; basemap: Basemap }
   | { type: "basemapFailed" }
   | { type: "opacity"; value: number }
@@ -97,8 +108,18 @@ export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
       return { ...draft, reference: message.id, clicked: null };
     case "select":
       return { ...draft, selected: message.fid };
-    case "layers":
-      return { ...draft, layers: message.shown.slice(0, MAX_LAYERS) };
+    case "addLayer":
+      if (draft.layers.length >= MAX_LAYERS || draft.layers.some((l) => l.id === message.id)) return draft;
+      return { ...draft, layers: [{ id: message.id, visible: true }, ...draft.layers] };
+    case "removeLayer":
+      return { ...draft, layers: draft.layers.filter((l) => l.id !== message.id) };
+    case "toggleLayer":
+      return { ...draft, layers: draft.layers.map((l) => (l.id === message.id ? { ...l, visible: !l.visible } : l)) };
+    case "orderLayers": {
+      const ordered = message.ids.flatMap((id) => draft.layers.filter((l) => l.id === id));
+      // The same layers in another order only.
+      return ordered.length === draft.layers.length ? { ...draft, layers: ordered } : draft;
+    }
     case "basemap":
       return { ...draft, basemap: message.basemap, basemapFailed: false };
     case "basemapFailed":

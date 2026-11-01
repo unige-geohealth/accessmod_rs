@@ -122,9 +122,29 @@ describe("interactive map", () => {
     expect(pointOf(undefined)).toBeNull();
   });
 
+  it("shows, hides, removes and reorders additional layers", () => {
+    let draft = [3, 2, 1].reduce((d, id) => updateMap(d, { type: "addLayer", id }), EMPTY);
+    expect(draft.layers.map((l) => l.id)).toEqual([1, 2, 3]);
+    draft = updateMap(draft, { type: "toggleLayer", id: 2 });
+    expect(draft.layers.map((l) => l.visible)).toEqual([true, false, true]);
+    draft = updateMap(draft, { type: "orderLayers", ids: [3, 1, 2] });
+    // A hidden layer keeps its visibility through a reorder.
+    expect(draft.layers).toEqual([
+      { id: 3, visible: true },
+      { id: 1, visible: true },
+      { id: 2, visible: false },
+    ]);
+    // An order naming other layers is ignored.
+    expect(updateMap(draft, { type: "orderLayers", ids: [3, 1] })).toBe(draft);
+    expect(updateMap(draft, { type: "removeLayer", id: 1 }).layers.map((l) => l.id)).toEqual([3, 2]);
+  });
+
   it("keeps at most ten layers and needs a key for MapTiler", () => {
-    const shown = Array.from({ length: 12 }, (_, i) => i);
-    expect(updateMap(EMPTY, { type: "layers", shown }).layers).toHaveLength(MAX_LAYERS);
+    const added = Array.from({ length: 12 }, (_, id) => ({ type: "addLayer", id }) as const).reduce(updateMap, EMPTY);
+    expect(added.layers).toHaveLength(MAX_LAYERS);
+    // Added on top; twice is once.
+    expect(added.layers[0]).toEqual({ id: 9, visible: true });
+    expect(updateMap(added, { type: "addLayer", id: 9 })).toBe(added);
     expect(basemapStyle("satellite-v4", null)).toBeNull();
     expect(basemapStyle("schematic", "k")).toBeNull();
     expect(basemapStyle("satellite-v4", "a b")).toBe("https://api.maptiler.com/maps/satellite-v4/style.json?key=a%20b");

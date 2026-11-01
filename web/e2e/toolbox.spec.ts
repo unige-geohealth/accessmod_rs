@@ -87,10 +87,18 @@ test("interactive map: facilities to inspect, Next, a drag, Save; additional lay
 
   // Additional layers: both barrier layers above the land cover.
   await page.getByRole("button", { name: "Additional layers" }).click();
-  for (const name of ["barrier [demo rivers]", "barrier [demo wetlands]"]) {
-    await page.getByRole("list", { name: "Available" }).getByRole("listitem").filter({ hasText: name }).press("Enter");
+  const search = page.getByRole("combobox", { name: "Search a layer" });
+  for (const words of ["rivers", "wetl"]) {
+    await search.fill(words);
+    await search.press("Enter");
   }
-  await expect(page.getByRole("list", { name: "Shown (top first)" }).getByRole("listitem")).toHaveCount(2);
+  const active = page.getByRole("list", { name: "Layers shown, top first" }).getByRole("listitem");
+  await expect(active).toHaveCount(2);
+  // The last added is on top; each shows its geometry.
+  await expect(active.first()).toContainText("barrier [demo wetlands]");
+  await expect(active.first().getByRole("img", { name: "Polygons" })).toBeVisible();
+  await active.nth(1).getByRole("button", { name: "Hide" }).click();
+  await expect(active.nth(1).getByRole("button", { name: "Show" })).toBeVisible();
   await shot(page, "toolbox-map-layers");
   await page.getByRole("button", { name: "Facilities relocator" }).click();
 
