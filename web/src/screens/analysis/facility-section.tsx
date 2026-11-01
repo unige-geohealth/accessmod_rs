@@ -111,8 +111,10 @@ export function FacilitySection({
   }, [data, speeds, landCover, population, popAt]);
   const columns: Column[] = useMemo(() => {
     const rest = (data?.columns ?? []).filter((c) => c !== idField).map((field) => ({ field }));
-    const pop = population === undefined ? [] : [{ field: "amPopCell" }];
-    return [{ field: idField }, { field: "amOnBarrier" }, { field: "amOnZero" }, { field: "amCatLandCover" }, ...pop, ...rest];
+    const pop = population === undefined ? [] : ["amPopCell"];
+    // The id and the AccessMod columns stay in view; the layer's own fields scroll (AM5).
+    const fixed = [idField, "amOnBarrier", "amOnZero", "amCatLandCover", ...pop].map((field) => ({ field, frozen: true }));
+    return [...fixed, ...rest];
   }, [data?.columns, idField, population]);
 
   if (facilities === null) {
@@ -132,7 +134,14 @@ export function FacilitySection({
     setFailure([]);
     try {
       const all = selection.mode === "all" ? await everyId(project, facilities, selection.where, idField) : undefined;
-      onSelection(checkPage(selection, ids, checked.map((r) => r[idField]), all));
+      onSelection(
+        checkPage(
+          selection,
+          ids,
+          checked.map((r) => r[idField]),
+          all,
+        ),
+      );
     } catch (error) {
       setFailure(issuesOf(error, t));
     }

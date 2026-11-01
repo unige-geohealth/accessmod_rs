@@ -11,6 +11,8 @@ export type Column = {
   /** A text editor, or the given one: a number, or a choice among `values`. */
   editable?: boolean | "number" | { values: string[] };
   width?: number;
+  /** Kept on the left while the other columns scroll (AM5: the AccessMod columns). */
+  frozen?: boolean;
 };
 
 type DataTableProps = {
@@ -37,6 +39,21 @@ type DataTableProps = {
   /** The AM5 selection toolbar of a `selectable` table (default); off when the owner brings its own. */
   toolbar?: boolean;
 };
+
+/** Header cell padding and sort arrow, around the title text. */
+const HEADER_CHROME = 36;
+let measure: CanvasRenderingContext2D | null = null;
+
+/**
+ * Width of a header title (bold 12 px): the column never gets narrower, so
+ * every header stays readable; past the table width it scrolls.
+ */
+function headerWidth(title: string, host: HTMLElement): number {
+  measure ??= document.createElement("canvas").getContext("2d");
+  if (!measure) return 8 * title.length + HEADER_CHROME;
+  measure.font = `700 12px ${getComputedStyle(host).fontFamily}`;
+  return Math.ceil(measure.measureText(title).width) + HEADER_CHROME;
+}
 
 function editorOf(editable: Column["editable"]): Pick<ColumnDefinition, "editor" | "editorParams"> {
   if (editable === true) return { editor: "input" };
@@ -122,6 +139,8 @@ export function DataTable({
       title: c.title ?? c.field,
       ...editorOf(c.editable),
       width: c.width,
+      minWidth: headerWidth(c.title ?? c.field, host),
+      frozen: c.frozen,
       headerSort: true,
     }));
     if (selectable) {
