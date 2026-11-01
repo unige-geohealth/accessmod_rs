@@ -28,6 +28,7 @@ import {
   landCoverItem,
   type MergeMessage,
   roadIssues,
+  roadNotices,
   roadItems,
   shownLabels,
   type StackItem,
@@ -202,7 +203,11 @@ function RoadsTab({ project, draft, options, byId, dispatch }: TabProps & { proj
             value={draft.labelField}
             onChange={(field) => dispatch({ type: "labelField", field })}
           />
-          {issues.length > 0 && <MessageList messages={issues.map((k) => ({ kind: "issue" as const, k }))} />}
+          {issues.length + roadNotices(classes).length > 0 && (
+            <MessageList
+              messages={[...issues.map((k) => ({ kind: "issue" as const, k })), ...roadNotices(classes).map((k) => ({ kind: "info" as const, k }))]}
+            />
+          )}
           <AmButton
             variant="danger"
             block

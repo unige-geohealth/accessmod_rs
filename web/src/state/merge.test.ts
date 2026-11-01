@@ -10,6 +10,7 @@ import {
   landCoverItem,
   type MergeDraft,
   roadIssues,
+  roadNotices,
   roadItems,
   shownLabels,
   updateMerge,
@@ -48,7 +49,20 @@ describe("merge land cover draft", () => {
     expect(roadIssues(null, undefined)).toEqual(["srv_merge_landcover_road_not_found"]);
     expect(roadIssues(3, { complete: true, values: [{ value: "a", label: "x" }] })).toEqual(["srv_merge_landcover_road_no_integer_column"]);
     expect(roadIssues(3, { complete: true, values: [{ value: 1, label: "" }] })).toEqual(["srv_merge_landcover_table_empty_values"]);
+    expect(roadIssues(3, { complete: true, values: [{ value: 1, label: "-" }] })).toEqual(["srv_merge_landcover_table_empty_values"]);
+    const twice = {
+      complete: true,
+      values: [
+        { value: 1, label: "road" },
+        { value: 2, label: "Road " },
+      ],
+    };
+    expect(roadIssues(3, twice)).toEqual(["srv_merge_landcover_table_duplicated_values_warning"]);
+    const mixed = { complete: true, values: [{ value: 1, label: "main", several_labels: true }] };
+    expect(roadIssues(3, mixed)).toEqual(["srv_merge_landcover_table_duplicated_values_warning"]);
     expect(roadIssues(3, roads)).toEqual([]);
+    expect(roadNotices(roads)).toEqual(["srv_merge_landcover_classes_under_1000"]);
+    expect(roadNotices({ complete: true, values: [{ value: 1001, label: "x" }] })).toEqual([]);
   });
 
   it("stacks roads and barriers above the land cover; adding again replaces", () => {

@@ -7,9 +7,9 @@ describe("interactive map", () => {
   it("keeps the latest move of each facility, with undo and redo", () => {
     let draft = apply(
       { ...EMPTY, facilities: 3 },
-      { type: "move", move: { fid: 1, lon: 1, lat: 1 } },
-      { type: "move", move: { fid: 2, lon: 2, lat: 2 } },
-      { type: "move", move: { fid: 1, lon: 5, lat: 5 } },
+      { type: "move", layer: 3, move: { fid: 1, lon: 1, lat: 1 } },
+      { type: "move", layer: 3, move: { fid: 2, lon: 2, lat: 2 } },
+      { type: "move", layer: 3, move: { fid: 1, lon: 5, lat: 5 } },
     );
     expect(moves(draft)).toEqual([
       { fid: 1, lon: 5, lat: 5 },
@@ -20,17 +20,32 @@ describe("interactive map", () => {
     draft = apply(draft, { type: "redo" });
     expect(moves(draft)).toHaveLength(2);
     // A new move drops what was undone.
-    draft = apply(draft, { type: "move", move: { fid: 9, lon: 0, lat: 0 } }, { type: "redo" });
+    draft = apply(draft, { type: "move", layer: 3, move: { fid: 9, lon: 0, lat: 0 } }, { type: "redo" });
     expect(draft.undone).toEqual([]);
     // Another layer: nothing moved.
     expect(moves(apply(draft, { type: "facilities", id: 4 }))).toEqual([]);
   });
 
-  it("checks Save as AM5 and resets after it", () => {
+  it("pins the layer of the moves: a new default layer does not inherit them", () => {
+    // The default layer (stored null) is pinned by the first move.
+    const draft = apply(EMPTY, { type: "move", layer: 3, move: { fid: 1, lon: 1, lat: 1 } });
+    expect(draft.facilities).toBe(3);
+    expect(withMapDefaults(draft, { raster: null, facilities: 4 }, () => []).facilities).toBe(3);
+    // A move on another layer starts over.
+    expect(moves(apply(draft, { type: "move", layer: 4, move: { fid: 2, lon: 2, lat: 2 } }))).toEqual([{ fid: 2, lon: 2, lat: 2 }]);
+  });
+
+  it("checks Save as AM5; a save clears the moves it sent only", () => {
     expect(saveIssues(EMPTY)).toEqual(["tool_map_relocate_missing_layer", "tool_map_relocate_missing_tags"]);
-    const draft = apply({ ...EMPTY, facilities: 3, editing: true }, { type: "tags", text: "moved" }, { type: "move", move: { fid: 1, lon: 1, lat: 1 } });
+    const draft = apply({ ...EMPTY, facilities: 3 }, { type: "tags", text: "moved" }, { type: "move", layer: 3, move: { fid: 1, lon: 1, lat: 1 } });
     expect(saveIssues(draft)).toEqual([]);
-    expect(apply(draft, { type: "saved" })).toMatchObject({ history: [], editing: false, tags: "" });
+    expect(apply(draft, { type: "saved", layer: 3, count: 1 })).toMatchObject({ history: [], tags: "" });
+    // A move made while saving stays.
+    const later = apply(draft, { type: "move", layer: 3, move: { fid: 2, lon: 2, lat: 2 } }, { type: "saved", layer: 3, count: 1 });
+    expect([moves(later), later.tags]).toEqual([[{ fid: 2, lon: 2, lat: 2 }], "moved"]);
+    // Another layer since: unchanged.
+    const other = apply(draft, { type: "facilities", id: 4 });
+    expect(apply(other, { type: "saved", layer: 3, count: 1 })).toBe(other);
   });
 
   it("takes defaults and places moved points", () => {

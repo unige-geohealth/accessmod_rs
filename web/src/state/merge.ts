@@ -168,20 +168,28 @@ export function landCoverIssues(landCover: number | null, labels: readonly Class
 
 /** Distinct classes of a road layer, as `GET …/values` lists them. */
 export interface RoadClasses {
-  values: readonly { value: unknown; label?: string | null }[];
+  values: readonly { value: unknown; label?: string | null; several_labels?: boolean }[];
   complete: boolean;
 }
 
-/** Roads tab (AM5): a layer, integer classes, each with a label. */
+/** Roads tab (AM5): a layer, integer classes, each with one label of its own (no "-" or empty label). */
 export function roadIssues(roads: number | null, classes: RoadClasses | undefined): Key[] {
   if (roads === null) return ["srv_merge_landcover_road_not_found"];
   if (classes === undefined) return [];
   if (!classes.complete || classes.values.some((v) => typeof v.value !== "number" || !Number.isInteger(v.value))) {
     return ["srv_merge_landcover_road_no_integer_column"];
   }
-  if (classes.values.some((v) => (v.label ?? "").trim() === "")) return ["srv_merge_landcover_table_empty_values"];
+  const labels = classes.values.map((v) => norm(v.label ?? ""));
+  if (labels.some((l) => l === "" || l === "-")) return ["srv_merge_landcover_table_empty_values"];
+  if (classes.values.some((v) => v.several_labels) || new Set(labels).size < labels.length) {
+    return ["srv_merge_landcover_table_duplicated_values_warning"];
+  }
   return [];
 }
+
+/** AM5 notice: classes below 1000 get 1000 added. */
+export const roadNotices = (classes: RoadClasses | undefined): Key[] =>
+  classes?.values.some((v) => typeof v.value === "number" && v.value < 1000) ? ["srv_merge_landcover_classes_under_1000"] : [];
 
 /** The classes of a road layer as stack items, one per class (AM5). */
 export function roadItems(dataset: number, classField: string, labelField: string, classes: RoadClasses): StackItem[] {

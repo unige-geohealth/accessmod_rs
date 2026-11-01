@@ -5,7 +5,7 @@ import { buildJob, EMPTY, updatePopulation, withPopulationDefaults } from "./pop
 const dataset = (id: number, file: string) => ({ id, file }) as Api.Dataset;
 const datasets = new Map([1, 2, 3, 4].map((id) => [id, dataset(id, `datasets/${id}.x`)]));
 const fieldsOf = (layer: number | null) => (layer === 4 ? ["name", "cat", "pop_known"] : []);
-const context = { datasets, dem: 1, fieldsOf };
+const context = { datasets, dem: 1 };
 
 describe("adjust population draft", () => {
   it("lists what is missing, in AM5 order", () => {
@@ -34,8 +34,11 @@ describe("adjust population draft", () => {
     expect(buildJob(known, context).tags).toEqual(["adjusted"]);
   });
 
-  it("forgets the field of another zone layer", () => {
-    const draft = updatePopulation({ ...EMPTY, zones: 4, populationField: "pop_known" }, { type: "zones", id: 5 });
-    expect(draft.populationField).toBe("");
+  it("forgets the fields of another zone layer; the identifier is chosen", () => {
+    const draft = updatePopulation({ ...EMPTY, zones: 4, idField: "cat", populationField: "pop_known" }, { type: "zones", id: 5 });
+    expect([draft.idField, draft.populationField]).toEqual(["", ""]);
+    const chosen = updatePopulation({ ...EMPTY, population: 2, landCover: 3, zones: 4, idField: "", tags: "x" }, { type: "idField", field: "name" });
+    expect(buildJob(chosen, context).document?.zones.id_field).toBe("name");
+    expect(buildJob({ ...chosen, idField: "" }, context).issues).toEqual(["srv_analysis_accessibility_zonal_id_missing"]);
   });
 });

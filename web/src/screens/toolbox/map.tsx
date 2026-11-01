@@ -160,8 +160,10 @@ function FacilitiesPanel({
   const save = async () => {
     if (draft.facilities === null) return;
     try {
-      const saved = await api.command("dataset.relocate", { project, id: draft.facilities, moves: moved, tags: normalizeTags(draft.tags) });
-      dispatch({ type: "saved" });
+      const layer = draft.facilities;
+      const count = draft.history.length;
+      const saved = await api.command("dataset.relocate", { project, id: layer, moves: moved, tags: normalizeTags(draft.tags) });
+      dispatch({ type: "saved", layer, count });
       setResult({ saved, count: moved.length, failure: [] });
     } catch (error) {
       setResult({ failure: issuesOf(error, t) });
@@ -273,7 +275,8 @@ function useFacilitiesLayer(map: maplibregl.Map | null, collection: PointCollect
         map.off("mousemove", drag);
         map.getCanvas().style.cursor = "";
         const move: Move = { fid, lon: m.lngLat.lng, lat: m.lngLat.lat };
-        latest.current.dispatch({ type: "move", move });
+        const layer = latest.current.draft.facilities;
+        if (layer !== null) latest.current.dispatch({ type: "move", layer, move });
       });
     };
     const click = (e: maplibregl.MapMouseEvent) => {

@@ -34,7 +34,7 @@ export function AdjustPopulation({ project }: { project: string }) {
     { population: firstOf(options.population), landCover: firstOf(options.landCover), zones: firstOf(options.zones) },
     fields,
   );
-  const built = useMemo(() => buildJob(draft, { datasets: byId, dem, fieldsOf: (id) => fieldsOf(byId, id) }), [draft, byId, dem]);
+  const built = useMemo(() => buildJob(draft, { datasets: byId, dem }), [draft, byId, dem]);
 
   return (
     <>
@@ -69,6 +69,12 @@ export function AdjustPopulation({ project }: { project: string }) {
               options={options.zones}
               value={draft.zones}
               onChange={(id) => dispatch({ type: "zones", id })}
+            />
+            <FieldSelect
+              label="analysis_select_zone_id_integer"
+              fields={fields(draft.zones)}
+              value={draft.idField}
+              onChange={(field) => dispatch({ type: "idField", field })}
             />
             {draft.known && (
               <FieldSelect

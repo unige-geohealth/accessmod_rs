@@ -45,10 +45,12 @@ export type MapMessage =
   | { type: "facilities"; id: number | null }
   | { type: "labelField"; field: string }
   | { type: "editing"; on: boolean }
-  | { type: "move"; move: Move }
+  /** A move on facilities dataset `layer` (the layer shown, pinned by its first move). */
+  | { type: "move"; layer: number; move: Move }
   | { type: "undo" }
   | { type: "redo" }
-  | { type: "saved" }
+  /** Save of the first `count` moves of `layer` succeeded. */
+  | { type: "saved"; layer: number; count: number }
   | { type: "tags"; text: string };
 
 export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
@@ -67,7 +69,10 @@ export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
     case "editing":
       return { ...draft, editing: message.on };
     case "move":
-      return { ...draft, history: [...draft.history, message.move], undone: [] };
+      // Moves of another layer (the default changed) are not kept.
+      return draft.facilities === message.layer
+        ? { ...draft, history: [...draft.history, message.move], undone: [] }
+        : { ...draft, facilities: message.layer, history: [message.move], undone: [] };
     case "undo": {
       const last = draft.history.at(-1);
       return last === undefined ? draft : { ...draft, history: draft.history.slice(0, -1), undone: [...draft.undone, last] };
@@ -77,7 +82,9 @@ export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
       return next === undefined ? draft : { ...draft, history: [...draft.history, next], undone: draft.undone.slice(0, -1) };
     }
     case "saved":
-      return { ...draft, history: [], undone: [], editing: false, tags: "" };
+      // Moves made while saving stay; another layer since: nothing to clear.
+      if (draft.facilities !== message.layer) return draft;
+      return { ...draft, history: draft.history.slice(message.count), undone: [], tags: draft.history.length > message.count ? draft.tags : "" };
     case "tags":
       return { ...draft, tags: message.text };
   }
