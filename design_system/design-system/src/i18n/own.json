@@ -785,18 +785,6 @@
     "es": "Capas vectoriales dibujadas sobre el ráster de referencia, bajo las instalaciones (%s como máximo).",
     "pt": "Camadas vetoriais desenhadas sobre o raster de referência, sob as instalações (%s no máximo)."
   },
-  "map.layers_shown": {
-    "en": "Shown (top first)",
-    "fr": "Affichées (dessus en premier)",
-    "es": "Mostradas (arriba primero)",
-    "pt": "Mostradas (topo primeiro)"
-  },
-  "map.layers_available": {
-    "en": "Available",
-    "fr": "Disponibles",
-    "es": "Disponibles",
-    "pt": "Disponíveis"
-  },
   "map.basemap": {
     "en": "Basemap",
     "fr": "Fond de carte",
@@ -850,5 +838,77 @@
     "fr": "affichée en partie (trop d'entités ou de sommets pour un aperçu).",
     "es": "mostrada en parte (demasiadas entidades o vértices para una vista previa).",
     "pt": "mostrada em parte (demasiadas entidades ou vértices para uma pré-visualização)."
+  },
+  "layers.search": {
+    "en": "Search a layer",
+    "fr": "Rechercher une couche",
+    "es": "Buscar una capa",
+    "pt": "Procurar uma camada"
+  },
+  "layers.no_match": {
+    "en": "No layer found",
+    "fr": "Aucune couche trouvée",
+    "es": "Ninguna capa encontrada",
+    "pt": "Nenhuma camada encontrada"
+  },
+  "layers.more": {
+    "en": "%s more: refine the search",
+    "fr": "%s de plus : affinez la recherche",
+    "es": "%s más: afine la búsqueda",
+    "pt": "mais %s: refine a pesquisa"
+  },
+  "layers.empty": {
+    "en": "No layer shown yet: search one above.",
+    "fr": "Aucune couche affichée : recherchez-en une ci-dessus.",
+    "es": "Ninguna capa mostrada: busque una arriba.",
+    "pt": "Nenhuma camada mostrada: procure uma acima."
+  },
+  "layers.active": {
+    "en": "Layers shown, top first",
+    "fr": "Couches affichées, du dessus vers le dessous",
+    "es": "Capas mostradas, de arriba abajo",
+    "pt": "Camadas mostradas, de cima para baixo"
+  },
+  "layers.show": {
+    "en": "Show",
+    "fr": "Afficher",
+    "es": "Mostrar",
+    "pt": "Mostrar"
+  },
+  "layers.hide": {
+    "en": "Hide",
+    "fr": "Masquer",
+    "es": "Ocultar",
+    "pt": "Ocultar"
+  },
+  "layers.remove": {
+    "en": "Remove from the map",
+    "fr": "Retirer de la carte",
+    "es": "Quitar del mapa",
+    "pt": "Retirar do mapa"
+  },
+  "layers.kind_point": {
+    "en": "Points",
+    "fr": "Points",
+    "es": "Puntos",
+    "pt": "Pontos"
+  },
+  "layers.kind_line": {
+    "en": "Lines",
+    "fr": "Lignes",
+    "es": "Líneas",
+    "pt": "Linhas"
+  },
+  "layers.kind_polygon": {
+    "en": "Polygons",
+    "fr": "Polygones",
+    "es": "Polígonos",
+    "pt": "Polígonos"
+  },
+  "layers.kind_raster": {
+    "en": "Raster",
+    "fr": "Raster",
+    "es": "Ráster",
+    "pt": "Raster"
   }
 }

@@ -56,3 +56,6 @@ are those found in the captured DOM (FA 6) or in the R sources (FA 5 alias).
 | `info` | Info | circle-info | information messages |
 | `warning` | TriangleAlert | triangle-exclamation | issues |
 | `help` | CircleHelp | question-circle, circle-question | help links |
+| `search` | Search | — (new) | layer search (interactive map) |
+| `visible` / `hidden` | Eye / EyeOff | — (new) | show or hide a map layer |
+| `geometryPoint` / `geometryLine` / `geometryPolygon` | CircleDot / Spline / Pentagon | — (new) | geometry of a vector layer |

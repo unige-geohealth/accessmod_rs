@@ -11,9 +11,18 @@ import { SectionTabs } from "#ui/components/am/section-tabs";
 import { MapFrame } from "#ui/components/am/map-frame";
 import { PageTabs } from "#ui/components/am/page-tabs";
 import { type Stack, StackList } from "#ui/components/am/stack-list";
+import { type LayerItem, LayerList, type LayerOption, LayerPicker } from "#ui/components/am/layer-list";
 import { Progress } from "#ui/components/ui/progress";
 import { T } from "#ui/i18n";
 import { layers, scenarioSelected, stack as stackMock, zonalTable } from "../mock";
+
+const layerOptions: LayerOption[] = [
+  { id: "1", label: "barrier [demo wetlands]", kind: "polygon" },
+  { id: "2", label: "road [demo]", kind: "line" },
+  { id: "3", label: "barrier [demo rivers]", kind: "line" },
+  { id: "4", label: "facility [demo]", kind: "point" },
+  { id: "5", label: "zone [demo]", kind: "polygon" },
+];
 
 const swatches = [
   "background", "foreground", "muted", "muted-foreground", "border", "separator", "primary", "link",
@@ -36,6 +45,10 @@ export function Catalogue() {
   const [radio, setRadio] = useState("to");
   const [check, setCheck] = useState(true);
   const [stack, setStack] = useState<Stack>({ use: stackMock.skip.slice(0, 2), skip: stackMock.skip.slice(2, 5) });
+  const [mapLayers, setMapLayers] = useState<LayerItem[]>([
+    { id: "1", label: "barrier [demo wetlands]", kind: "polygon", visible: true },
+    { id: "2", label: "road [demo]", kind: "line", visible: false },
+  ]);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -169,6 +182,24 @@ export function Catalogue() {
 
       <Block title="Stack list">
         <StackList value={stack} onChange={setStack} />
+      </Block>
+
+      <Block title="Layer picker and list (interactive map)">
+        <div className="flex max-w-md flex-col gap-3">
+          <LayerPicker
+            options={layerOptions.filter((o) => !mapLayers.some((l) => l.id === o.id))}
+            onAdd={(id) => {
+              const option = layerOptions.find((o) => o.id === id);
+              if (option) setMapLayers([{ ...option, visible: true }, ...mapLayers]);
+            }}
+          />
+          <LayerList
+            items={mapLayers}
+            onToggle={(id) => setMapLayers(mapLayers.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)))}
+            onRemove={(id) => setMapLayers(mapLayers.filter((l) => l.id !== id))}
+            onOrder={(ids) => setMapLayers(ids.flatMap((id) => mapLayers.filter((l) => l.id === id)))}
+          />
+        </div>
       </Block>
 
       <Block title="Map (offline basemap, edit controls)">

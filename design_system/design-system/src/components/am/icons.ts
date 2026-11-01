@@ -10,8 +10,11 @@ import {
   CirclePlus,
   Clock,
   Cog,
+  CircleDot,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FolderOpen,
   Funnel,
   Grid3x3,
@@ -27,11 +30,13 @@ import {
   MapPin,
   Menu,
   Pencil,
+  Pentagon,
   Play,
   Plus,
   Redo2,
   RefreshCw,
   RotateCcw,
+  Search,
   SkipForward,
   SlidersHorizontal,
   Square,
@@ -109,6 +114,14 @@ export const icons = {
   stackRaster: Grid3x3, // fa-th (raster item)
   stackVector: Spline, // line / polygon item
   download: Download, // export bar
+
+  // map layers (Toolbox › Interactive map)
+  search: Search,
+  visible: Eye,
+  hidden: EyeOff,
+  geometryPoint: CircleDot,
+  geometryLine: Spline,
+  geometryPolygon: Pentagon,
 
   // messages
   info: Info, // fa-circle-info
