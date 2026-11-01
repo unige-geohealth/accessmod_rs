@@ -88,6 +88,21 @@ test("interactive map: facilities to inspect, Next, a drag, Save; additional lay
   // Additional layers: both barrier layers above the land cover.
   await page.getByRole("button", { name: "Additional layers" }).click();
   const search = page.getByRole("combobox", { name: "Search a layer" });
+  // The open list floats above the panels: its last option is on top, not clipped by the accordion.
+  // After the accordion has opened.
+  await page.waitForTimeout(400);
+  await search.focus();
+  const listbox = page.getByRole("listbox", { name: "Search a layer" });
+  await expect(listbox.getByRole("option").first()).toBeVisible();
+  const list = await listbox.boundingBox();
+  if (list === null) throw new Error("no list");
+  // Just above its bottom edge: the list, not the panel below.
+  const onTop = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=listbox]") !== null,
+    { x: list.x + list.width / 2, y: list.y + list.height - 4 },
+  );
+  expect(onTop).toBe(true);
+  await shot(page, "toolbox-map-layer-search");
   for (const words of ["rivers", "wetl"]) {
     await search.fill(words);
     await search.press("Enter");

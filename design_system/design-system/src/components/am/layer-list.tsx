@@ -1,4 +1,5 @@
 import { type DragEvent, type KeyboardEvent, useId, useState } from "react";
+import { Popover } from "radix-ui";
 import { Input } from "#ui/components/ui/input";
 import { T, useI18n } from "#ui/i18n";
 import { cn } from "#ui/lib/utils";
@@ -31,7 +32,9 @@ function KindIcon({ kind }: { kind: LayerKind }) {
 /**
  * A search field that lists the matching layers below it (a combobox):
  * typing filters, ↑/↓ and Enter or a click add one. For hundreds of
- * layers; the active list is a {@link LayerList}.
+ * layers; the active list is a {@link LayerList}. The list floats in a
+ * portal, above the panels around (an accordion panel clips its content);
+ * the focus stays in the field.
  */
 export function LayerPicker({ options, onAdd, disabled }: { options: LayerOption[]; onAdd: (id: string) => void; disabled?: boolean }) {
   const { t } = useI18n();
@@ -62,61 +65,76 @@ export function LayerPicker({ options, onAdd, disabled }: { options: LayerOption
     e.preventDefault();
   };
   return (
-    <div className="relative">
-      <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={list}
-        aria-label={t("layers.search")}
-        placeholder={t("layers.search")}
-        disabled={disabled}
-        value={text}
-        className="pl-9"
-        onChange={(e) => {
-          setText(e.target.value);
-          setActive(0);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onKeyDown={onKeyDown}
-      />
-      {open && !disabled && (
-        <ul
-          id={list}
-          role="listbox"
-          aria-label={t("layers.search")}
-          className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-input bg-background py-1 shadow-md"
+    <Popover.Root open={open && !disabled}>
+      <Popover.Anchor asChild>
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={list}
+            aria-label={t("layers.search")}
+            placeholder={t("layers.search")}
+            disabled={disabled}
+            value={text}
+            className="pl-9"
+            onChange={(e) => {
+              setText(e.target.value);
+              setActive(0);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={onKeyDown}
+          />
+        </div>
+      </Popover.Anchor>
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="start"
+          sideOffset={4}
+          // The field keeps the focus: typing goes on filtering.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onEscapeKeyDown={() => setOpen(false)}
+          className="z-50 w-(--radix-popper-anchor-width)"
         >
-          {shown.map((o, i) => (
-            <li
-              key={o.id}
-              role="option"
-              aria-selected={i === active}
-              // Before the input's blur closes the list.
-              onMouseDown={(e) => {
-                e.preventDefault();
-                choose(o);
-              }}
-              onMouseEnter={() => setActive(i)}
-              className={cn("flex cursor-pointer items-center gap-2.5 px-3 py-1.5", i === active && "bg-accent")}
-            >
-              <KindIcon kind={o.kind} />
-              <span className="truncate">{o.label}</span>
-            </li>
-          ))}
-          {matches.length === 0 && (
-            <li className="px-3 py-1.5 text-muted-foreground">
-              <T k="layers.no_match" />
-            </li>
-          )}
-          {matches.length > SHOWN && (
-            <li className="px-3 py-1.5 text-xs text-muted-foreground">{t("layers.more").replace("%s", String(matches.length - SHOWN))}</li>
-          )}
-        </ul>
-      )}
-    </div>
+          <ul
+            id={list}
+            role="listbox"
+            aria-label={t("layers.search")}
+            className="max-h-[min(18rem,var(--radix-popper-available-height))] overflow-auto rounded-md border border-input bg-background py-1 text-foreground shadow-md"
+          >
+            {shown.map((o, i) => (
+              <li
+                key={o.id}
+                role="option"
+                aria-selected={i === active}
+                // Before the input's blur closes the list.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  choose(o);
+                }}
+                onMouseEnter={() => setActive(i)}
+                className={cn("flex cursor-pointer items-center gap-2.5 px-3 py-1.5", i === active && "bg-accent")}
+              >
+                <KindIcon kind={o.kind} />
+                <span className="truncate">{o.label}</span>
+              </li>
+            ))}
+            {matches.length === 0 && (
+              <li className="px-3 py-1.5 text-muted-foreground">
+                <T k="layers.no_match" />
+              </li>
+            )}
+            {matches.length > SHOWN && (
+              <li className="px-3 py-1.5 text-xs text-muted-foreground">{t("layers.more").replace("%s", String(matches.length - SHOWN))}</li>
+            )}
+          </ul>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
