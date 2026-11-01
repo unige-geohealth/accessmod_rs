@@ -113,6 +113,7 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::routes::ProjectEntry>(),
         ),
         ("job-entry", schema::<accessmod_server::routes::JobEntry>()),
+        ("basemap", schema::<accessmod_server::maps::Basemap>()),
         (
             "created-project",
             schema::<accessmod_server::commands::CreatedProject>(),

@@ -11,7 +11,8 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
-use serde::Deserialize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::auth::{Principal, Requirement, Role};
@@ -138,6 +139,8 @@ pub async fn tile(
 pub struct FeaturesQuery {
     /// Features at most (capped).
     pub limit: Option<usize>,
+    /// Raster dataset read at each feature's point (`"sample"` member).
+    pub sample: Option<Id>,
 }
 
 /// `GET /api/projects/{project}/datasets/{id}/features`: GeoJSON in WGS 84.
@@ -154,7 +157,14 @@ pub async fn features(
             let project = state.open(&slug)?;
             let record = dataset(&project, id, Kind::Vector)?;
             let path = project.resolve(std::path::Path::new(&record.file))?;
-            Ok(tiles::geojson(&path, limit)?)
+            let sample = match query.sample {
+                Some(raster) => {
+                    let record = dataset(&project, raster, Kind::Raster)?;
+                    Some(project.resolve(std::path::Path::new(&record.file))?)
+                }
+                None => None,
+            };
+            Ok(tiles::geojson(&path, limit, sample.as_deref())?)
         })
         .await
         .map(Json)
@@ -187,6 +197,20 @@ pub async fn value(
         })
         .await
         .map(Json)
+}
+
+/// Online basemaps (`GET /api/basemap`).
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct Basemap {
+    /// MapTiler key; `null`: the offline basemap only.
+    pub maptiler_key: Option<String>,
+}
+
+/// `GET /api/basemap`.
+pub async fn basemap(_: Principal, State(state): State<AppState>) -> Json<Basemap> {
+    Json(Basemap {
+        maptiler_key: state.config().maptiler_key.clone(),
+    })
 }
 
 /// `GET /api/projects/{project}/bounds`: the project grid in WGS 84,

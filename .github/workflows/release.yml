@@ -94,7 +94,10 @@ jobs:
             echo "ACCESSMOD_NOTARY_ISSUER=$APPLE_API_ISSUER"
           } >>"$GITHUB_ENV"
 
+      # The online basemaps' key (a public browser key) is embedded in the build.
       - run: sh scripts/package-desktop.sh ${{ matrix.target }}
+        env:
+          MAPTILER_API_KEY: ${{ secrets.MAPTILER_API_KEY }}
 
       - name: The archive runs (doctor)
         run: |

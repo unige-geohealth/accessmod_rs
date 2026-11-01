@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::error::{Error, Result};
+use crate::facilities::single_point;
 use crate::raster::valid_value;
 use crate::vector::json_attribute;
 
@@ -377,14 +378,20 @@ pub fn bounds_wgs84(path: &Path) -> Result<[f64; 4]> {
 
 /// The first layer of the vector dataset at `path` as a GeoJSON
 /// FeatureCollection in WGS 84, at most `limit` features; `truncated` tells
-/// whether some were left out.
-pub fn geojson(path: &Path, limit: usize) -> Result<Value> {
+/// whether some were left out. With `sample`, each feature also has a
+/// `"sample"` member: the value of that raster at its point (a point or a
+/// one-point multipoint), `null` outside, on NoData or for other geometries.
+pub fn geojson(path: &Path, limit: usize, sample: Option<&Path>) -> Result<Value> {
     let dataset = Dataset::open(path).map_err(Error::gdal(path))?;
     let mut layer = dataset.layer(0).map_err(Error::gdal(path))?;
     let srs = layer
         .spatial_ref()
         .ok_or_else(|| Error::invalid(format!("{}: no CRS", path.display())))?;
-    let transform = CoordTransform::new(&traditional(srs), &wgs84()?).map_err(Error::gdal(path))?;
+    let srs = traditional(srs);
+    let transform = CoordTransform::new(&srs, &wgs84()?).map_err(Error::gdal(path))?;
+    let sampler = sample
+        .map(|raster| PointSampler::open(raster, Some(srs.clone())))
+        .transpose()?;
     let names: Vec<String> = layer.defn().fields().map(|f| f.name()).collect();
     let mut features = Vec::new();
     let mut truncated = false;
@@ -395,6 +402,14 @@ pub fn geojson(path: &Path, limit: usize) -> Result<Value> {
         }
         let Some(geometry) = feature.geometry() else {
             continue;
+        };
+        // The value of `sample` at the point (a point or one-point multipoint).
+        let value = match &sampler {
+            Some(sampler) => Some(match single_point(geometry) {
+                Ok((x, y)) => sampler.sample(x, y)?,
+                Err(_) => None,
+            }),
+            None => None,
         };
         let geometry = geometry.transform(&transform).map_err(Error::gdal(path))?;
         let geometry: Value = geometry
@@ -407,12 +422,16 @@ pub fn geojson(path: &Path, limit: usize) -> Result<Value> {
             let value = feature.field(i).ok().flatten();
             properties.insert(name.clone(), json_attribute(value).unwrap_or(Value::Null));
         }
-        features.push(json!({
+        let mut out = json!({
             "type": "Feature",
             "id": feature.fid(),
             "geometry": geometry,
             "properties": properties,
-        }));
+        });
+        if let (Some(value), Some(object)) = (value, out.as_object_mut()) {
+            object.insert("sample".into(), json!(value));
+        }
+        features.push(out);
     }
     Ok(json!({
         "type": "FeatureCollection",

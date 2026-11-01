@@ -77,6 +77,7 @@ fn state_on(dir: &Path, local_paths: bool, upload_limit: u64, demo: bool) -> App
         local_paths,
         upload_limit,
         demo,
+        maptiler_key: Some("test-key".into()),
     })
     .expect("state")
 }
@@ -1130,4 +1131,58 @@ async fn values_list_the_classes_of_a_field_with_labels() {
     );
     let (status, body) = s.call("GET", &url("field=nope"), None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+}
+
+#[tokio::test]
+async fn relocator_flow_through_the_api() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let features = |id: i64| format!("/api/projects/{slug}/datasets/{id}/features?sample=2");
+    // The facility (dataset 3) sampled on the land cover (dataset 2).
+    let (status, before) = s.call("GET", &features(3), None).await;
+    assert_eq!(status, StatusCode::OK, "{before}");
+    let feature = before["features"][0].clone();
+    assert_eq!(feature["sample"], json!(1.0));
+    let fid = feature["id"].clone();
+    let [lon, lat] = [0, 1].map(|i| {
+        feature["geometry"]["coordinates"][i]
+            .as_f64()
+            .expect("coordinate")
+    });
+
+    // Moved off the grid: no value, the facility is to inspect.
+    let relocate = |id: i64, lon: f64, tags: &str| json!({"project": slug, "id": id, "moves": [{"fid": fid, "lon": lon, "lat": lat}], "tags": [tags]});
+    let (status, off) = s
+        .command("dataset.relocate", relocate(3, lon + 1.0, "off"))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{off}");
+    let off_id = off["id"].as_i64().expect("id");
+    let (_, moved) = s.call("GET", &features(off_id), None).await;
+    assert_eq!(moved["features"][0]["sample"], Value::Null);
+    assert_eq!(moved["features"][0]["properties"], feature["properties"]);
+
+    // Moved back on a cell with a value.
+    let (status, back) = s
+        .command("dataset.relocate", relocate(off_id, lon, "back"))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{back}");
+    let (_, again) = s
+        .call("GET", &features(back["id"].as_i64().expect("id")), None)
+        .await;
+    assert_eq!(again["features"][0]["sample"], json!(1.0));
+    // The source is unchanged.
+    let (_, source) = s.call("GET", &features(3), None).await;
+    assert_eq!(source, before);
+    // A vector is not a sample raster.
+    let (status, _) = s
+        .call(
+            "GET",
+            &format!("/api/projects/{slug}/datasets/3/features?sample=3"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    // The basemap key of the server.
+    let (_, basemap) = s.call("GET", "/api/basemap", None).await;
+    assert_eq!(basemap, json!({"maptiler_key": "test-key"}));
 }

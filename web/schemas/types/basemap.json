@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Online basemaps (`GET /api/basemap`).",
+  "properties": {
+    "maptiler_key": {
+      "description": "MapTiler key; `null`: the offline basemap only.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "Basemap",
+  "type": "object"
+}

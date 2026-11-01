@@ -7,9 +7,17 @@
 #   ACCESSMOD_DEV_PORT   port (default 5099; dev:web proxies to it)
 #   ACCESSMOD_DATA       data directory (default _shared/dev-data, so the
 #                        projects of the installed application stay apart)
+#   MAPTILER_API_KEY     online basemaps (from .env when present; template
+#                        .env.demo)
 # Arguments go to `accessmod serve`.
 set -e
 cd "$(dirname "$0")/.."
+# Local settings (git-ignored), e.g. MAPTILER_API_KEY.
+if [ -f .env ]; then
+	set -a
+	. ./.env
+	set +a
+fi
 port=${ACCESSMOD_DEV_PORT:-5099}
 data=${ACCESSMOD_DATA:-_shared/dev-data}
 if curl -s -o /dev/null "http://127.0.0.1:$port"; then

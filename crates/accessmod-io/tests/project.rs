@@ -883,7 +883,7 @@ fn relocation_writes_a_new_facilities_dataset() {
     let settings = settings(64 << 20, 1);
     let facilities = project.dataset(3).expect("facilities");
     let source = project.resolve(Path::new(&facilities.file)).expect("path");
-    let before = accessmod_io::tiles::geojson(&source, 10).expect("geojson");
+    let before = accessmod_io::tiles::geojson(&source, 10, None).expect("geojson");
     let feature = &before["features"][0];
     let fid = feature["id"].as_u64().expect("fid");
     let [lon, lat] = [0, 1].map(|i| {
@@ -902,9 +902,12 @@ fn relocation_writes_a_new_facilities_dataset() {
         .expect("relocate");
     assert_eq!(record.class, DataClass::Facility);
     assert_eq!(record.tags, tags(&["relocated"]));
-    let after =
-        accessmod_io::tiles::geojson(&project.resolve(Path::new(&record.file)).expect("path"), 10)
-            .expect("geojson");
+    let after = accessmod_io::tiles::geojson(
+        &project.resolve(Path::new(&record.file)).expect("path"),
+        10,
+        None,
+    )
+    .expect("geojson");
     let feature = &after["features"][0];
     assert_eq!(
         feature["properties"],
@@ -918,7 +921,7 @@ fn relocation_writes_a_new_facilities_dataset() {
     }
     // The source is unchanged.
     assert_eq!(
-        accessmod_io::tiles::geojson(&source, 10).expect("geojson"),
+        accessmod_io::tiles::geojson(&source, 10, None).expect("geojson"),
         before
     );
 

@@ -60,6 +60,7 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/commands/{id}", post(routes::command))
         .route("/api/events", get(events::stream))
         .route("/api/runs", get(routes::all_runs))
+        .route("/api/basemap", get(maps::basemap))
         .route(
             "/api/uploads",
             post(uploads::upload).layer(DefaultBodyLimit::max(upload_limit)),

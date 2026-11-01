@@ -82,7 +82,7 @@ fn vector_layers_become_geojson_in_wgs84() {
         &[("code", OGRFieldType::OFTInteger)],
         &features,
     );
-    let collection = geojson(&path, 3).expect("geojson");
+    let collection = geojson(&path, 3, None).expect("geojson");
     assert_eq!(collection["type"], "FeatureCollection");
     assert_eq!(collection["features"].as_array().map(Vec::len), Some(3));
     assert_eq!(collection["truncated"], true);
@@ -90,4 +90,36 @@ fn vector_layers_become_geojson_in_wgs84() {
     assert_eq!(first["properties"]["code"], 0);
     let lon = first["geometry"]["coordinates"][0].as_f64().expect("lon");
     assert!((-180.0..=180.0).contains(&lon));
+}
+
+#[test]
+fn geojson_samples_a_raster_at_each_point() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // Class 1 everywhere, NoData on the diagonal cell (1, 1).
+    let mut classes = vec![1u8; 100];
+    classes[11] = 0;
+    write_raster(
+        &dir.path().join("lc.tif"),
+        10,
+        10,
+        geo_transform(X0, Y0),
+        classes,
+        Some(0.0),
+    );
+    let path = dir.path().join("hf.gpkg");
+    let points: Vec<String> = [(0, 0), (1, 1)]
+        .iter()
+        .map(|&(r, c)| {
+            let (x, y) = grid(10, 10).cell_centre(r, c);
+            format!("POINT ({x} {y})")
+        })
+        .collect();
+    let features: Vec<(&str, Vec<Option<FieldValue>>)> =
+        points.iter().map(|w| (w.as_str(), vec![])).collect();
+    write_features(&path, "hf", EPSG, &[], &features);
+    let collection = geojson(&path, 10, Some(&dir.path().join("lc.tif"))).expect("geojson");
+    let samples: Vec<_> = (0..2)
+        .map(|i| collection["features"][i]["sample"].clone())
+        .collect();
+    assert_eq!(samples, [serde_json::json!(1.0), serde_json::Value::Null]);
 }

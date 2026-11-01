@@ -36,6 +36,9 @@ pub struct Config {
     /// Build the demo project when the data directory has no projects
     /// directory yet (a new installation).
     pub demo: bool,
+    /// MapTiler key of the online basemaps (a public browser key,
+    /// restricted to the client's origins); `None`: offline basemap only.
+    pub maptiler_key: Option<String>,
 }
 
 /// Shared state of the server.

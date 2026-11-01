@@ -75,6 +75,16 @@ fn session_token() -> Result<String, Failure> {
     Ok(token)
 }
 
+/// MapTiler key: `MAPTILER_API_KEY` of the environment, else the one the
+/// release build embedded (CI secret); none in a development build.
+fn maptiler_key() -> Option<String> {
+    std::env::var("MAPTILER_API_KEY")
+        .ok()
+        .or_else(|| option_env!("MAPTILER_API_KEY").map(str::to_owned))
+        .map(|key| key.trim().to_owned())
+        .filter(|key| !key.is_empty())
+}
+
 /// Run `accessmod serve` until Ctrl-C.
 pub fn run(args: Args) -> Result<(), Failure> {
     let settings = settings(&args.exec)?;
@@ -109,6 +119,7 @@ pub fn run(args: Args) -> Result<(), Failure> {
         local_paths,
         upload_limit: accessmod_server::DEFAULT_UPLOAD_LIMIT,
         demo: true,
+        maptiler_key: maptiler_key(),
     })
     .map_err(|e| {
         eprintln!("error: {e}");
