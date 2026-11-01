@@ -31,6 +31,7 @@ import {
   moves,
   nextToInspect,
   type PointCollection,
+  placed,
   pointOf,
   saveIssues,
   toInspect,
@@ -97,7 +98,7 @@ export function InteractiveMap({ project }: { project: string }) {
   const [loaded, setLoaded] = useState<{ map: maplibregl.Map; style: string | null } | null>(null);
   const map = loaded?.style === style ? loaded.map : null;
   useRasterLayer(map, draft.reference === null ? null : api.tileUrl(project, draft.reference), draft.opacity);
-  useVectorLayers(map, project, draft.layers, byId);
+  const truncated = useVectorLayers(map, project, draft.layers, byId);
   useFacilitiesLayer(map, collection, draft, dispatch);
 
   const next = () => {
@@ -132,7 +133,12 @@ export function InteractiveMap({ project }: { project: string }) {
                 />
               ),
             },
-            { value: "layers", icon: "raster", title: "map.layers", content: <Layers draft={draft} datasets={datasets ?? []} dispatch={dispatch} /> },
+            {
+              value: "layers",
+              icon: "raster",
+              title: "map.layers",
+              content: <Layers draft={draft} datasets={datasets ?? []} truncated={truncated} dispatch={dispatch} />,
+            },
             { value: "basemap", icon: "map", title: "map.basemap", content: <BasemapPanel draft={draft} hasKey={key !== null} dispatch={dispatch} /> },
           ]}
         />
@@ -143,7 +149,11 @@ export function InteractiveMap({ project }: { project: string }) {
             key={`${project}/${style ?? "schematic"}`}
             bounds={bounds}
             mapStyle={style ?? undefined}
-            onLoad={(m) => setLoaded({ map: m, style })}
+            onLoad={(m) => {
+              setLoaded({ map: m, style });
+              // A removed map (basemap change, fallback) is never drawn on again.
+              m.on("remove", () => setLoaded((current) => (current?.map === m ? null : current)));
+            }}
             onError={(error) => {
               if (style !== null && `${error.url ?? ""} ${error.message}`.includes("api.maptiler.com")) dispatch({ type: "basemapFailed" });
             }}
@@ -288,7 +298,18 @@ function Relocator({
   );
 }
 
-function Layers({ draft, datasets, dispatch }: { draft: MapDraft; datasets: readonly Api.Dataset[]; dispatch: (message: MapMessage) => void }) {
+function Layers({
+  draft,
+  datasets,
+  truncated,
+  dispatch,
+}: {
+  draft: MapDraft;
+  datasets: readonly Api.Dataset[];
+  /** Layers shown in part (too many features or bytes). */
+  truncated: readonly number[];
+  dispatch: (message: MapMessage) => void;
+}) {
   const { t } = useI18n();
   const f = useFmt();
   const vectors = datasets.filter((d) => kindOf(d.class) === "vector").sort((a, b) => b.id - a.id);
@@ -303,6 +324,14 @@ function Layers({ draft, datasets, dispatch }: { draft: MapDraft; datasets: read
         value={{ use: shown.map(item), skip: available.map(item) }}
         onChange={(stack) => dispatch({ type: "layers", shown: stack.use.map((i) => Number(i.id)) })}
       />
+      {truncated.length > 0 && (
+        <MessageList
+          messages={truncated.flatMap((id) => {
+            const d = vectors.find((v) => v.id === id);
+            return d ? [{ kind: "info" as const, text: `${datasetLabel(t, d)}: ${f("map.features_shown_in_part")}` }] : [];
+          })}
+        />
+      )}
     </div>
   );
 }
@@ -355,8 +384,8 @@ function geometryOf(dataset: Api.Dataset | undefined): "polygon" | "point" | "li
   return geometry.includes("polygon") ? "polygon" : geometry.includes("point") ? "point" : "line";
 }
 
-/** The additional layers in their order (top first), between the reference raster and the facilities. */
-function useVectorLayers(map: maplibregl.Map | null, project: string, layers: readonly number[], byId: ReadonlyMap<number, Api.Dataset>) {
+/** The additional layers in their order (top first), between the reference raster and the facilities; returns those shown in part. */
+function useVectorLayers(map: maplibregl.Map | null, project: string, layers: readonly number[], byId: ReadonlyMap<number, Api.Dataset>): number[] {
   const results = useQueries({
     queries: layers.map((id) => ({
       queryKey: keys.features(project, id, null),
@@ -405,6 +434,7 @@ function useVectorLayers(map: maplibregl.Map | null, project: string, layers: re
     // The signature covers the order and the data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, signature]);
+  return layers.filter((_, i) => results[i]?.data?.truncated === true);
 }
 
 /**
@@ -461,7 +491,7 @@ function useFacilitiesLayer(map: maplibregl.Map | null, collection: PointCollect
       popup.remove();
       map.getCanvas().style.cursor = "grabbing";
       const drag = (m: maplibregl.MapMouseEvent) => {
-        source()?.setData(withMoves(base, [{ fid, lon: m.lngLat.lng, lat: m.lngLat.lat }]) as Data);
+        source()?.setData(placed(base, [{ fid, lon: m.lngLat.lng, lat: m.lngLat.lat }]) as Data);
       };
       map.on("mousemove", drag);
       map.once("mouseup", (m) => {

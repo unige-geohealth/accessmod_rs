@@ -844,5 +844,11 @@
     "fr": "Le fond en ligne n'a pas pu être chargé (réseau ou clé) : retour à la carte schématique.",
     "es": "No se pudo cargar el mapa base en línea (red o clave): vuelta al mapa esquemático.",
     "pt": "Não foi possível carregar o mapa base online (rede ou chave): de volta ao mapa esquemático."
+  },
+  "map.features_shown_in_part": {
+    "en": "shown in part (too many features or vertices for a preview).",
+    "fr": "affichée en partie (trop d'entités ou de sommets pour un aperçu).",
+    "es": "mostrada en parte (demasiadas entidades o vértices para una vista previa).",
+    "pt": "mostrada em parte (demasiadas entidades ou vértices para uma pré-visualização)."
   }
 }

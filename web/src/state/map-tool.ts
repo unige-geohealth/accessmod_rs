@@ -204,21 +204,27 @@ export function nextToInspect(features: readonly PointFeature[], inspect: Readon
   return candidates.find((f) => fids.indexOf(f) > at) ?? candidates[0] ?? null;
 }
 
-/** The collection drawn: moved facilities in place, with `inspect` and `selected` properties for their style. */
-export function withMoves(
-  collection: PointCollection,
-  moved: readonly Move[],
-  inspect: ReadonlySet<number> = new Set(),
-  selected: number | null = null,
-): PointCollection {
+/** Moved facilities in place; properties untouched, so a drag preview keeps the style. */
+export function placed(collection: PointCollection, moved: readonly Move[]): PointCollection {
+  if (moved.length === 0) return collection;
   const at = new Map(moved.map((m) => [m.fid, m]));
   return {
     ...collection,
     features: collection.features.map((f) => {
+      const m = typeof f.id === "number" ? at.get(f.id) : undefined;
+      return m === undefined ? f : { ...f, geometry: { type: "Point", coordinates: [m.lon, m.lat] } };
+    }),
+  };
+}
+
+/** The collection drawn: moved facilities in place, with `inspect` and `selected` properties for their style. */
+export function withMoves(collection: PointCollection, moved: readonly Move[], inspect: ReadonlySet<number>, selected: number | null): PointCollection {
+  const at = placed(collection, moved);
+  return {
+    ...at,
+    features: at.features.map((f) => {
       const fid = typeof f.id === "number" ? f.id : undefined;
-      const m = fid === undefined ? undefined : at.get(fid);
-      const properties = { ...f.properties, inspect: fid !== undefined && inspect.has(fid), selected: fid !== undefined && fid === selected };
-      return m === undefined ? { ...f, properties } : { ...f, properties, geometry: { type: "Point", coordinates: [m.lon, m.lat] } };
+      return { ...f, properties: { ...f.properties, inspect: fid !== undefined && inspect.has(fid), selected: fid !== undefined && fid === selected } };
     }),
   };
 }

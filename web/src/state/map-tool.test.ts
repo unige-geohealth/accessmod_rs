@@ -7,6 +7,7 @@ import {
   moves,
   nextToInspect,
   type PointFeature,
+  placed,
   pointOf,
   saveIssues,
   toInspect,
@@ -74,7 +75,7 @@ describe("interactive map", () => {
         { type: "Feature" as const, id: 1, geometry: { type: "Point", coordinates: [1, 1] }, properties: {} },
       ],
     };
-    expect(withMoves(collection, [{ fid: 1, lon: 7, lat: 8 }]).features[1]?.geometry?.coordinates).toEqual([7, 8]);
+    expect(withMoves(collection, [{ fid: 1, lon: 7, lat: 8 }], new Set(), null).features[1]?.geometry?.coordinates).toEqual([7, 8]);
   });
 
   const point = (id: number, sample: number | null, coordinates: unknown = [id, id]): PointFeature => ({
@@ -113,6 +114,10 @@ describe("interactive map", () => {
       { inspect: false, selected: true },
     ]);
     expect(drawn.features[1]?.geometry?.coordinates).toEqual([9, 9]);
+    // A drag preview moves the point and keeps the style.
+    const dragged = placed(drawn, [{ fid: 0, lon: 1, lat: 2 }]);
+    expect(dragged.features.map((f) => f.properties)).toEqual(drawn.features.map((f) => f.properties));
+    expect(dragged.features[0]?.geometry?.coordinates).toEqual([1, 2]);
     expect(pointOf(point(5, 1, [[3, 4]]))).toEqual([3, 4]);
     expect(pointOf(undefined)).toBeNull();
   });
