@@ -376,9 +376,13 @@ pub fn bounds_wgs84(path: &Path) -> Result<[f64; 4]> {
     ])
 }
 
+/// Bytes of GeoJSON features [`geojson`] sends at most, whatever their
+/// count: a few national polygons can hold millions of vertices.
+pub const MAX_GEOJSON_BYTES: usize = 32 << 20;
+
 /// The first layer of the vector dataset at `path` as a GeoJSON
-/// FeatureCollection in WGS 84, at most `limit` features; `truncated` tells
-/// whether some were left out. With `sample`, each feature also has a
+/// FeatureCollection in WGS 84, at most `limit` features and
+/// [`MAX_GEOJSON_BYTES`]; `truncated` tells whether some were left out. With `sample`, each feature also has a
 /// `"sample"` member: the value of that raster at its point (a point or a
 /// one-point multipoint), `null` outside, on NoData or for other geometries.
 pub fn geojson(path: &Path, limit: usize, sample: Option<&Path>) -> Result<Value> {
@@ -395,8 +399,9 @@ pub fn geojson(path: &Path, limit: usize, sample: Option<&Path>) -> Result<Value
     let names: Vec<String> = layer.defn().fields().map(|f| f.name()).collect();
     let mut features = Vec::new();
     let mut truncated = false;
+    let mut bytes = 0usize;
     for feature in layer.features() {
-        if features.len() >= limit {
+        if features.len() >= limit || bytes > MAX_GEOJSON_BYTES {
             truncated = true;
             break;
         }
@@ -431,6 +436,7 @@ pub fn geojson(path: &Path, limit: usize, sample: Option<&Path>) -> Result<Value
         if let (Some(value), Some(object)) = (value, out.as_object_mut()) {
             object.insert("sample".into(), json!(value));
         }
+        bytes += out.to_string().len();
         features.push(out);
     }
     Ok(json!({
