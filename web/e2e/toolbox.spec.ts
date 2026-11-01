@@ -97,10 +97,10 @@ test("interactive map: facilities to inspect, Next, a drag, Save; additional lay
   const list = await listbox.boundingBox();
   if (list === null) throw new Error("no list");
   // Just above its bottom edge: the list, not the panel below.
-  const onTop = await page.evaluate(
-    ({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=listbox]") !== null,
-    { x: list.x + list.width / 2, y: list.y + list.height - 4 },
-  );
+  const onTop = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=listbox]") !== null, {
+    x: list.x + list.width / 2,
+    y: list.y + list.height - 4,
+  });
   expect(onTop).toBe(true);
   await shot(page, "toolbox-map-layer-search");
   for (const words of ["rivers", "wetl"]) {
@@ -130,6 +130,25 @@ test("interactive map: facilities to inspect, Next, a drag, Save; additional lay
   await page.mouse.down();
   await page.mouse.move(x + 20, y + 10, { steps: 5 });
   await page.mouse.up();
+  await expect(page.getByText("Number of facilities relocated : 1")).toBeVisible();
+
+  // Another basemap keeps the map and the move: the same canvas, no reload. MapTiler is answered here (no network).
+  const styles: string[] = [];
+  await page.route("https://api.maptiler.com/**", (route) => {
+    styles.push(route.request().url());
+    return route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "sky", type: "background", paint: { "background-color": "#203040" } }] } });
+  });
+  const canvas = await map.elementHandle();
+  await page.getByRole("button", { name: "Basemap" }).click();
+  await page.getByRole("combobox", { name: "Select a basemap" }).click();
+  await page.getByRole("option", { name: "Satellite" }).click();
+  await expect.poll(() => styles.length).toBe(1);
+  expect(styles[0]).toContain("/maps/satellite-v4/style.json");
+  await page.waitForTimeout(500);
+  expect(await canvas?.evaluate((c) => c.isConnected)).toBe(true);
+  await expect(page.getByText(/online basemap could not be loaded/)).toHaveCount(0);
+  await shot(page, "toolbox-map-basemap");
+  await page.getByRole("button", { name: "Facilities relocator" }).click();
   await expect(page.getByText("Number of facilities relocated : 1")).toBeVisible();
   await page.getByLabel("Add short tags").fill("relocated");
   await page.getByRole("button", { name: "Save changes" }).click();

@@ -95,9 +95,8 @@ export function InteractiveMap({ project }: { project: string }) {
     [features.data, moved, inspect, draft.selected],
   );
 
-  // The map of the current style: a basemap change makes a new map.
-  const [loaded, setLoaded] = useState<{ map: maplibregl.Map; style: string | null } | null>(null);
-  const map = loaded?.style === style ? loaded.map : null;
+  // A basemap change keeps the map: our layers are carried over to the new style.
+  const [map, setMap] = useState<maplibregl.Map | null>(null);
   useRasterLayer(map, draft.reference === null ? null : api.tileUrl(project, draft.reference), draft.opacity);
   const truncated = useVectorLayers(map, project, draft.layers, byId);
   useFacilitiesLayer(map, collection, draft, dispatch);
@@ -147,13 +146,13 @@ export function InteractiveMap({ project }: { project: string }) {
       <div className="col-span-12 md:col-span-8">
         {bounds && (
           <MapFrame
-            key={`${project}/${style ?? "schematic"}`}
+            key={project}
             bounds={bounds}
             mapStyle={style ?? undefined}
             onLoad={(m) => {
-              setLoaded({ map: m, style });
-              // A removed map (basemap change, fallback) is never drawn on again.
-              m.on("remove", () => setLoaded((current) => (current?.map === m ? null : current)));
+              setMap(m);
+              // A removed map is never drawn on again.
+              m.on("remove", () => setMap((current) => (current === m ? null : current)));
             }}
             onError={(error) => {
               if (style !== null && `${error.url ?? ""} ${error.message}`.includes("api.maptiler.com")) dispatch({ type: "basemapFailed" });

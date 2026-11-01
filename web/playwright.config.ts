@@ -23,5 +23,7 @@ export default defineConfig({
     url: "http://127.0.0.1:5198/api/health",
     timeout: 300_000,
     reuseExistingServer: false,
+    // A dummy key: the online basemaps are offered; their requests are answered by the tests.
+    env: { MAPTILER_API_KEY: "e2e" },
   },
 });

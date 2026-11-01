@@ -67,7 +67,7 @@ type MapFrameProps = {
   mapStyle?: string | StyleSpecification;
   /** Project extent; also the target of the home button. */
   bounds?: [number, number, number, number];
-  /** Called once the map is loaded, to add sources and layers. */
+  /** Called once the map is loaded, to add sources and layers; they stay when `mapStyle` changes. */
   onLoad?: (map: maplibregl.Map) => void;
   /** A style, source or tile failed to load (e.g. an online basemap offline). */
   onError?: (error: Error & { url?: string }) => void;
@@ -88,26 +88,38 @@ export function MapFrame({ mapStyle, bounds, onLoad, onError, editing, className
   onLoadRef.current = onLoad;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const styleRef = useRef(mapStyle);
+  styleRef.current = mapStyle;
+  // Layers and sources of the basemap; the others are the owner's overlays.
+  const basemap = useRef<StyleIds | null>(null);
+  // The style the map was given last.
+  const shown = useRef(mapStyle);
 
   useEffect(() => {
     if (!el.current) return;
     registerPmtiles();
+    basemap.current = null;
+    shown.current = styleRef.current;
     const m = new maplibregl.Map({
       container: el.current,
-      style: mapStyle ?? schematicStyle(),
+      style: styleRef.current ?? schematicStyle(),
       bounds,
       fitBoundsOptions: { padding: 20 },
       attributionControl: { compact: false },
     });
     m.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+    // The first style, before the owner adds anything.
+    m.once("style.load", () => {
+      basemap.current ??= idsOf(m.getStyle());
+    });
     m.on("load", () => onLoadRef.current?.(m));
     m.on("error", (e) => onErrorRef.current?.(e.error));
 
     // follow the theme: repaint basemap layers when <html class> changes
     const repaint = () => {
-      if (mapStyle || !m.isStyleLoaded()) return;
+      if (styleRef.current || !m.isStyleLoaded()) return;
       for (const [layer, paint] of Object.entries(basemapPaint())) {
-        for (const [prop, value] of Object.entries(paint)) m.setPaintProperty(layer, prop, value);
+        for (const [prop, value] of Object.entries(paint)) if (m.getLayer(layer)) m.setPaintProperty(layer, prop, value);
       }
     };
     const obs = new MutationObserver(repaint);
@@ -121,7 +133,25 @@ export function MapFrame({ mapStyle, bounds, onLoad, onError, editing, className
     };
     // bounds by value: an inline array must not recreate the map
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapStyle, JSON.stringify(bounds)]);
+  }, [JSON.stringify(bounds)]);
+
+  // Another basemap: the same map (camera, overlays) on a new style. The
+  // overlays are carried over above the new basemap; the old style stays
+  // until the new one is loaded.
+  useEffect(() => {
+    if (map === null || shown.current === mapStyle) return;
+    shown.current = mapStyle;
+    map.setStyle(mapStyle ?? schematicStyle(), {
+      transformStyle: (previous, next) => {
+        const base = basemap.current ?? { layers: new Set<string>(), sources: new Set<string>() };
+        basemap.current = idsOf(next);
+        if (!previous) return next;
+        const sources = Object.fromEntries(Object.entries(previous.sources).filter(([id]) => !base.sources.has(id)));
+        const layers = previous.layers.filter((l) => !base.layers.has(l.id));
+        return { ...next, sources: { ...next.sources, ...sources }, layers: [...next.layers, ...layers] };
+      },
+    });
+  }, [map, mapStyle]);
 
   return (
     <div className={cn("am-map relative h-[640px] w-full overflow-hidden", className)}>
@@ -202,4 +232,11 @@ function ControlButton({
       <TooltipContent side="right">{t(label)}</TooltipContent>
     </Tooltip>
   );
+}
+
+type StyleIds = { layers: Set<string>; sources: Set<string> };
+
+/** Ids of the layers and sources of a style. */
+function idsOf(style: StyleSpecification | undefined): StyleIds {
+  return { layers: new Set((style?.layers ?? []).map((l) => l.id)), sources: new Set(Object.keys(style?.sources ?? {})) };
 }
