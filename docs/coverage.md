@@ -42,7 +42,7 @@ _Last updated: 2026-10-31 (6.0.0-alpha.1)._
 | Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges`, `bridges.tif` identical to AM5 on the demo | 🗓 |
 | Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` (AM5 quick correction) | 🗓 |
 | **Adjust population distribution** | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: equal to AM5 within 6e-15 ([`adjust-population.md`](adjust-population.md)) | ✅ Toolbox › Adjust population distribution |
-| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview` | ✅ tiles, values at a point, `dataset.relocate` | ✅ Toolbox › Interactive map: a raster with opacity, value at a click, facilities with labels, relocation by drag (undo, redo) saved as a new facilities layer; ➖ updating the layer in place (runs reference it) |
+| **Interactive map**: preview layers, relocate facilities | `modules/amGisPreview` | ✅ tiles, values at a point, features sampled on a raster, `dataset.relocate` | ✅ Toolbox › Interactive map, a GIS module: Facilities relocator (red when the reference raster has no value at the facility, Next, drag with undo and redo, saved as a new facilities layer), up to 10 additional vector layers in a z-order, basemaps (offline schematic; MapTiler backdrop, dataviz, satellite, outdoor with a key); ➖ updating the layer in place (runs reference it), automatic snapping (which side of a barrier takes context) |
 | Demo project (AM5 sample data) | image data | ✅ `project demo` | ✅ Toolbox › Demo project |
 
 ## Project and data
@@ -72,6 +72,8 @@ _Last updated: 2026-10-31 (6.0.0-alpha.1)._
 ## Next in the interface
 
 Import job, `.am5p` import, Project › Export and Data › Archive, the
-quick correction of merge conflicts, the "next facility to check" of the
-interactive map. Architecture, state rules and the screen-to-job mapping
-are in [`ui.md`](ui.md).
+quick correction of merge conflicts. More GIS tools in the interactive map,
+e.g. a flood calculator (DEM and settings to barrier polygons for Merge
+land cover, or a friction layer slowing travel in every analysis): to be
+researched. Architecture, state rules and the screen-to-job mapping are in
+[`ui.md`](ui.md).

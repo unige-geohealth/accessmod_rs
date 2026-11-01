@@ -430,7 +430,7 @@ One binary and one data directory on a small server, run as a service
 | Analysis › Optimization | `optimization run` |
 | Toolbox › Merge land cover | `merge-land-cover run` (stack as an ordered list) |
 | Toolbox › Adjust population distribution | `adjust-population-distribution run` |
-| Toolbox › Interactive map | `dataset.relocate`: a new facilities dataset (the source stays: runs reference it) |
+| Toolbox › Interactive map | GIS module: `GET …/features?sample=` (facilities to inspect), `dataset.relocate` (a new facilities dataset; the source stays: runs reference it), `GET /api/basemap` (MapTiler key). Draw order, top first: facilities, additional vector layers, reference raster, basemap |
 | Toolbox › Demo project (own) | `demo.reset` |
 | Jobs (in place of Logs) | `GET /api/runs`, `run.cancel` |
 | Settings › Language | client i18n catalogue |

@@ -120,3 +120,15 @@ until it is public).
   needs a certificate (none yet).
 - End-to-end tests against the Linux and Windows archives in CI.
 - Desktop installers wrap this archive: [`desktop.md`](desktop.md).
+
+## Online basemaps
+
+The interactive map offers MapTiler basemaps when `accessmod serve` has a
+key: `MAPTILER_API_KEY` in its environment, else the one embedded at build
+time. The release workflow embeds the repository secret
+`MAPTILER_API_KEY` (a public browser key, as in AccessMod 5). Restrict it
+in MapTiler to the origins the client uses: `http://localhost:*` and
+`http://127.0.0.1:*` (`serve` and the desktop window), plus a country
+server's address. In development, `.env` at the repository root (ignored;
+template `.env.demo`) holds it for `npm run dev:server`. Without a key
+or a network, the offline schematic basemap stays.

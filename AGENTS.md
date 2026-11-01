@@ -126,7 +126,7 @@ cargo xtask i18n [--check]                  # design_system catalogue from the A
 cargo xtask layers                          # crate dependency rules (core: no GDAL, …)
 cargo run -p accessmod-cli -- serve         # API, http://127.0.0.1:5099 (--web-dir: a built client)
 npm ci                                      # root npm workspace: @accessmod/ui and @accessmod/web
-npm run dev:server                          # serve (debug) on 5099, data in _shared/dev-data, restarted on Rust changes (watchexec)
+npm run dev:server                          # serve (debug) on 5099, data in _shared/dev-data, restarted on Rust changes (watchexec); reads .env (MAPTILER_API_KEY)
 npm run dev:web                             # client, http://localhost:5173 (proxies /api to dev:server)
 npm run dev:gallery                         # design-system gallery and AM5 mock screens, http://localhost:5180
 npm run dev                                 # dev:server + dev:web in one terminal; args go to serve
