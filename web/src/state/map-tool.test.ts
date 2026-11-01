@@ -35,17 +35,19 @@ describe("interactive map", () => {
     expect(moves(apply(draft, { type: "move", layer: 4, move: { fid: 2, lon: 2, lat: 2 } }))).toEqual([{ fid: 2, lon: 2, lat: 2 }]);
   });
 
-  it("checks Save as AM5; a save clears the moves it sent only", () => {
+  it("checks Save as AM5; a save holds the edits, then edits its copy", () => {
     expect(saveIssues(EMPTY)).toEqual(["tool_map_relocate_missing_layer", "tool_map_relocate_missing_tags"]);
     const draft = apply({ ...EMPTY, facilities: 3 }, { type: "tags", text: "moved" }, { type: "move", layer: 3, move: { fid: 1, lon: 1, lat: 1 } });
     expect(saveIssues(draft)).toEqual([]);
-    expect(apply(draft, { type: "saved", layer: 3, count: 1 })).toMatchObject({ history: [], tags: "" });
-    // A move made while saving stays.
-    const later = apply(draft, { type: "move", layer: 3, move: { fid: 2, lon: 2, lat: 2 } }, { type: "saved", layer: 3, count: 1 });
-    expect([moves(later), later.tags]).toEqual([[{ fid: 2, lon: 2, lat: 2 }], "moved"]);
-    // Another layer since: unchanged.
-    const other = apply(draft, { type: "facilities", id: 4 });
-    expect(apply(other, { type: "saved", layer: 3, count: 1 })).toBe(other);
+    // While saving: no move, undo, redo or other layer.
+    const saving = apply(draft, { type: "save" });
+    for (const m of [{ type: "move", layer: 3, move: { fid: 2, lon: 2, lat: 2 } }, { type: "undo" }, { type: "facilities", id: 4 }] as const) {
+      expect(updateMap(saving, m)).toBe(saving);
+    }
+    // Saved: the copy is shown, nothing pending.
+    expect(apply(saving, { type: "saved", id: 9 })).toMatchObject({ facilities: 9, history: [], saving: false, tags: "" });
+    // Failed: the moves stay to try again.
+    expect(moves(apply(saving, { type: "saveFailed" }))).toEqual([{ fid: 1, lon: 1, lat: 1 }]);
   });
 
   it("takes defaults and places moved points", () => {

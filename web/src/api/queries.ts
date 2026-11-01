@@ -77,6 +77,8 @@ export const useValues = (slug: string, id: number | null, field: string, label:
     queryKey: keys.values(slug, id ?? 0, field, label),
     queryFn: ({ signal }) => api.values(slug, id ?? 0, field, label, signal),
     enabled: id !== null && field !== "",
+    // A dataset never changes once imported: one read per field.
+    staleTime: Infinity,
   });
 
 /** Features of a vector dataset (GeoJSON, WGS 84); disabled without a dataset. */

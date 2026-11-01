@@ -20,6 +20,8 @@ export interface MapDraft {
   facilities: number | null;
   labelField: string;
   editing: boolean;
+  /** A save is running: moves, undo, redo and the layer wait for its answer. */
+  saving: boolean;
   /** Moves applied, oldest first, and moves undone (latest last). */
   history: readonly Move[];
   undone: readonly Move[];
@@ -33,6 +35,7 @@ export const EMPTY: MapDraft = {
   facilities: null,
   labelField: "",
   editing: false,
+  saving: false,
   history: [],
   undone: [],
   tags: "",
@@ -49,11 +52,17 @@ export type MapMessage =
   | { type: "move"; layer: number; move: Move }
   | { type: "undo" }
   | { type: "redo" }
-  /** Save of the first `count` moves of `layer` succeeded. */
-  | { type: "saved"; layer: number; count: number }
+  | { type: "save" }
+  /** The save wrote dataset `id`, a copy of the layer with the moves (same feature ids): it is shown and edited next. */
+  | { type: "saved"; id: number }
+  | { type: "saveFailed" }
   | { type: "tags"; text: string };
 
+/** What a running save holds still. */
+const HELD: ReadonlySet<MapMessage["type"]> = new Set(["facilities", "move", "undo", "redo", "save"]);
+
 export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
+  if (draft.saving && HELD.has(message.type)) return draft;
   switch (message.type) {
     case "raster":
       return { ...draft, raster: message.id, clicked: null };
@@ -81,10 +90,13 @@ export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
       const next = draft.undone.at(-1);
       return next === undefined ? draft : { ...draft, history: [...draft.history, next], undone: draft.undone.slice(0, -1) };
     }
+    case "save":
+      return { ...draft, saving: true };
     case "saved":
-      // Moves made while saving stay; another layer since: nothing to clear.
-      if (draft.facilities !== message.layer) return draft;
-      return { ...draft, history: draft.history.slice(message.count), undone: [], tags: draft.history.length > message.count ? draft.tags : "" };
+      // Later corrections build on the saved copy.
+      return { ...draft, saving: false, facilities: message.id, history: [], undone: [], tags: "" };
+    case "saveFailed":
+      return { ...draft, saving: false };
     case "tags":
       return { ...draft, tags: message.text };
   }

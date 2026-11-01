@@ -160,12 +160,12 @@ function FacilitiesPanel({
   const save = async () => {
     if (draft.facilities === null) return;
     try {
-      const layer = draft.facilities;
-      const count = draft.history.length;
-      const saved = await api.command("dataset.relocate", { project, id: layer, moves: moved, tags: normalizeTags(draft.tags) });
-      dispatch({ type: "saved", layer, count });
+      dispatch({ type: "save" });
+      const saved = await api.command("dataset.relocate", { project, id: draft.facilities, moves: moved, tags: normalizeTags(draft.tags) });
+      dispatch({ type: "saved", id: saved.id });
       setResult({ saved, count: moved.length, failure: [] });
     } catch (error) {
+      dispatch({ type: "saveFailed" });
       setResult({ failure: issuesOf(error, t) });
     }
   };
@@ -199,7 +199,13 @@ function FacilitiesPanel({
       {result.saved && (
         <MessageList messages={[{ kind: "info", text: `${f("tool_map_relocate_out_saved", result.count ?? 0)} ${datasetLabel(t, result.saved)}` }]} />
       )}
-      <AmButton variant="danger" block disabled={moved.length === 0 || issues.length > 0} k="toolbox_map_relocate_save" onClick={() => void save()} />
+      <AmButton
+        variant="danger"
+        block
+        disabled={moved.length === 0 || issues.length > 0 || draft.saving}
+        k="toolbox_map_relocate_save"
+        onClick={() => void save()}
+      />
     </div>
   );
 }
@@ -262,7 +268,9 @@ function useFacilitiesLayer(map: maplibregl.Map | null, collection: PointCollect
     const press = (e: maplibregl.MapLayerMouseEvent) => {
       const fid = e.features?.[0]?.id;
       const base = latest.current.collection;
-      if (!latest.current.draft.editing || typeof fid !== "number" || base === null) return;
+      // The layer of the feature grabbed; the drop is dropped if another is shown by then.
+      const layer = latest.current.draft.facilities;
+      if (!latest.current.draft.editing || typeof fid !== "number" || base === null || layer === null) return;
       // No pan while dragging.
       e.preventDefault();
       popup.remove();
@@ -275,8 +283,7 @@ function useFacilitiesLayer(map: maplibregl.Map | null, collection: PointCollect
         map.off("mousemove", drag);
         map.getCanvas().style.cursor = "";
         const move: Move = { fid, lon: m.lngLat.lng, lat: m.lngLat.lat };
-        const layer = latest.current.draft.facilities;
-        if (layer !== null) latest.current.dispatch({ type: "move", layer, move });
+        if (latest.current.draft.facilities === layer) latest.current.dispatch({ type: "move", layer, move });
       });
     };
     const click = (e: maplibregl.MapMouseEvent) => {
