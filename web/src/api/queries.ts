@@ -17,7 +17,8 @@ export const keys = {
   datasets: (slug: string) => ["project", slug, "datasets"] as const,
   rows: (slug: string, id: number, q: RowsQuery) => ["project", slug, "rows", id, q] as const,
   values: (slug: string, id: number, field: string, label: string) => ["project", slug, "values", id, field, label] as const,
-  features: (slug: string, id: number) => ["project", slug, "features", id] as const,
+  features: (slug: string, id: number, sample: number | null) => ["project", slug, "features", id, sample] as const,
+  basemap: ["basemap"] as const,
   value: (slug: string, id: number, lon: number, lat: number) => ["project", slug, "value", id, lon, lat] as const,
   jobs: (slug: string) => ["project", slug, "jobs"] as const,
   runs: (slug: string) => ["project", slug, "runs"] as const,
@@ -81,13 +82,18 @@ export const useValues = (slug: string, id: number | null, field: string, label:
     staleTime: Infinity,
   });
 
-/** Features of a vector dataset (GeoJSON, WGS 84); disabled without a dataset. */
-export const useFeatures = (slug: string, id: number | null) =>
+/** Features of a vector dataset (GeoJSON, WGS 84), each with the value of raster `sample` at its point; disabled without a dataset. */
+export const useFeatures = (slug: string, id: number | null, sample: number | null = null) =>
   useQuery({
-    queryKey: keys.features(slug, id ?? 0),
-    queryFn: ({ signal }) => api.features(slug, id ?? 0, signal),
+    queryKey: keys.features(slug, id ?? 0, sample),
+    queryFn: ({ signal }) => api.features(slug, id ?? 0, sample, signal),
     enabled: id !== null,
+    // Datasets never change once imported.
+    staleTime: Infinity,
   });
+
+/** The server's MapTiler key (online basemaps). */
+export const useBasemap = () => useQuery({ queryKey: keys.basemap, queryFn: () => api.basemap(), staleTime: Infinity });
 
 /** Value of a raster dataset at a point; disabled without a dataset or point. */
 export const useValue = (slug: string, id: number | null, point: { lon: number; lat: number } | null) =>

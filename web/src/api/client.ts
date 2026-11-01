@@ -65,6 +65,8 @@ export interface Feature {
   id?: number;
   geometry: { type: string; coordinates: unknown } | null;
   properties: Record<string, unknown> | null;
+  /** Value of the sampled raster at its point (`?sample=`). */
+  sample?: number | null;
 }
 
 /** Commands the client sends: parameters and result. */
@@ -132,8 +134,15 @@ export const api = {
       signal,
     ),
   /** Features of a vector dataset as GeoJSON in WGS 84 (bounded; `truncated` when cut). */
-  features: (slug: string, id: number, signal?: AbortSignal) =>
-    request<{ type: "FeatureCollection"; features: Feature[]; truncated: boolean }>("GET", `${project(slug)}/datasets/${id}/features`, undefined, signal),
+  features: (slug: string, id: number, sample: number | null, signal?: AbortSignal) =>
+    request<{ type: "FeatureCollection"; features: Feature[]; truncated: boolean }>(
+      "GET",
+      `${project(slug)}/datasets/${id}/features${sample === null ? "" : `?sample=${sample}`}`,
+      undefined,
+      signal,
+    ),
+  /** Online basemaps: the MapTiler key of the server, if any. */
+  basemap: () => request<Api.Basemap>("GET", "/api/basemap"),
   /** Value of a raster dataset at a point (WGS 84); `null` outside or on NoData. */
   value: (slug: string, id: number, lon: number, lat: number, signal?: AbortSignal) =>
     request<{ value: number | null }>("GET", `${project(slug)}/datasets/${id}/value?lon=${lon}&lat=${lat}`, undefined, signal),

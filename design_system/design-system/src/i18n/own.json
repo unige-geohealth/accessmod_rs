@@ -742,5 +742,107 @@
     "fr": "Seules les %s premières entités sont affichées.",
     "es": "Solo se muestran las primeras %s entidades.",
     "pt": "Apenas as primeiras %s entidades são mostradas."
+  },
+  "map.relocator": {
+    "en": "Facilities relocator",
+    "fr": "Relocalisation des structures",
+    "es": "Reubicación de instalaciones",
+    "pt": "Relocalização de instalações"
+  },
+  "map.reference_raster": {
+    "en": "Reference raster (usually the merged land cover)",
+    "fr": "Raster de référence (en général l'occupation du sol fusionnée)",
+    "es": "Ráster de referencia (en general la cobertura del suelo fusionada)",
+    "pt": "Raster de referência (em geral a cobertura do solo fundida)"
+  },
+  "map.to_inspect": {
+    "en": "%s of %s facilities without a value in the reference raster (red): on a barrier, NoData or off the grid.",
+    "fr": "%s structures sur %s sans valeur dans le raster de référence (en rouge) : sur une barrière, sans donnée ou hors de la grille.",
+    "es": "%s de %s instalaciones sin valor en el ráster de referencia (en rojo): sobre una barrera, sin dato o fuera de la cuadrícula.",
+    "pt": "%s de %s instalações sem valor no raster de referência (a vermelho): sobre uma barreira, sem dado ou fora da grelha."
+  },
+  "map.next_facility": {
+    "en": "Next facility to inspect",
+    "fr": "Structure suivante à vérifier",
+    "es": "Siguiente instalación a revisar",
+    "pt": "Próxima instalação a verificar"
+  },
+  "map.selected": {
+    "en": "Selected: %s",
+    "fr": "Sélection : %s",
+    "es": "Selección: %s",
+    "pt": "Seleção: %s"
+  },
+  "map.layers": {
+    "en": "Additional layers",
+    "fr": "Couches additionnelles",
+    "es": "Capas adicionales",
+    "pt": "Camadas adicionais"
+  },
+  "map.layers_sub": {
+    "en": "Vector layers drawn above the reference raster, below the facilities (at most %s).",
+    "fr": "Couches vectorielles dessinées au-dessus du raster de référence, sous les structures (%s au plus).",
+    "es": "Capas vectoriales dibujadas sobre el ráster de referencia, bajo las instalaciones (%s como máximo).",
+    "pt": "Camadas vetoriais desenhadas sobre o raster de referência, sob as instalações (%s no máximo)."
+  },
+  "map.layers_shown": {
+    "en": "Shown (top first)",
+    "fr": "Affichées (dessus en premier)",
+    "es": "Mostradas (arriba primero)",
+    "pt": "Mostradas (topo primeiro)"
+  },
+  "map.layers_available": {
+    "en": "Available",
+    "fr": "Disponibles",
+    "es": "Disponibles",
+    "pt": "Disponíveis"
+  },
+  "map.basemap": {
+    "en": "Basemap",
+    "fr": "Fond de carte",
+    "es": "Mapa base",
+    "pt": "Mapa base"
+  },
+  "map.basemap_schematic": {
+    "en": "Schematic (offline)",
+    "fr": "Schématique (hors ligne)",
+    "es": "Esquemático (sin conexión)",
+    "pt": "Esquemático (offline)"
+  },
+  "map.basemap_backdrop": {
+    "en": "Backdrop",
+    "fr": "Arrière-plan",
+    "es": "Fondo",
+    "pt": "Fundo"
+  },
+  "map.basemap_dataviz": {
+    "en": "Dataviz",
+    "fr": "Dataviz",
+    "es": "Dataviz",
+    "pt": "Dataviz"
+  },
+  "map.basemap_satellite": {
+    "en": "Satellite",
+    "fr": "Satellite",
+    "es": "Satélite",
+    "pt": "Satélite"
+  },
+  "map.basemap_outdoor": {
+    "en": "Outdoor",
+    "fr": "Plein air",
+    "es": "Exterior",
+    "pt": "Exterior"
+  },
+  "map.basemap_no_key": {
+    "en": "Online basemaps need a MapTiler key (MAPTILER_API_KEY) and a network.",
+    "fr": "Les fonds en ligne demandent une clé MapTiler (MAPTILER_API_KEY) et un réseau.",
+    "es": "Los mapas base en línea necesitan una clave MapTiler (MAPTILER_API_KEY) y una red.",
+    "pt": "Os mapas base online precisam de uma chave MapTiler (MAPTILER_API_KEY) e de rede."
+  },
+  "map.basemap_unavailable": {
+    "en": "The online basemap could not be loaded (network or key): back to the schematic map.",
+    "fr": "Le fond en ligne n'a pas pu être chargé (réseau ou clé) : retour à la carte schématique.",
+    "es": "No se pudo cargar el mapa base en línea (red o clave): vuelta al mapa esquemático.",
+    "pt": "Não foi possível carregar o mapa base online (rede ou chave): de volta ao mapa esquemático."
   }
 }

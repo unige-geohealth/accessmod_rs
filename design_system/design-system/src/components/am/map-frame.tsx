@@ -69,6 +69,8 @@ type MapFrameProps = {
   bounds?: [number, number, number, number];
   /** Called once the map is loaded, to add sources and layers. */
   onLoad?: (map: maplibregl.Map) => void;
+  /** A style, source or tile failed to load (e.g. an online basemap offline). */
+  onError?: (error: Error & { url?: string }) => void;
   /** Facility relocation tools (Toolbox › Interactive map). */
   editing?: MapEditing;
   className?: string;
@@ -79,11 +81,13 @@ type MapFrameProps = {
  * Controls are React buttons on top of the map, themed with tokens:
  * zoom and home top-left, facility editing top-right, scale bottom-left.
  */
-export function MapFrame({ mapStyle, bounds, onLoad, editing, className }: MapFrameProps) {
+export function MapFrame({ mapStyle, bounds, onLoad, onError, editing, className }: MapFrameProps) {
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const onLoadRef = useRef(onLoad);
   onLoadRef.current = onLoad;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     if (!el.current) return;
@@ -97,6 +101,7 @@ export function MapFrame({ mapStyle, bounds, onLoad, editing, className }: MapFr
     });
     m.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
     m.on("load", () => onLoadRef.current?.(m));
+    m.on("error", (e) => onErrorRef.current?.(e.error));
 
     // follow the theme: repaint basemap layers when <html class> changes
     const repaint = () => {

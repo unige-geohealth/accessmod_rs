@@ -56,35 +56,70 @@ test("adjust population distribution: population kept by zone, moved off barrier
   await expect(page.getByRole("dialog").getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
 });
 
-test("interactive map: a click queries the raster; relocation writes a new facilities layer", async ({ page, request }) => {
+test("interactive map: facilities to inspect, Next, a drag, Save; additional layers", async ({ page, request }) => {
+  const datasets = (await (await request.get(`/api/projects/${project}/datasets`)).json()) as { id: number; class: string; tags: string[] }[];
+  const source = datasets.find((d) => d.class === "vFacility");
+  const merged = datasets.filter((d) => d.class === "rLandCoverMerged").sort((a, b) => b.id - a.id)[0];
+  if (source === undefined || merged === undefined) throw new Error("needs the merge test first");
+  type Collection = { features: { id: number; sample: number | null; geometry: { coordinates: unknown[] } }[] };
+  // A facility off the grid, through the API: one to inspect. The newest layer is shown first.
+  const original = (await (await request.get(`/api/projects/${project}/datasets/${source.id}/features`)).json()) as Collection;
+  const [first] = original.features;
+  if (first === undefined) throw new Error("no facility");
+  const [lon = 0, lat = 0] = first.geometry.coordinates.flat() as number[];
+  const facilities = await command<{ id: number }>(request, "dataset.relocate", {
+    project,
+    id: source.id,
+    moves: [{ fid: first.id, lon: lon + 2, lat }],
+    tags: ["offgrid"],
+  });
+  // What the relocator shows, through the API: facilities without a value.
+  const sampled = (await (await request.get(`/api/projects/${project}/datasets/${facilities.id}/features?sample=${merged.id}`)).json()) as Collection;
+  const missing = sampled.features.filter((f) => f.sample === null).length;
+
   await page.goto(`/#/${project}/toolbox/map`);
   const map = page.locator(".am-map canvas");
   await expect(map).toBeVisible();
-  // The newest raster is preselected; the project centre has a value.
-  await page.waitForTimeout(1000);
-  const box = await map.boundingBox();
-  if (box === null) throw new Error("no map");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByText(/^Longitude : -?\d+\.\d{6}$/)).toBeVisible();
-  await expect(page.locator("li", { hasText: "Value :" })).not.toHaveText("Value : -");
+  await expect(page.getByRole("status").filter({ hasText: "facilities without a value" })).toHaveText(
+    new RegExp(`^${missing} of ${sampled.features.length} facilities`),
+  );
   await shot(page, "toolbox-map");
 
-  // Relocation, as the Save button sends it: a new layer, the source kept.
-  const datasets = (await (await request.get(`/api/projects/${project}/datasets`)).json()) as { id: number; class: string }[];
-  const facilities = datasets.find((d) => d.class === "vFacility");
-  if (facilities === undefined) throw new Error("no facilities");
-  const collection = (await (await request.get(`/api/projects/${project}/datasets/${facilities.id}/features`)).json()) as {
-    features: { id: number; geometry: { coordinates: unknown[] } }[];
-  };
-  const [first] = collection.features;
-  if (first === undefined) throw new Error("no feature");
-  // A point, or a one-point multipoint (the demo).
-  const [lon = 0, lat = 0] = first.geometry.coordinates.flat() as number[];
-  const saved = await command<{ id: number; class: string; tags: string[] }>(request, "dataset.relocate", {
-    project,
-    id: facilities.id,
-    moves: [{ fid: first.id, lon: lon + 0.001, lat }],
-    tags: ["relocated"],
-  });
-  expect([saved.class, saved.tags]).toEqual(["vFacility", ["relocated"]]);
+  // Additional layers: both barrier layers above the land cover.
+  await page.getByRole("button", { name: "Additional layers" }).click();
+  for (const name of ["barrier [demo rivers]", "barrier [demo wetlands]"]) {
+    await page.getByRole("list", { name: "Available" }).getByRole("listitem").filter({ hasText: name }).press("Enter");
+  }
+  await expect(page.getByRole("list", { name: "Shown (top first)" }).getByRole("listitem")).toHaveCount(2);
+  await shot(page, "toolbox-map-layers");
+  await page.getByRole("button", { name: "Facilities relocator" }).click();
+
+  // Next centres the facility to inspect; drag it from the map centre.
+  expect(missing).toBe(1);
+  await page.getByRole("button", { name: "Next facility to inspect" }).click();
+  await expect(page.getByText(/^Selected: /)).toBeVisible();
+  await page.getByRole("button", { name: "Move facilities" }).click();
+  await page.waitForTimeout(800);
+  const box = await map.boundingBox();
+  if (box === null) throw new Error("no map");
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 20, y + 10, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByText("Number of facilities relocated : 1")).toBeVisible();
+  await page.getByLabel("Add short tags").fill("relocated");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText(/^1 changes saved\. Output dataset : \(v\) facility \[relocated\]/)).toBeVisible();
+
+  // The new layer, through the API: same facilities, one moved.
+  const after = (await (await request.get(`/api/projects/${project}/datasets`)).json()) as { id: number; class: string; tags: string[] }[];
+  const saved = after.find((d) => d.class === "vFacility" && d.tags.includes("relocated"));
+  if (saved === undefined) throw new Error("no relocated layer");
+  const relocated = (await (await request.get(`/api/projects/${project}/datasets/${saved.id}/features?sample=${merged.id}`)).json()) as Collection;
+  expect(relocated.features).toHaveLength(sampled.features.length);
+  const changed = relocated.features.filter(
+    (f, i) => JSON.stringify(f.geometry.coordinates.flat()) !== JSON.stringify(sampled.features[i]?.geometry.coordinates.flat()),
+  );
+  expect(changed).toHaveLength(1);
 });

@@ -1,7 +1,13 @@
-// Toolbox › Interactive map (AM5 `amGisPreview`): the raster shown, its
-// opacity, the point queried, the facilities shown with a label, and the
-// facilities moved (history with undo and redo) until saved as a new
-// facilities dataset. Positions are WGS 84, as the map gives them.
+// Toolbox › Interactive map (AM5 `amGisPreview`), a small GIS module:
+// - Facilities relocator: a facilities layer over a reference raster; a
+//   facility without a value there (barrier, NoData, off the grid) is to
+//   inspect; Next goes to the next one; moves (history with undo and redo)
+//   are saved as a new facilities dataset. Relocation stays manual: which
+//   side of a one-cell barrier a facility is on takes context.
+// - Additional layers: vector datasets of the project in a z-order.
+// - Basemap: the offline schematic map, or a MapTiler style.
+// Draw order, top first: facilities, additional layers, reference raster,
+// basemap. Positions are WGS 84, as the map gives them.
 import type { Key } from "@accessmod/ui/i18n";
 import { normalizeTags, pickField } from "./catalogue";
 
@@ -11,8 +17,16 @@ export interface Move {
   lat: number;
 }
 
+/** Basemaps: the offline schematic map, or MapTiler styles (`maps/<id>/style.json`). */
+export const BASEMAPS = ["schematic", "backdrop-v4", "dataviz-v4", "satellite-v4", "outdoor-v4"] as const;
+export type Basemap = (typeof BASEMAPS)[number];
+
+/** Additional layers shown at most. */
+export const MAX_LAYERS = 10;
+
 export interface MapDraft {
-  raster: number | null;
+  /** Reference raster of the relocator (usually the merged land cover). */
+  reference: number | null;
   /** 0 to 1. */
   opacity: number;
   /** Last point clicked, to query the raster. */
@@ -26,10 +40,17 @@ export interface MapDraft {
   history: readonly Move[];
   undone: readonly Move[];
   tags: string;
+  /** Facility Next went to. */
+  selected: number | null;
+  /** Additional vector layers shown, top first. */
+  layers: readonly number[];
+  basemap: Basemap;
+  /** The online basemap failed to load: back to the schematic map, with a notice. */
+  basemapFailed: boolean;
 }
 
 export const EMPTY: MapDraft = {
-  raster: null,
+  reference: null,
   opacity: 0.8,
   clicked: null,
   facilities: null,
@@ -39,10 +60,18 @@ export const EMPTY: MapDraft = {
   history: [],
   undone: [],
   tags: "",
+  selected: null,
+  layers: [],
+  basemap: "schematic",
+  basemapFailed: false,
 };
 
 export type MapMessage =
-  | { type: "raster"; id: number | null }
+  | { type: "reference"; id: number | null }
+  | { type: "select"; fid: number | null }
+  | { type: "layers"; shown: readonly number[] }
+  | { type: "basemap"; basemap: Basemap }
+  | { type: "basemapFailed" }
   | { type: "opacity"; value: number }
   | { type: "click"; lon: number; lat: number }
   | { type: "facilities"; id: number | null }
@@ -64,15 +93,23 @@ const HELD: ReadonlySet<MapMessage["type"]> = new Set(["facilities", "move", "un
 export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
   if (draft.saving && HELD.has(message.type)) return draft;
   switch (message.type) {
-    case "raster":
-      return { ...draft, raster: message.id, clicked: null };
+    case "reference":
+      return { ...draft, reference: message.id, clicked: null };
+    case "select":
+      return { ...draft, selected: message.fid };
+    case "layers":
+      return { ...draft, layers: message.shown.slice(0, MAX_LAYERS) };
+    case "basemap":
+      return { ...draft, basemap: message.basemap, basemapFailed: false };
+    case "basemapFailed":
+      return draft.basemap === "schematic" ? draft : { ...draft, basemap: "schematic", basemapFailed: true };
     case "opacity":
       return { ...draft, opacity: Math.min(1, Math.max(0, message.value)) };
     case "click":
       return { ...draft, clicked: { lon: message.lon, lat: message.lat } };
     case "facilities":
       // Moves belong to a layer.
-      return message.id === draft.facilities ? draft : { ...draft, facilities: message.id, labelField: "", history: [], undone: [] };
+      return message.id === draft.facilities ? draft : { ...draft, facilities: message.id, labelField: "", history: [], undone: [], selected: null };
     case "labelField":
       return { ...draft, labelField: message.field };
     case "editing":
@@ -94,7 +131,7 @@ export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
       return { ...draft, saving: true };
     case "saved":
       // Later corrections build on the saved copy.
-      return { ...draft, saving: false, facilities: message.id, history: [], undone: [], tags: "" };
+      return { ...draft, saving: false, facilities: message.id, history: [], undone: [], tags: "", selected: null };
     case "saveFailed":
       return { ...draft, saving: false };
     case "tags":
@@ -102,17 +139,17 @@ export function updateMap(draft: MapDraft, message: MapMessage): MapDraft {
   }
 }
 
-/** The draft as shown: the first raster and facilities, a name-like label. */
+/** The draft as shown: the first reference raster and facilities, a name-like label. */
 export function withMapDefaults(
   draft: MapDraft,
-  first: { raster: number | null; facilities: number | null },
+  first: { reference: number | null; facilities: number | null },
   fieldsOf: (layer: number | null) => readonly string[],
 ): MapDraft {
-  const raster = draft.raster ?? first.raster;
+  const reference = draft.reference ?? first.reference;
   const facilities = draft.facilities ?? first.facilities;
   const labelField = pickField(draft.labelField, fieldsOf(facilities), ["name", "label", "cat"]);
-  if (raster === draft.raster && facilities === draft.facilities && labelField === draft.labelField) return draft;
-  return { ...draft, raster, facilities, labelField };
+  if (reference === draft.reference && facilities === draft.facilities && labelField === draft.labelField) return draft;
+  return { ...draft, reference, facilities, labelField };
 }
 
 /** Where each moved facility is now: its latest move. */
@@ -130,20 +167,71 @@ export function saveIssues(draft: MapDraft): Key[] {
   return issues;
 }
 
-/** A GeoJSON point feature collection with the moved facilities in place. */
-export interface PointCollection {
-  type: "FeatureCollection";
-  features: { type: "Feature"; id?: number | string; geometry: { type: string; coordinates: unknown } | null; properties: Record<string, unknown> | null }[];
+/** A GeoJSON feature of `GET …/features`; `sample`: the reference raster at its point. */
+export interface PointFeature {
+  type: "Feature";
+  id?: number | string;
+  geometry: { type: string; coordinates: unknown } | null;
+  properties: Record<string, unknown> | null;
+  sample?: number | null;
 }
 
-export function withMoves(collection: PointCollection, moved: readonly Move[]): PointCollection {
-  if (moved.length === 0) return collection;
+export interface PointCollection {
+  type: "FeatureCollection";
+  features: PointFeature[];
+}
+
+/**
+ * Facilities to inspect: no value of the reference raster at their point.
+ * A moved facility counts by the value at its new point (`movedValues`;
+ * `undefined` while unknown: to inspect until known).
+ */
+export function toInspect(features: readonly PointFeature[], movedValues: ReadonlyMap<number, number | null | undefined>): Set<number> {
+  const out = new Set<number>();
+  for (const f of features) {
+    if (typeof f.id !== "number") continue;
+    const value = movedValues.has(f.id) ? movedValues.get(f.id) : f.sample;
+    if (value === null || value === undefined) out.add(f.id);
+  }
+  return out;
+}
+
+/** The facility to inspect after `selected`, in layer order, wrapping; `null` when none is left. */
+export function nextToInspect(features: readonly PointFeature[], inspect: ReadonlySet<number>, selected: number | null): number | null {
+  const fids = features.flatMap((f) => (typeof f.id === "number" ? [f.id] : []));
+  const candidates = fids.filter((f) => inspect.has(f));
+  const at = selected === null ? -1 : fids.indexOf(selected);
+  return candidates.find((f) => fids.indexOf(f) > at) ?? candidates[0] ?? null;
+}
+
+/** The collection drawn: moved facilities in place, with `inspect` and `selected` properties for their style. */
+export function withMoves(
+  collection: PointCollection,
+  moved: readonly Move[],
+  inspect: ReadonlySet<number> = new Set(),
+  selected: number | null = null,
+): PointCollection {
   const at = new Map(moved.map((m) => [m.fid, m]));
   return {
     ...collection,
     features: collection.features.map((f) => {
-      const m = typeof f.id === "number" ? at.get(f.id) : undefined;
-      return m === undefined ? f : { ...f, geometry: { type: "Point", coordinates: [m.lon, m.lat] } };
+      const fid = typeof f.id === "number" ? f.id : undefined;
+      const m = fid === undefined ? undefined : at.get(fid);
+      const properties = { ...f.properties, inspect: fid !== undefined && inspect.has(fid), selected: fid !== undefined && fid === selected };
+      return m === undefined ? { ...f, properties } : { ...f, properties, geometry: { type: "Point", coordinates: [m.lon, m.lat] } };
     }),
   };
+}
+
+/** Point of a facility (a point or a one-point multipoint). */
+export function pointOf(feature: PointFeature | undefined): [number, number] | null {
+  const c = feature?.geometry?.coordinates;
+  const flat = Array.isArray(c) ? (c.flat() as unknown[]) : [];
+  return typeof flat[0] === "number" && typeof flat[1] === "number" ? [flat[0], flat[1]] : null;
+}
+
+/** MapTiler style URL of a basemap; `null`: the offline schematic map (no key, or chosen). */
+export function basemapStyle(basemap: Basemap, key: string | null | undefined): string | null {
+  if (basemap === "schematic" || !key) return null;
+  return `https://api.maptiler.com/maps/${basemap}/style.json?key=${encodeURIComponent(key)}`;
 }
