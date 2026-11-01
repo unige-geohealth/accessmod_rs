@@ -487,14 +487,16 @@ pub async fn all_runs(
                     Ok(runs) => out.extend(runs),
                     Err(e) => tracing::warn!("project {slug}: {e}"),
                 }
+                // The newest `limit` so far: memory stays bounded whatever
+                // the number of projects.
+                out.sort_by(|a, b| {
+                    b.run
+                        .started
+                        .cmp(&a.run.started)
+                        .then_with(|| b.run.id.cmp(&a.run.id))
+                });
+                out.truncate(limit);
             }
-            out.sort_by(|a, b| {
-                b.run
-                    .started
-                    .cmp(&a.run.started)
-                    .then_with(|| b.run.id.cmp(&a.run.id))
-            });
-            out.truncate(limit);
             Ok(out)
         })
         .await

@@ -4,7 +4,7 @@
       "description": "One distinct value of a field.",
       "properties": {
         "count": {
-          "description": "Features holding it.",
+          "description": "Features holding it (those read, when the listing is incomplete).",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -16,12 +16,17 @@
             "null"
           ]
         },
+        "several_labels": {
+          "description": "Its features carry more than one label (AccessMod 5 refuses such a\nroad table).",
+          "type": "boolean"
+        },
         "value": {
           "description": "The value (`null`: features without one)."
         }
       },
       "required": [
         "value",
+        "several_labels",
         "count"
       ],
       "type": "object"
@@ -31,7 +36,7 @@
   "description": "Distinct values of a field of a vector layer, e.g. the classes of a\nroad layer and their labels.",
   "properties": {
     "complete": {
-      "description": "False when the layer has more than [`MAX_VALUES`] distinct values:\n`values` then holds the first ones met.",
+      "description": "False when the layer has more than [`MAX_VALUES`] distinct values:\nreading stopped at the first value over, and `values` holds the\nones met before it.",
       "type": "boolean"
     },
     "values": {

@@ -116,7 +116,10 @@ pub struct FieldValue {
     pub value: Value,
     /// The label of its first feature, when a label field is given.
     pub label: Option<String>,
-    /// Features holding it.
+    /// Its features carry more than one label (AccessMod 5 refuses such a
+    /// road table).
+    pub several_labels: bool,
+    /// Features holding it (those read, when the listing is incomplete).
     pub count: u64,
 }
 
@@ -127,13 +130,16 @@ pub struct FieldValues {
     /// Values, numbers ascending, then text, then `null`.
     pub values: Vec<FieldValue>,
     /// False when the layer has more than [`MAX_VALUES`] distinct values:
-    /// `values` then holds the first ones met.
+    /// reading stopped at the first value over, and `values` holds the
+    /// ones met before it.
     pub complete: bool,
 }
 
 /// Distinct values of `field` in the first layer of vector `path`, with
-/// the first value of `label` for each; one pass, memory bounded by
-/// [`MAX_VALUES`].
+/// the first value of `label` for each; one pass that stops past
+/// [`MAX_VALUES`] values (memory bounded). A whole layer is read when it
+/// has fewer values: an explicit user request (Merge land cover › Roads),
+/// of the cost of the merge that follows it.
 pub fn field_values(path: &Path, field: &str, label: Option<&str>) -> Result<FieldValues> {
     let dataset = open_dataset(path)?;
     let invalid = |issue: String| Error::invalid(format!("{}: {issue}", path.display()));
@@ -155,14 +161,6 @@ pub fn field_values(path: &Path, field: &str, label: Option<&str>) -> Result<Fie
         let value = json_attribute(feature.field(field_index).map_err(Error::gdal(path))?)
             .unwrap_or(Value::Null);
         let key = value.to_string();
-        if let Some(entry) = seen.get_mut(&key) {
-            entry.count += 1;
-            continue;
-        }
-        if seen.len() >= MAX_VALUES {
-            complete = false;
-            continue;
-        }
         let label = match label_index {
             Some(i) => {
                 json_attribute(feature.field(i).map_err(Error::gdal(path))?).map(|v| match v {
@@ -172,11 +170,21 @@ pub fn field_values(path: &Path, field: &str, label: Option<&str>) -> Result<Fie
             }
             None => None,
         };
+        if let Some(entry) = seen.get_mut(&key) {
+            entry.count += 1;
+            entry.several_labels |= entry.label != label;
+            continue;
+        }
+        if seen.len() >= MAX_VALUES {
+            complete = false;
+            break;
+        }
         seen.insert(
             key,
             FieldValue {
                 value,
                 label,
+                several_labels: false,
                 count: 1,
             },
         );

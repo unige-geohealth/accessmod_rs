@@ -1124,8 +1124,8 @@ async fn values_list_the_classes_of_a_field_with_labels() {
     assert_eq!(
         body,
         json!({"complete": true, "values": [
-            {"value": 1, "label": "Main road", "count": 1},
-            {"value": 3, "label": "Tertiary", "count": 2},
+            {"value": 1, "label": "Main road", "several_labels": false, "count": 1},
+            {"value": 3, "label": "Tertiary", "several_labels": true, "count": 2},
         ]})
     );
     let (status, body) = s.call("GET", &url("field=nope"), None).await;
