@@ -10,8 +10,9 @@ import { useState } from "react";
 import { api, issuesOf } from "../../api/client";
 import { keys, queryClient, useProgress, useRuns, useValidation } from "../../api/queries";
 import type { Api } from "../../generated/types";
-import { classLabel } from "../../state/catalogue";
+import { classLabel, plannedOutputs } from "../../state/catalogue";
 import { type Issue, sessionStore } from "../../state/drafts";
+import { usePreference } from "../../state/preferences";
 import { busy, minutes, percent, runView, type RunView } from "../../state/run";
 import { useStore } from "../../state/store";
 import { downloadJson, useFmt } from "../common";
@@ -50,6 +51,9 @@ export function ValidationCard({
   const progress = useProgress(project).data;
   const view: RunView = runView(runs, progress, run);
   const [failure, setFailure] = useState<string[]>([]);
+  const overwrite = usePreference("overwrite");
+  const outputs = plannedOutputs(analysis, tags, datasets.values());
+  const taken = outputs.filter((o) => o.existing !== undefined);
 
   const messages: Message[] = [
     ...issues.map((i) => message("issue", i)),
@@ -57,18 +61,19 @@ export function ValidationCard({
     ...(validation.isError ? issuesOf(validation.error, t).map((text) => ({ kind: "issue" as const, text })) : []),
     ...((validation.data?.warnings as { message: string }[] | undefined) ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
     ...failure.map((text) => ({ kind: "issue" as const, text })),
+    ...(taken.length > 0 && !overwrite ? [{ kind: "issue" as const, k: "analysis.outputs_taken" as const }] : []),
   ];
   if (view.state === "failed") {
     const key = view.record.status === "cancelled" ? "analysis.run_cancelled" : "analysis.run_failed";
     messages.push({ kind: "issue", k: key }, ...(view.record.error?.issues ?? []).map((text) => ({ kind: "issue" as const, text })));
   }
-  const ready = document !== null && validation.isSuccess && !busy(view);
+  const ready = document !== null && validation.isSuccess && !busy(view) && (overwrite || taken.length === 0);
 
   const compute = async () => {
     setFailure([]);
     try {
       if (document === null) return;
-      const record = await api.command("run.start", { project, analysis, document, tags });
+      const record = await api.command("run.start", { project, analysis, document, tags, overwrite });
       await queryClient.invalidateQueries({ queryKey: keys.runs(project) });
       session.dispatch({ type: "started", run: record.id });
     } catch (error) {
@@ -92,6 +97,25 @@ export function ValidationCard({
         <p className="text-sm">
           <T k={validation.isFetching ? "analysis.validating" : "analysis.valid"} />
         </p>
+      )}
+      {outputs.length > 0 && (
+        <div className="text-sm">
+          <b>
+            <T k="srv_analysis_accessibility_validation_output_dataset" />
+          </b>
+          <ul>
+            {outputs.map((o) => (
+              <li key={o.class}>
+                {classLabel(t, o.class)} [{tags.join(" ")}]{" "}
+                {o.existing === undefined ? (
+                  <span className="text-muted-foreground">({t("analysis.output_ok")})</span>
+                ) : (
+                  <b className="text-warning">({t("analysis.output_overwrite")})</b>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {busy(view) ? (
         <RunProgress view={view} onCancel={() => void cancel()} />

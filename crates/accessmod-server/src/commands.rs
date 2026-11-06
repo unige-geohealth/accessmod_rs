@@ -384,6 +384,10 @@ pub struct StartRun {
     /// Tags of the datasets written (default: analysis name and run).
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Replace the datasets of the output classes already tagged so, once
+    /// the run succeeds; refused otherwise.
+    #[serde(default)]
+    pub overwrite: bool,
 }
 
 /// A run of a project.
@@ -627,7 +631,12 @@ fn remove_job(state: &AppState, _: &Principal, params: JobRef) -> ApiResult<()> 
 
 fn start_run(state: &AppState, _: &Principal, params: StartRun) -> ApiResult<RunRecord> {
     let project = state.open(&params.project)?;
-    let id = project.start_named(&params.analysis, &params.document, &params.tags)?;
+    let id = project.start_named(
+        &params.analysis,
+        &params.document,
+        &params.tags,
+        params.overwrite,
+    )?;
     let record = project.run_record(id)?;
     // Announce the queued run before the worker may start it, so its events
     // arrive in order.

@@ -976,5 +976,35 @@
     "fr": "Des entrées de jobs sélectionnés manquent ; ils ne pourront pas être rejoués depuis cette archive : %s",
     "es": "Faltan entradas de trabajos seleccionados; no podrán reproducirse desde este archivo: %s",
     "pt": "Faltam entradas de trabalhos selecionados; não poderão ser reproduzidos a partir deste arquivo: %s"
+  },
+  "analysis.output_ok": {
+    "en": "ok",
+    "fr": "ok",
+    "es": "ok",
+    "pt": "ok"
+  },
+  "analysis.output_overwrite": {
+    "en": "overwrite warning",
+    "fr": "sera écrasé",
+    "es": "se sobrescribirá",
+    "pt": "será substituído"
+  },
+  "analysis.outputs_taken": {
+    "en": "Datasets with these tags exist: change the tags, or allow overwriting outputs in Settings.",
+    "fr": "Des données avec ces tags existent : changez les tags, ou autorisez l'écrasement des résultats dans Paramètres.",
+    "es": "Existen datos con estas etiquetas: cambie las etiquetas o permita sobrescribir los resultados en Configuración.",
+    "pt": "Existem dados com estas etiquetas: altere as etiquetas ou permita substituir os resultados nas Configurações."
+  },
+  "settings.analyses": {
+    "en": "Analyses",
+    "fr": "Analyses",
+    "es": "Análisis",
+    "pt": "Análises"
+  },
+  "settings.overwrite": {
+    "en": "Allow overwriting outputs: an analysis replaces the datasets with the same class and tags once it succeeds",
+    "fr": "Autoriser l'écrasement des résultats : une analyse remplace les données de même classe et tags une fois terminée",
+    "es": "Permitir sobrescribir los resultados: un análisis reemplaza los datos de la misma clase y etiquetas al terminar",
+    "pt": "Permitir substituir os resultados: uma análise substitui os dados da mesma classe e etiquetas ao terminar"
   }
 }

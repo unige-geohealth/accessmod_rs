@@ -35,6 +35,11 @@ const MIGRATIONS: &[Migration] = &[
         CREATE INDEX run_inputs_dataset ON run_inputs (dataset);",
         then: Some(backfill_run_inputs),
     },
+    // 3: runs allowed to replace datasets of their classes and tags.
+    Migration {
+        sql: "ALTER TABLE runs ADD COLUMN overwrite INTEGER NOT NULL DEFAULT 0;",
+        then: None,
+    },
 ];
 
 const V1: &str = "CREATE TABLE meta (
@@ -185,11 +190,11 @@ mod tests {
     fn runs_of_a_version_1_project_get_their_inputs() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("p.sqlite");
-        let db = open(&path, true).unwrap();
-        // Back to version 1: no run_inputs table.
+        // A project database of version 1, with runs and datasets.
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(V1).unwrap();
         db.execute_batch(
-            "DROP TABLE run_inputs;
-             INSERT INTO runs (id, analysis, tags, job, status, output_dir, started)
+            "INSERT INTO runs (id, analysis, tags, job, status, output_dir, started)
              VALUES (1, 'travel-time', '[]',
                      '{\"schema_version\": 1, \"dem\": \"./datasets/1.tif\",
                        \"land_cover\": \"datasets/9.tif\",

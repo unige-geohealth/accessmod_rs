@@ -10,6 +10,11 @@
     "document": {
       "description": "Job document, paths relative to the project."
     },
+    "overwrite": {
+      "default": false,
+      "description": "Replace the datasets of the output classes already tagged so, once\nthe run succeeds; refused otherwise.",
+      "type": "boolean"
+    },
     "project": {
       "description": "Project slug.",
       "type": "string"

@@ -82,6 +82,11 @@
           "description": "Output directory, relative to the project.",
           "type": "string"
         },
+        "overwrite": {
+          "default": false,
+          "description": "Whether it may replace datasets of its output classes and tags.",
+          "type": "boolean"
+        },
         "started": {
           "description": "Start, seconds since the Unix epoch.",
           "format": "int64",

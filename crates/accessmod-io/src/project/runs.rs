@@ -100,6 +100,9 @@ pub struct RunRecord {
     pub datasets: Vec<Id>,
     /// Datasets its job reads, still in the project.
     pub inputs: Vec<Id>,
+    /// Whether it may replace datasets of its output classes and tags.
+    #[serde(default)]
+    pub overwrite: bool,
 }
 
 /// `path` as the catalogue stores files: components joined by `/`, without
@@ -209,11 +212,15 @@ impl Project {
 
     /// Queue a run of `A` on `document`: its outputs will go to `runs/<id>`,
     /// tagged `tags` (the analysis name and run number when empty). The job
-    /// and the tags are checked now; [`Project::execute`] runs it.
+    /// and the tags are checked now; [`Project::execute`] runs it. Without
+    /// `overwrite`, tags already taken by a dataset of an output class are
+    /// refused; with it, that dataset is replaced once the run succeeds (AM5
+    /// "overwrite warning").
     pub fn start_run<A: Analysis>(
         &self,
         document: &serde_json::Value,
         tags: &[String],
+        overwrite: bool,
     ) -> Result<Id> {
         // Held while the run is recorded: a removal waits, or wins and this fails.
         let _hold = self.activity()?;
@@ -221,9 +228,9 @@ impl Project {
         self.check_job::<A>(document)?;
         self.db
             .execute(
-                "INSERT INTO runs (analysis, tags, job, status, output_dir, started)
-                 VALUES (?1, '[]', ?2, 'queued', '', ?3)",
-                params![A::NAME, json(document)?, now()],
+                "INSERT INTO runs (analysis, tags, job, status, output_dir, started, overwrite)
+                 VALUES (?1, '[]', ?2, 'queued', '', ?3, ?4)",
+                params![A::NAME, json(document)?, now(), overwrite],
             )
             .map_err(self.db_error())?;
         let id = self.db.last_insert_rowid();
@@ -236,7 +243,7 @@ impl Project {
         let checked = A::OUTPUTS
             .iter()
             .filter_map(|output| output.class)
-            .try_for_each(|class| self.free_tags(class, &tags, None).map(drop))
+            .try_for_each(|class| self.replaceable(class, &tags, overwrite, id).map(drop))
             .and_then(|()| self.project_job::<A>(document, &output_dir));
         let (stored, inputs) = match checked {
             Ok((stored, _, inputs)) => (stored, inputs),
@@ -386,13 +393,31 @@ impl Project {
                 });
                 Ok(())
             });
+        let mut replaced: Vec<super::DatasetRecord> = Vec::new();
         let committed = summarised.and_then(|()| {
             self.db
                 .execute_batch("BEGIN IMMEDIATE")
                 .map_err(self.db_error())?;
             let inserted = (|| {
                 for output in &ready {
-                    self.free_tags(output.class, &record.tags, None)?;
+                    if let Some(old) = self.replaceable(
+                        output.class,
+                        &record.tags,
+                        record.overwrite,
+                        record.id,
+                    )? {
+                        // The run succeeded: the dataset it replaces is
+                        // being deleted (its tags freed); its files go once
+                        // this commits, or with `recover` after a crash.
+                        self.db
+                            .execute(
+                                "UPDATE datasets SET state = 'deleting', tags_key = 'replaced-' || id
+                                 WHERE id = ?1",
+                                [old.id],
+                            )
+                            .map_err(self.db_error())?;
+                        replaced.push(old);
+                    }
                     let origin = Origin::Run {
                         run: record.id,
                         file: output.name.to_owned(),
@@ -417,12 +442,21 @@ impl Project {
                         )
                         .map_err(self.db_error())?;
                 }
+                let mut outcome = A::outcome(report);
+                for old in &replaced {
+                    outcome.push_str(&format!(
+                        "; replaced {} [{}] (dataset {})",
+                        old.class.label(),
+                        old.tags.join(" "),
+                        old.id
+                    ));
+                }
                 let done = self
                     .db
                     .execute(
                         "UPDATE runs SET status = 'done', outcome = ?1, error = NULL, finished = ?2
                          WHERE id = ?3 AND status = 'running'",
-                        params![A::outcome(report), now(), record.id],
+                        params![outcome, now(), record.id],
                     )
                     .map_err(self.db_error())?;
                 if done != 1 {
@@ -441,6 +475,17 @@ impl Project {
             self.db.execute_batch(end).map_err(self.db_error())?;
             inserted
         });
+        if committed.is_ok() {
+            // The replaced datasets: files, then rows. What fails here stays
+            // `deleting`, for `recover`.
+            for old in &replaced {
+                if self.remove_files(&old.file).is_ok() {
+                    let _ = self
+                        .db
+                        .execute("DELETE FROM datasets WHERE id = ?1", [old.id]);
+                }
+            }
+        }
         if committed.is_err() {
             // Nothing was registered: drop the overviews built for it.
             for output in &ready {
@@ -517,10 +562,11 @@ impl Project {
         &self,
         document: &serde_json::Value,
         tags: &[String],
+        overwrite: bool,
         settings: &ExecutionSettings,
         monitor: Monitor<'_>,
     ) -> Result<RunRecord> {
-        let id = self.start_run::<A>(document, tags)?;
+        let id = self.start_run::<A>(document, tags, overwrite)?;
         self.execute::<A>(id, settings, monitor)
     }
 
@@ -530,15 +576,17 @@ impl Project {
         analysis: &str,
         document: &serde_json::Value,
         tags: &[String],
+        overwrite: bool,
     ) -> Result<Id> {
-        struct Start<'a>(&'a Project, &'a serde_json::Value, &'a [String]);
+        struct Start<'a>(&'a Project, &'a serde_json::Value, &'a [String], bool);
         impl ForAnalysis for Start<'_> {
             type Output = Result<Id>;
             fn call<A: Analysis>(self) -> Result<Id> {
-                self.0.start_run::<A>(self.1, self.2)
+                self.0.start_run::<A>(self.1, self.2, self.3)
             }
         }
-        by_name(analysis, Start(self, document, tags)).unwrap_or_else(|| Err(unknown(analysis)))
+        by_name(analysis, Start(self, document, tags, overwrite))
+            .unwrap_or_else(|| Err(unknown(analysis)))
     }
 
     /// [`Project::execute`] of queued run `id`, whatever its analysis.
@@ -595,10 +643,11 @@ impl Project {
         analysis: &str,
         document: &serde_json::Value,
         tags: &[String],
+        overwrite: bool,
         settings: &ExecutionSettings,
         monitor: Monitor<'_>,
     ) -> Result<RunRecord> {
-        let id = self.start_named(analysis, document, tags)?;
+        let id = self.start_named(analysis, document, tags, overwrite)?;
         self.execute_queued(id, settings, monitor)
     }
 
@@ -667,6 +716,12 @@ impl Project {
         else {
             return Err(Error::invalid(format!("no run {id} in this project")));
         };
+        let overwrite: bool = self
+            .db
+            .query_row("SELECT overwrite FROM runs WHERE id = ?1", [id], |r| {
+                r.get(0)
+            })
+            .map_err(self.db_error())?;
         let datasets: Vec<Id> = {
             let mut stmt = self
                 .db
@@ -704,6 +759,7 @@ impl Project {
             finished,
             datasets,
             inputs,
+            overwrite,
         })
     }
 }

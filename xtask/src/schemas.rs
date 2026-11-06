@@ -5,13 +5,15 @@
 //! - `jobs/<analysis>.json`: job document of each analysis;
 //! - `data-classes.json`: every data class with its kind, label and whether
 //!   it is importable;
+//! - `analysis-outputs.json`: classes of the datasets each analysis
+//!   registers (outputs a run may overwrite);
 //! - `types/<type>.json`: documents the server and the CLI exchange
 //!   (progress, catalogue entries, runs).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use accessmod_io::analysis::job_schemas;
+use accessmod_io::analysis::{job_schemas, output_classes};
 use accessmod_io::class::DataClass;
 use serde_json::{Value, json};
 
@@ -87,6 +89,17 @@ fn files() -> BTreeMap<PathBuf, String> {
         })
         .collect();
     files.insert(PathBuf::from("data-classes.json"), pretty(&json!(classes)));
+    let outputs: serde_json::Map<String, Value> = output_classes()
+        .into_iter()
+        .map(|(name, classes)| {
+            let codes: Vec<&str> = classes.iter().map(|c| c.code()).collect();
+            (name.to_owned(), json!(codes))
+        })
+        .collect();
+    files.insert(
+        PathBuf::from("analysis-outputs.json"),
+        pretty(&Value::Object(outputs)),
+    );
     for (name, schema) in types() {
         files.insert(PathBuf::from(format!("types/{name}.json")), pretty(&schema));
     }

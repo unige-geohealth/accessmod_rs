@@ -94,6 +94,24 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   for (const row of await rows.all()) await expect(row.locator("input[type=checkbox]")).toBeChecked();
 });
 
+test("accessibility: outputs already tagged are refused, or overwritten when Settings allow it", async ({ page }) => {
+  await page.goto(`/#/${project}/analysis/accessibility`);
+  await page.getByRole("button", { name: "Import content from the selected scenario table" }).click();
+  await page.getByLabel("Add short tags").fill("e2e");
+  await expect(page.getByText("Datasets with these tags exist", { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Compute", exact: true })).toBeDisabled();
+
+  // Settings › Allow overwriting outputs; the analysis draft is kept.
+  await sidebar(page, "Settings").click();
+  await page.getByLabel("Allow overwriting outputs", { exact: false }).check();
+  await sidebar(page, "Analysis").click();
+  await expect(page.getByText("(overwrite warning)").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Datasets with these tags exist", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Compute", exact: true })).toBeEnabled({ timeout: 30_000 });
+  await shot(page, "analysis-overwrite");
+  await page.evaluate(() => localStorage.removeItem("am.overwrite"));
+});
+
 test("geographic coverage: capacity, zones, run", async ({ page }) => {
   await page.goto(`/#/${project}/analysis/coverage`);
   // The scenario of the accessibility test is kept per tab: import it again.

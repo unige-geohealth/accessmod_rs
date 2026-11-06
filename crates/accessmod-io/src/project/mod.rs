@@ -814,6 +814,65 @@ impl Project {
         Ok(tags)
     }
 
+    /// The dataset of `class` tagged `tags` that an output of run `run` would
+    /// replace: none when the tags are free; refused without `overwrite`,
+    /// for the project DEM, for a dataset being imported or removed, and for
+    /// one that another queued or running run reads.
+    fn replaceable(
+        &self,
+        class: DataClass,
+        tags: &[String],
+        overwrite: bool,
+        run: Id,
+    ) -> Result<Option<DatasetRecord>> {
+        if !overwrite {
+            return self.free_tags(class, tags, None).map(|_| None);
+        }
+        let tags = normalize_tags(tags);
+        if tags.is_empty() {
+            return Err(Error::invalid("a dataset needs at least one tag"));
+        }
+        let taken: Option<(Id, String)> = self
+            .db
+            .query_row(
+                "SELECT id, state FROM datasets WHERE class = ?1 AND tags_key = ?2",
+                params![class.code(), tags.join("_")],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(self.db_error())?;
+        let Some((id, state)) = taken else {
+            return Ok(None);
+        };
+        if state != "ready" || self.meta("dem")? == id.to_string() {
+            return Err(Error::invalid(format!(
+                "dataset {id}, a {} tagged {}, cannot be replaced now",
+                class.label(),
+                tags.join(" ")
+            )));
+        }
+        let reader: Option<Id> = self
+            .db
+            .query_row(
+                "SELECT r.id FROM run_inputs i JOIN runs r ON r.id = i.run
+                 WHERE i.dataset = ?1 AND r.id != ?2 AND r.status IN ('queued', 'running')
+                 ORDER BY r.id LIMIT 1",
+                [id, run],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(self.db_error())?;
+        if let Some(reader) = reader {
+            return Err(Error::invalid(format!(
+                "dataset {id}, a {} tagged {}, is read by run {reader}: it is replaced only once \
+                 that run ends",
+                class.label(),
+                tags.join(" ")
+            )));
+        }
+        self.dataset(id).map(Some)
+    }
+
     /// Reserve a dataset row (state `importing`) and its file name.
     fn reserve(&self, class: DataClass, tags: &[String], origin: &Origin) -> Result<(Id, String)> {
         let tags = self.free_tags(class, tags, None)?;

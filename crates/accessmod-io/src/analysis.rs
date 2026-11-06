@@ -207,6 +207,21 @@ pub fn job_schemas() -> Vec<(&'static str, serde_json::Value)> {
     schemas.0
 }
 
+/// Classes of the datasets each analysis registers in a project, in
+/// [`Analysis::OUTPUTS`] order: what a run with given tags may overwrite.
+pub fn output_classes() -> Vec<(&'static str, Vec<crate::class::DataClass>)> {
+    struct Outputs(Vec<(&'static str, Vec<crate::class::DataClass>)>);
+    impl Visit for Outputs {
+        fn visit<A: Analysis>(&mut self) {
+            let classes = A::OUTPUTS.iter().filter_map(|o| o.class).collect();
+            self.0.push((A::NAME, classes));
+        }
+    }
+    let mut outputs = Outputs(Vec::new());
+    for_each(&mut outputs);
+    outputs.0
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;

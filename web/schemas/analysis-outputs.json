@@ -1,0 +1,38 @@
+{
+  "adjust-population-distribution": [
+    "rPopulation",
+    "tPopDistribAdjustSummary"
+  ],
+  "geographic-coverage": [
+    "tCapacityStat",
+    "rPopulationResidual",
+    "vCatchment",
+    "rPopulationOnBarrier",
+    "tZonalStat"
+  ],
+  "merge-land-cover": [
+    "rLandCoverMerged",
+    "tLandCover"
+  ],
+  "optimization": [
+    "tOptimization"
+  ],
+  "referral": [
+    "tReferral",
+    "tReferralTime",
+    "tReferralDist"
+  ],
+  "scaling-up": [
+    "tCapacityStatNew",
+    "vFacilityNew",
+    "rPopulationResidual",
+    "vCatchmentNew"
+  ],
+  "travel-time": [
+    "rTravelTime",
+    "rNearest"
+  ],
+  "zonal-statistics": [
+    "tZonalStat"
+  ]
+}

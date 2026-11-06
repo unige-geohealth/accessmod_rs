@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { classLabel, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRow, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
+import { classLabel, plannedOutputs, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRow, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
 
 const dataset = (id: number, cls: Api.DataClass, tags: string[]) => ({ id, class: cls, tags }) as Api.Dataset;
 const t = (key: string) => key;
@@ -38,6 +38,16 @@ describe("catalogue", () => {
     expect(ids({ text: "health" })).toEqual([2]);
     expect(ids({ text: "Health" })).toEqual([]);
     expect(ids({ tags: "demo, health" })).toEqual([2]);
+  });
+
+  it("plans the outputs of a run and the datasets they would replace", () => {
+    const list = [dataset(1, "rTravelTime", ["a", "b"]), dataset(2, "rTravelTime", ["a"]), dataset(3, "rDem", ["a", "b"])];
+    expect(plannedOutputs("travel-time", ["a", "b"], list).map((o) => [o.class, o.existing?.id])).toEqual([
+      ["rTravelTime", 1],
+      ["rNearest", undefined],
+    ]);
+    expect(plannedOutputs("travel-time", [], list)).toEqual([]);
+    expect(plannedOutputs("nope", ["a"], list)).toEqual([]);
   });
 
   it("round-trips the filter through the URL query", () => {

@@ -2,6 +2,7 @@
 // rows of the "Available data" table. Pure functions of server data and
 // view state; nothing here is stored.
 import type { Key } from "@accessmod/ui/i18n";
+import analysisOutputs from "../../schemas/analysis-outputs.json";
 import classList from "../../schemas/data-classes.json";
 import type { ClassInfo } from "../api/client";
 import type { Api } from "../generated/types";
@@ -182,6 +183,25 @@ export function matches(row: DataRow, filter: DataFilter, members: ReadonlyMap<s
 /** Datasets sorted as AM5 lists them: by class label, then tags. */
 export function sortRows(rows: DataRow[]): DataRow[] {
   return [...rows].sort((a, b) => a.class.localeCompare(b.class) || a.tags.localeCompare(b.tags) || a.key.localeCompare(b.key));
+}
+
+/** An output a run with given tags registers, and the dataset it would replace. */
+export interface PlannedOutput {
+  class: Api.DataClass;
+  existing: Api.Dataset | undefined;
+}
+
+/**
+ * Datasets a run of `analysis` tagged `tags` registers, one per output class
+ * (`cargo xtask schemas`), each with the dataset of that class and the same
+ * tags if there is one (AM5 validation "Output datasets").
+ */
+export function plannedOutputs(analysis: string, tags: readonly string[], datasets: Iterable<Api.Dataset>): PlannedOutput[] {
+  const classes = ((analysisOutputs as Record<string, string[]>)[analysis] ?? []) as Api.DataClass[];
+  if (tags.length === 0) return [];
+  const key = tags.join("_");
+  const list = [...datasets];
+  return classes.map((cls) => ({ class: cls, existing: list.find((d) => d.class === cls && d.tags.join("_") === key) }));
 }
 
 /** Classes a job field accepts: its `x-accessmod-class` in the job schema. */

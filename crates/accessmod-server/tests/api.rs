@@ -362,7 +362,7 @@ async fn queued_run_can_be_cancelled() {
     // Recorded as queued but not handed to the worker: deterministic.
     let project = s.state.open(&slug).expect("open");
     let id = project
-        .start_named("travel-time", &travel_time_job(), &[])
+        .start_named("travel-time", &travel_time_job(), &[], false)
         .expect("queue");
     let (status, run) = s
         .command("run.cancel", json!({"project": slug, "id": id}))

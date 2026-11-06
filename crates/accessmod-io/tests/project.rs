@@ -303,6 +303,7 @@ fn run_registers_outputs_as_datasets() {
             "travel-time",
             &travel_time_job(),
             &[],
+            false,
             &settings,
             Monitor::QUIET,
         )
@@ -358,6 +359,7 @@ fn run_registers_outputs_as_datasets() {
             "travel-time",
             &travel_time_job(),
             &tags(&["travel time run1"]),
+            false,
             &settings,
             Monitor::QUIET,
         )
@@ -368,6 +370,45 @@ fn run_registers_outputs_as_datasets() {
     assert_eq!(runs[1].status, RunStatus::Failed);
     assert!(runs[1].inputs.is_empty());
     assert!(!project.root().join("runs/2").exists());
+
+    // With overwrite: nothing replaced while the run has not succeeded…
+    let queued = project
+        .start_named(
+            "travel-time",
+            &travel_time_job(),
+            &tags(&["travel time run1"]),
+            true,
+        )
+        .expect("queued");
+    assert!(project.run_record(queued).expect("run").overwrite);
+    assert!(project.cancel_queued(queued).expect("cancel"));
+    assert!(project.dataset(record.datasets[0]).is_ok());
+    // …then the datasets of its classes and tags are replaced, files included.
+    let again = project
+        .run_named(
+            "travel-time",
+            &travel_time_job(),
+            &tags(&["travel time run1"]),
+            true,
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect("overwrite");
+    assert_eq!(again.status, RunStatus::Done);
+    assert_eq!(again.tags, record.tags);
+    assert!(again.outcome.as_deref().unwrap_or("").contains("replaced"));
+    for (old, new) in record.datasets.iter().zip(&again.datasets) {
+        assert!(project.dataset(*old).is_err());
+        let new = project.dataset(*new).expect("new");
+        assert!(new.file.starts_with(&again.output_dir));
+    }
+    assert!(
+        !project
+            .root()
+            .join("runs/1/travel_time_seconds.tif")
+            .exists()
+    );
+    assert!(project.run_record(1).expect("run").datasets.is_empty());
 
     // A removed input leaves the run's inputs.
     project.remove_dataset(3).expect("remove facilities");
@@ -388,6 +429,7 @@ fn archived_runs_replay_to_identical_outputs() {
             "travel-time",
             &travel_time_job(),
             &[],
+            false,
             &settings,
             Monitor::QUIET,
         )
@@ -492,6 +534,65 @@ fn archived_runs_replay_to_identical_outputs() {
 }
 
 #[test]
+fn overwrite_spares_datasets_that_other_runs_read() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let raw = project
+        .import(
+            &dir.path().join("lc.tif"),
+            DataClass::LandCover,
+            &tags(&["raw"]),
+            &ImportOptions::default(),
+            &settings,
+            &|| false,
+        )
+        .expect("land cover");
+    // A merge tagged `base` replaces the merged land cover [base] (dataset 2)…
+    let merge = json!({
+        "schema_version": 1,
+        "dem": "datasets/1.tif",
+        "stack": [{"type": "land_cover", "path": raw.file}],
+    });
+    // …not while a queued run reads it.
+    let queued = project
+        .start_run::<TravelTime>(&travel_time_job(), &[], false)
+        .expect("queued");
+    let err = project
+        .run_named(
+            "merge-land-cover",
+            &merge,
+            &tags(&["base"]),
+            true,
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect_err("read by a queued run");
+    assert!(err.to_string().contains("is read by run"), "{err}");
+    assert!(project.dataset(2).is_ok());
+    // Once that run ends, it does.
+    assert!(project.cancel_queued(queued).expect("cancel"));
+    let done = project
+        .run_named(
+            "merge-land-cover",
+            &merge,
+            &tags(&["base"]),
+            true,
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect("overwrite");
+    assert!(project.dataset(2).is_err());
+    assert!(!project.root().join("datasets/2.tif").exists());
+    let merged = project
+        .datasets(Some(DataClass::LandCoverMerged))
+        .expect("list");
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].tags, ["base"]);
+    assert!(done.datasets.contains(&merged[0].id));
+}
+
+#[test]
 fn failed_runs_record_their_issues() {
     let dir = tempfile::tempdir().expect("tempdir");
     let project = project_with_inputs(dir.path());
@@ -499,7 +600,7 @@ fn failed_runs_record_their_issues() {
     let mut job = travel_time_job();
     job["facilities"]["id_field"] = json!("missing_field");
     let err = project
-        .run_named("travel-time", &job, &[], &settings, Monitor::QUIET)
+        .run_named("travel-time", &job, &[], false, &settings, Monitor::QUIET)
         .expect_err("invalid");
     assert_eq!(err.kind(), accessmod_io::error::ErrorKind::Validation);
     let run = project.run_record(1).expect("run");
@@ -564,10 +665,10 @@ fn recover_cleans_interrupted_work() {
     let project = project_with_inputs(dir.path());
     // One run queued, one running when the process stopped.
     project
-        .start_run::<TravelTime>(&travel_time_job(), &[])
+        .start_run::<TravelTime>(&travel_time_job(), &[], false)
         .expect("queue");
     project
-        .start_run::<TravelTime>(&travel_time_job(), &[])
+        .start_run::<TravelTime>(&travel_time_job(), &[], false)
         .expect("queue");
     assert_eq!(
         project.run_record(1).expect("run").status,
@@ -603,7 +704,7 @@ fn removal_waits_for_activity_and_queued_runs() {
     // A queued run too.
     let project = Project::open(&root).expect("open");
     let run = project
-        .start_run::<TravelTime>(&travel_time_job(), &[])
+        .start_run::<TravelTime>(&travel_time_job(), &[], false)
         .expect("queue");
     let project = Project::open(&root).expect("open");
     assert!(project.remove().is_err());
@@ -621,7 +722,7 @@ fn removal_waits_for_activity_and_queued_runs() {
     assert!(stale.activity().is_err());
     assert!(
         stale
-            .start_run::<TravelTime>(&travel_time_job(), &[])
+            .start_run::<TravelTime>(&travel_time_job(), &[], false)
             .is_err()
     );
     accessmod_io::project::purge_removed(dir.path());
@@ -668,10 +769,10 @@ fn queued_runs_execute_later_or_cancel() {
     let project = project_with_inputs(dir.path());
     let settings = settings(64 << 20, 1);
     let first = project
-        .start_named("travel-time", &travel_time_job(), &[])
+        .start_named("travel-time", &travel_time_job(), &[], false)
         .expect("queue");
     let second = project
-        .start_named("travel-time", &travel_time_job(), &[])
+        .start_named("travel-time", &travel_time_job(), &[], false)
         .expect("queue");
     assert!(project.cancel_queued(second).expect("cancel"));
     assert!(!project.cancel_queued(second).expect("already cancelled"));
@@ -690,7 +791,7 @@ fn queued_runs_execute_later_or_cancel() {
     );
     // Cancelled while waiting: recorded as cancelled, nothing written.
     let third = project
-        .start_named("travel-time", &travel_time_job(), &[])
+        .start_named("travel-time", &travel_time_job(), &[], false)
         .expect("queue");
     let err = project
         .execute_queued(third, &settings, Monitor::new(&|| true, &|_| {}))

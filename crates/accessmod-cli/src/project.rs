@@ -64,6 +64,10 @@ pub enum Command {
         /// Tags of the datasets written (default: analysis name and run).
         #[arg(long, value_delimiter = ',')]
         tags: Vec<String>,
+        /// Replace the datasets of the output classes already tagged so, once
+        /// the run succeeds (refused otherwise).
+        #[arg(long)]
+        overwrite: bool,
         #[command(flatten)]
         project: ProjectArg,
         #[command(flatten)]
@@ -246,6 +250,7 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             analysis,
             job,
             tags,
+            overwrite,
             project,
             exec,
         } => {
@@ -264,7 +269,7 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
                 )
             })?;
             let record = monitored(cancel, |m| {
-                project.run_named(&analysis, &document, &tags, &settings, m)
+                project.run_named(&analysis, &document, &tags, overwrite, &settings, m)
             })
             .map_err(|e| fail(&e, exec.json))?;
             tracing::info!(
