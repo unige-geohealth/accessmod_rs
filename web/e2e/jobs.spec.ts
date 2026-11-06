@@ -54,6 +54,12 @@ test("jobs: runs of every project, details, outputs and exported job", async ({ 
   await page.getByLabel("File prefix. Default is 'am6_export'").fill("e2e-run");
   await page.getByRole("button", { name: "Create archive" }).click();
   await expect(page.getByText(/^Archive created: e2e-run_.*\.zip$/)).toBeVisible();
+  // The job that wrote it ended: a notification, which opens it in Jobs.
+  const toast = page.getByRole("status").filter({ hasText: "Archive: done" });
+  await expect(toast).toBeVisible();
+  await expect(toast).toContainText("archived as e2e-run_");
+  await toast.getByRole("button", { name: "Close" }).click();
+  await expect(toast).toHaveCount(0);
   await shot(page, "data-archive");
   const zip = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export archive" }).click();
@@ -97,6 +103,11 @@ test("jobs: the task manager filters by kind, retries a failed analysis and remo
   await expect(page).not.toHaveURL(new RegExp(`job=demo%2F${failed.id}(&|$)`));
   await expect(page.locator(".tabulator-row", { hasText: "fails" })).toHaveCount(2);
 
+  // Each failure is notified until closed.
+  // (the retried one: the first failed before the page opened)
+  await expect(page.getByRole("alert").filter({ hasText: "Merge land cover: failed" })).toHaveCount(1);
+  for (const close of await page.getByRole("alert").getByRole("button", { name: "Close" }).all()) await close.click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   // Remove the first one: gone from the table.
   await page.goto(`/#/${project}/jobs?job=demo%2F${failed.id}`);
   await page.getByRole("button", { name: "Remove job" }).click();

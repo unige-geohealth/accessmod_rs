@@ -1204,5 +1204,35 @@
     "fr": "Supprimer un job garde ses sorties non sélectionnées, qui ne lui sont plus liées.",
     "es": "Eliminar un trabajo conserva sus salidas no seleccionadas, ya sin vínculo.",
     "pt": "Remover um trabalho mantém as saídas não selecionadas, já sem vínculo."
+  },
+  "toast.close": {
+    "en": "Close",
+    "fr": "Fermer",
+    "es": "Cerrar",
+    "pt": "Fechar"
+  },
+  "toast.open_job": {
+    "en": "Open in Jobs",
+    "fr": "Ouvrir dans Jobs",
+    "es": "Abrir en Jobs",
+    "pt": "Abrir em Jobs"
+  },
+  "toast.open_data": {
+    "en": "Show in Data",
+    "fr": "Voir dans Data",
+    "es": "Ver en Data",
+    "pt": "Ver em Data"
+  },
+  "toast.open_project": {
+    "en": "Open the project",
+    "fr": "Ouvrir le projet",
+    "es": "Abrir el proyecto",
+    "pt": "Abrir o projeto"
+  },
+  "toast.title": {
+    "en": "%1$s: %2$s",
+    "fr": "%1$s : %2$s",
+    "es": "%1$s: %2$s",
+    "pt": "%1$s: %2$s"
   }
 }

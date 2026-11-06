@@ -5,7 +5,10 @@ import { useEffect } from "react";
 import type { Api } from "../generated/types";
 import { keys, type ProgressByRun, queryClient } from "./queries";
 import { CLIENT } from "./client";
+import { notifications, operationNotice, runNotice } from "../state/notifications";
 import { settleCheck, settleOperation, settleRun } from "./tasks";
+
+const now = () => Date.now() / 1000;
 
 /** Insert or replace `run` in the cached runs of `project`. */
 function upsertRun(project: string, run: Api.RunRecord) {
@@ -28,6 +31,10 @@ function handle(event: Api.Event) {
     case "run":
       upsertRun(event.project, event.run);
       settleRun(event.project, event.run);
+      {
+        const notice = runNotice(event.project, event.run, now());
+        if (notice !== null) notifications.dispatch({ type: "notice", notice });
+      }
       void queryClient.invalidateQueries({ queryKey: keys.allRuns });
       if (event.run.status !== "queued" && event.run.status !== "running") {
         // A finished run registers its outputs as datasets.
@@ -50,6 +57,10 @@ function handle(event: Api.Event) {
       return;
     case "pending":
       settleOperation(event.operation);
+      {
+        const notice = operationNotice(event.operation, now());
+        if (notice !== null) notifications.dispatch({ type: "notice", notice });
+      }
       queryClient.setQueryData<Api.PendingOperation[]>(keys.operations, (all) => [
         ...(all ?? []).filter((o) => o.id !== event.operation.id),
         event.operation,

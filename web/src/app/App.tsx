@@ -13,6 +13,7 @@ import { AboutScreen } from "../screens/other";
 import { ProjectScreen } from "../screens/project";
 import { SettingsScreen } from "../screens/settings";
 import { ToolboxScreen } from "../screens/toolbox";
+import { Notifications } from "./notifications";
 import { goSection, type Route, SECTIONS, type Section, useRoute } from "./route";
 
 const isSection = (s: string): s is Section => (SECTIONS as readonly string[]).includes(s);
@@ -40,6 +41,7 @@ export function App() {
       }}
     >
       <Screen route={route} />
+      <Notifications />
     </AppShell>
   );
 }
