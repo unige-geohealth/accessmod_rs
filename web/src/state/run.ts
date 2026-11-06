@@ -2,7 +2,38 @@
 // records (refreshed by events) and progress events. Pure selectors; the
 // screen keeps only the id of the run it started and whether its outcome
 // was acknowledged.
+import type { Key } from "@accessmod/ui/i18n";
 import type { Api } from "../generated/types";
+
+/** Labels of the progress stages the engine reports (`Monitor`). */
+const STAGES: Record<string, Key> = {
+  validate: "task.stage_validate",
+  load_inputs: "task.stage_load_inputs",
+  fingerprints: "task.stage_fingerprints",
+  setup: "task.stage_setup",
+  read: "task.stage_read",
+  zones: "task.stage_zones",
+  population: "task.stage_population",
+  paint: "task.stage_paint",
+  solve: "task.stage_solve",
+  order: "task.stage_order",
+  coverage: "task.stage_coverage",
+  residual: "task.stage_residual",
+  selection: "task.stage_selection",
+  iterations: "task.stage_iterations",
+  statistics: "task.stage_statistics",
+  totals: "task.stage_totals",
+  write_outputs: "task.stage_write_outputs",
+  register: "task.stage_register",
+  archive: "task.stage_archive",
+  extract: "task.stage_extract",
+  snapshot: "task.stage_snapshot",
+  check: "task.stage_check",
+  import: "task.stage_import",
+};
+
+/** The label of progress stage `stage`; its identifier when unknown. */
+export const stageLabel = (t: (key: Key) => string, stage: string): string => (STAGES[stage] ? t(STAGES[stage]) : stage);
 
 export type RunView =
   | { state: "idle" }

@@ -475,6 +475,10 @@ pub struct StartRun {
     /// the run succeeds; refused otherwise.
     #[serde(default)]
     pub overwrite: bool,
+    /// Token of the client (browser tab) starting it: its pre-analysis of
+    /// this analysis is cancelled, the run validates the job itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client: Option<String>,
 }
 
 /// A run of a project.
@@ -918,6 +922,9 @@ fn start_run(state: &AppState, _: &Principal, params: StartRun) -> ApiResult<Run
         &params.tags,
         params.overwrite,
     )?;
+    if let Some(client) = &params.client {
+        crate::checks::supersede(state, client, &params.project, &params.analysis);
+    }
     queue_analysis(state, &project, &params.project, id)
 }
 

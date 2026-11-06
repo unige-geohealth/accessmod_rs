@@ -1067,6 +1067,114 @@
     "es": "Importando",
     "pt": "Importando"
   },
+  "task.stage_validate": {
+    "en": "Checking the job",
+    "fr": "Vérification de la tâche",
+    "es": "Verificando el trabajo",
+    "pt": "Verificando o trabalho"
+  },
+  "task.stage_load_inputs": {
+    "en": "Reading the inputs",
+    "fr": "Lecture des données",
+    "es": "Leyendo los datos",
+    "pt": "Lendo os dados"
+  },
+  "task.stage_fingerprints": {
+    "en": "Fingerprinting the inputs",
+    "fr": "Empreintes des données",
+    "es": "Huellas de los datos",
+    "pt": "Impressões dos dados"
+  },
+  "task.stage_setup": {
+    "en": "Preparing",
+    "fr": "Préparation",
+    "es": "Preparando",
+    "pt": "Preparando"
+  },
+  "task.stage_read": {
+    "en": "Reading",
+    "fr": "Lecture",
+    "es": "Leyendo",
+    "pt": "Lendo"
+  },
+  "task.stage_zones": {
+    "en": "Reading the zones",
+    "fr": "Lecture des zones",
+    "es": "Leyendo las zonas",
+    "pt": "Lendo as zonas"
+  },
+  "task.stage_population": {
+    "en": "Reading the population",
+    "fr": "Lecture de la population",
+    "es": "Leyendo la población",
+    "pt": "Lendo a população"
+  },
+  "task.stage_paint": {
+    "en": "Rasterising",
+    "fr": "Rastérisation",
+    "es": "Rasterizando",
+    "pt": "Rasterizando"
+  },
+  "task.stage_solve": {
+    "en": "Computing travel times",
+    "fr": "Calcul des temps de trajet",
+    "es": "Calculando los tiempos de viaje",
+    "pt": "Calculando os tempos de viagem"
+  },
+  "task.stage_order": {
+    "en": "Ordering the facilities",
+    "fr": "Tri des structures",
+    "es": "Ordenando los establecimientos",
+    "pt": "Ordenando os estabelecimentos"
+  },
+  "task.stage_coverage": {
+    "en": "Computing the coverage",
+    "fr": "Calcul de la couverture",
+    "es": "Calculando la cobertura",
+    "pt": "Calculando a cobertura"
+  },
+  "task.stage_residual": {
+    "en": "Residual population",
+    "fr": "Population résiduelle",
+    "es": "Población residual",
+    "pt": "População residual"
+  },
+  "task.stage_selection": {
+    "en": "Selecting the candidates",
+    "fr": "Sélection des candidats",
+    "es": "Seleccionando los candidatos",
+    "pt": "Selecionando os candidatos"
+  },
+  "task.stage_iterations": {
+    "en": "Iterating",
+    "fr": "Itérations",
+    "es": "Iterando",
+    "pt": "Iterando"
+  },
+  "task.stage_statistics": {
+    "en": "Computing the statistics",
+    "fr": "Calcul des statistiques",
+    "es": "Calculando las estadísticas",
+    "pt": "Calculando as estatísticas"
+  },
+  "task.stage_totals": {
+    "en": "Computing the totals",
+    "fr": "Calcul des totaux",
+    "es": "Calculando los totales",
+    "pt": "Calculando os totais"
+  },
+  "task.stage_write_outputs": {
+    "en": "Writing the outputs",
+    "fr": "Écriture des résultats",
+    "es": "Escribiendo los resultados",
+    "pt": "Escrevendo os resultados"
+  },
+  "task.stage_register": {
+    "en": "Registering the outputs",
+    "fr": "Enregistrement des résultats",
+    "es": "Registrando los resultados",
+    "pt": "Registrando os resultados"
+  },
   "task.queued_as": {
     "en": "Queued as job %s: follow it here or in Jobs",
     "fr": "Ajouté à la file (job %s) : suivez-le ici ou dans Jobs",

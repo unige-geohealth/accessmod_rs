@@ -1394,4 +1394,35 @@ async fn quick_checks_answer_at_once_and_pre_analyses_run_as_tasks() {
         )
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // A run started from a tab ends that tab's pre-analysis: it is
+    // cancelled, unless it had already finished.
+    let (_, check) = s
+        .call(
+            "POST",
+            &format!("{base}/precheck?client=tab-2"),
+            Some(travel_time_job()),
+        )
+        .await;
+    let (status, run) = s
+        .command(
+            "run.start",
+            json!({"project": slug, "analysis": "travel-time", "document": travel_time_job(),
+                   "tags": ["superseding"], "client": "tab-2"}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{run}");
+    for _ in 0..500 {
+        (_, state) = s
+            .call("GET", &format!("/api/checks/{}", check["id"]), None)
+            .await;
+        if !matches!(state["status"].as_str(), Some("queued" | "running")) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert!(
+        matches!(state["status"].as_str(), Some("cancelled" | "done")),
+        "{state}"
+    );
 }

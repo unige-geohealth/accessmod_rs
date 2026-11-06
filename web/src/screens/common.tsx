@@ -8,7 +8,7 @@ import { api } from "../api/client";
 import { useOperations, useProgress, useQueue } from "../api/queries";
 import type { TaskRef } from "../api/tasks";
 import type { Api } from "../generated/types";
-import { percent } from "../state/run";
+import { percent, stageLabel } from "../state/run";
 import type { Batch } from "../state/batch";
 import type { Entry } from "../state/project-summary";
 import type { Transfer } from "../state/transfer";
@@ -70,14 +70,6 @@ export function TransferStatus({ transfer, doneKey }: { transfer: Transfer; done
   }
 }
 
-const STAGES: Record<string, Key> = {
-  archive: "task.stage_archive",
-  extract: "task.stage_extract",
-  snapshot: "task.stage_snapshot",
-  check: "task.stage_check",
-  import: "task.stage_import",
-};
-
 /** What a queued or running task is doing, from events. */
 export interface TaskView {
   status: Api.RunStatus;
@@ -117,8 +109,7 @@ export function TaskProgress({ task }: { task: TaskRef }) {
   const operations = useOperations().data ?? [];
   const view = taskView(task, queue, progress, operations);
   const value = percent(view.progress);
-  const stage = view.progress === undefined ? undefined : STAGES[view.progress.stage];
-  const stageText = view.progress === undefined ? t("task.starting") : stage === undefined ? view.progress.stage : t(stage);
+  const stageText = view.progress === undefined ? t("task.starting") : stageLabel(t, view.progress.stage);
   const text = view.paused
     ? t("task.paused")
     : view.position > 0

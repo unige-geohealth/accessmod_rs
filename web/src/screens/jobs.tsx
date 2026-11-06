@@ -33,7 +33,7 @@ import {
   seconds,
   summary,
 } from "../state/jobs";
-import { percent } from "../state/run";
+import { percent, stageLabel } from "../state/run";
 import { downloadJson, useFmt } from "./common";
 
 export function JobsScreen({ route }: { route: Route }) {
@@ -204,7 +204,7 @@ function JobDetails({
       {run.status === "running" && (
         <div className="flex flex-col gap-1.5" role="status">
           <Progress value={value ?? 100} className={value === undefined ? "animate-pulse" : undefined} />
-          {stage && <span className="text-xs text-muted-foreground">{f("analysis.running", stage.stage)}</span>}
+          {stage && <span className="text-xs text-muted-foreground">{f("analysis.running", stageLabel(t, stage.stage))}</span>}
         </div>
       )}
       {place?.paused && <p className="text-xs text-muted-foreground">{t("jobs.paused_note")}</p>}

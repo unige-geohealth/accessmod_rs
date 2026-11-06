@@ -203,6 +203,18 @@ pub fn start(
     Ok(check)
 }
 
+/// Cancel the unfinished pre-analysis of `client`, project `slug` and
+/// `analysis`, if any: a run of it started, and validates the job itself.
+pub fn supersede(state: &AppState, client: &str, slug: &str, analysis: &str) {
+    let key = (client.to_owned(), slug.to_owned(), analysis.to_owned());
+    let Some(id) = state.checks().lock().latest.get(&key).copied() else {
+        return;
+    };
+    if state.runner().cancel(&lane_key(slug), id) == Cancel::Waiting {
+        finish(state, id, Err(Error::Cancelled));
+    }
+}
+
 struct NoOp;
 
 impl accessmod_io::analysis::ForAnalysis for NoOp {

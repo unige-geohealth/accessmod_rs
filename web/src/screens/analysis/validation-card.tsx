@@ -8,13 +8,13 @@ import { SectionCard } from "@accessmod/ui/am/section";
 import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { Progress } from "@accessmod/ui/ui/progress";
 import { useState } from "react";
-import { api, issuesOf } from "../../api/client";
-import { keys, queryClient, useCheckState, usePreAnalysis, useProgress, useQuickCheck, useRuns } from "../../api/queries";
+import { api, CLIENT, issuesOf } from "../../api/client";
+import { keys, prechecksSubmitted, queryClient, useCheckState, usePreAnalysis, useProgress, useQuickCheck, useRuns } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import { classLabel, plannedOutputs } from "../../state/catalogue";
 import { type Issue, sessionStore } from "../../state/drafts";
 import { usePreference } from "../../state/preferences";
-import { busy, minutes, percent, runView, type RunView } from "../../state/run";
+import { busy, minutes, percent, runView, type RunView, stageLabel } from "../../state/run";
 import { useStore } from "../../state/store";
 import { downloadJson, useFmt } from "../common";
 
@@ -45,14 +45,17 @@ export function ValidationCard({
   const { t } = useI18n();
   const f = useFmt();
   const message = (kind: Message["kind"], i: Issue): Message => (typeof i === "string" ? { kind, k: i } : { kind, text: f(i.key, ...i.args) });
-  const quick = useQuickCheck(project, analysis, document);
-  const pre = usePreAnalysis(project, analysis, document, quick.isSuccess);
-  const checkState = useCheckState(project, analysis).data ?? null;
   const session = sessionStore(project, analysis);
-  const { run, acknowledged } = useStore(session, (s) => s);
+  const { run, acknowledged, starting } = useStore(session, (s) => s);
   const runs = useRuns(project).data;
   const progress = useProgress(project).data;
   const view: RunView = runView(runs, progress, run);
+  // Compute pressed, the run not queued yet: no new pre-analysis either.
+  const running = starting || busy(view);
+  const quick = useQuickCheck(project, analysis, document);
+  // No pre-analysis while a run of this card starts or is active: the run validates the job itself.
+  const pre = usePreAnalysis(project, analysis, document, quick.isSuccess && !running);
+  const checkState = useCheckState(project, analysis).data ?? null;
   const [failure, setFailure] = useState<string[]>([]);
   const overwrite = usePreference("overwrite");
   const outputs = plannedOutputs(analysis, tags, datasets.values());
@@ -72,17 +75,22 @@ export function ValidationCard({
     messages.push({ kind: "issue", k: key }, ...(view.record.error?.issues ?? []).map((text) => ({ kind: "issue" as const, text })));
   }
   // The quick check gates Compute; a pre-analysis that found issues too (the run would fail on them).
-  const ready = document !== null && quick.isSuccess && !pre.isError && !busy(view) && (overwrite || taken.length === 0);
-  const prechecking = quick.isSuccess && pre.isFetching;
+  const ready = document !== null && quick.isSuccess && !pre.isError && !running && (overwrite || taken.length === 0);
+  const prechecking = quick.isSuccess && pre.isFetching && !running;
 
   const compute = async () => {
     setFailure([]);
+    if (document === null) return;
+    session.dispatch({ type: "starting" });
     try {
-      if (document === null) return;
-      const record = await api.command("run.start", { project, analysis, document, tags, overwrite });
-      await queryClient.invalidateQueries({ queryKey: keys.runs(project) });
+      // The run supersedes this tab's pre-analysis (the server cancels it).
+      await queryClient.cancelQueries({ queryKey: keys.preAnalysis(project, analysis) });
+      await prechecksSubmitted(project, analysis);
+      const record = await api.command("run.start", { project, analysis, document, tags, overwrite, client: CLIENT });
       session.dispatch({ type: "started", run: record.id });
+      await queryClient.invalidateQueries({ queryKey: keys.runs(project) });
     } catch (error) {
+      session.dispatch({ type: "start_failed" });
       setFailure(issuesOf(error, t));
     }
   };
@@ -159,7 +167,7 @@ function PrecheckProgress({ check, computable }: { check: Api.Check | null; comp
   const f = useFmt();
   const stage = check?.status === "running" ? (check.progress ?? undefined) : undefined;
   const value = percent(stage);
-  const text = stage === undefined ? t("analysis.validating") : value === undefined ? stage.stage : f("task.stage_percent", stage.stage, value);
+  const text = stage === undefined ? t("analysis.validating") : value === undefined ? stageLabel(t, stage.stage) : f("task.stage_percent", stageLabel(t, stage.stage), value);
   return (
     <div className="flex flex-col gap-1" role="status">
       <Progress value={value ?? 100} className={value === undefined ? "animate-pulse" : undefined} />
@@ -170,13 +178,14 @@ function PrecheckProgress({ check, computable }: { check: Api.Check | null; comp
 }
 
 function RunProgress({ view, onCancel }: { view: RunView; onCancel: () => void }) {
+  const { t } = useI18n();
   const f = useFmt();
   const stage = view.state === "running" ? view.progress : undefined;
   const value = percent(stage);
   return (
     <div className="flex flex-col gap-1.5" role="status">
       <Progress value={value ?? 100} className={value === undefined ? "animate-pulse" : undefined} />
-      <span className="text-xs text-muted-foreground">{stage ? f("analysis.running", stage.stage) : f("analysis.queued")}</span>
+      <span className="text-xs text-muted-foreground">{stage ? f("analysis.running", value === undefined ? stageLabel(t, stage.stage) : f("task.stage_percent", stageLabel(t, stage.stage), value)) : f("analysis.queued")}</span>
       <AmButton block k="analysis.cancel" onClick={onCancel} />
     </div>
   );

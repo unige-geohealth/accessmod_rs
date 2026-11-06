@@ -29,6 +29,7 @@ export const keys = {
   queue: ["queue"] as const,
   /** Operations making projects (events keep it current). */
   operations: ["operations"] as const,
+  preAnalysis: (slug: string, analysis: string) => ["project", slug, "pre-analysis", analysis] as const,
   /** This tab's latest pre-analysis of an analysis, written by events only. */
   check: (slug: string, analysis: string) => ["project", slug, "check", analysis] as const,
   /** Latest progress of each running run, written by events only. */
@@ -144,15 +145,31 @@ export const useQuickCheck = (slug: string, analysis: string, document: unknown)
  * the server: its validation summary, or its issues. Runs once the quick
  * check passed (`enabled`); a newer one replaces it on the server.
  */
+/** Pre-analysis submissions not answered yet, by project and analysis. */
+const submitting = new Map<string, Set<Promise<unknown>>>();
+
+/** Once every pre-analysis of `analysis` submitted so far is registered by the
+ * server: a run started after it supersedes them all. */
+export const prechecksSubmitted = async (slug: string, analysis: string): Promise<void> => {
+  await Promise.allSettled([...(submitting.get(JSON.stringify([slug, analysis])) ?? [])]);
+};
+
 export const usePreAnalysis = (slug: string, analysis: string, document: unknown, enabled: boolean) => {
   const text = document === null ? null : JSON.stringify(document);
   return useQuery({
-    queryKey: ["project", slug, "pre-analysis", analysis, text] as const,
+    queryKey: [...keys.preAnalysis(slug, analysis), text] as const,
     queryFn: async ({ signal }) => {
       // Another pre-analysis of this tab may cancel this one (an edit, then
       // back): asked again while it is still wanted, a few times at most.
       for (let attempt = 0; ; attempt++) {
-        const check = await api.precheck(slug, analysis, document);
+        const key = JSON.stringify([slug, analysis]);
+        const posted = api.precheck(slug, analysis, document);
+        const pending = submitting.get(key) ?? new Set<Promise<unknown>>();
+        submitting.set(key, pending.add(posted));
+        const check = await posted.finally(() => {
+          pending.delete(posted);
+          if (pending.size === 0 && submitting.get(key) === pending) submitting.delete(key);
+        });
         try {
           return await checkDone(check.id);
         } catch (error) {

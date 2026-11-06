@@ -3,7 +3,7 @@
 // details show. Runs and progress are server state.
 import type { Key } from "@accessmod/ui/i18n";
 import type { Api } from "../generated/types";
-import { percent } from "./run";
+import { percent, stageLabel } from "./run";
 
 /** Interface name of an analysis (AM5 tab or tool labels). */
 const ANALYSES: Record<string, Key> = {
@@ -148,7 +148,7 @@ export function jobRows(
       project: e.name,
       analysis: analysisLabel(t, e.run.analysis),
       tags: e.run.tags.join(" "),
-      status: e.run.status === "running" && stage ? `${status}: ${stage.stage}${value === undefined ? "" : ` ${value} %`}` : status,
+      status: e.run.status === "running" && stage ? `${status}: ${stageLabel(t, stage.stage)}${value === undefined ? "" : ` ${value} %`}` : status,
       started: format(e.run.started),
       duration: duration(seconds(e.run, now)),
       outcome: e.run.outcome ?? e.run.error?.issues[0] ?? "",

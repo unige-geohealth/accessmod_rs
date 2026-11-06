@@ -29,7 +29,7 @@ describe("jobs", () => {
     const progress = { [jobKey(entries[0]!)]: { stage: "solve", done: 1, total: 4 } as Api.Progress };
     const rows = jobRows(entries, t as never, progress, 1030, (s) => String(s));
     expect(rows.map((r) => [r.key, r.project, r.status, r.duration, r.outcome])).toEqual([
-      ["a/3", "A", "jobs.status_running: solve 25 %", "30 s", ""],
+      ["a/3", "A", "jobs.status_running: task.stage_solve 25 %", "30 s", ""],
       ["b/1", "B", "jobs.status_queued", "40 s", ""],
       ["a/2", "A", "jobs.status_failed", "5 s", "no land cover"],
       ["a/1", "A", "jobs.status_done", "1 min 15 s", "12 cells"],

@@ -1,11 +1,27 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { busy, doneRuns, lastRun, minutes, percent, runView } from "./run";
+import { updateSession } from "./drafts";
+import { busy, doneRuns, lastRun, minutes, percent, runView, stageLabel } from "./run";
 
 const run = (id: number, status: Api.RunStatus, datasets: number[] = []): Api.RunRecord =>
   ({ id, status, datasets, inputs: [], started: 100, finished: status === "running" ? null : 130, analysis: "travel-time", tags: [], job: {}, output_dir: "" }) as Api.RunRecord;
 
 describe("run", () => {
+  it("keeps the session starting from Compute until the run is queued or refused", () => {
+    const idle = { run: null, acknowledged: true, starting: false };
+    const starting = updateSession(idle, { type: "starting" });
+    expect(starting.starting).toBe(true);
+    expect(updateSession(starting, { type: "started", run: 7 })).toEqual({ run: 7, acknowledged: false, starting: false });
+    expect(updateSession(starting, { type: "start_failed" })).toEqual(idle);
+  });
+
+  it("labels the engine's stages, and shows an unknown one as it is", () => {
+    const t = (key: string) => `<${key}>`;
+    expect(stageLabel(t, "load_inputs")).toBe("<task.stage_load_inputs>");
+    expect(stageLabel(t, "archive")).toBe("<task.stage_archive>");
+    expect(stageLabel(t, "something_new")).toBe("something_new");
+  });
+
   it("follows the run the screen started", () => {
     expect(runView(undefined, undefined, null)).toEqual({ state: "idle" });
     expect(runView([], undefined, 4)).toEqual({ state: "queued" });
