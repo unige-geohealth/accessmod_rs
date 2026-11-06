@@ -40,6 +40,14 @@ const MIGRATIONS: &[Migration] = &[
         sql: "ALTER TABLE runs ADD COLUMN overwrite INTEGER NOT NULL DEFAULT 0;",
         then: None,
     },
+    // 4: operations (archives, exports, imports) recorded as runs of kind
+    // `manage`, with their result.
+    Migration {
+        sql: "ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'analysis'
+            CHECK (kind IN ('analysis', 'manage'));
+        ALTER TABLE runs ADD COLUMN result TEXT;",
+        then: None,
+    },
 ];
 
 const V1: &str = "CREATE TABLE meta (

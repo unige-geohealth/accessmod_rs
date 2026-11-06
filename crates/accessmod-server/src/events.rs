@@ -15,6 +15,7 @@ use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
 
 use crate::auth::{Principal, Requirement, Role};
 use crate::error::ApiResult;
+use crate::runner::{LaneName, QueueEntry};
 use crate::state::AppState;
 
 /// An event, sent as JSON with its `type` as the SSE event name.
@@ -37,6 +38,11 @@ pub enum Event {
         /// Stage and counts.
         progress: Progress,
     },
+    /// Runs of a project were removed.
+    Runs {
+        /// Project slug.
+        project: String,
+    },
     /// Datasets or saved jobs of a project changed.
     Catalogue {
         /// Project slug.
@@ -44,6 +50,13 @@ pub enum Event {
     },
     /// Projects were created, renamed or deleted.
     Projects,
+    /// What a lane holds now: its running task, then the waiting ones.
+    Queue {
+        /// Lane.
+        lane: LaneName,
+        /// Tasks, running first.
+        entries: Vec<QueueEntry>,
+    },
 }
 
 impl Event {
@@ -51,8 +64,10 @@ impl Event {
         match self {
             Event::Run { .. } => "run",
             Event::Progress { .. } => "progress",
+            Event::Runs { .. } => "runs",
             Event::Catalogue { .. } => "catalogue",
             Event::Projects => "projects",
+            Event::Queue { .. } => "queue",
         }
     }
 
@@ -60,8 +75,9 @@ impl Event {
         match self {
             Event::Run { project, .. }
             | Event::Progress { project, .. }
+            | Event::Runs { project }
             | Event::Catalogue { project } => Some(project),
-            Event::Projects => None,
+            Event::Projects | Event::Queue { .. } => None,
         }
     }
 }
@@ -87,9 +103,19 @@ pub async fn stream(
     let filter = query.project;
     let events = BroadcastStream::new(state.subscribe()).filter_map(move |event| {
         // A lagging client missed events: tell it to reload what it shows.
-        let Ok(event) = event else {
+        let Ok(mut event) = event else {
             return Some(Ok(SseEvent::default().event("resync").data("{}")));
         };
+        // A lane holds tasks of every project: only those this client follows
+        // and may see.
+        if let Event::Queue { entries, .. } = &mut event {
+            entries.retain(|e| {
+                filter.as_ref().is_none_or(|wanted| *wanted == e.project)
+                    && principal
+                        .authorize(Requirement::Project(Role::Viewer), Some(&e.project))
+                        .is_ok()
+            });
+        }
         let wanted = match (&filter, event.project()) {
             (Some(wanted), Some(project)) => wanted == project,
             _ => true,

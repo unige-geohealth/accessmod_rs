@@ -581,6 +581,21 @@ pub async fn run(
     .map(Json)
 }
 
+/// `GET /api/queue`: tasks waiting or running in the lanes, of the
+/// projects the caller may see.
+pub async fn queue(
+    State(state): State<AppState>,
+    principal: Principal,
+) -> Json<Vec<crate::runner::QueueEntry>> {
+    let mut entries = state.runner().queue();
+    entries.retain(|e| {
+        principal
+            .authorize(Requirement::Project(Role::Viewer), Some(&e.project))
+            .is_ok()
+    });
+    Json(entries)
+}
+
 /// `POST /api/projects/{project}/analyses/{name}/validate`: check a job
 /// document against the inputs, without computing.
 pub async fn validate(

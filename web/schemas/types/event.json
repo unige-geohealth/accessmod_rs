@@ -1,5 +1,20 @@
 {
   "$defs": {
+    "LaneName": {
+      "description": "A lane.",
+      "oneOf": [
+        {
+          "const": "compute",
+          "description": "Analyses.",
+          "type": "string"
+        },
+        {
+          "const": "io",
+          "description": "Operations: archives, exports, imports.",
+          "type": "string"
+        }
+      ]
+    },
     "Progress": {
       "description": "Progress of a running analysis, reported through a [`Monitor`].\n\nStages are stable identifiers, the keys of `durations_s` in `run.json`\n(`load_inputs`, `solve`, `write_outputs`, …), so an interface can\ntranslate them. Progress never changes results.",
       "properties": {
@@ -29,6 +44,42 @@
       ],
       "type": "object"
     },
+    "QueueEntry": {
+      "description": "A task waiting or running in a lane, as clients see it.",
+      "properties": {
+        "lane": {
+          "$ref": "#/$defs/LaneName",
+          "description": "Lane."
+        },
+        "paused": {
+          "description": "Held by the user.",
+          "type": "boolean"
+        },
+        "position": {
+          "description": "0: running; 1: next; …",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "project": {
+          "description": "Project slug.",
+          "type": "string"
+        },
+        "run": {
+          "description": "Run.",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lane",
+        "project",
+        "run",
+        "position",
+        "paused"
+      ],
+      "type": "object"
+    },
     "RunError": {
       "description": "Why a run failed.",
       "properties": {
@@ -49,6 +100,21 @@
         "issues"
       ],
       "type": "object"
+    },
+    "RunKind": {
+      "description": "What a run does.",
+      "oneOf": [
+        {
+          "const": "analysis",
+          "description": "An analysis: a job, inputs, outputs registered as datasets.",
+          "type": "string"
+        },
+        {
+          "const": "manage",
+          "description": "An operation on the project (archive, export, import): its\n`analysis` is the operation name, its `job` the parameters.",
+          "type": "string"
+        }
+      ]
     },
     "RunRecord": {
       "description": "A run of the project.",
@@ -100,6 +166,11 @@
         "job": {
           "description": "Job document, paths relative to the project."
         },
+        "kind": {
+          "$ref": "#/$defs/RunKind",
+          "default": "analysis",
+          "description": "Analysis or operation."
+        },
         "outcome": {
           "description": "One line summarising the result (done runs).",
           "type": [
@@ -115,6 +186,9 @@
           "default": false,
           "description": "Whether it may replace datasets of its output classes and tags.",
           "type": "boolean"
+        },
+        "result": {
+          "description": "What a done operation made (an archive, a file, a dataset)."
         },
         "started": {
           "description": "Start, seconds since the Unix epoch.",
@@ -238,6 +312,24 @@
       "type": "object"
     },
     {
+      "description": "Runs of a project were removed.",
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "type": "string"
+        },
+        "type": {
+          "const": "runs",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "project"
+      ],
+      "type": "object"
+    },
+    {
       "description": "Datasets or saved jobs of a project changed.",
       "properties": {
         "project": {
@@ -265,6 +357,32 @@
       },
       "required": [
         "type"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "What a lane holds now: its running task, then the waiting ones.",
+      "properties": {
+        "entries": {
+          "description": "Tasks, running first.",
+          "items": {
+            "$ref": "#/$defs/QueueEntry"
+          },
+          "type": "array"
+        },
+        "lane": {
+          "$ref": "#/$defs/LaneName",
+          "description": "Lane."
+        },
+        "type": {
+          "const": "queue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "lane",
+        "entries"
       ],
       "type": "object"
     }

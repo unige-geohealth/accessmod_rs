@@ -213,6 +213,34 @@ pub fn registry() -> Vec<CommandSpec> {
             RunRef,
             cancel_run
         ),
+        command!(
+            "run.pause",
+            "Hold a queued or running run where it is, until resumed",
+            Requirement::Project(Role::Editor),
+            RunRef,
+            pause_run
+        ),
+        command!(
+            "run.resume",
+            "Let a paused run go on",
+            Requirement::Project(Role::Editor),
+            RunRef,
+            resume_run
+        ),
+        command!(
+            "run.retry",
+            "Queue a failed, cancelled or interrupted analysis again, on the same job",
+            Requirement::Project(Role::Editor),
+            RunRef,
+            retry_run
+        ),
+        command!(
+            "run.remove",
+            "Remove a finished run; its outputs too on request",
+            Requirement::Project(Role::Editor),
+            RemoveRun,
+            remove_run
+        ),
     ]
 }
 
@@ -450,6 +478,20 @@ pub struct RunRef {
     pub id: Id,
 }
 
+/// `run.remove`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RemoveRun {
+    /// Project slug.
+    pub project: String,
+    /// Run.
+    pub id: Id,
+    /// Remove its output datasets too; otherwise they stay, no longer linked
+    /// to a run.
+    #[serde(default)]
+    pub outputs: bool,
+}
+
 /// `demo.reset`: no parameters.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -509,6 +551,7 @@ scoped!(
     JobRef,
     StartRun,
     RunRef,
+    RemoveRun,
     CreateArchive,
     ArchiveRef
 );
@@ -747,6 +790,15 @@ fn start_run(state: &AppState, _: &Principal, params: StartRun) -> ApiResult<Run
         &params.tags,
         params.overwrite,
     )?;
+    queue_analysis(state, &project, &params.project, id)
+}
+
+/// Publish queued analysis run `id` and hand it to the compute lane.
+fn queue_analysis(state: &AppState, project: &Project, slug: &str, id: Id) -> ApiResult<RunRecord> {
+    let params = RunRef {
+        project: slug.to_owned(),
+        id,
+    };
     let record = project.run_record(id)?;
     // Announce the queued run before the worker may start it, so its events
     // arrive in order.
@@ -784,6 +836,46 @@ fn cancel_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunR
         run: Box::new(record.clone()),
     });
     Ok(record)
+}
+
+fn pause_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunRecord> {
+    hold(state, params, true)
+}
+
+fn resume_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunRecord> {
+    hold(state, params, false)
+}
+
+/// Pause or resume a run held by a lane.
+fn hold(state: &AppState, params: RunRef, paused: bool) -> ApiResult<RunRecord> {
+    let project = state.open(&params.project)?;
+    let record = project.run_record(params.id)?;
+    if !state.runner().pause(&params.project, params.id, paused) {
+        return Err(ApiError::Engine(accessmod_io::error::Error::invalid(
+            format!(
+                "run {} is {}: only a queued or running run is paused or resumed",
+                params.id,
+                record.status.name()
+            ),
+        )));
+    }
+    Ok(record)
+}
+
+fn retry_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunRecord> {
+    let project = state.open(&params.project)?;
+    let id = project.retry_run(params.id)?;
+    queue_analysis(state, &project, &params.project, id)
+}
+
+fn remove_run(state: &AppState, _: &Principal, params: RemoveRun) -> ApiResult<Value> {
+    let project = state.open(&params.project)?;
+    project.remove_run(params.id, params.outputs)?;
+    state.publish(Event::Runs {
+        project: params.project.clone(),
+    });
+    catalogue(state, &params.project);
+    Ok(Value::Null)
 }
 
 fn catalogue(state: &AppState, project: &str) {

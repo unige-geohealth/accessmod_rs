@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize};
 pub use archives::{ARCHIVES_DIR, ArchiveInfo, ArchivedDataset, ArchivedRun, DATA_ARCHIVE};
 pub use import::{ImportOptions, check_self_contained, resampling};
 pub use package::{PACKAGE_EXTENSION, PACKAGE_FORMAT, PackageContent};
-pub use runs::{RunError, RunRecord, RunStatus};
+pub use runs::{RunError, RunKind, RunRecord, RunStatus};
 
 use crate::analysis::Cancelled;
 use crate::class::{DataClass, Kind};
@@ -737,16 +737,30 @@ impl Project {
             ));
         }
         let record = self.dataset(id)?;
+        if let Some(reader) = self.active_reader(id, None)? {
+            return Err(Error::invalid(format!(
+                "dataset {id} is read by run {reader}: remove it once that run ends"
+            )));
+        }
         // Claim the row first: two removals cannot both proceed, and an
-        // interrupted one is finished by `recover`.
+        // interrupted one is finished by `recover`. Atomic with the reader
+        // check: a run recording this dataset as an input (`link_inputs`)
+        // either comes first and keeps it, or finds it being deleted.
         let claimed = self
             .db
             .execute(
-                "UPDATE datasets SET state = 'deleting' WHERE id = ?1 AND state = 'ready'",
+                "UPDATE datasets SET state = 'deleting' WHERE id = ?1 AND state = 'ready'
+                 AND NOT EXISTS (SELECT 1 FROM run_inputs i JOIN runs r ON r.id = i.run
+                     WHERE i.dataset = ?1 AND r.status IN ('queued', 'running'))",
                 [id],
             )
             .map_err(self.db_error())?;
         if claimed != 1 {
+            if let Some(reader) = self.active_reader(id, None)? {
+                return Err(Error::invalid(format!(
+                    "dataset {id} is read by run {reader}: remove it once that run ends"
+                )));
+            }
             return Err(Error::invalid(format!("no dataset {id} in this project")));
         }
         // Move the files aside; on failure the dataset stays as it was.
@@ -858,18 +872,7 @@ impl Project {
                 tags.join(" ")
             )));
         }
-        let reader: Option<Id> = self
-            .db
-            .query_row(
-                "SELECT r.id FROM run_inputs i JOIN runs r ON r.id = i.run
-                 WHERE i.dataset = ?1 AND r.id != ?2 AND r.status IN ('queued', 'running')
-                 ORDER BY r.id LIMIT 1",
-                [id, run],
-                |r| r.get(0),
-            )
-            .optional()
-            .map_err(self.db_error())?;
-        if let Some(reader) = reader {
+        if let Some(reader) = self.active_reader(id, Some(run))? {
             return Err(Error::invalid(format!(
                 "dataset {id}, a {} tagged {}, is read by run {reader}: it is replaced only once \
                  that run ends",
@@ -878,6 +881,21 @@ impl Project {
             )));
         }
         self.dataset(id).map(Some)
+    }
+
+    /// A queued or running run (other than `except`) that reads dataset
+    /// `id`: an analysis on its inputs, an archive or export on its files.
+    pub(crate) fn active_reader(&self, id: Id, except: Option<Id>) -> Result<Option<Id>> {
+        self.db
+            .query_row(
+                "SELECT r.id FROM run_inputs i JOIN runs r ON r.id = i.run
+                 WHERE i.dataset = ?1 AND r.id IS NOT ?2 AND r.status IN ('queued', 'running')
+                 ORDER BY r.id LIMIT 1",
+                params![id, except],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(self.db_error())
     }
 
     /// Reserve a dataset row (state `importing`) and its file name.

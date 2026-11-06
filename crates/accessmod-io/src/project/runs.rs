@@ -64,6 +64,28 @@ impl RunStatus {
     }
 }
 
+/// What a run does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunKind {
+    /// An analysis: a job, inputs, outputs registered as datasets.
+    #[default]
+    Analysis,
+    /// An operation on the project (archive, export, import): its
+    /// `analysis` is the operation name, its `job` the parameters.
+    Manage,
+}
+
+impl RunKind {
+    /// Name in JSON and in the database.
+    pub fn name(self) -> &'static str {
+        match self {
+            RunKind::Analysis => "analysis",
+            RunKind::Manage => "manage",
+        }
+    }
+}
+
 /// Why a run failed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RunError {
@@ -103,6 +125,12 @@ pub struct RunRecord {
     /// Whether it may replace datasets of its output classes and tags.
     #[serde(default)]
     pub overwrite: bool,
+    /// Analysis or operation.
+    #[serde(default)]
+    pub kind: RunKind,
+    /// What a done operation made (an archive, a file, a dataset).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
 }
 
 /// `path` as the catalogue stores files: components joined by `/`, without
@@ -260,15 +288,13 @@ impl Project {
                 "UPDATE runs SET tags = ?1, job = ?2, output_dir = ?3 WHERE id = ?4",
                 params![tags, stored, output_dir, id],
             )?;
-            for dataset in &inputs {
-                tx.execute(
-                    "INSERT OR IGNORE INTO run_inputs (run, dataset) VALUES (?1, ?2)",
-                    [id, *dataset],
-                )?;
+            if let Err(error) = link_inputs(&tx, id, &inputs)? {
+                return Ok(Err(error));
             }
-            tx.commit()
+            tx.commit().map(Ok)
         })()
-        .map_err(self.db_error());
+        .map_err(self.db_error())
+        .and_then(|linked| linked);
         if let Err(error) = recorded {
             self.close_run(id, RunStatus::Failed, None, Some(&error))?;
             return Err(error);
@@ -286,7 +312,10 @@ impl Project {
         monitor: Monitor<'_>,
     ) -> Result<RunRecord> {
         let record = self.run_record(id)?;
-        if record.analysis != A::NAME || record.status != RunStatus::Queued {
+        if record.kind != RunKind::Analysis
+            || record.analysis != A::NAME
+            || record.status != RunStatus::Queued
+        {
             return Err(Error::invalid(format!(
                 "run {id} is a {} run, {}: it cannot run as {}",
                 record.analysis,
@@ -651,6 +680,188 @@ impl Project {
         self.execute_queued(id, settings, monitor)
     }
 
+    /// Queue run `id` again, a failed, cancelled or interrupted analysis:
+    /// a new run of the same analysis on the same job, tags and overwrite.
+    pub fn retry_run(&self, id: Id) -> Result<Id> {
+        let record = self.run_record(id)?;
+        if record.kind != RunKind::Analysis {
+            return Err(Error::invalid(format!(
+                "run {id} is a {} operation: start it again from where it was started",
+                record.analysis
+            )));
+        }
+        if !matches!(
+            record.status,
+            RunStatus::Failed | RunStatus::Cancelled | RunStatus::Interrupted
+        ) {
+            return Err(Error::invalid(format!(
+                "run {id} is {}: only a failed, cancelled or interrupted run is retried",
+                record.status.name()
+            )));
+        }
+        self.start_named(
+            &record.analysis,
+            &record.job,
+            &record.tags,
+            record.overwrite,
+        )
+    }
+
+    /// Remove run `id`, neither queued nor running: its record and, when
+    /// none of its outputs stays, its directory. With `outputs`, its output
+    /// datasets are removed too; otherwise they stay, no longer linked to a
+    /// run.
+    pub fn remove_run(&self, id: Id, outputs: bool) -> Result<()> {
+        let _hold = self.activity()?;
+        let record = self.run_record(id)?;
+        if matches!(record.status, RunStatus::Queued | RunStatus::Running) {
+            return Err(Error::invalid(format!(
+                "run {id} is {}: cancel it first",
+                record.status.name()
+            )));
+        }
+        if outputs {
+            // Every output is checked before any is removed.
+            for &dataset in &record.datasets {
+                if let Some(reader) = self.active_reader(dataset, None)? {
+                    return Err(Error::invalid(format!(
+                        "output {dataset} of run {id} is read by run {reader}: remove the run                          once that run ends"
+                    )));
+                }
+            }
+            for &dataset in &record.datasets {
+                self.remove_dataset(dataset)?;
+            }
+        }
+        (|| {
+            let tx = self.db.unchecked_transaction()?;
+            tx.execute("UPDATE datasets SET run = NULL WHERE run = ?1", [id])?;
+            tx.execute(
+                "DELETE FROM runs WHERE id = ?1 AND status NOT IN ('queued', 'running')",
+                [id],
+            )?;
+            tx.commit()
+        })()
+        .map_err(self.db_error())?;
+        // Only the directory a run of this project owns, `runs/<id>`; a run
+        // from a project file may name another.
+        if record.output_dir == format!("{RUNS_DIR}/{id}") {
+            let kept: i64 = self
+                .db
+                .query_row(
+                    "SELECT COUNT(*) FROM datasets WHERE substr(file, 1, length(?1) + 1) = ?1 || '/'",
+                    [&record.output_dir],
+                    |r| r.get(0),
+                )
+                .map_err(self.db_error())?;
+            if kept == 0 {
+                let dir = self.resolve(Path::new(&record.output_dir))?;
+                match std::fs::remove_dir_all(&dir) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(Error::file(&dir)(e)),
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Queue operation `name` (a run of kind `manage`) with `params`,
+    /// reading datasets `inputs`: while it is queued or running, they are
+    /// neither removed nor replaced.
+    pub fn start_operation(
+        &self,
+        name: &str,
+        params: &serde_json::Value,
+        inputs: &[Id],
+    ) -> Result<Id> {
+        let _hold = self.activity()?;
+        let params = json(params)?;
+        (|| {
+            let tx = self.db.unchecked_transaction()?;
+            tx.execute(
+                "INSERT INTO runs (analysis, tags, job, status, output_dir, started, kind)
+                 VALUES (?1, '[]', ?2, 'queued', '', ?3, 'manage')",
+                params![name, params, now()],
+            )?;
+            let id = tx.last_insert_rowid();
+            if let Err(error) = link_inputs(&tx, id, inputs)? {
+                return Ok(Err(error));
+            }
+            tx.commit().map(|()| Ok(id))
+        })()
+        .map_err(self.db_error())?
+    }
+
+    /// Claim queued operation `id` to run it now; `None` when it is no
+    /// longer queued (cancelled meanwhile).
+    pub fn claim_operation(&self, id: Id) -> Result<Option<RunRecord>> {
+        let claimed = self
+            .db
+            .execute(
+                "UPDATE runs SET status = 'running', started = ?1
+                 WHERE id = ?2 AND status = 'queued' AND kind = 'manage'",
+                params![now(), id],
+            )
+            .map_err(self.db_error())?;
+        if claimed == 1 {
+            self.run_record(id).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Record the end of running operation `id`: done with `outcome` and
+    /// `result`, or failed (cancelled) with the error.
+    pub fn finish_operation(
+        &self,
+        id: Id,
+        outcome: std::result::Result<(String, serde_json::Value), &Error>,
+    ) -> Result<RunRecord> {
+        match outcome {
+            Ok((outcome, result)) => {
+                self.db
+                    .execute(
+                        "UPDATE runs SET status = 'done', outcome = ?1, result = ?2, finished = ?3
+                         WHERE id = ?4 AND status = 'running'",
+                        params![outcome, json(&result)?, now(), id],
+                    )
+                    .map_err(self.db_error())?;
+            }
+            Err(error) => {
+                let status = if matches!(error, Error::Cancelled) {
+                    RunStatus::Cancelled
+                } else {
+                    RunStatus::Failed
+                };
+                self.close_run(id, status, None, Some(error))?;
+            }
+        }
+        self.run_record(id)
+    }
+
+    /// Record operation `name`, already done, started at `started`: an
+    /// operation that made this project (creation, import) and so ran
+    /// before it existed.
+    pub fn record_operation(
+        &self,
+        name: &str,
+        params: &serde_json::Value,
+        started: i64,
+        outcome: &str,
+        result: &serde_json::Value,
+    ) -> Result<RunRecord> {
+        self.db
+            .execute(
+                "INSERT INTO runs (analysis, tags, job, status, output_dir, outcome, started,
+                 finished, kind, result)
+                 VALUES (?1, '[]', ?2, 'done', '', ?3, ?4, ?5, 'manage', ?6)",
+                params![name, json(params)?, outcome, started, now(), json(result)?],
+            )
+            .map_err(self.db_error())?;
+        self.run_record(self.db.last_insert_rowid())
+    }
+
     /// Runs, by identifier.
     pub fn runs(&self) -> Result<Vec<RunRecord>> {
         self.runs_of("SELECT id FROM runs ORDER BY id", [])
@@ -716,12 +927,18 @@ impl Project {
         else {
             return Err(Error::invalid(format!("no run {id} in this project")));
         };
-        let overwrite: bool = self
+        let (overwrite, kind, result): (bool, String, Option<String>) = self
             .db
-            .query_row("SELECT overwrite FROM runs WHERE id = ?1", [id], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT overwrite, kind, result FROM runs WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
             .map_err(self.db_error())?;
+        let kind = match kind.as_str() {
+            "manage" => RunKind::Manage,
+            _ => RunKind::Analysis,
+        };
         let datasets: Vec<Id> = {
             let mut stmt = self
                 .db
@@ -760,8 +977,35 @@ impl Project {
             datasets,
             inputs,
             overwrite,
+            kind,
+            result: result.map(|r| decode(&r, "run result")).transpose()?,
         })
     }
+}
+
+/// Record datasets `inputs` as read by run `run`, each still ready: one
+/// being removed is refused (the outer error is the database's).
+fn link_inputs(
+    tx: &rusqlite::Transaction<'_>,
+    run: Id,
+    inputs: &[Id],
+) -> rusqlite::Result<Result<()>> {
+    let mut inputs = inputs.to_vec();
+    inputs.sort_unstable();
+    inputs.dedup();
+    for dataset in inputs {
+        let linked = tx.execute(
+            "INSERT INTO run_inputs (run, dataset)
+             SELECT ?1, id FROM datasets WHERE id = ?2 AND state = 'ready'",
+            [run, dataset],
+        )?;
+        if linked != 1 {
+            return Ok(Err(Error::invalid(format!(
+                "dataset {dataset} is no longer in the project"
+            ))));
+        }
+    }
+    Ok(Ok(()))
 }
 
 fn unknown(analysis: &str) -> Error {

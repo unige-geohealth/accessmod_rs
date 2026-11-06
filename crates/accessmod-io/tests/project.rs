@@ -1371,3 +1371,168 @@ fn relocation_writes_a_new_facilities_dataset() {
             .is_err()
     );
 }
+
+#[test]
+fn runs_are_retried_and_removed_with_or_without_their_outputs() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    // Retry: only a run that ended without success; a new run, same job.
+    let cancelled = project
+        .start_named("travel-time", &travel_time_job(), &tags(&["tt"]), false)
+        .expect("queue");
+    assert!(project.cancel_queued(cancelled).expect("cancel"));
+    let retried = project.retry_run(cancelled).expect("retry");
+    assert_ne!(retried, cancelled);
+    let done = project
+        .execute_queued(retried, &settings, Monitor::QUIET)
+        .expect("execute");
+    assert_eq!(done.status, RunStatus::Done);
+    assert_eq!(done.tags, ["tt"]);
+    assert_eq!(done.job, {
+        let mut job = project.run_record(cancelled).expect("run").job;
+        job["output_dir"] = json!(format!("runs/{retried}"));
+        job
+    });
+    assert!(project.retry_run(retried).is_err());
+
+    // A queued or running run is not removed; nor its inputs.
+    let queued = project
+        .start_named("travel-time", &travel_time_job(), &[], false)
+        .expect("queue");
+    let err = project.remove_run(queued, false).expect_err("queued");
+    assert!(err.to_string().contains("cancel it first"), "{err}");
+    let err = project.remove_dataset(2).expect_err("read by a queued run");
+    assert!(err.to_string().contains("is read by run"), "{err}");
+    // Its outputs, read by the queued run? None here: they are removed with
+    // the run on request, the directory with them.
+    let outputs = done.datasets.clone();
+    assert!(!outputs.is_empty());
+    project.remove_run(retried, true).expect("remove");
+    assert!(project.run_record(retried).is_err());
+    assert!(outputs.iter().all(|id| project.dataset(*id).is_err()));
+    assert!(!project.root().join(format!("runs/{retried}")).exists());
+    assert!(project.cancel_queued(queued).expect("cancel"));
+
+    // Without `outputs`, they stay, unlinked, with the directory.
+    let kept = project
+        .run_named(
+            "travel-time",
+            &travel_time_job(),
+            &[],
+            false,
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect("run");
+    project.remove_run(kept.id, false).expect("remove");
+    assert!(project.run_record(kept.id).is_err());
+    for id in &kept.datasets {
+        let dataset = project.dataset(*id).expect("kept");
+        assert!(project.root().join(&dataset.file).is_file());
+    }
+    assert!(project.root().join(&kept.output_dir).is_dir());
+    // A run without outputs (cancelled) leaves no directory either.
+    project.remove_run(cancelled, false).expect("remove");
+    assert!(
+        project
+            .runs()
+            .expect("runs")
+            .iter()
+            .all(|r| r.id != cancelled)
+    );
+}
+
+#[test]
+fn operations_are_runs_of_kind_manage_that_protect_what_they_read() {
+    use accessmod_io::project::RunKind;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let id = project
+        .start_operation("archive", &json!({"name": "x"}), &[2, 3])
+        .expect("queue");
+    let record = project.run_record(id).expect("run");
+    assert_eq!(
+        (record.kind, record.status),
+        (RunKind::Manage, RunStatus::Queued)
+    );
+    assert_eq!(record.inputs, [2, 3]);
+    // An analysis never executes it; its inputs are held.
+    let settings = settings(64 << 20, 1);
+    assert!(
+        project
+            .execute_queued(id, &settings, Monitor::QUIET)
+            .is_err()
+    );
+    assert!(project.remove_dataset(3).is_err());
+    let running = project.claim_operation(id).expect("claim").expect("queued");
+    assert_eq!(running.status, RunStatus::Running);
+    assert!(project.claim_operation(id).expect("claim").is_none());
+    let done = project
+        .finish_operation(id, Ok(("archived".into(), json!({"file": "a.zip"}))))
+        .expect("finish");
+    assert_eq!(done.status, RunStatus::Done);
+    assert_eq!(done.result, Some(json!({"file": "a.zip"})));
+    project.remove_dataset(3).expect("no longer read");
+    // A failed one records its error; a recorded one (that made the project)
+    // is done at once.
+    let failed = project
+        .start_operation("export", &json!({}), &[])
+        .expect("queue");
+    project.claim_operation(failed).expect("claim");
+    let error = accessmod_io::error::Error::Cancelled;
+    let record = project
+        .finish_operation(failed, Err(&error))
+        .expect("finish");
+    assert_eq!(record.status, RunStatus::Cancelled);
+    let made = project
+        .record_operation(
+            "project-import",
+            &json!({"file": "x.am6p"}),
+            1,
+            "imported",
+            &json!(null),
+        )
+        .expect("record");
+    assert_eq!((made.kind, made.status), (RunKind::Manage, RunStatus::Done));
+}
+
+#[test]
+fn run_removal_keeps_directories_it_does_not_own_and_inputs_must_be_ready() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let run = project
+        .run_named(
+            "travel-time",
+            &travel_time_job(),
+            &[],
+            false,
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect("run");
+    // A run from a project file may name any directory as its own.
+    let db = rusqlite::Connection::open(project.root().join("project.sqlite")).expect("db");
+    db.execute(
+        "UPDATE runs SET output_dir = './datasets' WHERE id = ?1",
+        [run.id],
+    )
+    .expect("update");
+    project.remove_run(run.id, false).expect("remove");
+    assert!(project.root().join("datasets/1.tif").is_file());
+    // A dataset being removed is not recorded as an input.
+    db.execute("UPDATE datasets SET state = 'deleting' WHERE id = 3", [])
+        .expect("update");
+    let err = project
+        .start_operation("archive", &json!({}), &[2, 3])
+        .expect_err("being removed");
+    assert!(err.to_string().contains("dataset 3"), "{err}");
+    assert!(
+        project
+            .runs()
+            .expect("runs")
+            .iter()
+            .all(|r| r.analysis != "archive")
+    );
+}

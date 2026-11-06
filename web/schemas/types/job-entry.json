@@ -21,6 +21,21 @@
       ],
       "type": "object"
     },
+    "RunKind": {
+      "description": "What a run does.",
+      "oneOf": [
+        {
+          "const": "analysis",
+          "description": "An analysis: a job, inputs, outputs registered as datasets.",
+          "type": "string"
+        },
+        {
+          "const": "manage",
+          "description": "An operation on the project (archive, export, import): its\n`analysis` is the operation name, its `job` the parameters.",
+          "type": "string"
+        }
+      ]
+    },
     "RunRecord": {
       "description": "A run of the project.",
       "properties": {
@@ -71,6 +86,11 @@
         "job": {
           "description": "Job document, paths relative to the project."
         },
+        "kind": {
+          "$ref": "#/$defs/RunKind",
+          "default": "analysis",
+          "description": "Analysis or operation."
+        },
         "outcome": {
           "description": "One line summarising the result (done runs).",
           "type": [
@@ -86,6 +106,9 @@
           "default": false,
           "description": "Whether it may replace datasets of its output classes and tags.",
           "type": "boolean"
+        },
+        "result": {
+          "description": "What a done operation made (an archive, a file, a dataset)."
         },
         "started": {
           "description": "Start, seconds since the Unix epoch.",
