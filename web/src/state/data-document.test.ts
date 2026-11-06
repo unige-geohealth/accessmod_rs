@@ -35,6 +35,8 @@ describe("data document", () => {
     doc = updateData(doc, { type: "editTags", id: 2, text: "x" });
     doc = updateData(doc, { type: "removed", ids: [2] });
     expect(doc).toEqual({ selected: { run: null, keys: ["d1", "j2"] }, edits: {} });
+    // Removed jobs leave the selection too.
+    expect(updateData(doc, { type: "removed", ids: [], runs: [2] }).selected).toEqual({ run: null, keys: ["d1"] });
   });
 
   it("selects only datasets that still exist", () => {

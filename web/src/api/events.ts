@@ -54,7 +54,11 @@ function handle(event: Api.Event) {
         ...(all ?? []).filter((o) => o.id !== event.operation.id),
         event.operation,
       ]);
-      if (event.operation.status === "done") void queryClient.invalidateQueries({ queryKey: keys.projects });
+      // A done one is a run of the project it made.
+      if (event.operation.status === "done") {
+        void queryClient.invalidateQueries({ queryKey: keys.projects });
+        void queryClient.invalidateQueries({ queryKey: keys.allRuns });
+      }
       return;
     case "check":
       // Pre-analyses of other tabs are theirs.

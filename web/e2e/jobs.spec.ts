@@ -65,3 +65,42 @@ test("jobs: runs of every project, details, outputs and exported job", async ({ 
   await page.getByRole("button", { name: "Delete archive" }).click();
   await expect(page.getByText("No archive yet.")).toBeVisible();
 });
+
+test("jobs: the task manager filters by kind, retries a failed analysis and removes a job", async ({ page, request }) => {
+  // A run that fails on its inputs once started: no such road class field.
+  const failed = await command<{ id: number }>(request, "run.start", {
+    project,
+    analysis: "merge-land-cover",
+    tags: ["fails"],
+    document: {
+      schema_version: 1,
+      dem: "datasets/1.tif",
+      stack: [{ type: "road", path: "datasets/8.fgb", class_field: "no_such_field", label_field: "label" }],
+    },
+  });
+  await expect
+    .poll(async () => ((await (await request.get(`/api/projects/${project}/runs/${failed.id}`)).json()) as { status: string }).status, { timeout: 60_000 })
+    .toBe("failed");
+
+  await page.goto(`/#/${project}/jobs`);
+  // Operations: the demo, rebuilt; no analysis. Analyses: the other way round.
+  await page.getByRole("radio", { name: "Operations (imports, exports, archives)" }).click();
+  await expect(page.locator(".tabulator-row", { hasText: "Demo rebuilt" }).first()).toBeVisible();
+  await expect(page.locator(".tabulator-row", { hasText: "Merge land cover" })).toHaveCount(0);
+  await page.getByRole("radio", { name: "Analyses" }).click();
+  await expect(page.locator(".tabulator-row", { hasText: "Demo rebuilt" })).toHaveCount(0);
+
+  // Retry: a new run of the same job, selected.
+  await page.locator(".tabulator-row", { hasText: "fails" }).first().locator("input[type=checkbox]").check();
+  await expect(page).toHaveURL(new RegExp(`job=demo%2F${failed.id}`));
+  await page.getByRole("button", { name: "Retry" }).click();
+  await expect(page).not.toHaveURL(new RegExp(`job=demo%2F${failed.id}(&|$)`));
+  await expect(page.locator(".tabulator-row", { hasText: "fails" })).toHaveCount(2);
+
+  // Remove the first one: gone from the table.
+  await page.goto(`/#/${project}/jobs?job=demo%2F${failed.id}`);
+  await page.getByRole("button", { name: "Remove job" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove job" }).click();
+  await expect(page.locator(".tabulator-row", { hasText: "fails" })).toHaveCount(1);
+  await shot(page, "jobs-manager");
+});

@@ -115,7 +115,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
               value: "delete",
               icon: "delete",
               title: "data_delete_data",
-              content: <DeletePanel project={project} doc={doc} selected={selected} dispatch={dispatch} datasets={list ?? []} label={label} />,
+              content: <DeletePanel project={project} doc={doc} selected={selected} dispatch={dispatch} datasets={list ?? []} runs={finished} label={label} />,
             },
           ]}
         />
@@ -406,33 +406,48 @@ function RenamePanel({ project, doc, dispatch, datasets, label }: DocumentProps)
   );
 }
 
-function DeletePanel({ project, selected: chosen, dispatch, datasets, label }: DocumentProps) {
+function DeletePanel({ project, selected: chosen, dispatch, datasets, runs, label }: DocumentProps & { runs: readonly Api.RunRecord[] }) {
+  const { t } = useI18n();
   const { batch, start } = useBatch();
   const [confirming, setConfirming] = useState(false);
   const selected = selectedDatasets(chosen, datasets);
+  const chosenRuns = runs.filter((r) => selectedRuns(chosen).includes(r.id));
+  const runLabel = (r: Api.RunRecord) => `${t("data.kind_job")} #${r.id} ${analysisLabel(t, r.analysis)} [${r.tags.join(" ")}]`;
+  // Datasets first, then jobs: a job keeps its outputs that are not selected.
+  type Item = { dataset: Api.Dataset } | { run: Api.RunRecord };
+  const items: Item[] = [...selected.map((dataset) => ({ dataset })), ...chosenRuns.map((run) => ({ run }))];
+  const itemLabel = (i: Item) => ("dataset" in i ? label(i.dataset) : runLabel(i.run));
   const remove = async () => {
-    const done = await start(selected, label, (d) => api.command("dataset.remove", { project, id: d.id }));
-    dispatch({ type: "removed", ids: done.map((d) => d.id) });
+    const done = await start(items, itemLabel, (i) =>
+      "dataset" in i ? api.command("dataset.remove", { project, id: i.dataset.id }) : api.command("run.remove", { project, id: i.run.id, outputs: false }),
+    );
+    dispatch({
+      type: "removed",
+      ids: done.flatMap((i) => ("dataset" in i ? [i.dataset.id] : [])),
+      runs: done.flatMap((i) => ("run" in i ? [i.run.id] : [])),
+    });
     await queryClient.invalidateQueries({ queryKey: keys.datasets(project) });
+    await queryClient.invalidateQueries({ queryKey: keys.runs(project) });
   };
   return (
     <div className="flex flex-col gap-[15px]">
-      {selected.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-muted-foreground">
           <T k="data.selected_none" />
         </p>
       ) : (
         <ul className="list-inside list-disc">
-          {selected.map((d) => (
-            <li key={d.id}>{label(d)}</li>
+          {items.map((i) => (
+            <li key={"dataset" in i ? `d${i.dataset.id}` : `j${i.run.id}`}>{itemLabel(i)}</li>
           ))}
         </ul>
       )}
+      {chosenRuns.length > 0 && <p className="text-xs text-muted-foreground">{t("data.remove_jobs_note")}</p>}
       <AmButton
         variant="danger"
         block
         k="data_delete_permanently"
-        disabled={selected.length === 0 || batch.state === "running"}
+        disabled={items.length === 0 || batch.state === "running"}
         onClick={() => setConfirming(true)}
       />
       <BatchStatus batch={batch} doneKey="data.removed" />
@@ -441,8 +456,8 @@ function DeletePanel({ project, selected: chosen, dispatch, datasets, label }: D
           <T k="data_delete_warning" />
         </p>
         <ul className="list-inside list-disc">
-          {selected.map((d) => (
-            <li key={d.id}>{label(d)}</li>
+          {items.map((i) => (
+            <li key={"dataset" in i ? `d${i.dataset.id}` : `j${i.run.id}`}>{itemLabel(i)}</li>
           ))}
         </ul>
       </ConfirmDialog>

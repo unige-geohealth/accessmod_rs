@@ -26,8 +26,69 @@ const ANALYSES: Record<string, Key> = {
 
 export const analysisLabel = (t: (key: Key) => string, name: string): string => (ANALYSES[name] ? t(ANALYSES[name]) : name);
 
-/** Row key of a run: runs are numbered per project. */
-export const jobKey = (entry: Pick<Api.JobEntry, "project" | "run">) => `${entry.project}/${entry.run.id}`;
+/**
+ * A job of the table: a run of a project, or an operation making a
+ * project (`pending`: no project holds it yet), shown as a run.
+ */
+export type JobItem = Api.JobEntry & { pending?: true };
+
+/** Row key of a job: runs are numbered per project, operations apart. */
+export const jobKey = (entry: Pick<JobItem, "project" | "run" | "pending">) =>
+  entry.pending ? `:pending/${entry.run.id}` : `${entry.project}/${entry.run.id}`;
+
+/** What the table lists: everything, analyses or operations. */
+export type JobKind = "all" | "analysis" | "manage";
+
+export const jobKind = (value: string | undefined): JobKind => (value === "analysis" || value === "manage" ? value : "all");
+
+/** Jobs of `kind`. */
+export const ofKind = (entries: readonly JobItem[], kind: JobKind) =>
+  kind === "all" ? entries : entries.filter((e) => (e.run.kind ?? "analysis") === kind);
+
+/**
+ * Operations making projects, as jobs: those not done (a done one is a run
+ * of the project it made), newest first.
+ */
+export function pendingJobs(operations: readonly Api.PendingOperation[]): JobItem[] {
+  return operations
+    .filter((o) => o.status !== "done")
+    .map(
+      (o): JobItem => ({
+        pending: true,
+        project: o.project,
+        name: o.name,
+        run: {
+          id: o.id,
+          analysis: o.operation,
+          kind: "manage",
+          tags: [],
+          job: {},
+          status: o.status,
+          output_dir: "",
+          outcome: null,
+          error: o.error ?? null,
+          started: o.started,
+          finished: o.finished ?? null,
+          datasets: [],
+          inputs: [],
+          overwrite: false,
+        },
+      }),
+    )
+    .sort((a, b) => b.run.started - a.run.started);
+}
+
+/** Jobs newest first (by start), pending operations among the runs. */
+export const newestFirst = (entries: readonly JobItem[]): JobItem[] => [...entries].sort((a, b) => b.run.started - a.run.started);
+
+/** Place of each queued or running job in its lane, by row key. */
+export function queuePlaces(queue: readonly Api.QueueEntry[]): Readonly<Record<string, Api.QueueEntry>> {
+  return Object.fromEntries(
+    queue
+      .filter((e) => e.lane !== "check")
+      .map((e) => [e.project === ":pending" ? `:pending/${e.run}` : `${e.project}/${e.run}`, e] as const),
+  );
+}
 
 export const isActive = (run: Api.RunRecord) => run.status === "queued" || run.status === "running";
 
@@ -64,17 +125,24 @@ export type JobRow = Record<string, string | number | null> & { key: string };
 
 /** Rows of the table, as listed (newest first); a running job shows its stage and percent. */
 export function jobRows(
-  entries: readonly Api.JobEntry[],
+  entries: readonly JobItem[],
   t: (key: Key) => string,
   progress: Readonly<Record<string, Api.Progress>>,
   now: number,
   format: (epochSeconds: number) => string,
+  places: Readonly<Record<string, Api.QueueEntry>> = {},
 ): JobRow[] {
   return entries.map((e) => {
     const key = jobKey(e);
     const stage = progress[key];
     const value = percent(stage);
-    const status = t(`jobs.status_${e.run.status}` as Key);
+    const place = places[key];
+    const base = t(`jobs.status_${e.run.status}` as Key);
+    const status = place?.paused
+      ? `${base} (${t("task.paused")})`
+      : e.run.status === "queued" && place !== undefined && place.position > 0
+        ? `${base} (#${place.position})`
+        : base;
     return {
       key,
       project: e.name,

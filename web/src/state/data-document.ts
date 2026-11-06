@@ -21,8 +21,8 @@ export type DataMessage =
   | { type: "select"; run: number | null; keys: string[] }
   | { type: "editTags"; id: number; text: string }
   | { type: "discardEdits" }
-  /** These datasets were removed on the server. */
-  | { type: "removed"; ids: number[] }
+  /** These datasets (and jobs: runs) were removed on the server. */
+  | { type: "removed"; ids: number[]; runs?: number[] }
   /** These edits were committed; an edit typed since then stays. */
   | { type: "renamed"; changes: TagChange[] };
 
@@ -44,7 +44,8 @@ export function updateData(doc: DataDocument, message: DataMessage): DataDocumen
       const gone = new Set(message.ids);
       const edits = Object.fromEntries(Object.entries(doc.edits).filter(([id]) => !gone.has(Number(id))));
       if (doc.selected === "run") return { ...doc, edits };
-      const keys = doc.selected.keys.filter((key) => !datasetIds([key]).some((id) => gone.has(id)));
+      const goneJobs = new Set((message.runs ?? []).map(jobRowKey));
+      const keys = doc.selected.keys.filter((key) => !goneJobs.has(key) && !datasetIds([key]).some((id) => gone.has(id)));
       return { selected: same(keys, doc.selected.keys) ? doc.selected : { ...doc.selected, keys }, edits };
     }
     case "renamed": {

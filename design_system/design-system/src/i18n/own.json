@@ -1132,5 +1132,77 @@
     "fr": "Calculer est déjà disponible : le calcul revérifie les données et s'arrête au premier problème.",
     "es": "Calcular ya está disponible: el cálculo vuelve a verificar los datos y se detiene ante un problema.",
     "pt": "Calcular já está disponível: o cálculo verifica os dados novamente e para diante de um problema."
+  },
+  "jobs.kind": {
+    "en": "Kind",
+    "fr": "Type",
+    "es": "Tipo",
+    "pt": "Tipo"
+  },
+  "jobs.kind_all": {
+    "en": "All",
+    "fr": "Tous",
+    "es": "Todos",
+    "pt": "Todos"
+  },
+  "jobs.kind_analysis": {
+    "en": "Analyses",
+    "fr": "Analyses",
+    "es": "Análisis",
+    "pt": "Análises"
+  },
+  "jobs.kind_manage": {
+    "en": "Operations (imports, exports, archives)",
+    "fr": "Opérations (imports, exports, archives)",
+    "es": "Operaciones (importaciones, exportaciones, archivos)",
+    "pt": "Operações (importações, exportações, arquivos)"
+  },
+  "jobs.pause": {
+    "en": "Pause",
+    "fr": "Pause",
+    "es": "Pausa",
+    "pt": "Pausa"
+  },
+  "jobs.resume": {
+    "en": "Resume",
+    "fr": "Reprendre",
+    "es": "Reanudar",
+    "pt": "Retomar"
+  },
+  "jobs.retry": {
+    "en": "Retry",
+    "fr": "Relancer",
+    "es": "Reintentar",
+    "pt": "Tentar novamente"
+  },
+  "jobs.remove": {
+    "en": "Remove job",
+    "fr": "Supprimer le job",
+    "es": "Eliminar el trabajo",
+    "pt": "Remover o trabalho"
+  },
+  "jobs.remove_confirm": {
+    "en": "Remove job #%s and its log? This cannot be undone.",
+    "fr": "Supprimer le job #%s et son journal ? Action irréversible.",
+    "es": "¿Eliminar el trabajo #%s y su registro? No se puede deshacer.",
+    "pt": "Remover o trabalho #%s e o seu registo? Não pode ser desfeito."
+  },
+  "jobs.remove_outputs": {
+    "en": "Remove its outputs too; otherwise they stay in Data",
+    "fr": "Supprimer aussi ses sorties ; sinon elles restent dans Data",
+    "es": "Eliminar también sus salidas; si no, permanecen en Data",
+    "pt": "Remover também as saídas; caso contrário, ficam em Data"
+  },
+  "jobs.paused_note": {
+    "en": "Paused: it holds where it is, memory and temporary files kept, until resumed.",
+    "fr": "En pause : il reste où il en est, mémoire et fichiers temporaires conservés, jusqu'à la reprise.",
+    "es": "En pausa: se mantiene donde está, con memoria y archivos temporales, hasta reanudarlo.",
+    "pt": "Em pausa: mantém-se onde está, com memória e ficheiros temporários, até ser retomado."
+  },
+  "data.remove_jobs_note": {
+    "en": "Removing a job keeps its outputs that are not selected, no longer linked to it.",
+    "fr": "Supprimer un job garde ses sorties non sélectionnées, qui ne lui sont plus liées.",
+    "es": "Eliminar un trabajo conserva sus salidas no seleccionadas, ya sin vínculo.",
+    "pt": "Remover um trabalho mantém as saídas não selecionadas, já sem vínculo."
   }
 }
