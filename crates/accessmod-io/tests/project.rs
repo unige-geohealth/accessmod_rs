@@ -375,6 +375,123 @@ fn run_registers_outputs_as_datasets() {
 }
 
 #[test]
+fn archived_runs_replay_to_identical_outputs() {
+    use accessmod_io::analysis::Analysis;
+    use accessmod_io::archive::{Limits, extract};
+    use accessmod_io::job::JobFile;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let run = project
+        .run_named(
+            "travel-time",
+            &travel_time_job(),
+            &[],
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect("run");
+    // The run filter of Data: its inputs and outputs, and its job.
+    let datasets: Vec<i64> = run.inputs.iter().chain(&run.datasets).copied().collect();
+    let info = project
+        .create_archive("e2e", &datasets, &[run.id], &|| false)
+        .expect("archive");
+    assert!(info.name.starts_with("e2e_") && info.name.ends_with(".zip"));
+    assert_eq!(
+        project.archives().expect("list"),
+        std::slice::from_ref(&info)
+    );
+
+    let out = dir.path().join("out");
+    let manifest = extract(
+        &project.archive_path(&info.name).expect("path"),
+        &out,
+        Limits::default(),
+        &|| false,
+    )
+    .expect("extract");
+    assert_eq!(manifest.format, "accessmod-data");
+    assert_eq!(manifest.content["runs"][0]["replayable"], true);
+    // No overview: they are rebuilt.
+    assert!(manifest.files.iter().all(|f| !f.path.ends_with(".ovr")));
+    assert!(out.join("runs/1/run.json").is_file());
+
+    // `accessmod travel-time run --job job_run1.json` in the extracted folder.
+    let job = <TravelTime as Analysis>::Job::from_file(&out.join("job_run1.json")).expect("job");
+    accessmod_io::fixtures::run_job::<TravelTime>(job, &settings).expect("replay");
+    for file in ["travel_time_seconds.tif", "nearest_facility.tif"] {
+        assert_eq!(
+            std::fs::read(out.join("replay_run1").join(file)).expect("replayed"),
+            std::fs::read(project.root().join("runs/1").join(file)).expect("original"),
+            "{file}"
+        );
+    }
+
+    // Without its inputs, the run is not replayable; archives are removed by name.
+    let partial = project
+        .create_archive("", &run.datasets, &[run.id], &|| false)
+        .expect("archive");
+    assert!(partial.name.starts_with("am6_export_"));
+    let manifest = accessmod_io::archive::manifest(
+        &project.archive_path(&partial.name).expect("path"),
+        Limits::default(),
+    )
+    .expect("manifest");
+    assert_eq!(manifest.content["runs"][0]["replayable"], false);
+    project.remove_archive(&partial.name).expect("remove");
+    assert_eq!(project.archives().expect("list").len(), 1);
+    for bad in ["../project.sqlite", "x.zip", ".hidden.zip", "a/b.zip"] {
+        assert!(project.archive_path(bad).is_err(), "{bad}");
+    }
+    assert!(project.create_archive("", &[], &[], &|| false).is_err());
+    assert!(
+        project
+            .create_archive("bad name!", &[1], &[], &|| false)
+            .is_err()
+    );
+
+    // An input removed since the run: every remaining file archived, still
+    // not replayable (the job names the removed file).
+    project.remove_dataset(2).expect("remove land cover");
+    let mut rest: Vec<i64> = run.inputs.iter().chain(&run.datasets).copied().collect();
+    rest.retain(|&id| id != 2);
+    let gone = project
+        .create_archive("gone", &rest, &[run.id], &|| false)
+        .expect("archive");
+    let manifest = accessmod_io::archive::manifest(
+        &project.archive_path(&gone.name).expect("path"),
+        Limits::default(),
+    )
+    .expect("manifest");
+    assert_eq!(manifest.content["runs"][0]["replayable"], false);
+
+    // Files that are links out of the project are never archived nor served.
+    #[cfg(unix)]
+    {
+        let secret = dir.path().join("secret.txt");
+        std::fs::write(&secret, "secret").expect("secret");
+        let facilities = project.root().join(project.dataset(3).expect("3").file);
+        std::fs::remove_file(&facilities).expect("rm");
+        std::os::unix::fs::symlink(&secret, &facilities).expect("link");
+        let err = project
+            .create_archive("", &[3], &[], &|| false)
+            .expect_err("link");
+        assert!(err.to_string().contains("leaves the project"), "{err}");
+        std::os::unix::fs::symlink(&secret, project.root().join("archives/evil.zip"))
+            .expect("link");
+        assert!(project.archive_path("evil.zip").is_err());
+        assert!(
+            project
+                .archives()
+                .expect("list")
+                .iter()
+                .all(|a| a.name != "evil.zip")
+        );
+    }
+}
+
+#[test]
 fn failed_runs_record_their_issues() {
     let dir = tempfile::tempdir().expect("tempdir");
     let project = project_with_inputs(dir.path());

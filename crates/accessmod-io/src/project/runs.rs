@@ -104,7 +104,7 @@ pub struct RunRecord {
 
 /// `path` as the catalogue stores files: components joined by `/`, without
 /// `.` components.
-pub(super) fn catalogue_key(path: &Path) -> String {
+fn catalogue_key(path: &Path) -> String {
     path.components()
         .filter_map(|c| match c {
             std::path::Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
@@ -112,6 +112,24 @@ pub(super) fn catalogue_key(path: &Path) -> String {
         })
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// Catalogue keys of the paths of `job`, a job of `analysis`; none when
+/// the analysis is unknown or the job no longer parses.
+pub(super) fn job_paths(analysis: &str, job: &str) -> Vec<String> {
+    struct Paths<'a>(&'a str);
+    impl ForAnalysis for Paths<'_> {
+        type Output = Vec<String>;
+        fn call<A: Analysis>(self) -> Vec<String> {
+            let Ok(mut job) = A::Job::from_json(self.0) else {
+                return Vec::new();
+            };
+            let mut paths = Vec::new();
+            job.for_each_path(&mut |path| paths.push(catalogue_key(path)));
+            paths
+        }
+    }
+    by_name(analysis, Paths(job)).unwrap_or_default()
 }
 
 impl Project {
@@ -145,7 +163,6 @@ impl Project {
             .into_iter()
             .map(|(path, classes)| (catalogue_key(Path::new(&path)), classes))
             .collect();
-        let root = std::fs::canonicalize(&self.root).map_err(Error::file(&self.root))?;
         let mut inputs = Vec::new();
         for path in paths.iter().filter(|p| p.as_str() != output_dir) {
             let found: Option<(Id, String)> = self
@@ -172,10 +189,8 @@ impl Project {
                     ));
                 }
             }
-            match std::fs::canonicalize(self.root.join(path)) {
-                Ok(real) if real.starts_with(&root) => {}
-                Ok(_) => issues.push(format!("{path} leaves the project through a link")),
-                Err(e) => issues.push(format!("{path}: {e}")),
+            if let Err(e) = self.resolve_existing(Path::new(path)) {
+                issues.push(e.to_string());
             }
         }
         if !issues.is_empty() {

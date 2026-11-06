@@ -37,6 +37,7 @@ sha2 = "0.10"
 sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
 thiserror.workspace = true
 unicode-normalization = "0.1.26"
+zip = { version = "9.4.1", default-features = false, features = ["deflate"] }
 
 [features]
 # Test fixtures (`accessmod_io::fixtures`) for this crate's tests and the CLI's.

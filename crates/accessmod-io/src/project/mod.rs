@@ -10,6 +10,7 @@
 //!   datasets/<id>.fgb     vectors in the project CRS
 //!   datasets/<id>.csv     tables
 //!   runs/<id>/            outputs of run <id>, job.resolved.json, run.json
+//!   archives/<name>.zip   data archives (Data › Archive)
 //! ```
 //!
 //! Jobs of a project name datasets by paths relative to the project
@@ -22,6 +23,7 @@
 //! writes; long work (imports, runs) happens outside transactions, on rows
 //! reserved beforehand.
 
+mod archives;
 mod db;
 mod import;
 mod runs;
@@ -33,6 +35,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use archives::{ARCHIVES_DIR, ArchiveInfo, ArchivedDataset, ArchivedRun, DATA_ARCHIVE};
 pub use import::{ImportOptions, check_self_contained, resampling};
 pub use runs::{RunError, RunRecord, RunStatus};
 
@@ -546,6 +549,22 @@ impl Project {
         Ok(self.root.join(relative))
     }
 
+    /// [`Project::resolve`] of an existing file, checked to stay inside the
+    /// project once symbolic links are resolved: what is read for a client
+    /// (archives, downloads) never leaves the project.
+    pub fn resolve_existing(&self, relative: &Path) -> Result<PathBuf> {
+        let path = self.resolve(relative)?;
+        let root = std::fs::canonicalize(&self.root).map_err(Error::file(&self.root))?;
+        let real = std::fs::canonicalize(&path).map_err(Error::file(&path))?;
+        if !real.starts_with(&root) {
+            return Err(Error::invalid(format!(
+                "{} leaves the project through a link",
+                relative.display()
+            )));
+        }
+        Ok(path)
+    }
+
     /// Clean up after a crash: half-done imports and deletions are removed,
     /// runs left queued or running are marked interrupted. Only when no
     /// process is importing or running in this project (none holds it,
@@ -594,6 +613,14 @@ impl Project {
                 [now()],
             )
             .map_err(self.db_error())?;
+        // Archives whose writing was interrupted.
+        if let Ok(entries) = std::fs::read_dir(self.root.join(ARCHIVES_DIR)) {
+            for entry in entries.flatten() {
+                if entry.path().extension().is_some_and(|e| e == "partial") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
         // Dropping `file` releases the lock.
         Ok(true)
     }

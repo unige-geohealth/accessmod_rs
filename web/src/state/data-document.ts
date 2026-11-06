@@ -2,7 +2,7 @@
 // tags edited in the table (Data › Rename) until they are committed.
 // Changed only by messages through the pure `updateData`.
 import type { Api } from "../generated/types";
-import { datasetIds, normalizeTags } from "./catalogue";
+import { datasetIds, datasetKey, jobRowKey, normalizeTags } from "./catalogue";
 
 export interface DataDocument {
   /**
@@ -85,6 +85,15 @@ export function selectedKeys(doc: DataDocument, visible: readonly string[], run:
   const shown = new Set(visible);
   return doc.selected.keys.filter((key) => shown.has(key));
 }
+
+/** Selected jobs whose inputs are not all selected: an archive of the selection cannot replay them. */
+export function incompleteRuns(keys: readonly string[], runs: readonly Api.RunRecord[]): Api.RunRecord[] {
+  const chosen = new Set(keys);
+  return runs.filter((r) => chosen.has(jobRowKey(r.id)) && r.inputs.some((id) => !chosen.has(datasetKey(id))));
+}
+
+/** Run ids of the selected job rows. */
+export const selectedRuns = (keys: readonly string[]): number[] => keys.filter((k) => k.startsWith("j")).map((k) => Number(k.slice(1)));
 
 /** Selected datasets that still exist, in catalogue order. */
 export function selectedDatasets(keys: readonly string[], datasets: readonly Api.Dataset[]): Api.Dataset[] {

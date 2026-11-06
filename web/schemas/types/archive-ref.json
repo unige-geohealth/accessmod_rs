@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "An archive of a project.",
+  "properties": {
+    "name": {
+      "description": "File name, as listed.",
+      "type": "string"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "name"
+  ],
+  "title": "ArchiveRef",
+  "type": "object"
+}

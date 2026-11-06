@@ -952,5 +952,29 @@
     "fr": "Entrées",
     "es": "Entradas",
     "pt": "Entradas"
+  },
+  "data.archive_prefix": {
+    "en": "File prefix. Default is 'am6_export'",
+    "fr": "Préfixe du fichier. Par défaut 'am6_export'",
+    "es": "Prefijo del archivo. Por defecto 'am6_export'",
+    "pt": "Prefixo do arquivo. Padrão 'am6_export'"
+  },
+  "data.archive_created": {
+    "en": "Archive created: %s",
+    "fr": "Archive créée : %s",
+    "es": "Archivo creado: %s",
+    "pt": "Arquivo criado: %s"
+  },
+  "data.archive_none": {
+    "en": "No archive yet.",
+    "fr": "Aucune archive.",
+    "es": "Ningún archivo.",
+    "pt": "Nenhum arquivo."
+  },
+  "data.archive_incomplete": {
+    "en": "Some selected jobs miss inputs; they cannot be replayed from this archive: %s",
+    "fr": "Des entrées de jobs sélectionnés manquent ; ils ne pourront pas être rejoués depuis cette archive : %s",
+    "es": "Faltan entradas de trabajos seleccionados; no podrán reproducirse desde este archivo: %s",
+    "pt": "Faltam entradas de trabalhos selecionados; não poderão ser reproduzidos a partir deste arquivo: %s"
   }
 }

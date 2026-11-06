@@ -12,7 +12,7 @@ import { CenterTitle } from "@accessmod/ui/am/section";
 import { T, useI18n } from "@accessmod/ui/i18n";
 import { type Dispatch, useMemo, useReducer, useState } from "react";
 import { api, issuesOf } from "../api/client";
-import { keys, queryClient, useDatasets, useRuns } from "../api/queries";
+import { keys, queryClient, useArchives, useDatasets, useRuns } from "../api/queries";
 import { navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
 import { useBatch } from "../state/batch";
@@ -33,11 +33,21 @@ import {
   sortRows,
   toRow,
 } from "../state/catalogue";
-import { type DataDocument, type DataMessage, EMPTY, selectedDatasets, selectedKeys, tagChanges, updateData } from "../state/data-document";
+import {
+  type DataDocument,
+  type DataMessage,
+  EMPTY,
+  incompleteRuns,
+  selectedDatasets,
+  selectedKeys,
+  selectedRuns,
+  tagChanges,
+  updateData,
+} from "../state/data-document";
 import { analysisLabel } from "../state/jobs";
 import { doneRuns, lastRun } from "../state/run";
 import { busy, useTransfer } from "../state/transfer";
-import { BatchStatus, downloadJson, NotAvailable, TransferStatus, useFmt } from "./common";
+import { BatchStatus, downloadJson, TransferStatus, useFmt } from "./common";
 
 const ROLE_KEYS = { input: "data.role_input", output: "data.role_output", job: "data.kind_job" } as const satisfies Record<Role, string>;
 
@@ -98,12 +108,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
               value: "archive",
               icon: "archive",
               title: "data_archive_data",
-              content: (
-                <div className="flex flex-col gap-[15px]">
-                  <AmButton block disabled k="data_archive_create" />
-                  <NotAvailable />
-                </div>
-              ),
+              content: <ArchivePanel project={project} selected={selected} datasets={list ?? []} runs={finished} label={label} />,
             },
             {
               value: "delete",
@@ -246,6 +251,109 @@ function FilterPanel({
             { icon: "download", k: "analysis.download_job", onClick: () => downloadJson(`${run.analysis}-${project}-${run.id}`, run.job) },
           ]}
         />
+      )}
+    </div>
+  );
+}
+
+function ArchivePanel({
+  project,
+  selected,
+  datasets,
+  runs,
+  label,
+}: {
+  project: string;
+  selected: readonly string[];
+  datasets: readonly Api.Dataset[];
+  runs: readonly Api.RunRecord[];
+  label: (dataset: Api.Dataset) => string;
+}) {
+  const { t } = useI18n();
+  const f = useFmt();
+  const archives = useArchives(project).data ?? [];
+  const [prefix, setPrefix] = useState("");
+  const [chosen, setChosen] = useState<string | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [messages, setMessages] = useState<{ kind: "issue" | "info"; text: string }[]>([]);
+  const chosenDatasets = selectedDatasets(selected, datasets);
+  const chosenRuns = selectedRuns(selected).filter((id) => runs.some((r) => r.id === id));
+  const incomplete = incompleteRuns(selected, runs);
+  // The archive shown: the one picked if it still exists, else the newest.
+  const current = archives.find((a) => a.name === chosen) ?? archives[0];
+  const act = async (action: () => Promise<string | null>) => {
+    setBusy(true);
+    setMessages([]);
+    try {
+      const done = await action();
+      if (done !== null) setMessages([{ kind: "info", text: done }]);
+    } catch (error) {
+      setMessages(issuesOf(error, t).map((text) => ({ kind: "issue" as const, text })));
+    } finally {
+      setBusy(false);
+      await queryClient.invalidateQueries({ queryKey: keys.archives(project) });
+    }
+  };
+  const create = () =>
+    act(async () => {
+      const archive = await api.command("archive.create", {
+        project,
+        name: prefix.trim(),
+        datasets: chosenDatasets.map((d) => d.id),
+        runs: chosenRuns,
+      });
+      setChosen(archive.name);
+      return f("data.archive_created", archive.name);
+    });
+  const remove = (name: string) =>
+    act(async () => {
+      await api.command("archive.remove", { project, name });
+      setChosen(undefined);
+      return null;
+    });
+  return (
+    <div className="flex flex-col gap-[15px]">
+      <TextField label="data.archive_prefix" value={prefix} onChange={setPrefix} />
+      {chosenDatasets.length + chosenRuns.length === 0 ? (
+        <p className="text-muted-foreground">
+          <T k="data_archive_data_selected_table" />
+        </p>
+      ) : (
+        <ul className="list-inside list-disc">
+          {chosenDatasets.map((d) => (
+            <li key={d.id}>{label(d)}</li>
+          ))}
+          {runs
+            .filter((r) => chosenRuns.includes(r.id))
+            .map((r) => (
+              <li key={`j${r.id}`}>{`${t("data.kind_job")} #${r.id} ${analysisLabel(t, r.analysis)} [${r.tags.join(" ")}]`}</li>
+            ))}
+        </ul>
+      )}
+      {incomplete.length > 0 && (
+        <MessageList messages={[{ kind: "info", text: f("data.archive_incomplete", incomplete.map((r) => `#${r.id}`).join(", ")) }]} />
+      )}
+      <AmButton block k="data_archive_create" disabled={busy || chosenDatasets.length + chosenRuns.length === 0} onClick={() => void create()} />
+      {messages.length > 0 && <MessageList messages={messages} />}
+      <hr className="border-border" />
+      {current === undefined ? (
+        <p className="text-muted-foreground">
+          <T k="data.archive_none" />
+        </p>
+      ) : (
+        <>
+          <SelectField
+            label="data_archive_select"
+            options={archives.map((a) => ({ value: a.name, label: `${a.name} (${(a.bytes / 1e6).toFixed(1)} MB)` }))}
+            value={current.name}
+            onChange={setChosen}
+          />
+          <p className="text-xs text-muted-foreground">
+            <T k="data_download_delete_archive" />
+          </p>
+          <AmButton block k="data_archive_export" disabled={busy} onClick={() => (window.location.href = api.archiveUrl(project, current.name))} />
+          <AmButton block variant="danger" k="data_archive_delete_btn" disabled={busy} onClick={() => void remove(current.name)} />
+        </>
       )}
     </div>
   );

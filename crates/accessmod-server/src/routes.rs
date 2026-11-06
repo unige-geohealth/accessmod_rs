@@ -2,7 +2,7 @@
 
 use accessmod_io::analysis::{Monitor, job_schemas};
 use accessmod_io::class::{DataClass, Kind};
-use accessmod_io::project::{DatasetRecord, Id, ProjectInfo, RunRecord, SavedJob};
+use accessmod_io::project::{ArchiveInfo, DatasetRecord, Id, ProjectInfo, RunRecord, SavedJob};
 use accessmod_io::rows::{self, Rows};
 use axum::Json;
 use axum::body::Bytes;
@@ -390,6 +390,47 @@ pub async fn download(
         download_name(&record, extension)
     );
     if let Ok(value) = HeaderValue::from_str(&disposition) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, value);
+    }
+    Ok(response)
+}
+
+/// `GET /api/projects/{project}/archives`: newest first.
+pub async fn archives(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(slug): Path<String>,
+) -> ApiResult<Json<Vec<ArchiveInfo>>> {
+    with_project(&state, principal, slug, Role::Viewer, |_, p| {
+        Ok(p.archives()?)
+    })
+    .await
+    .map(Json)
+}
+
+/// `GET /api/projects/{project}/archives/{name}`: the zip.
+pub async fn archive(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, name)): Path<(String, String)>,
+    request: Request,
+) -> ApiResult<Response> {
+    let (path, name) = with_project(&state, principal, slug, Role::Viewer, move |_, p| {
+        let path = p
+            .archive_path(&name)
+            .map_err(|_| ApiError::NotFound(format!("no archive {name}")))?;
+        Ok((path, name))
+    })
+    .await?;
+    let mut response = ServeFile::new(&path)
+        .oneshot(request)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .into_response();
+    // `archive_path` admits only letters, digits, `-`, `_` and `.`.
+    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
         response
             .headers_mut()
             .insert(header::CONTENT_DISPOSITION, value);

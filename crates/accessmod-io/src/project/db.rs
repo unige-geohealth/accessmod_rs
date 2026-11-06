@@ -9,10 +9,8 @@ use std::time::Duration;
 
 use rusqlite::Connection;
 
-use super::runs::catalogue_key;
-use crate::analysis::{Analysis, ForAnalysis, by_name};
+use super::runs::job_paths;
 use crate::error::{Error, Result};
-use crate::job::JobFile;
 
 /// A schema change: SQL, then an optional data step in Rust.
 struct Migration {
@@ -105,24 +103,6 @@ fn backfill_run_inputs(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
         }
     }
     Ok(())
-}
-
-/// Catalogue keys of the paths of `job`, a job of `analysis`; none when
-/// the analysis is unknown or the job no longer parses.
-fn job_paths(analysis: &str, job: &str) -> Vec<String> {
-    struct Paths<'a>(&'a str);
-    impl ForAnalysis for Paths<'_> {
-        type Output = Vec<String>;
-        fn call<A: Analysis>(self) -> Vec<String> {
-            let Ok(mut job) = A::Job::from_json(self.0) else {
-                return Vec::new();
-            };
-            let mut paths = Vec::new();
-            job.for_each_path(&mut |path| paths.push(catalogue_key(path)));
-            paths
-        }
-    }
-    by_name(analysis, Paths(job)).unwrap_or_default()
 }
 
 /// Schema version this engine writes.

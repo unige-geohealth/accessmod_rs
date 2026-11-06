@@ -83,6 +83,8 @@ interface Commands {
   "job.remove": [Api.JobRef, null];
   "run.start": [Api.StartRun, Api.RunRecord];
   "run.cancel": [Api.RunRef, Api.RunRecord];
+  "archive.create": [Api.CreateArchive, Api.Archive];
+  "archive.remove": [Api.ArchiveRef, null];
 }
 
 /** Query of `GET …/datasets/{id}/rows`. */
@@ -151,6 +153,10 @@ export const api = {
   /** URL of a table dataset as a file. */
   downloadUrl: (slug: string, id: number, format: "csv" | "json") => `${project(slug)}/datasets/${id}/download?format=${format}`,
   jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),
+  /** Data archives of the project, newest first. */
+  archives: (slug: string) => request<Api.Archive[]>("GET", `${project(slug)}/archives`),
+  /** URL of an archive as a file. */
+  archiveUrl: (slug: string, name: string) => `${project(slug)}/archives/${encodeURIComponent(name)}`,
   runs: (slug: string) => request<Api.RunRecord[]>("GET", `${project(slug)}/runs`),
   /** The latest runs of every project, newest first. */
   allRuns: () => request<Api.JobEntry[]>("GET", "/api/runs"),

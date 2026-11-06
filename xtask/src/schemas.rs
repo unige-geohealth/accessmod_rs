@@ -104,6 +104,7 @@ fn types() -> Vec<(&'static str, Value)> {
         ("project-info", schema::<project::ProjectInfo>()),
         ("dataset", schema::<project::DatasetRecord>()),
         ("saved-job", schema::<project::SavedJob>()),
+        ("archive", schema::<project::ArchiveInfo>()),
         ("run", schema::<project::RunRecord>()),
         ("rows", schema::<accessmod_io::rows::Rows>()),
         ("field-values", schema::<accessmod_io::rows::FieldValues>()),
@@ -165,6 +166,14 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::commands::StartRun>(),
         ),
         ("run-ref", schema::<accessmod_server::commands::RunRef>()),
+        (
+            "create-archive",
+            schema::<accessmod_server::commands::CreateArchive>(),
+        ),
+        (
+            "archive-ref",
+            schema::<accessmod_server::commands::ArchiveRef>(),
+        ),
         ("tile-style", schema::<accessmod_io::tiles::Style>()),
     ]
 }

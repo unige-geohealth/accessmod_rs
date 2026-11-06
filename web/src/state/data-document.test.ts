@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { EMPTY, selectedDatasets, selectedKeys, tagChanges, updateData } from "./data-document";
+import { EMPTY, incompleteRuns, selectedDatasets, selectedKeys, selectedRuns, tagChanges, updateData } from "./data-document";
 
 const datasets = [
   { id: 1, tags: ["demo"] },
@@ -50,6 +50,13 @@ describe("data document", () => {
     // Another run (a new filter, Back): its rows again, never the other run's choice.
     expect(selectedKeys(chosen, ["j4", "d2"], 4)).toEqual(["j4", "d2"]);
     expect(selectedKeys(chosen, ["d1", "d2"], null)).toEqual([]);
+  });
+
+  it("tells the selected jobs an archive cannot replay", () => {
+    const runs = [{ id: 3, inputs: [1, 2] }, { id: 4, inputs: [1] }] as Api.RunRecord[];
+    expect(incompleteRuns(["j3", "j4", "d1"], runs).map((r) => r.id)).toEqual([3]);
+    expect(incompleteRuns(["d2", "d1"], runs)).toEqual([]);
+    expect(selectedRuns(["d1", "j3", "j4"])).toEqual([3, 4]);
   });
 
   it("never selects a hidden row", () => {

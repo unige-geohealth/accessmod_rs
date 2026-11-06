@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "An archive of the project.",
+  "properties": {
+    "bytes": {
+      "description": "Size, bytes.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "modified": {
+      "description": "Last change, seconds since the Unix epoch.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "name": {
+      "description": "File name, e.g. `am6_export_2026-11-06_143205.zip`.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "bytes",
+    "modified"
+  ],
+  "title": "ArchiveInfo",
+  "type": "object"
+}

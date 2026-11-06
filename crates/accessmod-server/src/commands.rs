@@ -7,7 +7,7 @@
 
 use accessmod_io::class::DataClass;
 use accessmod_io::project::{
-    DatasetRecord, Id, ImportOptions, Project, ProjectInfo, RunRecord, SavedJob,
+    ArchiveInfo, DatasetRecord, Id, ImportOptions, Project, ProjectInfo, RunRecord, SavedJob,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -179,6 +179,20 @@ pub fn registry() -> Vec<CommandSpec> {
             start_run
         ),
         command!(
+            "archive.create",
+            "Archive datasets and the jobs of runs in a zip of the project (Data › Archive)",
+            Requirement::Project(Role::Editor),
+            CreateArchive,
+            create_archive
+        ),
+        command!(
+            "archive.remove",
+            "Remove an archive of the project",
+            Requirement::Project(Role::Editor),
+            ArchiveRef,
+            remove_archive
+        ),
+        command!(
             "run.cancel",
             "Cancel a queued or running run",
             Requirement::Project(Role::Editor),
@@ -300,6 +314,33 @@ pub struct DatasetRef {
     pub id: Id,
 }
 
+/// `archive.create`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CreateArchive {
+    /// Project slug.
+    pub project: String,
+    /// Prefix of the file name (letters, digits, - and _); `am6_export` when empty.
+    #[serde(default)]
+    pub name: String,
+    /// Datasets to archive.
+    #[serde(default)]
+    pub datasets: Vec<Id>,
+    /// Runs whose jobs to archive.
+    #[serde(default)]
+    pub runs: Vec<Id>,
+}
+
+/// An archive of a project.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveRef {
+    /// Project slug.
+    pub project: String,
+    /// File name, as listed.
+    pub name: String,
+}
+
 /// `job.save`.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -406,7 +447,9 @@ scoped!(
     SaveJob,
     JobRef,
     StartRun,
-    RunRef
+    RunRef,
+    CreateArchive,
+    ArchiveRef
 );
 
 // ---- handlers ---------------------------------------------------------------
@@ -537,6 +580,23 @@ fn remove_dataset(state: &AppState, _: &Principal, params: DatasetRef) -> ApiRes
     state.open(&params.project)?.remove_dataset(params.id)?;
     catalogue(state, &params.project);
     Ok(())
+}
+
+fn create_archive(
+    state: &AppState,
+    _: &Principal,
+    params: CreateArchive,
+) -> ApiResult<ArchiveInfo> {
+    Ok(state.open(&params.project)?.create_archive(
+        &params.name,
+        &params.datasets,
+        &params.runs,
+        &|| false,
+    )?)
+}
+
+fn remove_archive(state: &AppState, _: &Principal, params: ArchiveRef) -> ApiResult<()> {
+    Ok(state.open(&params.project)?.remove_archive(&params.name)?)
 }
 
 fn save_job(state: &AppState, _: &Principal, params: SaveJob) -> ApiResult<SavedJob> {

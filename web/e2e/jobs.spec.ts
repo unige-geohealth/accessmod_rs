@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { command, finished, shot, sidebar } from "./helpers";
+import { command, finished, panel, shot, sidebar } from "./helpers";
 
 // Jobs: the runs of every project, here one merge of the demo project.
 const project = "demo";
@@ -48,4 +48,20 @@ test("jobs: runs of every project, details, outputs and exported job", async ({ 
   await expect(rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Output$/ }) }).first()).toContainText("jobs");
   for (const row of await rows.all()) await expect(row.locator("input[type=checkbox]")).toBeChecked();
   await shot(page, "data-run");
+
+  // Data › Archive: the selection (job, inputs, outputs) as a zip, listed, downloaded.
+  await panel(page, "Archive").click();
+  await page.getByLabel("File prefix. Default is 'am6_export'").fill("e2e-run");
+  await page.getByRole("button", { name: "Create archive" }).click();
+  await expect(page.getByText(/^Archive created: e2e-run_.*\.zip$/)).toBeVisible();
+  await shot(page, "data-archive");
+  const zip = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export archive" }).click();
+  const file = await zip;
+  expect(file.suggestedFilename()).toMatch(/^e2e-run_.*\.zip$/);
+  const bytes = readFileSync(await file.path());
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  expect(bytes.includes(Buffer.from("manifest.json"))).toBe(true);
+  await page.getByRole("button", { name: "Delete archive" }).click();
+  await expect(page.getByText("No archive yet.")).toBeVisible();
 });

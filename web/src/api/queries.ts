@@ -21,6 +21,7 @@ export const keys = {
   basemap: ["basemap"] as const,
   value: (slug: string, id: number, lon: number, lat: number) => ["project", slug, "value", id, lon, lat] as const,
   jobs: (slug: string) => ["project", slug, "jobs"] as const,
+  archives: (slug: string) => ["project", slug, "archives"] as const,
   runs: (slug: string) => ["project", slug, "runs"] as const,
   allRuns: ["runs"] as const,
   /** Latest progress of each running run, written by events only. */
@@ -50,6 +51,9 @@ export const useRuns = (slug: string | null) =>
 
 /** Runs of every project (Jobs). */
 export const useAllRuns = () => useQuery({ queryKey: keys.allRuns, queryFn: () => api.allRuns() });
+
+export const useArchives = (slug: string | null) =>
+  useQuery({ queryKey: keys.archives(slug ?? ""), queryFn: () => api.archives(slug ?? ""), enabled: slug !== null });
 
 export const useJobs = (slug: string | null) =>
   useQuery({ queryKey: keys.jobs(slug ?? ""), queryFn: () => api.jobs(slug ?? ""), enabled: slug !== null });

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`archive.create`.",
+  "properties": {
+    "datasets": {
+      "default": [],
+      "description": "Datasets to archive.",
+      "items": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "name": {
+      "default": "",
+      "description": "Prefix of the file name (letters, digits, - and _); `am6_export` when empty.",
+      "type": "string"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "runs": {
+      "default": [],
+      "description": "Runs whose jobs to archive.",
+      "items": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "project"
+  ],
+  "title": "CreateArchive",
+  "type": "object"
+}
