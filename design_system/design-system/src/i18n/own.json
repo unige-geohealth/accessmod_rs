@@ -1120,5 +1120,17 @@
     "fr": "Démo reconstruite",
     "es": "Demo reconstruida",
     "pt": "Demo reconstruída"
+  },
+  "analysis.precheck": {
+    "en": "Pre-analysis of the inputs: %s",
+    "fr": "Pré-analyse des données : %s",
+    "es": "Análisis previo de los datos: %s",
+    "pt": "Pré-análise dos dados: %s"
+  },
+  "analysis.precheck_note": {
+    "en": "Compute is available now: the computation checks the inputs again and stops on an issue.",
+    "fr": "Calculer est déjà disponible : le calcul revérifie les données et s'arrête au premier problème.",
+    "es": "Calcular ya está disponible: el cálculo vuelve a verificar los datos y se detiene ante un problema.",
+    "pt": "Calcular já está disponível: o cálculo verifica os dados novamente e para diante de um problema."
   }
 }

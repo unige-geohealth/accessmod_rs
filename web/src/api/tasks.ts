@@ -16,6 +16,8 @@ const finished = (status: Api.RunStatus) => status !== "queued" && status !== "r
 const runWaiters = new Map<string, ((run: Api.RunRecord) => void)[]>();
 const operationWaiters = new Map<number, ((operation: Api.PendingOperation) => void)[]>();
 
+const checkWaiters = new Map<number, ((check: Api.Check) => void)[]>();
+
 const runKey = (project: string, id: number) => `${project}\u0000${id}`;
 
 /** An event: `run` of `project` as it is now. */
@@ -25,6 +27,27 @@ export function settleRun(project: string, run: Api.RunRecord) {
   const waiters = runWaiters.get(key);
   runWaiters.delete(key);
   for (const resolve of waiters ?? []) resolve(run);
+}
+
+/** An event: pre-analysis `check` as it is now. */
+export function settleCheck(check: Api.Check) {
+  if (!finished(check.status)) return;
+  const waiters = checkWaiters.get(check.id);
+  checkWaiters.delete(check.id);
+  for (const resolve of waiters ?? []) resolve(check);
+}
+
+/** Wait for pre-analysis `id` to end; its validation summary when done, its issues otherwise. */
+export async function checkDone(id: number): Promise<Record<string, unknown>> {
+  const check = await wait<Api.Check>(
+    (resolve) => checkWaiters.set(id, [...(checkWaiters.get(id) ?? []), resolve]),
+    async () => {
+      const check = await api.checkState(id);
+      return finished(check.status) ? check : null;
+    },
+  );
+  if (check.status !== "done") throw failure(check.status, check.error);
+  return (check.result ?? {}) as Record<string, unknown>;
 }
 
 /** An event: `operation` as it is now. */

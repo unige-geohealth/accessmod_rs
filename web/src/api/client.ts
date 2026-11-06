@@ -124,6 +124,10 @@ export interface ClassInfo {
 
 const project = (slug: string) => `/api/projects/${encodeURIComponent(slug)}`;
 
+/** This tab, to the server: its latest pre-analysis of an analysis replaces the previous one. */
+export const CLIENT: string =
+  typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
 export const api = {
   health: () => request<{ status: string; version: string }>("GET", "/api/health"),
   settings: () => request<Api.Settings>("GET", "/api/settings"),
@@ -174,6 +178,14 @@ export const api = {
   operations: () => request<Api.PendingOperation[]>("GET", "/api/operations"),
   /** The latest runs of every project, newest first. */
   allRuns: () => request<Api.JobEntry[]>("GET", "/api/runs"),
+  /** The quick check of a job document (types, paths, classes), without reading its inputs. */
+  check: (slug: string, analysis: string, document: unknown, signal?: AbortSignal) =>
+    request<{ status: string }>("POST", `${project(slug)}/analyses/${encodeURIComponent(analysis)}/check`, document, signal),
+  /** Queue the pre-analysis (`prepare`) of a job document for this tab; it ends as a `check` event. */
+  precheck: (slug: string, analysis: string, document: unknown) =>
+    request<Api.Check>("POST", `${project(slug)}/analyses/${encodeURIComponent(analysis)}/precheck?client=${encodeURIComponent(CLIENT)}`, document),
+  /** A pre-analysis, while the server keeps it. */
+  checkState: (id: number) => request<Api.Check>("GET", `/api/checks/${id}`),
   /** `prepare` on a job document: its validation summary, or an error with every issue. */
   validate: (slug: string, analysis: string, document: unknown, signal?: AbortSignal) =>
     request<Record<string, unknown>>("POST", `${project(slug)}/analyses/${encodeURIComponent(analysis)}/validate`, document, signal),

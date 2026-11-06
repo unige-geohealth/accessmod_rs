@@ -1,5 +1,64 @@
 {
   "$defs": {
+    "Check": {
+      "description": "A pre-analysis.",
+      "properties": {
+        "analysis": {
+          "description": "Analysis name.",
+          "type": "string"
+        },
+        "client": {
+          "description": "Token of the client (browser tab) that asked for it.",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why it failed: the job's issues."
+        },
+        "id": {
+          "description": "Identifier, unique while the server runs.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Progress"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest progress while running."
+        },
+        "project": {
+          "description": "Project slug.",
+          "type": "string"
+        },
+        "result": {
+          "description": "The validation summary of a done one (`validate --json`)."
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus",
+          "description": "Queued, running, done, failed or cancelled."
+        }
+      },
+      "required": [
+        "id",
+        "project",
+        "analysis",
+        "client",
+        "status"
+      ],
+      "type": "object"
+    },
     "LaneName": {
       "description": "A lane.",
       "oneOf": [
@@ -11,6 +70,11 @@
         {
           "const": "io",
           "description": "Operations: archives, exports, imports.",
+          "type": "string"
+        },
+        {
+          "const": "check",
+          "description": "Pre-analyses of jobs being edited.",
           "type": "string"
         }
       ]
@@ -450,6 +514,24 @@
       "required": [
         "type",
         "operation"
+      ],
+      "type": "object"
+    },
+    {
+      "description": "A pre-analysis changed (its client follows it).",
+      "properties": {
+        "check": {
+          "$ref": "#/$defs/Check",
+          "description": "The pre-analysis as it is now."
+        },
+        "type": {
+          "const": "check",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "check"
       ],
       "type": "object"
     },

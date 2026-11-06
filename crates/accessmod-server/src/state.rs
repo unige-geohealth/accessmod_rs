@@ -70,6 +70,8 @@ struct Inner {
     demo: Mutex<()>,
     /// Operations making projects, in memory.
     pending: crate::operations::Pending,
+    /// Pre-analyses, in memory.
+    checks: crate::checks::Checks,
 }
 
 impl AppState {
@@ -117,6 +119,7 @@ impl AppState {
                 settings,
                 demo: Mutex::new(()),
                 pending: crate::operations::Pending::default(),
+                checks: crate::checks::Checks::default(),
             }),
         })
     }
@@ -254,6 +257,11 @@ impl AppState {
     /// A handle that does not keep the state alive.
     pub fn downgrade(&self) -> WeakState {
         WeakState(Arc::downgrade(&self.inner))
+    }
+
+    /// Pre-analyses.
+    pub fn checks(&self) -> &crate::checks::Checks {
+        &self.inner.checks
     }
 
     /// Operations making projects.

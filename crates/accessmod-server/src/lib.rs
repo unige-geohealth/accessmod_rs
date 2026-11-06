@@ -21,6 +21,7 @@
 )]
 
 pub mod auth;
+pub mod checks;
 pub mod commands;
 pub mod error;
 pub mod events;
@@ -117,6 +118,15 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
             "/api/projects/{project}/analyses/{name}/validate",
             post(routes::validate),
         )
+        .route(
+            "/api/projects/{project}/analyses/{name}/check",
+            post(routes::check),
+        )
+        .route(
+            "/api/projects/{project}/analyses/{name}/precheck",
+            post(routes::precheck),
+        )
+        .route("/api/checks/{id}", get(routes::check_state))
         // An unknown API path is a JSON error, never the client's page.
         .route("/api/{*path}", any(routes::no_route))
         .with_state(state);

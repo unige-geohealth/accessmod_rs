@@ -1315,3 +1315,83 @@ async fn projects_export_to_a_file_and_import_from_it() {
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[tokio::test]
+async fn quick_checks_answer_at_once_and_pre_analyses_run_as_tasks() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let base = format!("/api/projects/{slug}/analyses/travel-time");
+    let (status, body) = s
+        .call("POST", &format!("{base}/check"), Some(travel_time_job()))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let mut wrong = travel_time_job();
+    wrong["land_cover"] = json!("datasets/3.fgb");
+    let (status, _) = s.call("POST", &format!("{base}/check"), Some(wrong)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // A pre-analysis: queued, then done with the validation summary.
+    let (status, check) = s
+        .call(
+            "POST",
+            &format!("{base}/precheck?client=tab-1"),
+            Some(travel_time_job()),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{check}");
+    let mut state = Value::Null;
+    for _ in 0..500 {
+        (_, state) = s
+            .call("GET", &format!("/api/checks/{}", check["id"]), None)
+            .await;
+        if !matches!(state["status"].as_str(), Some("queued" | "running")) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(state["status"], "done", "{state}");
+    assert_eq!(state["result"]["status"], "valid", "{state}");
+    // Its issues when the job does not hold against the inputs.
+    let mut invalid = travel_time_job();
+    invalid["facilities"]["id_field"] = json!("missing_field");
+    let (_, check) = s
+        .call(
+            "POST",
+            &format!("{base}/precheck?client=tab-1"),
+            Some(invalid),
+        )
+        .await;
+    for _ in 0..500 {
+        (_, state) = s
+            .call("GET", &format!("/api/checks/{}", check["id"]), None)
+            .await;
+        if !matches!(state["status"].as_str(), Some("queued" | "running")) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(state["status"], "failed", "{state}");
+    assert!(
+        state["error"]["issues"]
+            .to_string()
+            .contains("missing_field"),
+        "{state}"
+    );
+    // A client token is short and plain; the analysis exists.
+    let (status, _) = s
+        .call(
+            "POST",
+            &format!("{base}/precheck?client=a%20b"),
+            Some(travel_time_job()),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = s
+        .call(
+            "POST",
+            &format!("/api/projects/{slug}/analyses/nope/precheck?client=t"),
+            Some(travel_time_job()),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

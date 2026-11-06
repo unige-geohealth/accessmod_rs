@@ -1,6 +1,7 @@
 // AM5 "Validation" card of an analysis tab: what is missing, the server's
-// checks (`prepare`), Compute, progress, Cancel, the "Process finished"
-// dialog and Export job.
+// quick check (it alone gates Compute), the pre-analysis of the inputs
+// (`prepare`, a task with its progress: Compute does not wait for it),
+// Compute, progress, Cancel, the "Process finished" dialog and Export job.
 import { MessageDialog } from "@accessmod/ui/am/message-dialog";
 import { AmButton, LinkActions, type Message, MessageList } from "@accessmod/ui/am/messages";
 import { SectionCard } from "@accessmod/ui/am/section";
@@ -8,7 +9,7 @@ import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { Progress } from "@accessmod/ui/ui/progress";
 import { useState } from "react";
 import { api, issuesOf } from "../../api/client";
-import { keys, queryClient, useProgress, useRuns, useValidation } from "../../api/queries";
+import { keys, queryClient, useCheckState, usePreAnalysis, useProgress, useQuickCheck, useRuns } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import { classLabel, plannedOutputs } from "../../state/catalogue";
 import { type Issue, sessionStore } from "../../state/drafts";
@@ -44,7 +45,9 @@ export function ValidationCard({
   const { t } = useI18n();
   const f = useFmt();
   const message = (kind: Message["kind"], i: Issue): Message => (typeof i === "string" ? { kind, k: i } : { kind, text: f(i.key, ...i.args) });
-  const validation = useValidation(project, analysis, document);
+  const quick = useQuickCheck(project, analysis, document);
+  const pre = usePreAnalysis(project, analysis, document, quick.isSuccess);
+  const checkState = useCheckState(project, analysis).data ?? null;
   const session = sessionStore(project, analysis);
   const { run, acknowledged } = useStore(session, (s) => s);
   const runs = useRuns(project).data;
@@ -58,8 +61,9 @@ export function ValidationCard({
   const messages: Message[] = [
     ...issues.map((i) => message("issue", i)),
     ...notices.map((i) => message("info", i)),
-    ...(validation.isError ? issuesOf(validation.error, t).map((text) => ({ kind: "issue" as const, text })) : []),
-    ...((validation.data?.warnings as { message: string }[] | undefined) ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
+    ...(quick.isError ? issuesOf(quick.error, t).map((text) => ({ kind: "issue" as const, text })) : []),
+    ...(pre.isError ? issuesOf(pre.error, t).map((text) => ({ kind: "issue" as const, text })) : []),
+    ...((pre.data?.warnings as { message: string }[] | undefined) ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
     ...failure.map((text) => ({ kind: "issue" as const, text })),
     ...(taken.length > 0 && !overwrite ? [{ kind: "issue" as const, k: "analysis.outputs_taken" as const }] : []),
   ];
@@ -67,7 +71,9 @@ export function ValidationCard({
     const key = view.record.status === "cancelled" ? "analysis.run_cancelled" : "analysis.run_failed";
     messages.push({ kind: "issue", k: key }, ...(view.record.error?.issues ?? []).map((text) => ({ kind: "issue" as const, text })));
   }
-  const ready = document !== null && validation.isSuccess && !busy(view) && (overwrite || taken.length === 0);
+  // The quick check gates Compute; a pre-analysis that found issues too (the run would fail on them).
+  const ready = document !== null && quick.isSuccess && !pre.isError && !busy(view) && (overwrite || taken.length === 0);
+  const prechecking = quick.isSuccess && pre.isFetching;
 
   const compute = async () => {
     setFailure([]);
@@ -95,9 +101,10 @@ export function ValidationCard({
         <MessageList messages={messages} />
       ) : (
         <p className="text-sm">
-          <T k={validation.isFetching ? "analysis.validating" : "analysis.valid"} />
+          <T k={quick.isFetching || prechecking ? "analysis.validating" : "analysis.valid"} />
         </p>
       )}
+      {prechecking && <PrecheckProgress check={checkState} computable={ready} />}
       {outputs.length > 0 && (
         <div className="text-sm">
           <b>
@@ -143,6 +150,22 @@ export function ValidationCard({
         )}
       </MessageDialog>
     </SectionCard>
+  );
+}
+
+/** Progress of the pre-analysis: its stage and percent, while Compute is already offered. */
+function PrecheckProgress({ check, computable }: { check: Api.Check | null; computable: boolean }) {
+  const { t } = useI18n();
+  const f = useFmt();
+  const stage = check?.status === "running" ? (check.progress ?? undefined) : undefined;
+  const value = percent(stage);
+  const text = stage === undefined ? t("analysis.validating") : value === undefined ? stage.stage : f("task.stage_percent", stage.stage, value);
+  return (
+    <div className="flex flex-col gap-1" role="status">
+      <Progress value={value ?? 100} className={value === undefined ? "animate-pulse" : undefined} />
+      <span className="text-xs text-muted-foreground">{f("analysis.precheck", text)}</span>
+      {computable && <span className="text-xs text-muted-foreground">{t("analysis.precheck_note")}</span>}
+    </div>
   );
 }
 

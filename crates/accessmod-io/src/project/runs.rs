@@ -637,6 +637,19 @@ impl Project {
             .unwrap_or_else(|| Err(unknown(&analysis)))
     }
 
+    /// [`Project::check_job`] of the analysis named `analysis`: the quick
+    /// check, without reading the inputs.
+    pub fn check_named(&self, analysis: &str, document: &serde_json::Value) -> Result<()> {
+        struct Check<'a>(&'a Project, &'a serde_json::Value);
+        impl ForAnalysis for Check<'_> {
+            type Output = Result<()>;
+            fn call<A: Analysis>(self) -> Result<()> {
+                self.0.check_job::<A>(self.1).map(drop)
+            }
+        }
+        by_name(analysis, Check(self, document)).unwrap_or_else(|| Err(unknown(analysis)))
+    }
+
     /// Validate `document` as a job of `analysis` against the inputs, without
     /// computing: the document `validate --json` prints.
     pub fn validate_named(

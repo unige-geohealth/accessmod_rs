@@ -4,7 +4,8 @@
 import { useEffect } from "react";
 import type { Api } from "../generated/types";
 import { keys, type ProgressByRun, queryClient } from "./queries";
-import { settleOperation, settleRun } from "./tasks";
+import { CLIENT } from "./client";
+import { settleCheck, settleOperation, settleRun } from "./tasks";
 
 /** Insert or replace `run` in the cached runs of `project`. */
 function upsertRun(project: string, run: Api.RunRecord) {
@@ -15,7 +16,7 @@ function upsertRun(project: string, run: Api.RunRecord) {
   });
 }
 
-const NAMES = ["run", "runs", "progress", "catalogue", "projects", "queue", "pending"] as const;
+const NAMES = ["run", "runs", "progress", "catalogue", "projects", "queue", "pending", "check"] as const;
 
 /** The server dropped events for this client: reload everything shown. */
 function resync() {
@@ -54,6 +55,14 @@ function handle(event: Api.Event) {
         event.operation,
       ]);
       if (event.operation.status === "done") void queryClient.invalidateQueries({ queryKey: keys.projects });
+      return;
+    case "check":
+      // Pre-analyses of other tabs are theirs.
+      if (event.check.client !== CLIENT) return;
+      settleCheck(event.check);
+      queryClient.setQueryData<Api.Check | null>(keys.check(event.check.project, event.check.analysis), (current) =>
+        current === undefined || current === null || current.id <= event.check.id ? event.check : current,
+      );
       return;
     case "catalogue":
       void queryClient.invalidateQueries({ queryKey: keys.datasets(event.project) });

@@ -607,6 +607,70 @@ pub async fn operations(
     Json(operations)
 }
 
+/// `POST /api/projects/{project}/analyses/{name}/check`: the quick check of
+/// a job document, without reading its inputs: types, and paths naming
+/// datasets of the classes their fields accept. Milliseconds: it alone
+/// decides whether Compute is offered.
+pub async fn check(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, name)): Path<(String, String)>,
+    body: Bytes,
+) -> ApiResult<Json<Value>> {
+    let document = json_body(&body)?;
+    with_project(&state, principal, slug, Role::Viewer, move |_, p| {
+        p.check_named(&name, &document)?;
+        Ok(serde_json::json!({ "status": "valid" }))
+    })
+    .await
+    .map(Json)
+}
+
+/// Query of `POST …/precheck`.
+#[derive(Debug, Deserialize)]
+pub struct PrecheckQuery {
+    /// Token of the client (a browser tab): its latest pre-analysis of an
+    /// analysis replaces the previous one.
+    pub client: String,
+}
+
+/// `POST /api/projects/{project}/analyses/{name}/precheck?client=`: queue
+/// the pre-analysis of a job document (`prepare` on its inputs) on the
+/// check lane; it ends as a `check` event, with its validation summary or
+/// its issues.
+pub async fn precheck(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, name)): Path<(String, String)>,
+    Query(query): Query<PrecheckQuery>,
+    body: Bytes,
+) -> ApiResult<Json<crate::checks::Check>> {
+    let document = json_body(&body)?;
+    with_project(
+        &state,
+        principal,
+        slug.clone(),
+        Role::Viewer,
+        move |state, _| crate::checks::start(state, &slug, &name, &query.client, document),
+    )
+    .await
+    .map(Json)
+}
+
+/// `GET /api/checks/{id}`: a pre-analysis, while the server keeps it.
+pub async fn check_state(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Id>,
+) -> ApiResult<Json<crate::checks::Check>> {
+    let check = state
+        .checks()
+        .get(id)
+        .ok_or_else(|| ApiError::NotFound(format!("no pre-analysis {id}")))?;
+    principal.authorize(Requirement::Project(Role::Viewer), Some(&check.project))?;
+    Ok(Json(check))
+}
+
 /// `POST /api/projects/{project}/analyses/{name}/validate`: check a job
 /// document against the inputs, without computing.
 pub async fn validate(

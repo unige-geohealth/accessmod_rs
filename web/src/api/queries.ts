@@ -2,7 +2,8 @@
 // (events.ts) and after commands; nothing else writes them.
 import { QueryClient, useQueries, useQuery } from "@tanstack/react-query";
 import type { Api } from "../generated/types";
-import { api, type RowsQuery } from "./client";
+import { api, ApiError, type RowsQuery } from "./client";
+import { checkDone } from "./tasks";
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 30_000 } },
@@ -28,6 +29,8 @@ export const keys = {
   queue: ["queue"] as const,
   /** Operations making projects (events keep it current). */
   operations: ["operations"] as const,
+  /** This tab's latest pre-analysis of an analysis, written by events only. */
+  check: (slug: string, analysis: string) => ["project", slug, "check", analysis] as const,
   /** Latest progress of each running run, written by events only. */
   progress: (slug: string) => ["project", slug, "progress"] as const,
 };
@@ -124,14 +127,49 @@ export const useValue = (slug: string, id: number | null, point: { lon: number; 
     enabled: id !== null && point !== null,
   });
 
-/** Server validation (`prepare`) of a complete job document; `null` disables it. */
-export const useValidation = (slug: string, analysis: string, document: unknown) => {
+/** The quick check of a complete job document (types, paths, classes); `null` disables it. */
+export const useQuickCheck = (slug: string, analysis: string, document: unknown) => {
   const text = document === null ? null : JSON.stringify(document);
   return useQuery({
-    queryKey: ["project", slug, "validate", analysis, text] as const,
-    queryFn: ({ signal }) => api.validate(slug, analysis, document, signal),
+    queryKey: ["project", slug, "quick-check", analysis, text] as const,
+    queryFn: ({ signal }) => api.check(slug, analysis, document, signal),
     enabled: text !== null,
     retry: false,
     staleTime: 60_000,
   });
 };
+
+/**
+ * The pre-analysis (`prepare` on the inputs) of a job document, a task on
+ * the server: its validation summary, or its issues. Runs once the quick
+ * check passed (`enabled`); a newer one replaces it on the server.
+ */
+export const usePreAnalysis = (slug: string, analysis: string, document: unknown, enabled: boolean) => {
+  const text = document === null ? null : JSON.stringify(document);
+  return useQuery({
+    queryKey: ["project", slug, "pre-analysis", analysis, text] as const,
+    queryFn: async ({ signal }) => {
+      // Another pre-analysis of this tab may cancel this one (an edit, then
+      // back): asked again while it is still wanted, a few times at most.
+      for (let attempt = 0; ; attempt++) {
+        const check = await api.precheck(slug, analysis, document);
+        try {
+          return await checkDone(check.id);
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.kind !== "cancelled" || signal.aborted || attempt >= 2) throw error;
+        }
+      }
+    },
+    enabled: text !== null && enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+};
+
+/** This tab's latest pre-analysis of `analysis` as events report it (progress). */
+export const useCheckState = (slug: string, analysis: string) =>
+  useQuery<Api.Check | null>({
+    queryKey: keys.check(slug, analysis),
+    queryFn: () => queryClient.getQueryData<Api.Check>(keys.check(slug, analysis)) ?? null,
+    staleTime: Infinity,
+  });

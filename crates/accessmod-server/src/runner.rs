@@ -36,10 +36,8 @@ pub enum LaneName {
     Compute,
     /// Operations: archives, exports, imports.
     Io,
-}
-
-impl LaneName {
-    const ALL: [LaneName; 2] = [LaneName::Compute, LaneName::Io];
+    /// Pre-analyses of jobs being edited.
+    Check,
 }
 
 /// Cancellation and pause of one task.
@@ -272,6 +270,7 @@ pub struct Runner {
     events: broadcast::Sender<Event>,
     compute: Lane,
     io: Lane,
+    check: Lane,
 }
 
 impl std::fmt::Debug for Runner {
@@ -299,14 +298,15 @@ impl Runner {
         Ok(Self {
             compute: lane(LaneName::Compute)?,
             io: lane(LaneName::Io)?,
+            check: lane(LaneName::Check)?,
             projects,
             settings,
             events,
         })
     }
 
-    fn lanes(&self) -> [&Lane; 2] {
-        [&self.compute, &self.io]
+    fn lanes(&self) -> [&Lane; 3] {
+        [&self.compute, &self.io, &self.check]
     }
 
     /// Queue analysis run `run` of `project` (already recorded as queued);
@@ -334,6 +334,16 @@ impl Runner {
         self.io.submit((project.to_owned(), run), Box::new(job))
     }
 
+    /// Queue `job`, pre-analysis `id` under lane key `key`, on the check lane.
+    pub fn submit_check(
+        &self,
+        key: &str,
+        id: Id,
+        job: impl FnOnce(&Control) + Send + 'static,
+    ) -> Result<(), String> {
+        self.check.submit((key.to_owned(), id), Box::new(job))
+    }
+
     /// Ask run `run` of `project` to stop (a queued one leaves its lane,
     /// decided under the lane's lock: it never starts afterwards).
     pub fn cancel(&self, project: &str, run: Id) -> Cancel {
@@ -353,10 +363,9 @@ impl Runner {
 
     /// Every task waiting or running, lane by lane.
     pub fn queue(&self) -> Vec<QueueEntry> {
-        LaneName::ALL
+        self.lanes()
             .iter()
-            .zip(self.lanes())
-            .flat_map(|(_, lane)| lane.entries())
+            .flat_map(|lane| lane.entries())
             .collect()
     }
 }

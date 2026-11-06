@@ -55,6 +55,11 @@ pub enum Event {
         /// The operation as it is now.
         operation: Box<crate::operations::PendingOperation>,
     },
+    /// A pre-analysis changed (its client follows it).
+    Check {
+        /// The pre-analysis as it is now.
+        check: Box<crate::checks::Check>,
+    },
     /// What a lane holds now: its running task, then the waiting ones.
     Queue {
         /// Lane.
@@ -74,6 +79,7 @@ impl Event {
             Event::Projects => "projects",
             Event::Queue { .. } => "queue",
             Event::Pending { .. } => "pending",
+            Event::Check { .. } => "check",
         }
     }
 
@@ -83,6 +89,7 @@ impl Event {
             | Event::Progress { project, .. }
             | Event::Runs { project }
             | Event::Catalogue { project } => Some(project),
+            Event::Check { check } => Some(&check.project),
             Event::Projects | Event::Queue { .. } | Event::Pending { .. } => None,
         }
     }
