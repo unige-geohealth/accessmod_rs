@@ -22,3 +22,21 @@ test("settings: the theme follows the system until one is chosen", async ({ page
   await sidebar(page, "About").click();
   await expect(page).toHaveURL(/about/);
 });
+
+test("settings: advanced options appear in modules once enabled", async ({ page }) => {
+  await page.goto("/#/demo/settings");
+  const enable = page.getByLabel("Enable advanced options in modules");
+  await enable.check();
+  await page.goto("/#/demo/toolbox/merge");
+  await page.getByRole("tab", { name: "Roads", exact: true }).click();
+  const keep = page.getByLabel("Do not add 1000 to class < 1000");
+  await expect(keep).toBeVisible();
+  await shot(page, "toolbox-merge-advanced");
+
+  await page.goto("/#/demo/settings");
+  await enable.uncheck();
+  await page.goto("/#/demo/toolbox/merge");
+  await page.getByRole("tab", { name: "Roads", exact: true }).click();
+  await expect(page.getByLabel("Select road layer (vector)")).toBeVisible();
+  await expect(keep).toHaveCount(0);
+});

@@ -29,12 +29,14 @@ import {
   type MergeMessage,
   roadIssues,
   roadNotices,
+  roadClass,
   roadItems,
   shownLabels,
   type StackItem,
   updateMerge,
   withMergeDefaults,
 } from "../../state/merge";
+import { usePreference } from "../../state/preferences";
 import { labelsOf, landCoverClasses } from "../../state/scenario";
 import { useStore } from "../../state/store";
 import { DatasetSelect, FieldSelect, fieldsOf, firstOf, useCatalogue } from "../analysis/inputs";
@@ -180,6 +182,9 @@ function RoadsTab({ project, draft, options, byId, dispatch }: TabProps & { proj
   const values = useValues(project, draft.roads, draft.classField, draft.labelField);
   const classes = values.isFetching ? undefined : values.data;
   const issues = [...roadIssues(draft.roads, classes), ...(values.isError ? (["srv_merge_landcover_road_no_integer_column"] as const) : [])];
+  const notices = roadNotices(classes, !draft.keepClasses);
+  // An advanced option stays visible while it is set: never applied unseen.
+  const advanced = usePreference("advanced") || draft.keepClasses;
   return (
     <Columns
       wide
@@ -203,9 +208,14 @@ function RoadsTab({ project, draft, options, byId, dispatch }: TabProps & { proj
             value={draft.labelField}
             onChange={(field) => dispatch({ type: "labelField", field })}
           />
-          {issues.length + roadNotices(classes).length > 0 && (
-            <MessageList
-              messages={[...issues.map((k) => ({ kind: "issue" as const, k })), ...roadNotices(classes).map((k) => ({ kind: "info" as const, k }))]}
+          {issues.length + notices.length > 0 && (
+            <MessageList messages={[...issues.map((k) => ({ kind: "issue" as const, k })), ...notices.map((k) => ({ kind: "info" as const, k }))]} />
+          )}
+          {advanced && (
+            <CheckboxField
+              label="toolbox_land_cover_dont_add_1000"
+              checked={draft.keepClasses}
+              onChange={(on) => dispatch({ type: "keepClasses", on })}
             />
           )}
           <AmButton
@@ -214,7 +224,7 @@ function RoadsTab({ project, draft, options, byId, dispatch }: TabProps & { proj
             disabled={issues.length > 0 || classes === undefined || draft.roads === null}
             k="toolbox_land_cover_road_add_btn"
             onClick={() =>
-              classes && draft.roads !== null && dispatch({ type: "add", items: roadItems(draft.roads, draft.classField, draft.labelField, classes) })
+              classes && draft.roads !== null && dispatch({ type: "add", items: roadItems(draft.roads, draft.classField, draft.labelField, classes, !draft.keepClasses) })
             }
           />
         </SectionCard>
@@ -294,7 +304,8 @@ function MergeTab({
       case "land_cover":
         return `${t("class.rStackLandCover" as Key)} [${tags}]`;
       case "road":
-        return `${t("class.rStackRoad" as Key)} [${item.label || item.class} ${tags}]`;
+        // The class it writes: shows a kept class (advanced option) once stacked.
+        return `${t("class.rStackRoad" as Key)} [${item.label || item.class} ${tags}] → ${roadClass(item.class, item.add1000)}`;
       case "barrier":
         return `${t("class.rStackBarrier" as Key)} [${tags}]`;
     }

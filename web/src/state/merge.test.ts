@@ -111,4 +111,26 @@ describe("merge land cover draft", () => {
       ],
     });
   });
+
+  it("keeps road classes below 1000 when asked (AM5 advanced option)", () => {
+    expect(updateMerge(EMPTY, { type: "keepClasses", on: false })).toBe(EMPTY);
+    const draft = updateMerge(EMPTY, { type: "keepClasses", on: true });
+    expect(draft.keepClasses).toBe(true);
+    expect(roadNotices(roads, false)).toEqual([]);
+    const [kept] = roadItems(3, "class_n", "label", roads, false);
+    const [shifted] = roadItems(3, "class_n", "label", roads);
+    // Class 1 kept clashes with land cover class 1; shifted (1001) does not.
+    const forest = landCoverItem(2, [{ class: 1, label: "forest" }]);
+    expect(conflicts([kept!, forest]).map((c) => c.class)).toEqual([1, 1]);
+    expect(conflicts([shifted!, forest])).toEqual([]);
+    const built = buildJob({ ...EMPTY, use: [kept!, shifted!, landCoverItem(2, [{ class: 5, label: "forest" }])], tags: "m" }, context);
+    // Adding the class again with the other option replaces the stacked item.
+    const replaced = updateMerge(updateMerge(EMPTY, { type: "add", items: [kept!] }), { type: "add", items: [shifted!] });
+    expect(replaced.use).toEqual([shifted]);
+    // Items of one layer with different options are not grouped.
+    expect(built.document?.stack.slice(0, 2)).toEqual([
+      { type: "road", path: "datasets/3.x", class_field: "class_n", label_field: "label", classes: [1], add_1000: false },
+      { type: "road", path: "datasets/3.x", class_field: "class_n", label_field: "label", classes: [1] },
+    ]);
+  });
 });

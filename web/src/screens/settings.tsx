@@ -19,6 +19,7 @@ export function SettingsScreen() {
   const { theme, setTheme } = useTheme();
   const health = useHealth();
   const overwrite = usePreference("overwrite");
+  const advanced = usePreference("advanced");
   return (
     <Columns
       left={
@@ -34,6 +35,7 @@ export function SettingsScreen() {
           </SectionCard>
           <SectionCard title="settings.analyses">
             <CheckboxField label="settings.overwrite" checked={overwrite} onChange={(on) => setPreference("overwrite", on)} />
+            <CheckboxField label="settings_advanced_tools" checked={advanced} onChange={(on) => setPreference("advanced", on)} />
           </SectionCard>
           <SectionCard title="settings_system_info_title">
             <EntryList entries={[[t("menu_version_current"), health.data?.version ?? "-"]]} />

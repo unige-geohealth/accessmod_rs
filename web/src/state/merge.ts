@@ -19,7 +19,17 @@ export interface ClassLabel {
 /** One item of the stack; `key` identifies it (adding it again replaces it, as AM5 overwrites a stack map). */
 export type StackItem =
   | { key: string; type: "land_cover"; dataset: number; labels: readonly ClassLabel[] }
-  | { key: string; type: "road"; dataset: number; classField: string; labelField: string; class: number; label: string }
+  | {
+      key: string;
+      type: "road";
+      dataset: number;
+      classField: string;
+      labelField: string;
+      class: number;
+      label: string;
+      /** AM5 adds 1000 to classes below 1000 (advanced: "Do not add 1000"). */
+      add1000: boolean;
+    }
   | { key: string; type: "barrier"; dataset: number };
 
 export interface MergeDraft {
@@ -31,6 +41,8 @@ export interface MergeDraft {
   roads: number | null;
   classField: string;
   labelField: string;
+  /** Advanced option of the roads tab: road classes added from now on keep their values below 1000. */
+  keepClasses: boolean;
   /** Barriers tab. */
   barrier: number | null;
   /** Merge tab: items used, in priority order (first wins), and skipped. */
@@ -47,6 +59,7 @@ export const EMPTY: MergeDraft = {
   roads: null,
   classField: "",
   labelField: "",
+  keepClasses: false,
   barrier: null,
   use: [],
   skip: [],
@@ -62,6 +75,7 @@ export type MergeMessage =
   | { type: "roads"; id: number | null }
   | { type: "classField"; field: string }
   | { type: "labelField"; field: string }
+  | { type: "keepClasses"; on: boolean }
   | { type: "barrier"; id: number | null }
   | { type: "add"; items: readonly StackItem[] }
   | { type: "order"; use: readonly StackItem[]; skip: readonly StackItem[] }
@@ -113,6 +127,8 @@ export function updateMerge(draft: MergeDraft, message: MergeMessage): MergeDraf
       return { ...draft, skip: [] };
     case "clean":
       return { ...draft, clean: message.on };
+    case "keepClasses":
+      return draft.keepClasses === message.on ? draft : { ...draft, keepClasses: message.on };
     case "tags":
       return { ...draft, tags: message.text };
   }
@@ -187,15 +203,15 @@ export function roadIssues(roads: number | null, classes: RoadClasses | undefine
   return [];
 }
 
-/** AM5 notice: classes below 1000 get 1000 added. */
-export const roadNotices = (classes: RoadClasses | undefined): Key[] =>
-  classes?.values.some((v) => typeof v.value === "number" && v.value < 1000) ? ["srv_merge_landcover_classes_under_1000"] : [];
+/** AM5 notice: classes below 1000 get 1000 added (unless kept). */
+export const roadNotices = (classes: RoadClasses | undefined, add1000 = true): Key[] =>
+  add1000 && classes?.values.some((v) => typeof v.value === "number" && v.value < 1000) ? ["srv_merge_landcover_classes_under_1000"] : [];
 
-/** The classes of a road layer as stack items, one per class (AM5). */
-export function roadItems(dataset: number, classField: string, labelField: string, classes: RoadClasses): StackItem[] {
+/** The classes of a road layer as stack items, one per class (AM5); `add1000` false keeps classes below 1000. */
+export function roadItems(dataset: number, classField: string, labelField: string, classes: RoadClasses, add1000 = true): StackItem[] {
   return classes.values.map((v) => {
     const cls = Number(v.value);
-    return { key: `road:${dataset}:${classField}:${cls}`, type: "road", dataset, classField, labelField, class: cls, label: v.label ?? "" };
+    return { key: `road:${dataset}:${classField}:${cls}`, type: "road", dataset, classField, labelField, class: cls, label: v.label ?? "", add1000 };
   });
 }
 
@@ -208,8 +224,8 @@ export const landCoverItem = (dataset: number, labels: readonly ClassLabel[]): S
 
 export const barrierItem = (dataset: number): StackItem => ({ key: `barrier:${dataset}`, type: "barrier", dataset });
 
-/** Class written in the merged land cover by a road class (AM5 adds 1000 below 1000). */
-export const roadClass = (cls: number) => (cls < 1000 ? cls + 1000 : cls);
+/** Class written in the merged land cover by a road class (AM5 adds 1000 below 1000, unless kept). */
+export const roadClass = (cls: number, add1000 = true) => (add1000 && cls < 1000 ? cls + 1000 : cls);
 
 /** A class used by several items of the stack: AM5 "Conflicting classes among items in the stack". */
 export interface Conflict {
@@ -225,7 +241,7 @@ export function conflicts(use: readonly StackItem[]): Conflict[] {
       case "land_cover":
         return item.labels.map((l) => ({ item, class: l.class, label: l.label }));
       case "road":
-        return [{ item, class: roadClass(item.class), label: item.label }];
+        return [{ item, class: roadClass(item.class, item.add1000), label: item.label }];
       case "barrier":
         return [];
     }
@@ -266,7 +282,8 @@ export function buildJob(draft: MergeDraft, context: { datasets: ReadonlyMap<num
       last?.type === "road" &&
       previous.dataset === item.dataset &&
       previous.classField === item.classField &&
-      previous.labelField === item.labelField
+      previous.labelField === item.labelField &&
+      previous.add1000 === item.add1000
     ) {
       last.classes = [...(last.classes ?? []), item.class];
     } else {
@@ -281,6 +298,7 @@ export function buildJob(draft: MergeDraft, context: { datasets: ReadonlyMap<num
             class_field: item.classField,
             label_field: item.labelField || null,
             classes: [item.class],
+            ...(item.add1000 ? {} : { add_1000: false }),
           });
           break;
         case "barrier":

@@ -6,7 +6,9 @@ import { useSyncExternalStore } from "react";
 
 export type Preference =
   /** Analyses may replace datasets of their output classes and tags (AM5 "overwrite warning"). */
-  "overwrite";
+  | "overwrite"
+  /** Options AM5 shows only to advanced users ("Enable advanced options in modules"). */
+  | "advanced";
 
 const storageKey = (p: Preference) => `am.${p}`;
 const listeners = new Set<() => void>();
