@@ -11,8 +11,9 @@ import { type ReactNode, useState } from "react";
 import { api } from "../api/client";
 import { keys, queryClient } from "../api/queries";
 import { HOME, navigate, type Route } from "../app/route";
-import { useBatch } from "../state/batch";
-import { BatchStatus } from "./common";
+import { operationDone } from "../api/tasks";
+import { useTransfer } from "../state/transfer";
+import { TransferStatus } from "./common";
 import { InteractiveMap } from "./toolbox/map";
 import { MergeLandCover } from "./toolbox/merge";
 import { AdjustPopulation } from "./toolbox/population";
@@ -60,29 +61,24 @@ export function ToolboxScreen({ route }: { route: Route }) {
 
 function DemoPanel() {
   const [confirming, setConfirming] = useState(false);
-  const { batch, start } = useBatch();
-  const reset = async () => {
-    const built: { slug?: string } = {};
-    await start(
-      ["Demo"],
-      (name) => name,
-      async () => {
-        built.slug = (await api.command("demo.reset", {})).slug;
-      },
-    );
-    await queryClient.invalidateQueries({ queryKey: keys.projects });
-    if (built.slug !== undefined) {
-      await queryClient.invalidateQueries({ queryKey: ["project", built.slug] });
-      navigate({ ...HOME, project: built.slug });
-    }
-  };
+  const { state, run } = useTransfer();
+  const reset = () =>
+    run(async (queued) => {
+      const operation = await api.command("demo.reset", {});
+      queued({ kind: "operation", id: operation.id });
+      const built = await operationDone(operation.id);
+      await queryClient.invalidateQueries({ queryKey: keys.projects });
+      await queryClient.invalidateQueries({ queryKey: ["project", built.project] });
+      navigate({ ...HOME, project: built.project });
+      return built.name;
+    });
   return (
     <div className="flex flex-col gap-[15px]">
       <p>
         <T k="toolbox.demo_text" />
       </p>
-      <AmButton variant="danger" block icon="reset" k="toolbox.demo_reset" disabled={batch.state === "running"} onClick={() => setConfirming(true)} />
-      <BatchStatus batch={batch} doneKey="toolbox.demo_done" />
+      <AmButton variant="danger" block icon="reset" k="toolbox.demo_reset" disabled={state.state === "processing"} onClick={() => setConfirming(true)} />
+      <TransferStatus transfer={state} doneKey="toolbox.demo_done" />
       <ConfirmDialog open={confirming} onOpenChange={setConfirming} confirm="toolbox.demo_reset" onConfirm={() => void reset()}>
         <T k="toolbox.demo_reset_confirm" />
       </ConfirmDialog>

@@ -18,7 +18,25 @@ export async function choose(page: Page, label: string, option: string) {
 export async function command<T>(request: APIRequestContext, id: string, params: unknown): Promise<T> {
   const response = await request.post(`/api/commands/${id}`, { data: params });
   expect(response.ok(), await response.text()).toBe(true);
-  return (await response.json()) as T;
+  const body = (await response.json()) as { id?: number; operation?: string; kind?: string } | null;
+  // A long command queues a task: wait for it, as the client does.
+  if (body !== null && typeof body === "object" && body.operation !== undefined) {
+    await expect
+      .poll(
+        async () => {
+          const all = (await (await request.get("/api/operations")).json()) as { id: number; status: string }[];
+          return all.find((o) => o.id === body.id)?.status;
+        },
+        { timeout: 120_000 },
+      )
+      .toBe("done");
+  } else if (body !== null && typeof body === "object" && body.kind === "manage") {
+    const project = (params as { project: string }).project;
+    await finished(request, project, body.id ?? 0);
+    const run = (await (await request.get(`/api/projects/${project}/runs/${body.id}`)).json()) as { result: T };
+    return run.result;
+  }
+  return body as T;
 }
 
 /** Wait until run `id` of `project` is done. */

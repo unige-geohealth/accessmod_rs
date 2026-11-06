@@ -134,6 +134,61 @@ impl Server {
             .await
     }
 
+    /// Run command `id`, then wait for the operation it queued: the
+    /// result of a done one, or the error of a failed one with the status
+    /// a synchronous command would have returned.
+    async fn command_done(&self, id: &str, params: Value) -> (StatusCode, Value) {
+        let project = params
+            .get("project")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let (status, body) = self.command(id, params).await;
+        if status != StatusCode::OK {
+            return (status, body);
+        }
+        for _ in 0..3000 {
+            let current = if body.get("operation").is_some() {
+                let (_, list) = self.call("GET", "/api/operations", None).await;
+                list.as_array()
+                    .and_then(|l| l.iter().find(|o| o["id"] == body["id"]).cloned())
+                    .expect("operation listed")
+            } else {
+                let project = project.as_deref().expect("a project command");
+                let (_, run) = self
+                    .call(
+                        "GET",
+                        &format!("/api/projects/{project}/runs/{}", body["id"]),
+                        None,
+                    )
+                    .await;
+                run
+            };
+            match current["status"].as_str() {
+                Some("queued" | "running") => {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+                Some("done") if current.get("operation").is_some() => {
+                    let slug = current["project"].as_str().expect("slug").to_owned();
+                    let (_, info) = self
+                        .call("GET", &format!("/api/projects/{slug}"), None)
+                        .await;
+                    return (StatusCode::OK, json!({"slug": slug, "info": info}));
+                }
+                Some("done") => return (StatusCode::OK, current["result"].clone()),
+                _ => {
+                    let error = current["error"].clone();
+                    let status = match error["kind"].as_str() {
+                        Some("validation") => StatusCode::UNPROCESSABLE_ENTITY,
+                        Some("cancelled") => StatusCode::CONFLICT,
+                        _ => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+                    return (status, error);
+                }
+            }
+        }
+        panic!("{id} did not finish");
+    }
+
     /// `POST /api/uploads` with one part per `(file name, bytes)`.
     async fn upload(&self, files: &[(&str, Vec<u8>)]) -> (StatusCode, Value) {
         const BOUNDARY: &str = "accessmod-test-boundary";
@@ -191,7 +246,7 @@ impl Server {
     /// Create project "Demo" with land cover (merged) and facilities.
     async fn demo(&self) -> String {
         let (status, created) = self
-            .command(
+            .command_done(
                 "project.create",
                 json!({"name": "Demo", "dem": {"path": self.path("dem.tif")}}),
             )
@@ -203,7 +258,7 @@ impl Server {
             ("hf.gpkg", "vFacility", ["health"]),
         ] {
             let (status, body) = self
-                .command(
+                .command_done(
                     "dataset.import",
                     json!({"project": slug, "source": {"path": self.path(file)}, "class": class, "tags": tags}),
                 )
@@ -424,7 +479,7 @@ async fn errors_are_json_with_their_status() {
 async fn a_country_server_refuses_local_paths() {
     let s = server(false);
     let (status, body) = s
-        .command(
+        .command_done(
             "project.create",
             json!({"name": "Demo", "dem": {"path": s.path("dem.tif")}}),
         )
@@ -537,7 +592,7 @@ async fn rows_page_vector_attributes_and_tables() {
     )
     .expect("write");
     let (status, body) = s
-        .command(
+        .command_done(
             "dataset.import",
             json!({"project": slug, "source": {"path": s.path("scenario.csv")}, "class": "tScenario", "tags": ["base"]}),
         )
@@ -610,7 +665,7 @@ async fn tables_download_as_csv_or_json() {
     let csv = "class,label,speed,mode\n1,\"forest, dense\",5,WALKING\n";
     std::fs::write(s.dir.path().join("scenario.csv"), csv).expect("write");
     let (status, body) = s
-        .command(
+        .command_done(
             "dataset.import",
             json!({"project": slug, "source": {"path": s.path("scenario.csv")}, "class": "tScenario", "tags": ["base", "dry season"]}),
         )
@@ -744,7 +799,7 @@ async fn uploads_create_projects_and_import_datasets() {
     let s = server(false);
     let dem = s.upload_files(&["dem.tif"]).await;
     let (status, created) = s
-        .command(
+        .command_done(
             "project.create",
             json!({"name": "Uploaded", "dem": {"upload": {"id": dem}}}),
         )
@@ -765,7 +820,7 @@ async fn uploads_create_projects_and_import_datasets() {
     let (status, up) = s.upload(&[("dem.tif", evil.into_bytes())]).await;
     assert_eq!(status, StatusCode::OK, "{up}");
     let (status, body) = s
-        .command(
+        .command_done(
             "project.create",
             json!({"name": "Evil", "dem": {"upload": {"id": up["id"]}}}),
         )
@@ -779,7 +834,7 @@ async fn uploads_create_projects_and_import_datasets() {
     let files = shapefile(s.dir.path());
     let hf = s.upload_files(&files).await;
     let (status, record) = s
-        .command(
+        .command_done(
             "dataset.import",
             json!({"project": slug, "source": {"upload": {"id": hf}}, "class": "vFacility", "tags": ["health"]}),
         )
@@ -790,14 +845,14 @@ async fn uploads_create_projects_and_import_datasets() {
     // Several main files: the command names one.
     let both = s.upload_files(&["lc.tif", "dem.tif"]).await;
     let (status, body) = s
-        .command(
+        .command_done(
             "dataset.import",
             json!({"project": slug, "source": {"upload": {"id": both}}, "class": "rLandCoverMerged", "tags": ["base"]}),
         )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     let (status, body) = s
-        .command(
+        .command_done(
             "dataset.import",
             json!({"project": slug, "source": {"upload": {"id": both, "file": "lc.tif"}}, "class": "rLandCoverMerged", "tags": ["base"]}),
         )
@@ -828,7 +883,7 @@ async fn uploads_are_confined_and_bounded() {
 
     for id in ["0", "../projects", "zz", ""] {
         let (status, body) = s
-            .command(
+            .command_done(
                 "project.create",
                 json!({"name": "X", "dem": {"upload": {"id": id}}}),
             )
@@ -845,7 +900,7 @@ async fn uploads_are_confined_and_bounded() {
     )
     .expect("owner");
     let (status, body) = s
-        .command(
+        .command_done(
             "project.create",
             json!({"name": "X", "dem": {"upload": {"id": id}}}),
         )
@@ -858,7 +913,7 @@ async fn uploads_are_confined_and_bounded() {
     )
     .expect("owner");
     let (status, body) = s
-        .command(
+        .command_done(
             "project.create",
             json!({"name": "X", "dem": {"upload": {"id": id, "file": "../../dem.tif"}}}),
         )
@@ -944,7 +999,7 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
 
     // A user project named Demo does not take the slug of the demo.
     let (status, created) = s
-        .command(
+        .command_done(
             "project.create",
             json!({"name": "Demo", "dem": {"path": s.path("dem.tif")}}),
         )
@@ -955,7 +1010,7 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
 
     // Reset builds it again, twice in a row too.
     for _ in 0..2 {
-        let (status, body) = s.command("demo.reset", json!({})).await;
+        let (status, body) = s.command_done("demo.reset", json!({})).await;
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body["slug"], "demo");
         assert_eq!(body["info"]["demo"], json!(true));
@@ -970,7 +1025,7 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
         .collect();
     entries.sort();
     assert_eq!(entries, ["demo", "demo-2"]);
-    let (status, _) = s.command("demo.reset", json!({"force": true})).await;
+    let (status, _) = s.command_done("demo.reset", json!({"force": true})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // A project in the place of the demo that is not the demo is kept.
@@ -987,7 +1042,7 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
         &|| false,
     )
     .expect("create");
-    let (status, body) = s.command("demo.reset", json!({})).await;
+    let (status, body) = s.command_done("demo.reset", json!({})).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     let (_, project) = s.call("GET", "/api/projects/demo", None).await;
     assert_eq!(project["name"], "Mine");
@@ -1111,7 +1166,7 @@ async fn values_list_the_classes_of_a_field_with_labels() {
         &[road(3, "Tertiary"), road(1, "Main road"), road(3, "Track")],
     );
     let (status, body) = s
-        .command(
+        .command_done(
             "dataset.import",
             json!({"project": slug, "source": {"path": s.path("roads.gpkg")}, "class": "vRoad", "tags": ["roads"]}),
         )
@@ -1192,7 +1247,7 @@ async fn projects_export_to_a_file_and_import_from_it() {
     let s = server(true);
     let slug = s.demo().await;
     let (status, exported) = s
-        .command("project.export", json!({"project": slug, "results": false}))
+        .command_done("project.export", json!({"project": slug, "results": false}))
         .await;
     assert_eq!(status, StatusCode::OK, "{exported}");
     let name = exported["name"].as_str().expect("name").to_owned();
@@ -1226,7 +1281,7 @@ async fn projects_export_to_a_file_and_import_from_it() {
     std::fs::write(s.dir.path().join("copy.am6p"), &bytes).expect("write");
 
     let (status, created) = s
-        .command(
+        .command_done(
             "project.import",
             json!({"name": "Copy", "package": {"path": s.path("copy.am6p")}}),
         )
@@ -1253,7 +1308,7 @@ async fn projects_export_to_a_file_and_import_from_it() {
     // Not a project file.
     std::fs::write(s.dir.path().join("bad.am6p"), b"not a zip").expect("write");
     let (status, _) = s
-        .command(
+        .command_done(
             "project.import",
             json!({"package": {"path": s.path("bad.am6p")}}),
         )

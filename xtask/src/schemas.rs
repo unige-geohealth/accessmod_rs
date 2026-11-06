@@ -129,8 +129,8 @@ fn types() -> Vec<(&'static str, Value)> {
         ("job-entry", schema::<accessmod_server::routes::JobEntry>()),
         ("basemap", schema::<accessmod_server::maps::Basemap>()),
         (
-            "created-project",
-            schema::<accessmod_server::commands::CreatedProject>(),
+            "pending-operation",
+            schema::<accessmod_server::operations::PendingOperation>(),
         ),
         (
             "analysis-info",
@@ -179,6 +179,18 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::commands::StartRun>(),
         ),
         ("run-ref", schema::<accessmod_server::commands::RunRef>()),
+        (
+            "remove-run",
+            schema::<accessmod_server::commands::RemoveRun>(),
+        ),
+        (
+            "operation-ref",
+            schema::<accessmod_server::commands::OperationRef>(),
+        ),
+        (
+            "queue-entry",
+            schema::<accessmod_server::runner::QueueEntry>(),
+        ),
         (
             "export-project",
             schema::<accessmod_server::commands::ExportProject>(),

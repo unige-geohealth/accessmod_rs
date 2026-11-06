@@ -1,6 +1,6 @@
 // Server state: TanStack Query only. Queries are refreshed by events
 // (events.ts) and after commands; nothing else writes them.
-import { QueryClient, useQuery } from "@tanstack/react-query";
+import { QueryClient, useQueries, useQuery } from "@tanstack/react-query";
 import type { Api } from "../generated/types";
 import { api, type RowsQuery } from "./client";
 
@@ -24,6 +24,10 @@ export const keys = {
   archives: (slug: string) => ["project", slug, "archives"] as const,
   runs: (slug: string) => ["project", slug, "runs"] as const,
   allRuns: ["runs"] as const,
+  /** Tasks waiting or running in the server's lanes (events keep it current). */
+  queue: ["queue"] as const,
+  /** Operations making projects (events keep it current). */
+  operations: ["operations"] as const,
   /** Latest progress of each running run, written by events only. */
   progress: (slug: string) => ["project", slug, "progress"] as const,
 };
@@ -58,13 +62,26 @@ export const useArchives = (slug: string | null) =>
 export const useJobs = (slug: string | null) =>
   useQuery({ queryKey: keys.jobs(slug ?? ""), queryFn: () => api.jobs(slug ?? ""), enabled: slug !== null });
 
-/** Progress is pushed by events, never fetched. */
-export const useProgress = (slug: string | null) =>
-  useQuery<ProgressByRun>({
-    queryKey: keys.progress(slug ?? ""),
-    queryFn: () => queryClient.getQueryData<ProgressByRun>(keys.progress(slug ?? "")) ?? {},
-    enabled: slug !== null,
-    staleTime: Infinity,
+/** Tasks of the lanes, read once then kept current by events. */
+export const useQueue = () => useQuery({ queryKey: keys.queue, queryFn: () => api.queue(), staleTime: Infinity });
+
+/** Operations making projects, read once then kept current by events. */
+export const useOperations = () => useQuery({ queryKey: keys.operations, queryFn: () => api.operations(), staleTime: Infinity });
+
+/** Progress of the runs of project `slug`: pushed by events, never fetched. */
+const progressQuery = (slug: string) => ({
+  queryKey: keys.progress(slug),
+  queryFn: () => queryClient.getQueryData<ProgressByRun>(keys.progress(slug)) ?? {},
+  staleTime: Infinity,
+});
+
+export const useProgress = (slug: string | null) => useQuery<ProgressByRun>({ ...progressQuery(slug ?? ""), enabled: slug !== null });
+
+/** Progress of the runs of several projects, by project. */
+export const useProgressOf = (slugs: readonly string[]): Readonly<Record<string, ProgressByRun>> =>
+  useQueries({
+    queries: slugs.map((slug) => progressQuery(slug)),
+    combine: (results) => Object.fromEntries(slugs.map((slug, i) => [slug, results[i]?.data ?? {}])),
   });
 
 /** A page of rows of a dataset; `id` `null` disables the query. */

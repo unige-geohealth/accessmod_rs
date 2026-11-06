@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "LaneName": {
+      "description": "A lane.",
+      "oneOf": [
+        {
+          "const": "compute",
+          "description": "Analyses.",
+          "type": "string"
+        },
+        {
+          "const": "io",
+          "description": "Operations: archives, exports, imports.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A task waiting or running in a lane, as clients see it.",
+  "properties": {
+    "lane": {
+      "$ref": "#/$defs/LaneName",
+      "description": "Lane."
+    },
+    "paused": {
+      "description": "Held by the user.",
+      "type": "boolean"
+    },
+    "position": {
+      "description": "0: running; 1: next; …",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "run": {
+      "description": "Run.",
+      "format": "int64",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "lane",
+    "project",
+    "run",
+    "position",
+    "paused"
+  ],
+  "title": "QueueEntry",
+  "type": "object"
+}

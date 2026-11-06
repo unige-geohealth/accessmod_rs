@@ -10,7 +10,7 @@ import { T, useI18n } from "@accessmod/ui/i18n";
 import { Progress } from "@accessmod/ui/ui/progress";
 import { useEffect, useMemo, useState } from "react";
 import { api, issuesOf } from "../api/client";
-import { useAllRuns, useDatasets, useProgress } from "../api/queries";
+import { useAllRuns, useDatasets, useProgressOf } from "../api/queries";
 import { navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
 import { datasetLabel } from "../state/catalogue";
@@ -24,11 +24,16 @@ export function JobsScreen({ route }: { route: Route }) {
   const all = useAllRuns();
   const scope = route.query.scope === "project" && route.project !== null ? "project" : "all";
   const entries = useMemo(() => (all.data ?? []).filter((e) => scope === "all" || e.project === route.project), [all.data, scope, route.project]);
-  // One worker: at most one run is running.
-  const running = entries.find((e) => e.run.status === "running");
-  const progress = useProgress(running?.project ?? null).data;
+  // A run per lane may be running: an analysis, an operation.
+  const running = entries.filter((e) => e.run.status === "running");
+  const progress = useProgressOf([...new Set(running.map((e) => e.project))]);
   const now = useNow(entries.some((e) => isActive(e.run)));
-  const stages = running && progress?.[running.run.id] ? { [jobKey(running)]: progress[running.run.id]! } : {};
+  const stages = Object.fromEntries(
+    running.flatMap((e) => {
+      const stage = progress[e.project]?.[e.run.id];
+      return stage === undefined ? [] : [[jobKey(e), stage] as const];
+    }),
+  );
   const format = useMemo(() => {
     const formatter = new Intl.DateTimeFormat(lang, { dateStyle: "short", timeStyle: "medium" });
     return (s: number) => formatter.format(new Date(s * 1000));

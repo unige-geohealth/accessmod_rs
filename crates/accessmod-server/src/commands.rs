@@ -7,7 +7,7 @@
 
 use accessmod_io::class::DataClass;
 use accessmod_io::project::{
-    ArchiveInfo, DatasetRecord, Id, ImportOptions, Project, ProjectInfo, RunRecord, SavedJob,
+    DatasetRecord, Id, ImportOptions, Project, ProjectInfo, RunRecord, SavedJob,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,10 @@ use serde_json::Value;
 use crate::auth::{Principal, Requirement, Role};
 use crate::error::{ApiError, ApiResult};
 use crate::events::Event;
+use crate::operations::{self, PendingOperation};
+use crate::runner::Cancel;
 use crate::settings::Settings;
-use crate::state::{AppState, DEMO_SLUG, new_slug};
+use crate::state::{AppState, DEMO_SLUG};
 use crate::uploads::{self, FileSource};
 
 /// Parameters naming the project they act on, if any.
@@ -233,6 +235,13 @@ pub fn registry() -> Vec<CommandSpec> {
             Requirement::Project(Role::Editor),
             RunRef,
             retry_run
+        ),
+        command!(
+            "operation.cancel",
+            "Cancel an operation making a project (creation, import, demo)",
+            Requirement::User,
+            OperationRef,
+            cancel_operation
         ),
         command!(
             "run.remove",
@@ -478,6 +487,20 @@ pub struct RunRef {
     pub id: Id,
 }
 
+/// An operation making a project.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OperationRef {
+    /// Operation, as `GET /api/operations` lists it.
+    pub id: Id,
+}
+
+impl Scoped for OperationRef {
+    fn project(&self) -> Option<&str> {
+        None
+    }
+}
+
 /// `run.remove`.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -558,56 +581,81 @@ scoped!(
 
 // ---- handlers ---------------------------------------------------------------
 
-/// A created project.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct CreatedProject {
-    /// Slug, used in every project path.
-    pub slug: String,
-    /// The project.
-    pub info: ProjectInfo,
-}
-
 fn create_project(
     state: &AppState,
     principal: &Principal,
     params: CreateProject,
-) -> ApiResult<CreatedProject> {
+) -> ApiResult<PendingOperation> {
     let dem = uploads::resolve(state, principal, &params.dem)?;
-    let projects = state.projects_dir();
-    let slug = new_slug(&projects, &params.name);
-    let settings = &state.config().settings;
-    let project = Project::create(
-        &projects.join(&slug),
-        &params.name,
-        &params.description,
-        &dem.path,
-        settings,
-        &|| false,
-    )?;
-    dem.consumed();
-    let info = project.info()?;
-    state.publish(Event::Projects);
-    Ok(CreatedProject { slug, info })
+    let slug = free_slug(state, &params.name);
+    let job = serde_json::json!({ "name": params.name, "description": params.description });
+    let (target, name) = (slug.clone(), params.name.clone());
+    operations::queue_pending(
+        state,
+        principal,
+        "project-create",
+        &slug,
+        &name,
+        job,
+        move |state, monitor| {
+            monitor.stage("import");
+            let project = Project::create(
+                &state.projects_dir().join(&target),
+                &params.name,
+                &params.description,
+                &dem.path,
+                &state.config().settings,
+                monitor.cancelled(),
+            )?;
+            let outcome = format!("created on the grid of {}", file_label(&dem.path));
+            dem.consumed();
+            Ok((project, outcome))
+        },
+    )
 }
 
-fn export_project(
-    state: &AppState,
-    _: &Principal,
-    params: ExportProject,
-) -> ApiResult<ExportedProject> {
-    let project = state.open(&params.project)?;
-    let name = project.export_latest(params.results, &|| false)?;
-    let bytes = std::fs::metadata(project.exported_package(&name)?)
-        .map(|m| m.len())
-        .unwrap_or(0);
-    Ok(ExportedProject { name, bytes })
+/// A slug for a new project named `name`: free on disk and not reserved by
+/// an operation making a project.
+fn free_slug(state: &AppState, name: &str) -> String {
+    crate::state::new_slug_except(&state.projects_dir(), name, &|slug| {
+        state.pending().reserves(slug)
+    })
+}
+
+/// The name of a file, for outcomes.
+fn file_label(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn export_project(state: &AppState, _: &Principal, params: ExportProject) -> ApiResult<RunRecord> {
+    let job = serde_json::json!({ "results": params.results });
+    operations::queue_in_project(
+        state,
+        &params.project,
+        "project-export",
+        &job,
+        &[],
+        |_, _| {},
+        move |project, monitor| {
+            let name = project.export_latest(params.results, monitor)?;
+            let bytes = std::fs::metadata(project.exported_package(&name)?)
+                .map(|m| m.len())
+                .unwrap_or(0);
+            Ok((
+                format!("exported to {name}"),
+                ExportedProject { name, bytes },
+            ))
+        },
+    )
 }
 
 fn import_project(
     state: &AppState,
     principal: &Principal,
     params: ImportProject,
-) -> ApiResult<CreatedProject> {
+) -> ApiResult<PendingOperation> {
     use accessmod_io::archive::{self, Limits};
     let package = uploads::resolve_archive(state, principal, &params.package)?;
     let projects = state.projects_dir();
@@ -620,6 +668,7 @@ fn import_project(
             .unwrap_or(Limits::default().bytes),
         ..Limits::default()
     };
+    // The manifest is read now: a file that is not a project fails at once.
     let manifest = archive::manifest(&package.path, limits)?;
     let from_file = manifest
         .content
@@ -627,20 +676,38 @@ fn import_project(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_owned();
-    let name = match params.name.trim() {
-        "" => from_file,
-        name => name.to_owned(),
+    let rename = params.name.trim().to_owned();
+    let name = if rename.is_empty() {
+        from_file
+    } else {
+        rename.clone()
     };
-    let slug = new_slug(&projects, &name);
-    let project = Project::import_package(&package.path, &projects.join(&slug), limits, &|| false)?;
-    if !params.name.trim().is_empty() {
-        let description = project.info()?.description;
-        project.rename(params.name.trim(), &description)?;
-    }
-    package.consumed();
-    let info = project.info()?;
-    state.publish(Event::Projects);
-    Ok(CreatedProject { slug, info })
+    let slug = free_slug(state, &name);
+    let target = slug.clone();
+    let file = file_label(&package.path);
+    let job = serde_json::json!({ "name": name, "file": file });
+    operations::queue_pending(
+        state,
+        principal,
+        "project-import",
+        &slug,
+        &name,
+        job,
+        move |state, monitor| {
+            let project = Project::import_package(
+                &package.path,
+                &state.projects_dir().join(&target),
+                limits,
+                monitor,
+            )?;
+            if !rename.is_empty() {
+                let description = project.info()?.description;
+                project.rename(&rename, &description)?;
+            }
+            package.consumed();
+            Ok((project, format!("imported from {file}")))
+        },
+    )
 }
 
 fn remove_project(state: &AppState, _: &Principal, params: ProjectRef) -> ApiResult<()> {
@@ -655,13 +722,35 @@ fn remove_project(state: &AppState, _: &Principal, params: ProjectRef) -> ApiRes
     Ok(())
 }
 
-fn reset_demo(state: &AppState, _: &Principal, _: ResetDemo) -> ApiResult<CreatedProject> {
-    state.reset_demo()?;
-    state.publish(Event::Projects);
-    Ok(CreatedProject {
-        slug: DEMO_SLUG.to_owned(),
-        info: state.open(DEMO_SLUG)?.info()?,
-    })
+fn reset_demo(
+    state: &AppState,
+    principal: &Principal,
+    _: ResetDemo,
+) -> ApiResult<PendingOperation> {
+    // Refused at once when the slug holds a user project (checked again
+    // when it runs).
+    if let Ok(project) = state.open(DEMO_SLUG)
+        && !project.info()?.demo
+    {
+        return Err(ApiError::BadRequest(format!(
+            "project {DEMO_SLUG:?} is not the demo project: remove it first"
+        )));
+    }
+    operations::queue_pending(
+        state,
+        principal,
+        "demo-reset",
+        DEMO_SLUG,
+        "Demo",
+        serde_json::json!({}),
+        |state, monitor| {
+            state.reset_demo(monitor.cancelled())?;
+            Ok((
+                state.open(DEMO_SLUG)?,
+                "built again from the AccessMod 5 sample data".to_owned(),
+            ))
+        },
+    )
 }
 
 fn default_project(state: &AppState, _: &Principal, params: DefaultProject) -> ApiResult<Settings> {
@@ -691,22 +780,47 @@ fn import_dataset(
     state: &AppState,
     principal: &Principal,
     params: ImportDataset,
-) -> ApiResult<DatasetRecord> {
+) -> ApiResult<RunRecord> {
     let source = uploads::resolve(state, principal, &params.source)?;
-    let project = state.open(&params.project)?;
-    let record = project.import(
-        &source.path,
-        params.class,
-        &params.tags,
-        &ImportOptions {
-            layer: params.layer,
+    let file = file_label(&source.path);
+    let job = serde_json::json!({
+        "file": file,
+        "class": params.class,
+        "tags": params.tags,
+        "layer": params.layer,
+    });
+    let settings = state.config().settings.clone();
+    operations::queue_in_project(
+        state,
+        &params.project,
+        "dataset-import",
+        &job,
+        &[],
+        catalogue,
+        move |project, monitor| {
+            monitor.stage("import");
+            let record = project.import(
+                &source.path,
+                params.class,
+                &params.tags,
+                &ImportOptions {
+                    layer: params.layer,
+                },
+                &settings,
+                monitor.cancelled(),
+            )?;
+            source.consumed();
+            Ok((
+                format!(
+                    "{file} imported as dataset {} ({} {})",
+                    record.id,
+                    record.class.label(),
+                    record.tags.join(" ")
+                ),
+                record,
+            ))
         },
-        &state.config().settings,
-        &|| false,
-    )?;
-    source.consumed();
-    catalogue(state, &params.project);
-    Ok(record)
+    )
 }
 
 fn tag_dataset(state: &AppState, _: &Principal, params: TagDataset) -> ApiResult<DatasetRecord> {
@@ -739,17 +853,31 @@ fn remove_dataset(state: &AppState, _: &Principal, params: DatasetRef) -> ApiRes
     Ok(())
 }
 
-fn create_archive(
-    state: &AppState,
-    _: &Principal,
-    params: CreateArchive,
-) -> ApiResult<ArchiveInfo> {
-    Ok(state.open(&params.project)?.create_archive(
-        &params.name,
-        &params.datasets,
-        &params.runs,
-        &|| false,
-    )?)
+fn create_archive(state: &AppState, _: &Principal, params: CreateArchive) -> ApiResult<RunRecord> {
+    if params.datasets.is_empty() && params.runs.is_empty() {
+        return Err(ApiError::BadRequest(
+            "nothing to archive: select datasets or jobs".into(),
+        ));
+    }
+    let job = serde_json::json!({
+        "name": params.name,
+        "datasets": params.datasets,
+        "runs": params.runs,
+    });
+    let (slug, inputs) = (params.project.clone(), params.datasets.clone());
+    operations::queue_in_project(
+        state,
+        &slug,
+        "archive",
+        &job,
+        &inputs,
+        |_, _| {},
+        move |project, monitor| {
+            let info =
+                project.create_archive(&params.name, &params.datasets, &params.runs, monitor)?;
+            Ok((format!("archived as {}", info.name), info))
+        },
+    )
 }
 
 fn remove_archive(state: &AppState, _: &Principal, params: ArchiveRef) -> ApiResult<()> {
@@ -820,7 +948,7 @@ fn queue_analysis(state: &AppState, project: &Project, slug: &str, id: Id) -> Ap
 fn cancel_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunRecord> {
     let project = state.open(&params.project)?;
     let was_queued = project.cancel_queued(params.id)?;
-    let signalled = state.runner().cancel(&params.project, params.id);
+    let signalled = state.runner().cancel(&params.project, params.id) != Cancel::None;
     let record = project.run_record(params.id)?;
     if !was_queued && !signalled {
         return Err(ApiError::Engine(accessmod_io::error::Error::invalid(
@@ -836,6 +964,14 @@ fn cancel_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunR
         run: Box::new(record.clone()),
     });
     Ok(record)
+}
+
+fn cancel_operation(
+    state: &AppState,
+    principal: &Principal,
+    params: OperationRef,
+) -> ApiResult<PendingOperation> {
+    operations::cancel_pending(state, principal, params.id)
 }
 
 fn pause_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunRecord> {

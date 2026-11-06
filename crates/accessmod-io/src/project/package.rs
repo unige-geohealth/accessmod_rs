@@ -13,6 +13,7 @@
 //! SQLite's `quick_check`, hold no trigger nor view, open with this engine
 //! (migrations, newer versions refused), and name only files inside it.
 
+use crate::analysis::Monitor;
 use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
@@ -27,6 +28,11 @@ pub const PACKAGE_FORMAT: &str = "am6p";
 
 /// Extension of project files.
 pub const PACKAGE_EXTENSION: &str = "am6p";
+
+/// Progress stage of an export: the database snapshot.
+pub const STAGE_SNAPSHOT: &str = "snapshot";
+/// Progress stage of an import: checking the database and files.
+pub const STAGE_CHECK: &str = "check";
 
 /// What a project file holds, in its manifest.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -74,9 +80,9 @@ impl Project {
 
     /// Export the project to [`Project::exports_dir`], removing exports older
     /// than an hour (time to download them) once it is written; the file name.
-    pub fn export_latest(&self, results: bool, cancelled: &dyn Fn() -> bool) -> Result<String> {
+    pub fn export_latest(&self, results: bool, monitor: Monitor<'_>) -> Result<String> {
         let dir = self.exports_dir();
-        let path = self.export_package(&dir, results, cancelled)?;
+        let path = self.export_package(&dir, results, monitor)?;
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -127,7 +133,7 @@ impl Project {
         &self,
         dir: &Path,
         results: bool,
-        cancelled: &dyn Fn() -> bool,
+        monitor: Monitor<'_>,
     ) -> Result<PathBuf> {
         // Held while files are read: the project is not removed meanwhile.
         let _hold = self.activity()?;
@@ -147,7 +153,7 @@ impl Project {
             &info.name,
             &info.description,
             results,
-            cancelled,
+            monitor,
         );
         let _ = std::fs::remove_file(&snapshot);
         result
@@ -160,8 +166,9 @@ impl Project {
         name: &str,
         description: &str,
         results: bool,
-        cancelled: &dyn Fn() -> bool,
+        monitor: Monitor<'_>,
     ) -> Result<PathBuf> {
+        monitor.stage(STAGE_SNAPSHOT);
         self.db
             .execute("VACUUM INTO ?1", [snapshot.to_string_lossy()])
             .map_err(self.db_error())?;
@@ -252,15 +259,8 @@ impl Project {
             1 => format!("{stem}_{stamp}.{PACKAGE_EXTENSION}"),
             n => format!("{stem}_{stamp}_{n}.{PACKAGE_EXTENSION}"),
         });
-        archive::write(
-            dir,
-            &mut names,
-            &entries,
-            PACKAGE_FORMAT,
-            content,
-            cancelled,
-        )
-        .map(|(path, _)| path)
+        archive::write(dir, &mut names, &entries, PACKAGE_FORMAT, content, monitor)
+            .map(|(path, _)| path)
     }
 
     /// Import the project file `package` as the new project directory
@@ -270,7 +270,7 @@ impl Project {
         package: &Path,
         target: &Path,
         limits: Limits,
-        cancelled: &dyn Fn() -> bool,
+        monitor: Monitor<'_>,
     ) -> Result<Project> {
         if target.exists() {
             return Err(Error::invalid(format!(
@@ -289,7 +289,7 @@ impl Project {
                 .map(|d| d.as_nanos())
                 .unwrap_or(0)
         ));
-        let checked = archive::extract(package, &staging, limits, cancelled).and_then(|manifest| {
+        let checked = archive::extract(package, &staging, limits, monitor).and_then(|manifest| {
             if manifest.format != PACKAGE_FORMAT {
                 return Err(Error::invalid(format!(
                     "{} is not an AccessMod project file (format {:?})",
@@ -297,6 +297,7 @@ impl Project {
                     manifest.format
                 )));
             }
+            monitor.stage(STAGE_CHECK);
             check_database(&staging.join(DB_FILE))?;
             let project = Project::open(&staging)?;
             project.check_files()?;

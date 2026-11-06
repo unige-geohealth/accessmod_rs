@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`run.remove`.",
+  "properties": {
+    "id": {
+      "description": "Run.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "outputs": {
+      "default": false,
+      "description": "Remove its output datasets too; otherwise they stay, no longer linked\nto a run.",
+      "type": "boolean"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "id"
+  ],
+  "title": "RemoveRun",
+  "type": "object"
+}

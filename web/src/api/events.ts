@@ -4,6 +4,7 @@
 import { useEffect } from "react";
 import type { Api } from "../generated/types";
 import { keys, type ProgressByRun, queryClient } from "./queries";
+import { settleOperation, settleRun } from "./tasks";
 
 /** Insert or replace `run` in the cached runs of `project`. */
 function upsertRun(project: string, run: Api.RunRecord) {
@@ -14,7 +15,7 @@ function upsertRun(project: string, run: Api.RunRecord) {
   });
 }
 
-const NAMES = ["run", "progress", "catalogue", "projects"] as const;
+const NAMES = ["run", "runs", "progress", "catalogue", "projects", "queue", "pending"] as const;
 
 /** The server dropped events for this client: reload everything shown. */
 function resync() {
@@ -25,12 +26,34 @@ function handle(event: Api.Event) {
   switch (event.type) {
     case "run":
       upsertRun(event.project, event.run);
+      settleRun(event.project, event.run);
       void queryClient.invalidateQueries({ queryKey: keys.allRuns });
       if (event.run.status !== "queued" && event.run.status !== "running") {
         // A finished run registers its outputs as datasets.
         void queryClient.invalidateQueries({ queryKey: keys.datasets(event.project) });
         void queryClient.invalidateQueries({ queryKey: keys.runs(event.project) });
+        if (event.run.kind === "manage" && event.run.analysis === "archive") {
+          void queryClient.invalidateQueries({ queryKey: keys.archives(event.project) });
+        }
       }
+      return;
+    case "runs":
+      void queryClient.invalidateQueries({ queryKey: keys.runs(event.project) });
+      void queryClient.invalidateQueries({ queryKey: keys.allRuns });
+      return;
+    case "queue":
+      queryClient.setQueryData<Api.QueueEntry[]>(keys.queue, (all) => [
+        ...(all ?? []).filter((e) => e.lane !== event.lane),
+        ...event.entries,
+      ]);
+      return;
+    case "pending":
+      settleOperation(event.operation);
+      queryClient.setQueryData<Api.PendingOperation[]>(keys.operations, (all) => [
+        ...(all ?? []).filter((o) => o.id !== event.operation.id),
+        event.operation,
+      ]);
+      if (event.operation.status === "done") void queryClient.invalidateQueries({ queryKey: keys.projects });
       return;
     case "catalogue":
       void queryClient.invalidateQueries({ queryKey: keys.datasets(event.project) });

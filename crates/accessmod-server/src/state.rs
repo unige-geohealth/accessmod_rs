@@ -47,6 +47,18 @@ pub struct AppState {
     inner: Arc<Inner>,
 }
 
+/// A handle on the state that does not keep it alive: what a queued task
+/// holds, so that dropping the state stops the lanes.
+#[derive(Debug, Clone)]
+pub struct WeakState(std::sync::Weak<Inner>);
+
+impl WeakState {
+    /// The state, while it lives.
+    pub fn upgrade(&self) -> Option<AppState> {
+        self.0.upgrade().map(|inner| AppState { inner })
+    }
+}
+
 #[derive(Debug)]
 struct Inner {
     config: Config,
@@ -56,6 +68,8 @@ struct Inner {
     settings: Mutex<Settings>,
     /// Held while the demo project is rebuilt.
     demo: Mutex<()>,
+    /// Operations making projects, in memory.
+    pending: crate::operations::Pending,
 }
 
 impl AppState {
@@ -102,6 +116,7 @@ impl AppState {
                 runner,
                 settings,
                 demo: Mutex::new(()),
+                pending: crate::operations::Pending::default(),
             }),
         })
     }
@@ -175,7 +190,7 @@ impl AppState {
     /// Build the demo project again from the embedded data, then put it in
     /// place of the current one (removed once its imports and runs are
     /// over): a failed build leaves the current demo as it was.
-    pub fn reset_demo(&self) -> ApiResult<()> {
+    pub fn reset_demo(&self, cancelled: accessmod_io::analysis::Cancelled<'_>) -> ApiResult<()> {
         let _guard = self
             .inner
             .demo
@@ -203,11 +218,11 @@ impl AppState {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_nanos())
         ));
-        drop(accessmod_io::demo::create(
-            &built,
-            &self.inner.config.settings,
-            &|| false,
-        )?);
+        let made = accessmod_io::demo::create(&built, &self.inner.config.settings, cancelled);
+        if let Err(error) = made {
+            let _ = std::fs::remove_dir_all(&built);
+            return Err(error.into());
+        }
         let replaced = current
             .map_or(Ok(()), |p| p.remove().map_err(ApiError::from))
             .and_then(|()| {
@@ -234,6 +249,21 @@ impl AppState {
     /// The run queue.
     pub fn runner(&self) -> &Runner {
         &self.inner.runner
+    }
+
+    /// A handle that does not keep the state alive.
+    pub fn downgrade(&self) -> WeakState {
+        WeakState(Arc::downgrade(&self.inner))
+    }
+
+    /// Operations making projects.
+    pub fn pending(&self) -> &crate::operations::Pending {
+        &self.inner.pending
+    }
+
+    /// The event channel, for workers publishing progress.
+    pub fn events(&self) -> broadcast::Sender<Event> {
+        self.inner.events.clone()
     }
 
     /// A file named by a request, when local paths are allowed.
@@ -275,6 +305,11 @@ pub fn check_slug(slug: &str) -> ApiResult<()> {
 
 /// A free slug for a project named `name`.
 pub fn new_slug(projects: &Path, name: &str) -> String {
+    new_slug_except(projects, name, &|_| false)
+}
+
+/// [`new_slug`], also skipping the slugs `reserved` says are taken.
+pub fn new_slug_except(projects: &Path, name: &str, reserved: &dyn Fn(&str) -> bool) -> String {
     let mut base = String::new();
     for c in name.chars().flat_map(char::to_lowercase) {
         if c.is_ascii_alphanumeric() {
@@ -291,7 +326,7 @@ pub fn new_slug(projects: &Path, name: &str) -> String {
     };
     let mut slug = base.clone();
     let mut n = 2;
-    while slug == DEMO_SLUG || projects.join(&slug).exists() {
+    while slug == DEMO_SLUG || projects.join(&slug).exists() || reserved(&slug) {
         slug = format!("{base}-{n}");
         n += 1;
     }
@@ -325,6 +360,12 @@ mod tests {
         assert_eq!(new_slug(dir.path(), "  "), "project");
         std::fs::create_dir(dir.path().join("demo")).unwrap();
         assert_eq!(new_slug(dir.path(), "Demo"), "demo-2");
+        // A reserved slug is skipped, however long the name.
+        let long = "a".repeat(60);
+        let first = new_slug(dir.path(), &long);
+        let second = new_slug_except(dir.path(), &long, &|s| s == first);
+        assert_ne!(first, second);
+        assert!(check_slug(&second).is_ok());
         assert!(check_slug("../etc").is_err());
         assert!(check_slug("demo-2").is_ok());
         assert!(check_slug("").is_err());

@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "Progress": {
+      "description": "Progress of a running analysis, reported through a [`Monitor`].\n\nStages are stable identifiers, the keys of `durations_s` in `run.json`\n(`load_inputs`, `solve`, `write_outputs`, …), so an interface can\ntranslate them. Progress never changes results.",
+      "properties": {
+        "done": {
+          "description": "Units done in the stage (cells, searches, facilities, iterations).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stage": {
+          "description": "Stage identifier.",
+          "type": "string"
+        },
+        "total": {
+          "description": "Units in the stage, when known.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "stage",
+        "done"
+      ],
+      "type": "object"
+    },
+    "RunError": {
+      "description": "Why a run failed.",
+      "properties": {
+        "issues": {
+          "description": "Every problem found.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "description": "`validation`, `io`, `computation`, `cancelled` or `internal`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "issues"
+      ],
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "State of a run.",
+      "oneOf": [
+        {
+          "const": "queued",
+          "description": "Waiting for its turn.",
+          "type": "string"
+        },
+        {
+          "const": "running",
+          "description": "In progress.",
+          "type": "string"
+        },
+        {
+          "const": "done",
+          "description": "Finished; outputs registered.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "Stopped by an error.",
+          "type": "string"
+        },
+        {
+          "const": "cancelled",
+          "description": "Cancelled by the user.",
+          "type": "string"
+        },
+        {
+          "const": "interrupted",
+          "description": "Stopped by a crash or restart; outputs are incomplete.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "An operation making a project, while it is not recorded in it.",
+  "properties": {
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Why it failed."
+    },
+    "finished": {
+      "description": "End, seconds since the Unix epoch.",
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "id": {
+      "description": "Identifier, unique while the server runs.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "name": {
+      "description": "Name of the project it makes.",
+      "type": "string"
+    },
+    "operation": {
+      "description": "`project-create`, `project-import` or `demo-reset`.",
+      "type": "string"
+    },
+    "owner": {
+      "description": "User who started it.",
+      "type": "string"
+    },
+    "progress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Progress"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Latest progress while running."
+    },
+    "project": {
+      "description": "Slug of the project it makes.",
+      "type": "string"
+    },
+    "started": {
+      "description": "Start, seconds since the Unix epoch.",
+      "format": "int64",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/RunStatus",
+      "description": "Queued, running, done, failed or cancelled."
+    }
+  },
+  "required": [
+    "id",
+    "operation",
+    "project",
+    "name",
+    "owner",
+    "status",
+    "started"
+  ],
+  "title": "PendingOperation",
+  "type": "object"
+}

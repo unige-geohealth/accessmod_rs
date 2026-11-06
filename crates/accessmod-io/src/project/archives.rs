@@ -9,6 +9,7 @@
 //! when its inputs are in the archive (the manifest says which runs are
 //! `replayable`). Overviews (`.ovr`) are left out: they are rebuilt.
 
+use crate::analysis::Monitor;
 use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
@@ -155,7 +156,7 @@ impl Project {
         name: &str,
         datasets: &[Id],
         runs: &[Id],
-        cancelled: &dyn Fn() -> bool,
+        monitor: Monitor<'_>,
     ) -> Result<ArchiveInfo> {
         if datasets.is_empty() && runs.is_empty() {
             return Err(Error::invalid(
@@ -264,8 +265,7 @@ impl Project {
             1 => format!("{prefix}_{stamp}.zip"),
             n => format!("{prefix}_{stamp}_{n}.zip"),
         });
-        let (path, _) =
-            archive::write(&dir, &mut names, &entries, DATA_ARCHIVE, content, cancelled)?;
+        let (path, _) = archive::write(&dir, &mut names, &entries, DATA_ARCHIVE, content, monitor)?;
         let bytes = std::fs::metadata(&path).map_err(Error::file(&path))?.len();
         Ok(ArchiveInfo {
             name: path

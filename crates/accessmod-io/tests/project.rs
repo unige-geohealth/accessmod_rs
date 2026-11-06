@@ -436,12 +436,15 @@ fn project_files_round_trip_with_or_without_results() {
 
     // With results: the same catalogue, runs and files.
     let file = project
-        .export_package(&exports, true, &|| false)
+        .export_package(&exports, true, Monitor::QUIET)
         .expect("export");
     assert!(file.extension().is_some_and(|e| e == "am6p"));
-    let copy = Project::import_package(&file, &dir.path().join("copy"), Limits::default(), &|| {
-        false
-    })
+    let copy = Project::import_package(
+        &file,
+        &dir.path().join("copy"),
+        Limits::default(),
+        Monitor::QUIET,
+    )
     .expect("import");
     assert_eq!(copy.info().expect("info").name, "Demo");
     assert_eq!(
@@ -457,22 +460,25 @@ fn project_files_round_trip_with_or_without_results() {
     }
     // Never into an existing directory.
     assert!(
-        Project::import_package(&file, &dir.path().join("copy"), Limits::default(), &|| {
-            false
-        })
+        Project::import_package(
+            &file,
+            &dir.path().join("copy"),
+            Limits::default(),
+            Monitor::QUIET
+        )
         .is_err()
     );
 
     // Without results: imported datasets only; runs keep their jobs.
     let light = project
-        .export_package(&exports, false, &|| false)
+        .export_package(&exports, false, Monitor::QUIET)
         .expect("export");
     assert_ne!(light, file);
     let copy = Project::import_package(
         &light,
         &dir.path().join("light"),
         Limits::default(),
-        &|| false,
+        Monitor::QUIET,
     )
     .expect("import");
     let kept: Vec<i64> = copy
@@ -490,13 +496,13 @@ fn project_files_round_trip_with_or_without_results() {
 
     // A data archive is not a project file; a database with code is refused.
     let data = project
-        .create_archive("", &[1], &[], &|| false)
+        .create_archive("", &[1], &[], Monitor::QUIET)
         .expect("archive");
     let err = Project::import_package(
         &project.archive_path(&data.name).expect("path"),
         &dir.path().join("bad"),
         Limits::default(),
-        &|| false,
+        Monitor::QUIET,
     )
     .expect_err("data archive");
     assert!(
@@ -522,14 +528,14 @@ fn project_files_round_trip_with_or_without_results() {
         }],
         "am6p",
         serde_json::Value::Null,
-        &|| false,
+        Monitor::QUIET,
     )
     .expect("hostile");
     let err = Project::import_package(
         &hostile,
         &dir.path().join("bad"),
         Limits::default(),
-        &|| false,
+        Monitor::QUIET,
     )
     .expect_err("trigger");
     assert!(err.to_string().contains("schema differs"), "{err}");
@@ -575,7 +581,7 @@ fn project_files_round_trip_with_or_without_results() {
             &entries,
             "am6p",
             serde_json::Value::Null,
-            &|| false,
+            Monitor::QUIET,
         )
         .expect("repack")
         .0
@@ -586,7 +592,7 @@ fn project_files_round_trip_with_or_without_results() {
         &sidecar,
         &dir.path().join("bad"),
         Limits::default(),
-        &|| false,
+        Monitor::QUIET,
     )
     .expect_err("sidecar");
     assert!(err.to_string().contains("beside a dataset"), "{err}");
@@ -596,17 +602,23 @@ fn project_files_round_trip_with_or_without_results() {
         project.root().join("datasets/1.tif").display()
     );
     let hidden = repack(&[], Some(("datasets/1.tif", vrt.as_bytes())));
-    let err = Project::import_package(&hidden, &dir.path().join("bad"), Limits::default(), &|| {
-        false
-    })
+    let err = Project::import_package(
+        &hidden,
+        &dir.path().join("bad"),
+        Limits::default(),
+        Monitor::QUIET,
+    )
     .expect_err("vrt");
     assert!(err.to_string().contains("not a supported file"), "{err}");
     assert!(!dir.path().join("bad").exists());
     // The light copy itself, repacked unchanged, imports.
     let same = repack(&[], None);
-    Project::import_package(&same, &dir.path().join("again"), Limits::default(), &|| {
-        false
-    })
+    Project::import_package(
+        &same,
+        &dir.path().join("again"),
+        Limits::default(),
+        Monitor::QUIET,
+    )
     .expect("repacked");
     // No staging directory left behind.
     assert!(
@@ -639,7 +651,7 @@ fn archived_runs_replay_to_identical_outputs() {
     // The run filter of Data: its inputs and outputs, and its job.
     let datasets: Vec<i64> = run.inputs.iter().chain(&run.datasets).copied().collect();
     let info = project
-        .create_archive("e2e", &datasets, &[run.id], &|| false)
+        .create_archive("e2e", &datasets, &[run.id], Monitor::QUIET)
         .expect("archive");
     assert!(info.name.starts_with("e2e_") && info.name.ends_with(".zip"));
     assert_eq!(
@@ -652,7 +664,7 @@ fn archived_runs_replay_to_identical_outputs() {
         &project.archive_path(&info.name).expect("path"),
         &out,
         Limits::default(),
-        &|| false,
+        Monitor::QUIET,
     )
     .expect("extract");
     assert_eq!(manifest.format, "accessmod-data");
@@ -674,7 +686,7 @@ fn archived_runs_replay_to_identical_outputs() {
 
     // Without its inputs, the run is not replayable; archives are removed by name.
     let partial = project
-        .create_archive("", &run.datasets, &[run.id], &|| false)
+        .create_archive("", &run.datasets, &[run.id], Monitor::QUIET)
         .expect("archive");
     assert!(partial.name.starts_with("am6_export_"));
     let manifest = accessmod_io::archive::manifest(
@@ -688,10 +700,14 @@ fn archived_runs_replay_to_identical_outputs() {
     for bad in ["../project.sqlite", "x.zip", ".hidden.zip", "a/b.zip"] {
         assert!(project.archive_path(bad).is_err(), "{bad}");
     }
-    assert!(project.create_archive("", &[], &[], &|| false).is_err());
     assert!(
         project
-            .create_archive("bad name!", &[1], &[], &|| false)
+            .create_archive("", &[], &[], Monitor::QUIET)
+            .is_err()
+    );
+    assert!(
+        project
+            .create_archive("bad name!", &[1], &[], Monitor::QUIET)
             .is_err()
     );
 
@@ -701,7 +717,7 @@ fn archived_runs_replay_to_identical_outputs() {
     let mut rest: Vec<i64> = run.inputs.iter().chain(&run.datasets).copied().collect();
     rest.retain(|&id| id != 2);
     let gone = project
-        .create_archive("gone", &rest, &[run.id], &|| false)
+        .create_archive("gone", &rest, &[run.id], Monitor::QUIET)
         .expect("archive");
     let manifest = accessmod_io::archive::manifest(
         &project.archive_path(&gone.name).expect("path"),
@@ -719,7 +735,7 @@ fn archived_runs_replay_to_identical_outputs() {
         std::fs::remove_file(&facilities).expect("rm");
         std::os::unix::fs::symlink(&secret, &facilities).expect("link");
         let err = project
-            .create_archive("", &[3], &[], &|| false)
+            .create_archive("", &[3], &[], Monitor::QUIET)
             .expect_err("link");
         assert!(err.to_string().contains("leaves the project"), "{err}");
         std::os::unix::fs::symlink(&secret, project.root().join("archives/evil.zip"))

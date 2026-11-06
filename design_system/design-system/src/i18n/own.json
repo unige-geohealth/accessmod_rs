@@ -1012,5 +1012,113 @@
     "fr": "Avec les résultats (sorties des analyses) ; sans, les analyses gardent seulement leurs jobs",
     "es": "Con los resultados (salidas de los análisis); sin ellos, los análisis conservan solo sus trabajos",
     "pt": "Com os resultados (saídas das análises); sem eles, as análises mantêm apenas os seus trabalhos"
+  },
+  "task.waiting": {
+    "en": "Waiting in the queue: %s before it",
+    "fr": "En attente dans la file : %s avant",
+    "es": "En espera en la cola: %s antes",
+    "pt": "Aguardando na fila: %s antes"
+  },
+  "task.paused": {
+    "en": "Paused",
+    "fr": "En pause",
+    "es": "En pausa",
+    "pt": "Em pausa"
+  },
+  "task.starting": {
+    "en": "Starting…",
+    "fr": "Démarrage…",
+    "es": "Iniciando…",
+    "pt": "Iniciando…"
+  },
+  "task.stage_percent": {
+    "en": "%1$s: %2$s %%",
+    "fr": "%1$s : %2$s %%",
+    "es": "%1$s: %2$s %%",
+    "pt": "%1$s: %2$s %%"
+  },
+  "task.stage_archive": {
+    "en": "Writing the archive",
+    "fr": "Écriture de l'archive",
+    "es": "Escribiendo el archivo",
+    "pt": "Escrevendo o arquivo"
+  },
+  "task.stage_extract": {
+    "en": "Extracting the project file",
+    "fr": "Extraction du fichier projet",
+    "es": "Extrayendo el archivo de proyecto",
+    "pt": "Extraindo o arquivo de projeto"
+  },
+  "task.stage_snapshot": {
+    "en": "Copying the project database",
+    "fr": "Copie de la base du projet",
+    "es": "Copiando la base del proyecto",
+    "pt": "Copiando a base do projeto"
+  },
+  "task.stage_check": {
+    "en": "Checking the project file",
+    "fr": "Vérification du fichier projet",
+    "es": "Verificando el archivo de proyecto",
+    "pt": "Verificando o arquivo de projeto"
+  },
+  "task.stage_import": {
+    "en": "Importing",
+    "fr": "Import",
+    "es": "Importando",
+    "pt": "Importando"
+  },
+  "task.queued_as": {
+    "en": "Queued as job %s: follow it here or in Jobs",
+    "fr": "Ajouté à la file (job %s) : suivez-le ici ou dans Jobs",
+    "es": "En cola (trabajo %s): sígalo aquí o en Jobs",
+    "pt": "Na fila (trabalho %s): acompanhe aqui ou em Jobs"
+  },
+  "task.cancel": {
+    "en": "Cancel",
+    "fr": "Annuler",
+    "es": "Cancelar",
+    "pt": "Cancelar"
+  },
+  "project.exported": {
+    "en": "Exported as %s: the download starts.",
+    "fr": "Exporté sous %s : le téléchargement démarre.",
+    "es": "Exportado como %s: comienza la descarga.",
+    "pt": "Exportado como %s: o download começa."
+  },
+  "jobs.op_archive": {
+    "en": "Archive",
+    "fr": "Archive",
+    "es": "Archivo",
+    "pt": "Arquivo"
+  },
+  "jobs.op_project_export": {
+    "en": "Project export",
+    "fr": "Export du projet",
+    "es": "Exportación del proyecto",
+    "pt": "Exportação do projeto"
+  },
+  "jobs.op_dataset_import": {
+    "en": "Data import",
+    "fr": "Import de données",
+    "es": "Importación de datos",
+    "pt": "Importação de dados"
+  },
+  "jobs.op_project_create": {
+    "en": "Project creation",
+    "fr": "Création du projet",
+    "es": "Creación del proyecto",
+    "pt": "Criação do projeto"
+  },
+  "jobs.op_project_import": {
+    "en": "Project import",
+    "fr": "Import du projet",
+    "es": "Importación del proyecto",
+    "pt": "Importação do projeto"
+  },
+  "jobs.op_demo_reset": {
+    "en": "Demo rebuilt",
+    "fr": "Démo reconstruite",
+    "es": "Demo reconstruida",
+    "pt": "Demo reconstruída"
   }
 }

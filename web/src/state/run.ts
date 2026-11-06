@@ -43,9 +43,9 @@ export function minutes(record: Api.RunRecord): number {
   return Math.max(0, (record.finished ?? record.started) - record.started) / 60;
 }
 
-/** Finished runs of the project, newest first: those whose job, inputs and outputs Data shows. */
+/** Finished analyses of the project, newest first: those whose job, inputs and outputs Data shows (operations are not jobs). */
 export function doneRuns(runs: readonly Api.RunRecord[] | undefined): Api.RunRecord[] {
-  return (runs ?? []).filter((r) => r.status === "done").sort((a, b) => b.id - a.id);
+  return (runs ?? []).filter((r) => r.status === "done" && (r.kind ?? "analysis") === "analysis").sort((a, b) => b.id - a.id);
 }
 
 /** The latest finished run ("Filter last results"), if any. */

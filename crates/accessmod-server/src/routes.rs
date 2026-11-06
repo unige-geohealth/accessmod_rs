@@ -596,6 +596,17 @@ pub async fn queue(
     Json(entries)
 }
 
+/// `GET /api/operations`: operations making projects (creation, import,
+/// demo) the caller started, while they run and shortly after.
+pub async fn operations(
+    State(state): State<AppState>,
+    principal: Principal,
+) -> Json<Vec<crate::operations::PendingOperation>> {
+    let mut operations = state.pending().list();
+    operations.retain(|o| o.visible_to(&principal));
+    Json(operations)
+}
+
 /// `POST /api/projects/{project}/analyses/{name}/validate`: check a job
 /// document against the inputs, without computing.
 pub async fn validate(

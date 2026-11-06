@@ -22,7 +22,13 @@ use sha2::{Digest, Sha256};
 use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 
+use crate::analysis::Monitor;
 use crate::error::{Error, Result};
+
+/// Progress stage of [`write`]: bytes read of the files to archive.
+pub const STAGE_WRITE: &str = "archive";
+/// Progress stage of [`extract`]: bytes extracted of the archive.
+pub const STAGE_EXTRACT: &str = "extract";
 
 /// Name of the manifest inside an archive.
 pub const MANIFEST: &str = "manifest.json";
@@ -165,7 +171,7 @@ pub fn write(
     entries: &[Entry],
     format: &str,
     content: serde_json::Value,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<(PathBuf, Manifest)> {
     let mut seen = std::collections::HashSet::new();
     for entry in entries {
@@ -183,7 +189,7 @@ pub fn write(
         }
     }
     let partial = partial_file(dir)?;
-    let result = write_to(&partial, entries, format, content, cancelled)
+    let result = write_to(&partial, entries, format, content, monitor)
         .and_then(|manifest| publish(&partial, dir, names).map(|path| (path, manifest)));
     let _ = std::fs::remove_file(&partial);
     result
@@ -240,7 +246,7 @@ fn write_to(
     entries: &[Entry],
     format: &str,
     content: serde_json::Value,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<Manifest> {
     let file = std::fs::OpenOptions::new()
         .write(true)
@@ -250,6 +256,16 @@ fn write_to(
     let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(file));
     let mut files = Vec::with_capacity(entries.len());
     let mut buffer = vec![0u8; 1 << 20];
+    // Progress in bytes: the files as they are now (one may still grow).
+    let total: u64 = entries
+        .iter()
+        .map(|e| match &e.source {
+            Source::File(path) => std::fs::metadata(path).map(|m| m.len()).unwrap_or(0),
+            Source::Bytes(data) => data.len() as u64,
+        })
+        .fold(0u64, u64::saturating_add);
+    let mut done = 0u64;
+    monitor.advance(STAGE_WRITE, 0, Some(total));
     for entry in entries {
         // A streamed file may grow while it is read: always zip64.
         let options = SimpleFileOptions::default()
@@ -267,11 +283,12 @@ fn write_to(
                 hasher.update(data);
                 zip.write_all(data).map_err(Error::file(path))?;
                 bytes = data.len() as u64;
+                done += bytes;
             }
             Source::File(source) => {
                 let mut input = std::fs::File::open(source).map_err(Error::file(source))?;
                 loop {
-                    if cancelled() {
+                    if monitor.is_cancelled() {
                         return Err(Error::Cancelled);
                     }
                     let n = input.read(&mut buffer).map_err(Error::file(source))?;
@@ -281,6 +298,8 @@ fn write_to(
                     hasher.update(&buffer[..n]);
                     zip.write_all(&buffer[..n]).map_err(Error::file(path))?;
                     bytes += n as u64;
+                    done += n as u64;
+                    monitor.advance(STAGE_WRITE, done, Some(total.max(done)));
                 }
             }
         }
@@ -427,7 +446,7 @@ pub fn extract(
     archive: &Path,
     target: &Path,
     limits: Limits,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<Manifest> {
     if target.exists() {
         return Err(Error::invalid(format!(
@@ -436,7 +455,7 @@ pub fn extract(
         )));
     }
     std::fs::create_dir_all(target).map_err(Error::file(target))?;
-    let result = extract_into(archive, target, limits, cancelled);
+    let result = extract_into(archive, target, limits, monitor);
     if result.is_err() {
         let _ = std::fs::remove_dir_all(target);
     }
@@ -447,7 +466,7 @@ fn extract_into(
     archive: &Path,
     target: &Path,
     limits: Limits,
-    cancelled: &dyn Fn() -> bool,
+    monitor: Monitor<'_>,
 ) -> Result<Manifest> {
     let name = archive.to_string_lossy();
     let mut zip = open(archive, limits)?;
@@ -464,6 +483,12 @@ fn extract_into(
     }
     let mut found = std::collections::HashSet::new();
     let mut written = 0u64;
+    // Hostile sizes: never an overflow (each is checked against the limits below).
+    let total = manifest
+        .files
+        .iter()
+        .fold(0u64, |sum, f| sum.saturating_add(f.bytes));
+    monitor.advance(STAGE_EXTRACT, 0, Some(total));
     let mut buffer = vec![0u8; 1 << 20];
     for index in 0..zip.len() {
         let mut entry = zip.by_index(index).map_err(zip_error(&name))?;
@@ -529,7 +554,7 @@ fn extract_into(
         // Never more than the manifest says, whatever the header claims.
         let mut limited = (&mut entry).take(expected.bytes + 1);
         loop {
-            if cancelled() {
+            if monitor.is_cancelled() {
                 return Err(Error::Cancelled);
             }
             let n = limited
@@ -546,6 +571,7 @@ fn extract_into(
             }
             hasher.update(&buffer[..n]);
             output.write_all(&buffer[..n]).map_err(Error::file(&path))?;
+            monitor.advance(STAGE_EXTRACT, written + bytes, Some(total));
         }
         written += bytes;
         if bytes != expected.bytes || hex(&hasher.finalize()) != expected.sha256 {
@@ -571,10 +597,6 @@ fn extract_into(
 mod tests {
     use super::*;
 
-    fn never() -> bool {
-        false
-    }
-
     fn named(name: &str) -> impl Iterator<Item = String> {
         std::iter::once(name.to_owned())
     }
@@ -597,7 +619,7 @@ mod tests {
             ],
             "test",
             serde_json::json!({"note": "x"}),
-            &never,
+            Monitor::QUIET,
         )
         .unwrap()
     }
@@ -659,14 +681,14 @@ mod tests {
             &[],
             "t",
             serde_json::Value::Null,
-            &never,
+            Monitor::QUIET,
         )
         .unwrap();
         assert_eq!(second, dir.path().join("a_2.zip"));
         assert_eq!(std::fs::read(&archive).unwrap(), before);
         assert_eq!(manifest(&archive, Limits::default()).unwrap(), written);
         let out = dir.path().join("out");
-        let read = extract(&archive, &out, Limits::default(), &never).unwrap();
+        let read = extract(&archive, &out, Limits::default(), Monitor::QUIET).unwrap();
         assert_eq!(read, written);
         assert_eq!(
             std::fs::read(out.join("datasets/1.tif")).unwrap(),
@@ -677,7 +699,7 @@ mod tests {
             b"{\"a\": 1}"
         );
         // Never into an existing directory.
-        assert!(extract(&archive, &out, Limits::default(), &never).is_err());
+        assert!(extract(&archive, &out, Limits::default(), Monitor::QUIET).is_err());
     }
 
     #[test]
@@ -695,7 +717,7 @@ mod tests {
                     &[entry],
                     "t",
                     serde_json::Value::Null,
-                    &never
+                    Monitor::QUIET
                 )
                 .is_err(),
                 "{name}"
@@ -712,7 +734,7 @@ mod tests {
                 &[twice.clone(), twice],
                 "t",
                 serde_json::Value::Null,
-                &never
+                Monitor::QUIET
             )
             .is_err()
         );
@@ -724,7 +746,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().join("out");
         let refuse = |zip: &Path, limits: Limits, why: &str| {
-            let err = extract(zip, &out, limits, &never).expect_err(why);
+            let err = extract(zip, &out, limits, Monitor::QUIET).expect_err(why);
             assert!(!out.exists(), "{why}: {err}");
             err.to_string()
         };
@@ -745,6 +767,11 @@ mod tests {
         // A listed file missing.
         let zip = raw(dir.path(), &[], &listing(&[("a", b"x")]));
         assert!(refuse(&zip, Limits::default(), "missing").contains("not in the archive"));
+        // Sizes whose sum overflows: refused, never a panic.
+        let mut huge = listing(&[("a", b"x"), ("b", b"y")]);
+        huge.files[0].bytes = u64::MAX;
+        let zip = raw(dir.path(), &[("a", b"x"), ("b", b"y")], &huge);
+        refuse(&zip, Limits::default(), "overflow");
         // Too many bytes, too many entries.
         let files: &[(&str, &[u8])] = &[("a", b"0123456789")];
         let zip = raw(dir.path(), files, &listing(files));
@@ -787,7 +814,7 @@ mod tests {
         }
         std::fs::write(&zip, &bytes).unwrap();
         let out = dir.path().join("out");
-        let err = extract(&zip, &out, Limits::default(), &never).expect_err("duplicate");
+        let err = extract(&zip, &out, Limits::default(), Monitor::QUIET).expect_err("duplicate");
         assert!(err.to_string().contains("share a name"), "{err}");
         assert!(!out.exists());
     }
@@ -804,8 +831,13 @@ mod tests {
         zip.write_all(&serde_json::to_vec(&listing(&[])).unwrap())
             .unwrap();
         zip.finish().unwrap();
-        let err =
-            extract(&path, &dir.path().join("out"), Limits::default(), &never).expect_err("link");
+        let err = extract(
+            &path,
+            &dir.path().join("out"),
+            Limits::default(),
+            Monitor::QUIET,
+        )
+        .expect_err("link");
         assert!(err.to_string().contains("link"), "{err}");
     }
 
@@ -824,7 +856,7 @@ mod tests {
             }],
             "t",
             serde_json::Value::Null,
-            &|| true,
+            Monitor::new(&|| true, &|_| {}),
         )
         .expect_err("cancelled");
         assert!(matches!(err, Error::Cancelled));

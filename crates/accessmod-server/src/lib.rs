@@ -26,6 +26,7 @@ pub mod error;
 pub mod events;
 pub mod guard;
 pub mod maps;
+pub mod operations;
 pub mod routes;
 pub mod runner;
 pub mod settings;
@@ -61,6 +62,7 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
         .route("/api/events", get(events::stream))
         .route("/api/runs", get(routes::all_runs))
         .route("/api/queue", get(routes::queue))
+        .route("/api/operations", get(routes::operations))
         .route("/api/basemap", get(maps::basemap))
         .route(
             "/api/uploads",

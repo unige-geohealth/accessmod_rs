@@ -9,6 +9,13 @@ describe("transfer", () => {
     expect(run([{ type: "start" }, { type: "uploaded" }, { type: "done", label: "x" }])).toEqual({ state: "done", label: "x" });
   });
 
+  it("follows the task the command queued", () => {
+    const task = { kind: "run" as const, project: "p", id: 4 };
+    expect(run([{ type: "start" }, { type: "uploaded" }])).toEqual({ state: "processing", task: null });
+    expect(run([{ type: "start" }, { type: "uploaded" }, { type: "queued", task }])).toEqual({ state: "processing", task });
+    expect(run([{ type: "start" }, { type: "queued", task }])).toEqual({ state: "uploading", fraction: 0 });
+  });
+
   it("ignores messages that do not fit the state", () => {
     expect(run([{ type: "progress", fraction: 1 }])).toBe(IDLE);
     expect(run([{ type: "done", label: "x" }])).toBe(IDLE);

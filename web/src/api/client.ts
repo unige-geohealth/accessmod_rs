@@ -71,13 +71,14 @@ export interface Feature {
 
 /** Commands the client sends: parameters and result. */
 interface Commands {
-  "project.create": [Api.CreateProject, Api.CreatedProject];
+  "project.create": [Api.CreateProject, Api.PendingOperation];
   "project.remove": [Api.ProjectRef, null];
-  "project.export": [Api.ExportProject, Api.ExportedProject];
-  "project.import": [Api.ImportProject, Api.CreatedProject];
-  "demo.reset": [Record<string, never>, Api.CreatedProject];
+  "project.export": [Api.ExportProject, Api.RunRecord];
+  "project.import": [Api.ImportProject, Api.PendingOperation];
+  "demo.reset": [Record<string, never>, Api.PendingOperation];
+  "operation.cancel": [Api.OperationRef, Api.PendingOperation];
   "settings.default_project": [Api.DefaultProject, Api.Settings];
-  "dataset.import": [Api.ImportDataset, Api.Dataset];
+  "dataset.import": [Api.ImportDataset, Api.RunRecord];
   "dataset.tag": [Api.TagDataset, Api.Dataset];
   "dataset.relocate": [Api.RelocateFacilities, Api.Dataset];
   "dataset.remove": [Api.DatasetRef, null];
@@ -85,7 +86,11 @@ interface Commands {
   "job.remove": [Api.JobRef, null];
   "run.start": [Api.StartRun, Api.RunRecord];
   "run.cancel": [Api.RunRef, Api.RunRecord];
-  "archive.create": [Api.CreateArchive, Api.Archive];
+  "run.pause": [Api.RunRef, Api.RunRecord];
+  "run.resume": [Api.RunRef, Api.RunRecord];
+  "run.retry": [Api.RunRef, Api.RunRecord];
+  "run.remove": [Api.RemoveRun, null];
+  "archive.create": [Api.CreateArchive, Api.RunRecord];
   "archive.remove": [Api.ArchiveRef, null];
 }
 
@@ -162,6 +167,11 @@ export const api = {
   /** URL of an archive as a file. */
   archiveUrl: (slug: string, name: string) => `${project(slug)}/archives/${encodeURIComponent(name)}`,
   runs: (slug: string) => request<Api.RunRecord[]>("GET", `${project(slug)}/runs`),
+  run: (slug: string, id: number) => request<Api.RunRecord>("GET", `${project(slug)}/runs/${id}`),
+  /** Tasks waiting or running in the server's lanes. */
+  queue: () => request<Api.QueueEntry[]>("GET", "/api/queue"),
+  /** Operations making projects (creation, import, demo), while they run and shortly after. */
+  operations: () => request<Api.PendingOperation[]>("GET", "/api/operations"),
   /** The latest runs of every project, newest first. */
   allRuns: () => request<Api.JobEntry[]>("GET", "/api/runs"),
   /** `prepare` on a job document: its validation summary, or an error with every issue. */

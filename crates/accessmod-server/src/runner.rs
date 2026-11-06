@@ -69,6 +69,17 @@ impl Control {
     }
 }
 
+/// What cancelling a task did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cancel {
+    /// It was waiting: it left its lane and will never start.
+    Waiting,
+    /// It is running: it stops at its next check.
+    Running,
+    /// No lane holds it.
+    None,
+}
+
 /// A task of a lane: a run of a project.
 pub type Key = (String, Id);
 
@@ -166,21 +177,21 @@ impl Lane {
     }
 
     /// Cancel `key`: a waiting task leaves the lane, a running one is
-    /// asked to stop; `false` when the lane does not hold it.
-    fn cancel(&self, key: &Key) -> bool {
+    /// asked to stop.
+    fn cancel(&self, key: &Key) -> Cancel {
         let mut queue = self.shared.lock();
         if let Some((k, control)) = &queue.running
             && k == key
         {
             control.cancel.store(true, Ordering::Relaxed);
-            return true;
+            return Cancel::Running;
         }
         let Some(at) = queue.waiting.iter().position(|(k, ..)| k == key) else {
-            return false;
+            return Cancel::None;
         };
         queue.waiting.remove(at);
         self.shared.publish(&queue);
-        true
+        Cancel::Waiting
     }
 
     /// Pause or resume `key`; `false` when the lane does not hold it.
@@ -323,11 +334,15 @@ impl Runner {
         self.io.submit((project.to_owned(), run), Box::new(job))
     }
 
-    /// Ask run `run` of `project` to stop (a queued one leaves its lane);
-    /// `false` when no lane holds it.
-    pub fn cancel(&self, project: &str, run: Id) -> bool {
+    /// Ask run `run` of `project` to stop (a queued one leaves its lane,
+    /// decided under the lane's lock: it never starts afterwards).
+    pub fn cancel(&self, project: &str, run: Id) -> Cancel {
         let key = (project.to_owned(), run);
-        self.lanes().iter().any(|lane| lane.cancel(&key))
+        self.lanes()
+            .iter()
+            .map(|lane| lane.cancel(&key))
+            .find(|c| *c != Cancel::None)
+            .unwrap_or(Cancel::None)
     }
 
     /// Pause or resume run `run` of `project`; `false` when no lane holds it.
@@ -521,12 +536,12 @@ mod tests {
         assert!(lane.pause(&key(1), true));
         go.send(()).unwrap();
         lane.submit(key(2), Box::new(|_| {})).unwrap();
-        assert!(lane.cancel(&key(2)));
+        assert_ne!(lane.cancel(&key(2)), Cancel::None);
         assert!(!lane.entries().iter().any(|e| e.run == 2));
         assert!(finished.recv_timeout(Duration::from_millis(300)).is_err());
-        assert!(lane.cancel(&key(1)));
+        assert_ne!(lane.cancel(&key(1)), Cancel::None);
         assert!(finished.recv_timeout(Duration::from_secs(5)).unwrap());
-        assert!(!lane.cancel(&key(9)));
+        assert_eq!(lane.cancel(&key(9)), Cancel::None);
     }
 
     #[test]

@@ -15,6 +15,13 @@ const ANALYSES: Record<string, Key> = {
   optimization: "analysis_optimization_main_tab",
   "merge-land-cover": "tools_merge_lc_btn",
   "adjust-population-distribution": "tools_correct_pop_btn",
+  // Operations (runs of kind `manage`).
+  archive: "jobs.op_archive",
+  "project-export": "jobs.op_project_export",
+  "dataset-import": "jobs.op_dataset_import",
+  "project-create": "jobs.op_project_create",
+  "project-import": "jobs.op_project_import",
+  "demo-reset": "jobs.op_demo_reset",
 };
 
 export const analysisLabel = (t: (key: Key) => string, name: string): string => (ANALYSES[name] ? t(ANALYSES[name]) : name);

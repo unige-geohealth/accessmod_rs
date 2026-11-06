@@ -12,6 +12,7 @@ import { CenterTitle } from "@accessmod/ui/am/section";
 import { T, useI18n } from "@accessmod/ui/i18n";
 import { type Dispatch, useMemo, useReducer, useState } from "react";
 import { api, issuesOf } from "../api/client";
+import { runResult } from "../api/tasks";
 import { keys, queryClient, useArchives, useDatasets, useRuns } from "../api/queries";
 import { navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
@@ -158,8 +159,10 @@ function ImportPanel({ project }: { project: string }) {
 
   const importFiles = (files: File[]) => {
     if (cls === undefined) return;
-    void start(files, async (upload) => {
-      const record = await api.command("dataset.import", { project, source: { upload: { id: upload.id } }, class: cls, tags });
+    void start(files, async (upload, queued) => {
+      const run = await api.command("dataset.import", { project, source: { upload: { id: upload.id } }, class: cls, tags });
+      queued({ kind: "run", project, id: run.id });
+      const record = await runResult<Api.Dataset>(project, run.id);
       await queryClient.invalidateQueries({ queryKey: keys.datasets(project) });
       return `${classLabel(t, record.class)} [${record.tags.join(" ")}]`;
     });
@@ -294,17 +297,23 @@ function ArchivePanel({
       await queryClient.invalidateQueries({ queryKey: keys.archives(project) });
     }
   };
+  const creation = useTransfer();
   const create = () =>
-    act(async () => {
-      const archive = await api.command("archive.create", {
+    creation.run(async (queued) => {
+      setMessages([]);
+      const run = await api.command("archive.create", {
         project,
         name: prefix.trim(),
         datasets: chosenDatasets.map((d) => d.id),
         runs: chosenRuns,
       });
+      queued({ kind: "run", project, id: run.id });
+      const archive = await runResult<Api.Archive>(project, run.id);
+      await queryClient.invalidateQueries({ queryKey: keys.archives(project) });
       setChosen(archive.name);
-      return f("data.archive_created", archive.name);
+      return archive.name;
     });
+  const creating = creation.state.state === "processing";
   const remove = (name: string) =>
     act(async () => {
       await api.command("archive.remove", { project, name });
@@ -333,7 +342,8 @@ function ArchivePanel({
       {incomplete.length > 0 && (
         <MessageList messages={[{ kind: "info", text: f("data.archive_incomplete", incomplete.map((r) => `#${r.id}`).join(", ")) }]} />
       )}
-      <AmButton block k="data_archive_create" disabled={busy || chosenDatasets.length + chosenRuns.length === 0} onClick={() => void create()} />
+      <AmButton block k="data_archive_create" disabled={busy || creating || chosenDatasets.length + chosenRuns.length === 0} onClick={() => void create()} />
+      <TransferStatus transfer={creation.state} doneKey="data.archive_created" />
       {messages.length > 0 && <MessageList messages={messages} />}
       <hr className="border-border" />
       {current === undefined ? (

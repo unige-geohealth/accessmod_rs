@@ -25,5 +25,7 @@ describe("run", () => {
     expect(lastRun(runs)).toBe(2);
     expect(doneRuns(runs).map((r) => r.id)).toEqual([2, 1]);
     expect(lastRun(undefined)).toBeNull();
+    // An operation (an archive) is not a job of Data.
+    expect(lastRun([...runs, { ...run(8, "done"), kind: "manage" as const }])).toBe(2);
   });
 });

@@ -50,6 +50,11 @@ pub enum Event {
     },
     /// Projects were created, renamed or deleted.
     Projects,
+    /// An operation making a project (creation, import, demo) changed.
+    Pending {
+        /// The operation as it is now.
+        operation: Box<crate::operations::PendingOperation>,
+    },
     /// What a lane holds now: its running task, then the waiting ones.
     Queue {
         /// Lane.
@@ -68,6 +73,7 @@ impl Event {
             Event::Catalogue { .. } => "catalogue",
             Event::Projects => "projects",
             Event::Queue { .. } => "queue",
+            Event::Pending { .. } => "pending",
         }
     }
 
@@ -77,7 +83,7 @@ impl Event {
             | Event::Progress { project, .. }
             | Event::Runs { project }
             | Event::Catalogue { project } => Some(project),
-            Event::Projects | Event::Queue { .. } => None,
+            Event::Projects | Event::Queue { .. } | Event::Pending { .. } => None,
         }
     }
 }
@@ -108,6 +114,11 @@ pub async fn stream(
         };
         // A lane holds tasks of every project: only those this client follows
         // and may see.
+        if let Event::Pending { operation } = &event
+            && !operation.visible_to(&principal)
+        {
+            return None;
+        }
         if let Event::Queue { entries, .. } = &mut event {
             entries.retain(|e| {
                 filter.as_ref().is_none_or(|wanted| *wanted == e.project)

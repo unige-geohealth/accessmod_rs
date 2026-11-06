@@ -5,15 +5,17 @@ import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
 import { CheckboxField, SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
-import { AmButton, Callout, FilePicker, LinkActions, MessageList } from "@accessmod/ui/am/messages";
+import { AmButton, Callout, FilePicker, LinkActions } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
-import { T, useI18n } from "@accessmod/ui/i18n";
+import { useI18n } from "@accessmod/ui/i18n";
 import type maplibregl from "maplibre-gl";
 import { useState } from "react";
-import { api, issuesOf } from "../api/client";
+import { api } from "../api/client";
 import { keys, queryClient, useBounds, useProject, useProjects, useSettings } from "../api/queries";
+import { operationDone, runResult } from "../api/tasks";
 import { HOME, navigate, type Route } from "../app/route";
+import type { Api } from "../generated/types";
 import { useBatch } from "../state/batch";
 import { ACCEPT } from "../state/catalogue";
 import { extentDegrees, extentMetric, gridParameters, validName } from "../state/project-summary";
@@ -113,14 +115,16 @@ function NewPanel() {
   const busy = state.state === "uploading" || state.state === "processing";
   // AM5 "Choose DEM or project": a DEM creates a project, a project file imports one.
   const create = (files: File[]) =>
-    start(files, async (upload) => {
+    start(files, async (upload, queued) => {
       const source = { upload: { id: upload.id } };
-      const created = isProjectFile(files)
+      const operation = isProjectFile(files)
         ? await api.command("project.import", { name: name.trim(), package: source })
         : await api.command("project.create", { name: name.trim(), dem: source });
+      queued({ kind: "operation", id: operation.id });
+      const made = await operationDone(operation.id);
       await queryClient.invalidateQueries({ queryKey: keys.projects });
-      navigate({ ...HOME, project: created.slug });
-      return created.info.name;
+      navigate({ ...HOME, project: made.project });
+      return made.name;
     });
   return (
     <div className="flex flex-col gap-[15px]">
@@ -162,35 +166,24 @@ function DeletePanel({ route }: { route: Route }) {
 
 /** AM5 Project › Export: the open project as a project file (`.am6p`), downloaded. */
 function ExportPanel({ route }: { route: Route }) {
-  const { t } = useI18n();
   const [results, setResults] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [issues, setIssues] = useState<string[]>([]);
+  const { state, run } = useTransfer();
+  const busy = state.state === "uploading" || state.state === "processing";
   const slug = route.project;
-  const exportProject = async () => {
-    if (slug === null) return;
-    setBusy(true);
-    setIssues([]);
-    try {
-      const file = await api.command("project.export", { project: slug, results });
-      window.location.href = api.exportUrl(slug, file.name);
-    } catch (error) {
-      setIssues(issuesOf(error, t));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const exportProject = (project: string) =>
+    run(async (queued) => {
+      const record = await api.command("project.export", { project, results });
+      queued({ kind: "run", project, id: record.id });
+      const file = await runResult<Api.ExportedProject>(project, record.id);
+      window.location.href = api.exportUrl(project, file.name);
+      return file.name;
+    });
   return (
     <div className="flex flex-col gap-[15px]">
       {slug === null && <Callout k="project.open_first" />}
       <CheckboxField label="project.export_results" checked={results} onChange={setResults} />
-      <AmButton block k="project_export_btn" disabled={slug === null || busy} onClick={() => void exportProject()} />
-      {busy && (
-        <p className="text-xs text-muted-foreground" role="status">
-          <T k="project_export_progress_text" />
-        </p>
-      )}
-      {issues.length > 0 && <MessageList messages={issues.map((text) => ({ kind: "issue" as const, text }))} />}
+      <AmButton block k="project_export_btn" disabled={slug === null || busy} onClick={() => slug !== null && void exportProject(slug)} />
+      <TransferStatus transfer={state} doneKey="project.exported" />
     </div>
   );
 }
