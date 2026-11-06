@@ -109,6 +109,20 @@ pub fn registry() -> Vec<CommandSpec> {
             rename_project
         ),
         command!(
+            "project.export",
+            "Write the project to a project file (.am6p), to download",
+            Requirement::Project(Role::Viewer),
+            ExportProject,
+            export_project
+        ),
+        command!(
+            "project.import",
+            "Create a project from a project file (.am6p)",
+            Requirement::User,
+            ImportProject,
+            import_project
+        ),
+        command!(
             "project.remove",
             "Remove a project and every file in it",
             Requirement::Project(Role::Owner),
@@ -238,6 +252,42 @@ pub struct CreateProject {
     /// DEM defining the grid: an upload, or a file on the server's disk
     /// (desktop).
     pub dem: FileSource,
+}
+
+/// `project.export`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ExportProject {
+    /// Project slug.
+    pub project: String,
+    /// With run outputs; without, runs keep their jobs only.
+    #[serde(default = "yes")]
+    pub results: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// A project file written by `project.export`, at
+/// `GET /api/projects/{project}/exports/{name}`.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ExportedProject {
+    /// File name.
+    pub name: String,
+    /// Size, bytes.
+    pub bytes: u64,
+}
+
+/// `project.import`.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ImportProject {
+    /// Name of the new project; the file's when empty.
+    #[serde(default)]
+    pub name: String,
+    /// The project file: an upload, or a file on the server's disk (desktop).
+    pub package: FileSource,
 }
 
 /// A project.
@@ -419,6 +469,12 @@ impl Scoped for CreateProject {
     }
 }
 
+impl Scoped for ImportProject {
+    fn project(&self) -> Option<&str> {
+        None
+    }
+}
+
 impl Scoped for ResetDemo {
     fn project(&self) -> Option<&str> {
         None
@@ -443,6 +499,7 @@ macro_rules! scoped {
 
 scoped!(
     ProjectRef,
+    ExportProject,
     RenameProject,
     ImportDataset,
     TagDataset,
@@ -485,6 +542,59 @@ fn create_project(
         &|| false,
     )?;
     dem.consumed();
+    let info = project.info()?;
+    state.publish(Event::Projects);
+    Ok(CreatedProject { slug, info })
+}
+
+fn export_project(
+    state: &AppState,
+    _: &Principal,
+    params: ExportProject,
+) -> ApiResult<ExportedProject> {
+    let project = state.open(&params.project)?;
+    let name = project.export_latest(params.results, &|| false)?;
+    let bytes = std::fs::metadata(project.exported_package(&name)?)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    Ok(ExportedProject { name, bytes })
+}
+
+fn import_project(
+    state: &AppState,
+    principal: &Principal,
+    params: ImportProject,
+) -> ApiResult<CreatedProject> {
+    use accessmod_io::archive::{self, Limits};
+    let package = uploads::resolve_archive(state, principal, &params.package)?;
+    let projects = state.projects_dir();
+    std::fs::create_dir_all(&projects)
+        .map_err(|e| ApiError::Internal(format!("{}: {e}", projects.display())))?;
+    // A zip bomb fills at most 90 % of the free disk.
+    let limits = Limits {
+        bytes: accessmod_io::resources::free_disk(&projects)
+            .map(|free| free / 10 * 9)
+            .unwrap_or(Limits::default().bytes),
+        ..Limits::default()
+    };
+    let manifest = archive::manifest(&package.path, limits)?;
+    let from_file = manifest
+        .content
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    let name = match params.name.trim() {
+        "" => from_file,
+        name => name.to_owned(),
+    };
+    let slug = new_slug(&projects, &name);
+    let project = Project::import_package(&package.path, &projects.join(&slug), limits, &|| false)?;
+    if !params.name.trim().is_empty() {
+        let description = project.info()?.description;
+        project.rename(params.name.trim(), &description)?;
+    }
+    package.consumed();
     let info = project.info()?;
     state.publish(Event::Projects);
     Ok(CreatedProject { slug, info })

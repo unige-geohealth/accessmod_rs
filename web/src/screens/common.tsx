@@ -94,12 +94,3 @@ export function EntryList({ entries }: { entries: Entry[] }) {
     </div>
   );
 }
-
-/** A feature AM5 has that this version does not yet. */
-export function NotAvailable() {
-  return (
-    <p className="text-muted-foreground">
-      <T k="common.not_available_yet" />
-    </p>
-  );
-}

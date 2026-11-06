@@ -137,15 +137,31 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await expect(page.getByText("Removed: land cover merged [base]")).toBeVisible();
   await expect(table.locator(".tabulator-row")).toHaveCount(2);
 
-  // Project › Language, then delete the project in French.
+  // Project › Export: the project file (.am6p), imported again as a new project.
   await sidebar(page, "Project").click();
-  await panel(page, "Language").click();
+  await panel(page, "Export").click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export this project" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^Tutorial_.*\.am6p$/);
+  await file.saveAs(`${work}tutorial.am6p`);
+  await panel(page, "New / Import").click();
+  await page.getByLabel("Enter a new project name (min 4 characters)").fill("Tutorial copy");
+  await page.locator("input[type=file]").setInputFiles(`${work}tutorial.am6p`);
+  await expect(page.locator("aside")).toContainText("Tutorial copy", { timeout: 60_000 });
+  await sidebar(page, "Data").click();
+  await expect(table.locator(".tabulator-row")).toHaveCount(2);
+  await shot(page, "project-imported");
+
+  // Settings › Language (no longer in Project), then delete the project in French.
+  await sidebar(page, "Settings").click();
   await choose(page, "Select the language", "Français");
   await expect(sidebar(page, "Projet")).toBeVisible();
+  await sidebar(page, "Projet").click();
   await panel(page, "Supprimer").click();
-  await choose(page, "Sélectionnez le projet à supprimer", "Tutorial");
+  await choose(page, "Sélectionnez le projet à supprimer", "Tutorial copy");
   await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
   await expect(page).toHaveURL(/#\/_\/project/);
-  await expect(page.getByText("Supprimé : Tutorial")).toBeVisible();
+  await expect(page.getByText("Supprimé : Tutorial copy")).toBeVisible();
 });

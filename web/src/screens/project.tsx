@@ -1,16 +1,17 @@
-// Project (AM5 `amManageProject`): open, new, delete, export, language on
-// the left; the summary of the open project on the right.
+// Project (AM5 `amManageProject`): open, new (from a DEM or a project
+// file), delete and export on the left; the summary of the open project on
+// the right. The language is in Settings.
 import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
-import { SelectField, TextField } from "@accessmod/ui/am/form";
+import { CheckboxField, SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
-import { AmButton, Callout, FilePicker, LinkActions } from "@accessmod/ui/am/messages";
+import { AmButton, Callout, FilePicker, LinkActions, MessageList } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
-import { type Lang, languageNames, languages, useI18n } from "@accessmod/ui/i18n";
+import { T, useI18n } from "@accessmod/ui/i18n";
 import type maplibregl from "maplibre-gl";
 import { useState } from "react";
-import { api } from "../api/client";
+import { api, issuesOf } from "../api/client";
 import { keys, queryClient, useBounds, useProject, useProjects, useSettings } from "../api/queries";
 import { HOME, navigate, type Route } from "../app/route";
 import { useBatch } from "../state/batch";
@@ -18,7 +19,7 @@ import { ACCEPT } from "../state/catalogue";
 import { extentDegrees, extentMetric, gridParameters, validName } from "../state/project-summary";
 import { demoSlug } from "../state/start";
 import { useTransfer } from "../state/transfer";
-import { BatchStatus, EntryList, NotAvailable, TransferStatus, useFmt } from "./common";
+import { BatchStatus, EntryList, TransferStatus, useFmt } from "./common";
 
 export function ProjectScreen({ route }: { route: Route }) {
   return (
@@ -32,18 +33,7 @@ export function ProjectScreen({ route }: { route: Route }) {
             { value: "open", icon: "open", title: "project_open_title", content: <OpenPanel route={route} /> },
             { value: "new", icon: "add", title: "project_new_import_title", content: <NewPanel /> },
             { value: "delete", icon: "delete", title: "project_delete_title", content: <DeletePanel route={route} /> },
-            {
-              value: "export",
-              icon: "export",
-              title: "project_export_title",
-              content: (
-                <div className="flex flex-col gap-[15px]">
-                  <AmButton block disabled k="project_export_btn" />
-                  <NotAvailable />
-                </div>
-              ),
-            },
-            { value: "language", icon: "language", title: "project_language_title", content: <LanguagePanel /> },
+            { value: "export", icon: "export", title: "project_export_title", content: <ExportPanel route={route} /> },
           ]}
         />
       }
@@ -113,14 +103,21 @@ function OpenPanel({ route }: { route: Route }) {
   );
 }
 
+/** A project file (`.am6p`), rather than a DEM. */
+const isProjectFile = (files: readonly File[]) => files.length === 1 && files[0]!.name.toLowerCase().endsWith(".am6p");
+
 function NewPanel() {
   const { t } = useI18n();
   const [name, setName] = useState("");
   const { state, start } = useTransfer();
   const busy = state.state === "uploading" || state.state === "processing";
+  // AM5 "Choose DEM or project": a DEM creates a project, a project file imports one.
   const create = (files: File[]) =>
     start(files, async (upload) => {
-      const created = await api.command("project.create", { name: name.trim(), dem: { upload: { id: upload.id } } });
+      const source = { upload: { id: upload.id } };
+      const created = isProjectFile(files)
+        ? await api.command("project.import", { name: name.trim(), package: source })
+        : await api.command("project.create", { name: name.trim(), dem: source });
       await queryClient.invalidateQueries({ queryKey: keys.projects });
       navigate({ ...HOME, project: created.slug });
       return created.info.name;
@@ -129,7 +126,7 @@ function NewPanel() {
     <div className="flex flex-col gap-[15px]">
       <TextField label="project_new_name_text" value={name} onChange={setName} />
       {!validName(name) && <p className="text-xs text-muted-foreground">{t("project_new_name_unlock_dem")}</p>}
-      <FilePicker block multiple k="project_import_btn" accept={ACCEPT.raster} disabled={!validName(name) || busy} onFiles={create} />
+      <FilePicker block multiple k="project_import_btn" accept={`${ACCEPT.raster},.am6p`} disabled={!validName(name) || busy} onFiles={create} />
       <TransferStatus transfer={state} doneKey="data.imported" />
     </div>
   );
@@ -163,15 +160,38 @@ function DeletePanel({ route }: { route: Route }) {
   );
 }
 
-export function LanguagePanel() {
-  const { lang, setLang } = useI18n();
+/** AM5 Project › Export: the open project as a project file (`.am6p`), downloaded. */
+function ExportPanel({ route }: { route: Route }) {
+  const { t } = useI18n();
+  const [results, setResults] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [issues, setIssues] = useState<string[]>([]);
+  const slug = route.project;
+  const exportProject = async () => {
+    if (slug === null) return;
+    setBusy(true);
+    setIssues([]);
+    try {
+      const file = await api.command("project.export", { project: slug, results });
+      window.location.href = api.exportUrl(slug, file.name);
+    } catch (error) {
+      setIssues(issuesOf(error, t));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <SelectField
-      label="project_language_select"
-      options={languages.map((l) => ({ value: l, label: languageNames[l] }))}
-      value={lang}
-      onChange={(l) => setLang(l as Lang)}
-    />
+    <div className="flex flex-col gap-[15px]">
+      {slug === null && <Callout k="project.open_first" />}
+      <CheckboxField label="project.export_results" checked={results} onChange={setResults} />
+      <AmButton block k="project_export_btn" disabled={slug === null || busy} onClick={() => void exportProject()} />
+      {busy && (
+        <p className="text-xs text-muted-foreground" role="status">
+          <T k="project_export_progress_text" />
+        </p>
+      )}
+      {issues.length > 0 && <MessageList messages={issues.map((text) => ({ kind: "issue" as const, text }))} />}
+    </div>
   );
 }
 

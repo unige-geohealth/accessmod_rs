@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "FileSource": {
+      "description": "A file a command reads: on the server's disk (desktop) or uploaded.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A path on the server's disk, when the server allows local paths.",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An upload of the same user.",
+          "properties": {
+            "upload": {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "default": null,
+                  "description": "The file to read, when the upload holds several main files.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "description": "Upload identifier, from `POST /api/uploads`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "upload"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`project.import`.",
+  "properties": {
+    "name": {
+      "default": "",
+      "description": "Name of the new project; the file's when empty.",
+      "type": "string"
+    },
+    "package": {
+      "$ref": "#/$defs/FileSource",
+      "description": "The project file: an upload, or a file on the server's disk (desktop)."
+    }
+  },
+  "required": [
+    "package"
+  ],
+  "title": "ImportProject",
+  "type": "object"
+}

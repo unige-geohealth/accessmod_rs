@@ -180,6 +180,18 @@ fn types() -> Vec<(&'static str, Value)> {
         ),
         ("run-ref", schema::<accessmod_server::commands::RunRef>()),
         (
+            "export-project",
+            schema::<accessmod_server::commands::ExportProject>(),
+        ),
+        (
+            "exported-project",
+            schema::<accessmod_server::commands::ExportedProject>(),
+        ),
+        (
+            "import-project",
+            schema::<accessmod_server::commands::ImportProject>(),
+        ),
+        (
             "create-archive",
             schema::<accessmod_server::commands::CreateArchive>(),
         ),

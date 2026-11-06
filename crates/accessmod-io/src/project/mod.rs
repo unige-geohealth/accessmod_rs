@@ -26,6 +26,7 @@
 mod archives;
 mod db;
 mod import;
+mod package;
 mod runs;
 
 use std::path::{Component, Path, PathBuf};
@@ -37,6 +38,7 @@ use serde::{Deserialize, Serialize};
 
 pub use archives::{ARCHIVES_DIR, ArchiveInfo, ArchivedDataset, ArchivedRun, DATA_ARCHIVE};
 pub use import::{ImportOptions, check_self_contained, resampling};
+pub use package::{PACKAGE_EXTENSION, PACKAGE_FORMAT, PackageContent};
 pub use runs::{RunError, RunRecord, RunStatus};
 
 use crate::analysis::Cancelled;
@@ -71,13 +73,15 @@ fn removed_path(root: &Path) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// Delete what removals in `projects` (a directory of projects) left.
+/// Delete what removals and imports of project files in `projects` (a
+/// directory of projects) left; at startup, when no import is in progress.
 pub fn purge_removed(projects: &Path) {
     let Ok(entries) = std::fs::read_dir(projects) else {
         return;
     };
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().contains(REMOVED) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.contains(REMOVED) || name.starts_with(".import-") {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
@@ -613,11 +617,14 @@ impl Project {
                 [now()],
             )
             .map_err(self.db_error())?;
-        // Archives whose writing was interrupted.
-        if let Ok(entries) = std::fs::read_dir(self.root.join(ARCHIVES_DIR)) {
-            for entry in entries.flatten() {
-                if entry.path().extension().is_some_and(|e| e == "partial") {
-                    let _ = std::fs::remove_file(entry.path());
+        // Archives and exports whose writing was interrupted: their
+        // temporary files (`.partial`, a database snapshot) start with a dot.
+        for dir in [self.root.join(ARCHIVES_DIR), self.exports_dir()] {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    if entry.file_name().to_string_lossy().starts_with('.') {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
                 }
             }
         }

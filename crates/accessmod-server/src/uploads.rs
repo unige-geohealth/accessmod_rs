@@ -203,11 +203,31 @@ pub fn file_name(name: &str) -> ApiResult<String> {
     }
 }
 
-/// Resolve `source` for `principal`.
+/// Resolve `source` for `principal`: a file GDAL reads, which must read
+/// nothing but itself and its companion files.
 pub fn resolve(
     state: &AppState,
     principal: &Principal,
     source: &FileSource,
+) -> ApiResult<Resolved> {
+    resolve_file(state, principal, source, true)
+}
+
+/// Resolve `source` for `principal`: a zip read by
+/// [`accessmod_io::archive::extract`] (a project file), never by GDAL.
+pub fn resolve_archive(
+    state: &AppState,
+    principal: &Principal,
+    source: &FileSource,
+) -> ApiResult<Resolved> {
+    resolve_file(state, principal, source, false)
+}
+
+fn resolve_file(
+    state: &AppState,
+    principal: &Principal,
+    source: &FileSource,
+    gdal: bool,
 ) -> ApiResult<Resolved> {
     match source {
         FileSource::Path(path) => Ok(Resolved {
@@ -249,7 +269,9 @@ pub fn resolve(
             };
             let path = dir.join(name);
             // A file sent by a user must not make the server read others.
-            accessmod_io::project::check_self_contained(&path)?;
+            if gdal {
+                accessmod_io::project::check_self_contained(&path)?;
+            }
             Ok(Resolved {
                 path,
                 upload: Some((dir, guard)),

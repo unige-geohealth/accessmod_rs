@@ -73,6 +73,8 @@ export interface Feature {
 interface Commands {
   "project.create": [Api.CreateProject, Api.CreatedProject];
   "project.remove": [Api.ProjectRef, null];
+  "project.export": [Api.ExportProject, Api.ExportedProject];
+  "project.import": [Api.ImportProject, Api.CreatedProject];
   "demo.reset": [Record<string, never>, Api.CreatedProject];
   "settings.default_project": [Api.DefaultProject, Api.Settings];
   "dataset.import": [Api.ImportDataset, Api.Dataset];
@@ -153,6 +155,8 @@ export const api = {
   /** URL of a table dataset as a file. */
   downloadUrl: (slug: string, id: number, format: "csv" | "json") => `${project(slug)}/datasets/${id}/download?format=${format}`,
   jobs: (slug: string) => request<Api.SavedJob[]>("GET", `${project(slug)}/jobs`),
+  /** URL of a project file written by `project.export`. */
+  exportUrl: (slug: string, name: string) => `${project(slug)}/exports/${encodeURIComponent(name)}`,
   /** Data archives of the project, newest first. */
   archives: (slug: string) => request<Api.Archive[]>("GET", `${project(slug)}/archives`),
   /** URL of an archive as a file. */

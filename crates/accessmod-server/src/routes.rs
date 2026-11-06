@@ -397,6 +397,39 @@ pub async fn download(
     Ok(response)
 }
 
+/// `GET /api/projects/{project}/exports/{name}`: a project file written by
+/// `project.export`.
+pub async fn export(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((slug, name)): Path<(String, String)>,
+    request: Request,
+) -> ApiResult<Response> {
+    let (path, name) = with_project(&state, principal, slug, Role::Viewer, move |_, p| {
+        let path = p
+            .exported_package(&name)
+            .map_err(|_| ApiError::NotFound(format!("no project file {name}")))?;
+        Ok((path, name))
+    })
+    .await?;
+    attachment(&path, &name, request).await
+}
+
+/// Serve `path` as a download named `name` (letters, digits, `-`, `_`, `.`).
+async fn attachment(path: &std::path::Path, name: &str, request: Request) -> ApiResult<Response> {
+    let mut response = ServeFile::new(path)
+        .oneshot(request)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .into_response();
+    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, value);
+    }
+    Ok(response)
+}
+
 /// `GET /api/projects/{project}/archives`: newest first.
 pub async fn archives(
     State(state): State<AppState>,
@@ -424,18 +457,8 @@ pub async fn archive(
         Ok((path, name))
     })
     .await?;
-    let mut response = ServeFile::new(&path)
-        .oneshot(request)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .into_response();
     // `archive_path` admits only letters, digits, `-`, `_` and `.`.
-    if let Ok(value) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
-        response
-            .headers_mut()
-            .insert(header::CONTENT_DISPOSITION, value);
-    }
-    Ok(response)
+    attachment(&path, &name, request).await
 }
 
 /// `GET /api/projects/{project}/jobs`.

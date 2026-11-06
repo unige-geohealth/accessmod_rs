@@ -110,6 +110,46 @@ fn backfill_run_inputs(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Check that the database `db` (at `path`) has exactly the schema this
+/// engine's migrations give its version: a database from a file (a project
+/// file) must hold no object of its own (table, index, trigger, view, check)
+/// whose code would run when it is checked, read or written. Reading the
+/// schema runs none.
+pub fn check_schema(db: &Connection, path: &Path) -> Result<()> {
+    let version: i64 = db
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(Error::database(path))?;
+    if !(1..=VERSION).contains(&version) {
+        return Err(Error::invalid(format!(
+            "{} has schema version {version}; this engine reads 1 to {VERSION}",
+            path.display()
+        )));
+    }
+    let reference = Connection::open_in_memory().map_err(Error::database(path))?;
+    for migration in MIGRATIONS.iter().take(version as usize) {
+        reference
+            .execute_batch(migration.sql)
+            .map_err(Error::database(path))?;
+    }
+    type Object = (String, String, String, Option<String>);
+    let objects = |c: &Connection| -> rusqlite::Result<Vec<Object>> {
+        let mut stmt = c.prepare(
+            "SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name, tbl_name",
+        )?;
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+            .collect()
+    };
+    let found = objects(db).map_err(Error::database(path))?;
+    let expected = objects(&reference).map_err(Error::database(path))?;
+    if found != expected {
+        return Err(Error::invalid(format!(
+            "{} is not an AccessMod project database: its schema differs from version {version}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
 /// Schema version this engine writes.
 pub const VERSION: i64 = MIGRATIONS.len() as i64;
 
@@ -129,6 +169,10 @@ pub fn open(path: &Path, create: bool) -> Result<Connection> {
     db.pragma_update(None, "journal_mode", "WAL")
         .map_err(Error::database(path))?;
     db.pragma_update(None, "foreign_keys", "ON")
+        .map_err(Error::database(path))?;
+    // Schema code (views, triggers) never calls functions with side effects:
+    // a project may come from a file.
+    db.pragma_update(None, "trusted_schema", "OFF")
         .map_err(Error::database(path))?;
     migrate(&mut db, path)?;
     Ok(db)

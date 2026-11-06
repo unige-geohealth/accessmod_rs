@@ -416,6 +416,208 @@ fn run_registers_outputs_as_datasets() {
 }
 
 #[test]
+fn project_files_round_trip_with_or_without_results() {
+    use accessmod_io::archive::{Entry, Limits, Source};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let run = project
+        .run_named(
+            "travel-time",
+            &travel_time_job(),
+            &[],
+            false,
+            &settings,
+            Monitor::QUIET,
+        )
+        .expect("run");
+    let exports = dir.path().join("exports");
+
+    // With results: the same catalogue, runs and files.
+    let file = project
+        .export_package(&exports, true, &|| false)
+        .expect("export");
+    assert!(file.extension().is_some_and(|e| e == "am6p"));
+    let copy = Project::import_package(&file, &dir.path().join("copy"), Limits::default(), &|| {
+        false
+    })
+    .expect("import");
+    assert_eq!(copy.info().expect("info").name, "Demo");
+    assert_eq!(
+        copy.datasets(None).expect("list"),
+        project.datasets(None).expect("list")
+    );
+    assert_eq!(copy.runs().expect("runs"), project.runs().expect("runs"));
+    for d in copy.datasets(None).expect("list") {
+        assert_eq!(
+            std::fs::read(copy.root().join(&d.file)).expect("copied"),
+            std::fs::read(project.root().join(&d.file)).expect("original"),
+        );
+    }
+    // Never into an existing directory.
+    assert!(
+        Project::import_package(&file, &dir.path().join("copy"), Limits::default(), &|| {
+            false
+        })
+        .is_err()
+    );
+
+    // Without results: imported datasets only; runs keep their jobs.
+    let light = project
+        .export_package(&exports, false, &|| false)
+        .expect("export");
+    assert_ne!(light, file);
+    let copy = Project::import_package(
+        &light,
+        &dir.path().join("light"),
+        Limits::default(),
+        &|| false,
+    )
+    .expect("import");
+    let kept: Vec<i64> = copy
+        .datasets(None)
+        .expect("list")
+        .iter()
+        .map(|d| d.id)
+        .collect();
+    assert_eq!(kept, [1, 2, 3]);
+    let runs = copy.runs().expect("runs");
+    assert_eq!(runs.len(), 1);
+    assert!(runs[0].datasets.is_empty());
+    assert_eq!(runs[0].job, run.job);
+    assert!(!copy.root().join("runs/1/travel_time_seconds.tif").exists());
+
+    // A data archive is not a project file; a database with code is refused.
+    let data = project
+        .create_archive("", &[1], &[], &|| false)
+        .expect("archive");
+    let err = Project::import_package(
+        &project.archive_path(&data.name).expect("path"),
+        &dir.path().join("bad"),
+        Limits::default(),
+        &|| false,
+    )
+    .expect_err("data archive");
+    assert!(
+        err.to_string().contains("not an AccessMod project file"),
+        "{err}"
+    );
+    assert!(!dir.path().join("bad").exists());
+    let db = dir.path().join("trigger.sqlite");
+    std::fs::copy(copy.root().join("project.sqlite"), &db).expect("copy db");
+    rusqlite::Connection::open(&db)
+        .and_then(|c| {
+            c.execute_batch(
+                "CREATE TRIGGER t AFTER INSERT ON runs BEGIN DELETE FROM datasets; END;",
+            )
+        })
+        .expect("trigger");
+    let (hostile, _) = accessmod_io::archive::write(
+        dir.path(),
+        &mut std::iter::once("hostile.am6p".to_owned()),
+        &[Entry {
+            name: "project.sqlite".into(),
+            source: Source::File(db),
+        }],
+        "am6p",
+        serde_json::Value::Null,
+        &|| false,
+    )
+    .expect("hostile");
+    let err = Project::import_package(
+        &hostile,
+        &dir.path().join("bad"),
+        Limits::default(),
+        &|| false,
+    )
+    .expect_err("trigger");
+    assert!(err.to_string().contains("schema differs"), "{err}");
+    assert!(!dir.path().join("bad").exists());
+
+    // The files of the light copy (closed: its database checkpointed),
+    // packed again with a change.
+    drop(copy);
+    let repack = |extra: &[(&str, &[u8])], replace: Option<(&str, &[u8])>| {
+        let root = dir.path().join("light");
+        let mut entries = Vec::new();
+        let mut pending = vec![root.clone()];
+        while let Some(d) = pending.pop() {
+            for e in std::fs::read_dir(&d).expect("dir").flatten() {
+                let rel = e
+                    .path()
+                    .strip_prefix(&root)
+                    .expect("rel")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if e.file_type().expect("type").is_dir() {
+                    pending.push(e.path());
+                } else if !rel.starts_with('.') && !rel.ends_with("-wal") && !rel.ends_with("-shm")
+                {
+                    let source = match replace {
+                        Some((name, bytes)) if name == rel => Source::Bytes(bytes.to_vec()),
+                        _ => Source::File(e.path()),
+                    };
+                    entries.push(Entry { name: rel, source });
+                }
+            }
+        }
+        for (name, bytes) in extra {
+            entries.push(Entry {
+                name: (*name).to_owned(),
+                source: Source::Bytes(bytes.to_vec()),
+            });
+        }
+        let _ = std::fs::remove_file(dir.path().join("repacked.am6p"));
+        accessmod_io::archive::write(
+            dir.path(),
+            &mut std::iter::once("repacked.am6p".to_owned()),
+            &entries,
+            "am6p",
+            serde_json::Value::Null,
+            &|| false,
+        )
+        .expect("repack")
+        .0
+    };
+    // A sidecar GDAL would read beside a dataset.
+    let sidecar = repack(&[("datasets/1.tif.aux.xml", b"<PAMDataset/>")], None);
+    let err = Project::import_package(
+        &sidecar,
+        &dir.path().join("bad"),
+        Limits::default(),
+        &|| false,
+    )
+    .expect_err("sidecar");
+    assert!(err.to_string().contains("beside a dataset"), "{err}");
+    // A dataset that is a VRT reading another file.
+    let vrt = format!(
+        "<VRTDataset rasterXSize=\"6\" rasterYSize=\"4\"><VRTRasterBand dataType=\"Float32\" band=\"1\"><SimpleSource><SourceFilename>{}</SourceFilename><SourceBand>1</SourceBand></SimpleSource></VRTRasterBand></VRTDataset>",
+        project.root().join("datasets/1.tif").display()
+    );
+    let hidden = repack(&[], Some(("datasets/1.tif", vrt.as_bytes())));
+    let err = Project::import_package(&hidden, &dir.path().join("bad"), Limits::default(), &|| {
+        false
+    })
+    .expect_err("vrt");
+    assert!(err.to_string().contains("not a supported file"), "{err}");
+    assert!(!dir.path().join("bad").exists());
+    // The light copy itself, repacked unchanged, imports.
+    let same = repack(&[], None);
+    Project::import_package(&same, &dir.path().join("again"), Limits::default(), &|| {
+        false
+    })
+    .expect("repacked");
+    // No staging directory left behind.
+    assert!(
+        std::fs::read_dir(dir.path())
+            .expect("dir")
+            .flatten()
+            .all(|e| !e.file_name().to_string_lossy().starts_with(".import-"))
+    );
+}
+
+#[test]
 fn archived_runs_replay_to_identical_outputs() {
     use accessmod_io::analysis::Analysis;
     use accessmod_io::archive::{Limits, extract};

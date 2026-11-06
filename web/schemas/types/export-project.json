@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`project.export`.",
+  "properties": {
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    },
+    "results": {
+      "default": true,
+      "description": "With run outputs; without, runs keep their jobs only.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "project"
+  ],
+  "title": "ExportProject",
+  "type": "object"
+}

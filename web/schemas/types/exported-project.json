@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A project file written by `project.export`, at\n`GET /api/projects/{project}/exports/{name}`.",
+  "properties": {
+    "bytes": {
+      "description": "Size, bytes.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "name": {
+      "description": "File name.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "bytes"
+  ],
+  "title": "ExportedProject",
+  "type": "object"
+}

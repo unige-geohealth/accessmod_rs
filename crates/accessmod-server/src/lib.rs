@@ -97,6 +97,10 @@ pub fn router(state: AppState, web_dir: Option<PathBuf>) -> Router {
             "/api/projects/{project}/datasets/{id}/value",
             get(maps::value),
         )
+        .route(
+            "/api/projects/{project}/exports/{name}",
+            get(routes::export),
+        )
         .route("/api/projects/{project}/archives", get(routes::archives))
         .route(
             "/api/projects/{project}/archives/{name}",

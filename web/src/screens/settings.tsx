@@ -3,16 +3,27 @@
 // in this browser, and the version of the server. AM5 admin tools (restart, cache, upload limit) have no
 // counterpart: the server needs none of them.
 import { Columns } from "@accessmod/ui/am/columns";
-import { CheckboxField, RadioField } from "@accessmod/ui/am/form";
+import { CheckboxField, RadioField, SelectField } from "@accessmod/ui/am/form";
 import { SectionCard } from "@accessmod/ui/am/section";
-import { useI18n } from "@accessmod/ui/i18n";
+import { type Lang, languageNames, languages, useI18n } from "@accessmod/ui/i18n";
 import { type Theme, useTheme } from "@accessmod/ui/theme";
 import { useHealth } from "../api/queries";
 import { setPreference, usePreference } from "../state/preferences";
 import { EntryList } from "./common";
-import { LanguagePanel } from "./project";
 
 const THEMES: readonly Theme[] = ["system", "light", "dark"];
+
+function LanguagePanel() {
+  const { lang, setLang } = useI18n();
+  return (
+    <SelectField
+      label="project_language_select"
+      options={languages.map((l) => ({ value: l, label: languageNames[l] }))}
+      value={lang}
+      onChange={(l) => setLang(l as Lang)}
+    />
+  );
+}
 
 export function SettingsScreen() {
   const { t } = useI18n();

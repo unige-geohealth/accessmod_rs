@@ -1006,5 +1006,11 @@
     "fr": "Autoriser l'écrasement des résultats : une analyse remplace les données de même classe et tags une fois terminée",
     "es": "Permitir sobrescribir los resultados: un análisis reemplaza los datos de la misma clase y etiquetas al terminar",
     "pt": "Permitir substituir os resultados: uma análise substitui os dados da mesma classe e etiquetas ao terminar"
+  },
+  "project.export_results": {
+    "en": "With results (run outputs); without, runs keep their jobs only",
+    "fr": "Avec les résultats (sorties des analyses) ; sans, les analyses gardent seulement leurs jobs",
+    "es": "Con los resultados (salidas de los análisis); sin ellos, los análisis conservan solo sus trabajos",
+    "pt": "Com os resultados (saídas das análises); sem eles, as análises mantêm apenas os seus trabalhos"
   }
 }

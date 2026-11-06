@@ -1186,3 +1186,77 @@ async fn relocator_flow_through_the_api() {
     let (_, basemap) = s.call("GET", "/api/basemap", None).await;
     assert_eq!(basemap, json!({"maptiler_key": "test-key"}));
 }
+
+#[tokio::test]
+async fn projects_export_to_a_file_and_import_from_it() {
+    let s = server(true);
+    let slug = s.demo().await;
+    let (status, exported) = s
+        .command("project.export", json!({"project": slug, "results": false}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{exported}");
+    let name = exported["name"].as_str().expect("name").to_owned();
+    assert!(name.ends_with(".am6p"), "{name}");
+    let response = s
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/projects/{slug}/exports/{name}"))
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()["content-disposition"],
+        format!("attachment; filename=\"{name}\"").as_str()
+    );
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
+    assert_eq!(
+        bytes.len() as u64,
+        exported["bytes"].as_u64().expect("bytes")
+    );
+    std::fs::write(s.dir.path().join("copy.am6p"), &bytes).expect("write");
+
+    let (status, created) = s
+        .command(
+            "project.import",
+            json!({"name": "Copy", "package": {"path": s.path("copy.am6p")}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    let copy = created["slug"].as_str().expect("slug");
+    assert_ne!(copy, slug);
+    assert_eq!(created["info"]["name"], "Copy");
+    let (_, original) = s
+        .call("GET", &format!("/api/projects/{slug}/datasets"), None)
+        .await;
+    let (_, imported) = s
+        .call("GET", &format!("/api/projects/{copy}/datasets"), None)
+        .await;
+    assert_eq!(imported, original);
+
+    for path in [
+        format!("/api/projects/{slug}/exports/../project.sqlite"),
+        format!("/api/projects/{slug}/exports/nope.am6p"),
+    ] {
+        let (status, _) = s.call("GET", &path, None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
+    }
+    // Not a project file.
+    std::fs::write(s.dir.path().join("bad.am6p"), b"not a zip").expect("write");
+    let (status, _) = s
+        .command(
+            "project.import",
+            json!({"package": {"path": s.path("bad.am6p")}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
