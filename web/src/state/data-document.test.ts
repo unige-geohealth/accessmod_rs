@@ -9,9 +9,9 @@ const datasets = [
 
 describe("data document", () => {
   it("keeps the state when nothing changes", () => {
-    const doc = updateData(EMPTY, { type: "select", keys: ["d2"] });
-    expect(updateData(doc, { type: "select", keys: ["d2"] })).toBe(doc);
-    expect(updateData(EMPTY, { type: "filtered" })).toBe(EMPTY);
+    const doc = updateData(EMPTY, { type: "select", run: null, keys: ["d2"] });
+    expect(updateData(doc, { type: "select", run: null, keys: ["d2"] })).toBe(doc);
+    expect(updateData(doc, { type: "select", run: 1, keys: ["d2"] })).not.toBe(doc);
     expect(updateData(EMPTY, { type: "discardEdits" })).toBe(EMPTY);
   });
 
@@ -31,22 +31,29 @@ describe("data document", () => {
   });
 
   it("forgets settled datasets", () => {
-    let doc = updateData(EMPTY, { type: "select", keys: ["d1", "j2", "d2"] });
+    let doc = updateData(EMPTY, { type: "select", run: null, keys: ["d1", "j2", "d2"] });
     doc = updateData(doc, { type: "editTags", id: 2, text: "x" });
     doc = updateData(doc, { type: "removed", ids: [2] });
-    expect(doc).toEqual({ selected: ["d1", "j2"], edits: {} });
+    expect(doc).toEqual({ selected: { run: null, keys: ["d1", "j2"] }, edits: {} });
   });
 
   it("selects only datasets that still exist", () => {
-    const doc = updateData(EMPTY, { type: "select", keys: ["d2", "d9", "j1"] });
-    expect(selectedDatasets(selectedKeys(doc, [], false), datasets).map((d) => d.id)).toEqual([2]);
+    const doc = updateData(EMPTY, { type: "select", run: null, keys: ["d2", "d9", "j1"] });
+    expect(selectedDatasets(selectedKeys(doc, ["d2", "d9", "j1"], null), datasets).map((d) => d.id)).toEqual([2]);
   });
 
-  it("selects the rows of the run filter until the user selects", () => {
-    expect(selectedKeys(EMPTY, ["j3", "d1"], true)).toEqual(["j3", "d1"]);
-    expect(selectedKeys(EMPTY, ["d1"], false)).toEqual([]);
-    const chosen = updateData(EMPTY, { type: "select", keys: ["d1"] });
-    expect(selectedKeys(chosen, ["j3", "d1"], true)).toEqual(["d1"]);
-    expect(selectedKeys(updateData(chosen, { type: "filtered" }), ["j3", "d1"], true)).toEqual(["j3", "d1"]);
+  it("selects the rows of the run filter until the user selects under it", () => {
+    expect(selectedKeys(EMPTY, ["j3", "d1"], 3)).toEqual(["j3", "d1"]);
+    expect(selectedKeys(EMPTY, ["d1"], null)).toEqual([]);
+    const chosen = updateData(EMPTY, { type: "select", run: 3, keys: ["d1"] });
+    expect(selectedKeys(chosen, ["j3", "d1"], 3)).toEqual(["d1"]);
+    // Another run (a new filter, Back): its rows again, never the other run's choice.
+    expect(selectedKeys(chosen, ["j4", "d2"], 4)).toEqual(["j4", "d2"]);
+    expect(selectedKeys(chosen, ["d1", "d2"], null)).toEqual([]);
+  });
+
+  it("never selects a hidden row", () => {
+    const chosen = updateData(EMPTY, { type: "select", run: null, keys: ["d1", "d2"] });
+    expect(selectedKeys(chosen, ["d2", "d3"], null)).toEqual(["d2"]);
   });
 });

@@ -9,7 +9,10 @@ use std::time::Duration;
 
 use rusqlite::Connection;
 
+use super::runs::catalogue_key;
+use crate::analysis::{Analysis, ForAnalysis, by_name};
 use crate::error::{Error, Result};
+use crate::job::JobFile;
 
 /// A schema change: SQL, then an optional data step in Rust.
 struct Migration {
@@ -80,30 +83,19 @@ const V1: &str = "CREATE TABLE meta (
         updated INTEGER NOT NULL
     );";
 
-/// Link every recorded run to the ready datasets its job names: any string
-/// of the job equal to a dataset file, `.` components aside.
+/// Link every recorded run to the ready datasets its job reads: the paths
+/// of its typed job, as `start_run` records them.
 fn backfill_run_inputs(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
-    let runs: Vec<(i64, String)> = {
-        let mut stmt = tx.prepare("SELECT id, job FROM runs")?;
-        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+    let runs: Vec<(i64, String, String)> = {
+        let mut stmt = tx.prepare("SELECT id, analysis, job FROM runs")?;
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
             .collect::<rusqlite::Result<_>>()?
     };
     let mut find = tx
         .prepare("SELECT id FROM datasets WHERE file = ?1 AND state = 'ready' AND run IS NOT ?2")?;
     let mut link = tx.prepare("INSERT OR IGNORE INTO run_inputs (run, dataset) VALUES (?1, ?2)")?;
-    for (run, job) in runs {
-        // A job that no longer parses has no inputs to recover.
-        let Ok(job) = serde_json::from_str::<serde_json::Value>(&job) else {
-            continue;
-        };
-        let mut paths = Vec::new();
-        strings(&job, &mut paths);
-        for path in paths {
-            let key = path
-                .split('/')
-                .filter(|part| !part.is_empty() && *part != ".")
-                .collect::<Vec<_>>()
-                .join("/");
+    for (run, analysis, job) in runs {
+        for key in job_paths(&analysis, &job) {
             let ids: Vec<i64> = find
                 .query_map(rusqlite::params![key, run], |r| r.get(0))?
                 .collect::<rusqlite::Result<_>>()?;
@@ -115,14 +107,22 @@ fn backfill_run_inputs(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// Every string of `value`, depth first.
-fn strings<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
-    match value {
-        serde_json::Value::String(s) => out.push(s),
-        serde_json::Value::Array(items) => items.iter().for_each(|v| strings(v, out)),
-        serde_json::Value::Object(map) => map.values().for_each(|v| strings(v, out)),
-        _ => {}
+/// Catalogue keys of the paths of `job`, a job of `analysis`; none when
+/// the analysis is unknown or the job no longer parses.
+fn job_paths(analysis: &str, job: &str) -> Vec<String> {
+    struct Paths<'a>(&'a str);
+    impl ForAnalysis for Paths<'_> {
+        type Output = Vec<String>;
+        fn call<A: Analysis>(self) -> Vec<String> {
+            let Ok(mut job) = A::Job::from_json(self.0) else {
+                return Vec::new();
+            };
+            let mut paths = Vec::new();
+            job.for_each_path(&mut |path| paths.push(catalogue_key(path)));
+            paths
+        }
     }
+    by_name(analysis, Paths(job)).unwrap_or_default()
 }
 
 /// Schema version this engine writes.
@@ -211,8 +211,13 @@ mod tests {
             "DROP TABLE run_inputs;
              INSERT INTO runs (id, analysis, tags, job, status, output_dir, started)
              VALUES (1, 'travel-time', '[]',
-                     '{\"dem\": \"./datasets/1.tif\", \"facilities\": {\"path\": \"datasets/2.fgb\"},
-                       \"scenario\": [{\"class\": 1}], \"output_dir\": \"runs/1\"}',
+                     '{\"schema_version\": 1, \"dem\": \"./datasets/1.tif\",
+                       \"land_cover\": \"datasets/9.tif\",
+                       \"facilities\": {\"path\": \"datasets//2.fgb\", \"id_field\": \"datasets/3.tif\"},
+                       \"scenario\": [{\"class\": 1, \"label\": \"datasets/3.tif\",
+                                      \"mode\": \"motorized\", \"speed_kmh\": 10.0}],
+                       \"method\": \"isotropic\", \"direction\": \"from_facilities\",
+                       \"neighbourhood\": 8, \"output_dir\": \"runs/1\"}',
                      'done', 'runs/1', 0),
                     (2, 'travel-time', '[]', 'not json', 'failed', 'runs/2', 0);
              INSERT INTO datasets (id, class, tags, tags_key, file, state, origin, run, created)
@@ -233,7 +238,8 @@ mod tests {
             .unwrap()
             .collect::<rusqlite::Result<_>>()
             .unwrap();
-        // The DEM (through `./`) and the facilities; not its own output, and
+        // The DEM (through `./`) and the facilities (through `//`); not a
+        // string that only looks like a path (dataset 3), not its own output,
         // nothing from a job that no longer parses.
         assert_eq!(links, [(1, 1), (1, 2)]);
     }

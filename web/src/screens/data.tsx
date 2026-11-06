@@ -64,22 +64,19 @@ export function DataScreen({ route, project }: { route: Route; project: string }
       });
     // the filter is a value of the URL query
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, finished, t, doc.edits, filter.type, filter.text, filter.tags, roles]);
+  }, [list, finished, t, doc.edits, filter.type, filter.text, filter.tags, filter.run, roles]);
   // Stable between renders: the table resyncs its selection when it changes.
   const selected = useMemo(
     () =>
       selectedKeys(
         doc,
         rows.map((r) => r.key),
-        filter.run !== null,
+        filter.run,
       ),
     [doc, rows, filter.run],
   );
 
-  const setFilter = (next: DataFilter) => {
-    if (next.run !== filter.run) dispatch({ type: "filtered" });
-    navigate({ ...route, query: filterToQuery(next) });
-  };
+  const setFilter = (next: DataFilter) => navigate({ ...route, query: filterToQuery(next) });
 
   return (
     <Columns
@@ -125,7 +122,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
             selectable
             rowId="key"
             selected={selected as string[]}
-            onSelectionChange={(chosen: Row[]) => dispatch({ type: "select", keys: chosen.map((r) => String(r.key)) })}
+            onSelectionChange={(chosen: Row[]) => dispatch({ type: "select", run: filter.run, keys: chosen.map((r) => String(r.key)) })}
             onCellEdited={(row, field, value) => {
               if (field === "tags" && row.kind !== "job") dispatch({ type: "editTags", id: Number(row.id), text: String(value ?? "") });
             }}

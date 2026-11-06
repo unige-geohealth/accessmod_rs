@@ -104,7 +104,7 @@ pub struct RunRecord {
 
 /// `path` as the catalogue stores files: components joined by `/`, without
 /// `.` components.
-fn catalogue_key(path: &Path) -> String {
+pub(super) fn catalogue_key(path: &Path) -> String {
     path.components()
         .filter_map(|c| match c {
             std::path::Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
