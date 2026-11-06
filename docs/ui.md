@@ -115,6 +115,32 @@ browser (TypeScript)                         accessmod serve (Rust)
   cancellation flag and a progress sink. Outputs are byte-identical to the
   CLI's. Runs survive a closed browser; after a server restart, unfinished
   runs are marked interrupted, never left running.
+- **Lanes** (`runner.rs`): every long piece of work is a task, never a
+  request held open. Each lane runs its tasks one at a time, in order:
+  - *compute*: analyses, since the memory budget is per run;
+  - *io*: operations, so an archive never waits behind a long analysis.
+    Operations on a project are runs of kind `manage` of that project:
+    `archive`, `project-export` and `dataset-import`, with their parameters
+    as job, a `result`, and the datasets they read in `run_inputs`, which
+    are then neither removed nor replaced. Operations that make a project
+    (`project-create`, `project-import`, `demo-reset`) are pending in memory
+    (`GET /api/operations`, event `pending`) and are recorded in the project
+    once it is made;
+  - *check*: pre-analyses. `POST …/analyses/{name}/check` is the quick
+    check that gates Compute, with types, paths and classes and no input
+    read. `POST …/precheck?client=` queues `prepare` on the inputs, with
+    progress; the latest one wins per tab, project and analysis, and it ends
+    as a `check` event. `POST …/validate` stays as a blocking call for API
+    users.
+
+  A task polls its control: cancelled or paused. A paused task holds at
+  its next check, keeping its memory and temporary files; a paused queued
+  task keeps its place while the next ones start. `run.pause`,
+  `run.resume`, `run.cancel`, `run.retry` (failed, cancelled or
+  interrupted analyses) and `run.remove` (outputs too on request) cover
+  the cycle. The event `queue` carries what each lane holds, with places
+  and pauses. Jobs is the task manager, and the client notifies each job
+  that ends.
 - **Static assets**: the built front end is embedded with `rust-embed` behind
   the cargo feature `web` (release builds). Without it, `serve` takes
   `--web-dir`, or the Vite dev server proxies `/api`. `cargo build
@@ -262,7 +288,7 @@ Four kinds of state, each with one owner and one way to change:
 | --- | --- | --- | --- |
 | Server | projects, catalogue, dataset metadata, runs, reports | server | API responses and events, held in the query cache |
 | Document | the job being edited, merge stack, scenario table, facility selection | client store, one per document | typed messages through a pure `update` |
-| Process | run: queued → running (progress) → done, failed, cancelled or interrupted; import | server, mirrored | events, into an explicit state machine |
+| Process | run or operation: queued → running (progress, paused) → done, failed, cancelled or interrupted; pre-analysis | server, mirrored | events, into an explicit state machine; a click handler awaits the task it queued (`api/tasks.ts`) |
 | View | route, open panel, map viewport, table sort | component or URL | local |
 
 Rules:
