@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { busy, lastResults, minutes, percent, runView } from "./run";
+import { busy, doneRuns, lastRun, minutes, percent, runView } from "./run";
 
 const run = (id: number, status: Api.RunStatus, datasets: number[] = []): Api.RunRecord =>
-  ({ id, status, datasets, started: 100, finished: status === "running" ? null : 130, analysis: "travel-time", tags: [], job: {}, output_dir: "" }) as Api.RunRecord;
+  ({ id, status, datasets, inputs: [], started: 100, finished: status === "running" ? null : 130, analysis: "travel-time", tags: [], job: {}, output_dir: "" }) as Api.RunRecord;
 
 describe("run", () => {
   it("follows the run the screen started", () => {
@@ -21,7 +21,9 @@ describe("run", () => {
     expect(percent({ stage: "s", done: 1, total: 3 })).toBe(33);
     expect(percent({ stage: "s", done: 1 })).toBeUndefined();
     expect(minutes(run(1, "done"))).toBe(0.5);
-    expect(lastResults([run(1, "done", [5]), run(3, "failed", [9]), run(2, "done", [6, 7])])).toEqual([6, 7]);
-    expect(lastResults(undefined)).toEqual([]);
+    const runs = [run(1, "done", [5]), run(3, "failed", [9]), run(2, "done", [6, 7])];
+    expect(lastRun(runs)).toBe(2);
+    expect(doneRuns(runs).map((r) => r.id)).toEqual([2, 1]);
+    expect(lastRun(undefined)).toBeNull();
   });
 });

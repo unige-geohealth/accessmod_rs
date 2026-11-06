@@ -910,5 +910,47 @@
     "fr": "Raster",
     "es": "Ráster",
     "pt": "Raster"
+  },
+  "data.kind_job": {
+    "en": "Job",
+    "fr": "Job",
+    "es": "Trabajo",
+    "pt": "Trabalho"
+  },
+  "data.run": {
+    "en": "Run",
+    "fr": "Exécution",
+    "es": "Ejecución",
+    "pt": "Execução"
+  },
+  "data.column_role": {
+    "en": "Role",
+    "fr": "Rôle",
+    "es": "Rol",
+    "pt": "Papel"
+  },
+  "data.role_input": {
+    "en": "Input",
+    "fr": "Entrée",
+    "es": "Entrada",
+    "pt": "Entrada"
+  },
+  "data.role_output": {
+    "en": "Output",
+    "fr": "Sortie",
+    "es": "Salida",
+    "pt": "Saída"
+  },
+  "data.open_job": {
+    "en": "Open in Jobs",
+    "fr": "Ouvrir dans Jobs",
+    "es": "Abrir en Trabajos",
+    "pt": "Abrir em Trabalhos"
+  },
+  "jobs.inputs": {
+    "en": "Inputs",
+    "fr": "Entrées",
+    "es": "Entradas",
+    "pt": "Entradas"
   }
 }

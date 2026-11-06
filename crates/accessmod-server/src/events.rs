@@ -26,7 +26,7 @@ pub enum Event {
         /// Project slug.
         project: String,
         /// The run as it is now.
-        run: RunRecord,
+        run: Box<RunRecord>,
     },
     /// Progress of a running run.
     Progress {
@@ -148,7 +148,7 @@ impl ProgressEvents {
                     *last = Some((progress.stage.clone(), now));
                     let _ = self.events.send(Event::Run {
                         project: self.project.clone(),
-                        run: self.run.clone(),
+                        run: Box::new(self.run.clone()),
                     });
                 }
                 _ => *last = Some((progress.stage.clone(), now)),

@@ -127,24 +127,39 @@ function JobDetails({ entry, stage, now }: { entry: Api.JobEntry; stage: Api.Pro
       {run.outcome && <p>{run.outcome}</p>}
       {(run.error?.issues.length ?? 0) > 0 && <MessageList messages={(run.error?.issues ?? []).map((text) => ({ kind: "issue" as const, text }))} />}
       {failure.length > 0 && <MessageList messages={failure.map((text) => ({ kind: "issue" as const, text }))} />}
-      {run.datasets.length > 0 && (
-        <>
-          <b>
-            <T k="jobs.outputs" />
-          </b>
-          <ul className="list-disc pl-10">
-            {run.datasets.map((id) => {
-              const d = byId.get(id);
-              return <li key={id}>{d ? datasetLabel(t, d) : `#${id}`}</li>;
-            })}
-          </ul>
-        </>
+      {(
+        [
+          ["jobs.inputs", run.inputs],
+          ["jobs.outputs", run.datasets],
+        ] as const
+      ).map(
+        ([k, ids]) =>
+          ids.length > 0 && (
+            <div key={k}>
+              <b>
+                <T k={k} />
+              </b>
+              <ul className="list-disc pl-10">
+                {ids.map((id) => {
+                  const d = byId.get(id);
+                  return <li key={id}>{d ? datasetLabel(t, d) : `#${id}`}</li>;
+                })}
+              </ul>
+            </div>
+          ),
       )}
       <LinkActions
         actions={[
           { icon: "download", k: "analysis.download_job", onClick: () => downloadJson(`${run.analysis}-${project}-${run.id}`, run.job) },
-          ...(run.datasets.length > 0
-            ? [{ icon: "data" as const, k: "jobs.open_data" as const, onClick: () => navigate({ project, section: "data", panel: null, query: {} }) }]
+          // Data lists the job, inputs and outputs of finished runs.
+          ...(run.status === "done"
+            ? [
+                {
+                  icon: "data" as const,
+                  k: "jobs.open_data" as const,
+                  onClick: () => navigate({ project, section: "data", panel: "filter", query: { run: String(run.id) } }),
+                },
+              ]
             : []),
         ]}
       />

@@ -6,7 +6,7 @@ import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
 import { DataTable, type Row } from "@accessmod/ui/am/data-table";
 import { CheckboxField, RadioField, SelectField, TextField } from "@accessmod/ui/am/form";
-import { AmButton, FilePicker, InfoList, MessageList } from "@accessmod/ui/am/messages";
+import { AmButton, FilePicker, InfoList, LinkActions, MessageList } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
 import { T, useI18n } from "@accessmod/ui/i18n";
@@ -24,36 +24,62 @@ import {
   type DataRow,
   filterFromQuery,
   filterToQuery,
+  jobRow,
   kindOf,
   matches,
   normalizeTags,
+  type Role,
+  runRoles,
   sortRows,
   toRow,
 } from "../state/catalogue";
-import { type DataDocument, type DataMessage, EMPTY, selectedDatasets, tagChanges, updateData } from "../state/data-document";
-import { lastResults } from "../state/run";
+import { type DataDocument, type DataMessage, EMPTY, selectedDatasets, selectedKeys, tagChanges, updateData } from "../state/data-document";
+import { analysisLabel } from "../state/jobs";
+import { doneRuns, lastRun } from "../state/run";
 import { busy, useTransfer } from "../state/transfer";
-import { BatchStatus, NotAvailable, TransferStatus, useFmt } from "./common";
+import { BatchStatus, downloadJson, NotAvailable, TransferStatus, useFmt } from "./common";
+
+const ROLE_KEYS = { input: "data.role_input", output: "data.role_output", job: "data.kind_job" } as const satisfies Record<Role, string>;
 
 export function DataScreen({ route, project }: { route: Route; project: string }) {
   const { t } = useI18n();
   const datasets = useDatasets(project);
   const runs = useRuns(project).data;
-  const last = useMemo(() => new Set(lastResults(runs)), [runs]);
+  const finished = useMemo(() => doneRuns(runs), [runs]);
   const [doc, dispatch] = useReducer(updateData, EMPTY);
   const filter = filterFromQuery(route.query);
+  const filterRun = filter.run === null ? undefined : finished.find((r) => r.id === filter.run);
+  const roles = useMemo(() => runRoles(filterRun), [filterRun]);
   const renaming = route.panel === "rename";
   const label = useMemo(() => (dataset: Api.Dataset) => `${classLabel(t, dataset.class)} [${dataset.tags.join(" ")}]`, [t]);
 
   const list = datasets.data;
   const rows = useMemo(() => {
-    const all = sortRows((list ?? []).map((d) => toRow(d, t)));
-    return all.filter((r) => matches(r, filter, last)).map((r) => ({ ...r, tags: doc.edits[r.id] ?? r.tags }));
+    const all = sortRows([...(list ?? []).map((d) => toRow(d, t)), ...finished.map((r) => jobRow(r, t))]);
+    return all
+      .filter((r) => matches(r, filter, roles))
+      .map((r) => {
+        const role = roles.get(r.key);
+        return { ...r, tags: r.kind === "job" ? r.tags : (doc.edits[r.id] ?? r.tags), role: role ? t(ROLE_KEYS[role]) : "" };
+      });
     // the filter is a value of the URL query
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, t, doc.edits, filter.type, filter.text, filter.tags, filter.last, last]);
+  }, [list, finished, t, doc.edits, filter.type, filter.text, filter.tags, roles]);
+  // Stable between renders: the table resyncs its selection when it changes.
+  const selected = useMemo(
+    () =>
+      selectedKeys(
+        doc,
+        rows.map((r) => r.key),
+        filter.run !== null,
+      ),
+    [doc, rows, filter.run],
+  );
 
-  const setFilter = (next: DataFilter) => navigate({ ...route, query: filterToQuery(next) });
+  const setFilter = (next: DataFilter) => {
+    if (next.run !== filter.run) dispatch({ type: "filtered" });
+    navigate({ ...route, query: filterToQuery(next) });
+  };
 
   return (
     <Columns
@@ -64,12 +90,12 @@ export function DataScreen({ route, project }: { route: Route; project: string }
           onValueChange={(v) => navigate({ ...route, panel: v === "" ? null : v })}
           items={[
             { value: "import", icon: "add", title: "data_import_data", content: <ImportPanel project={project} /> },
-            { value: "filter", icon: "filter", title: "data_filter_data", content: <FilterPanel filter={filter} onChange={setFilter} /> },
+            { value: "filter", icon: "filter", title: "data_filter_data", content: <FilterPanel project={project} filter={filter} runs={finished} onChange={setFilter} /> },
             {
               value: "rename",
               icon: "rename",
               title: "data_rename_data",
-              content: <RenamePanel project={project} doc={doc} dispatch={dispatch} datasets={list ?? []} label={label} />,
+              content: <RenamePanel project={project} doc={doc} selected={selected} dispatch={dispatch} datasets={list ?? []} label={label} />,
             },
             {
               value: "archive",
@@ -86,7 +112,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
               value: "delete",
               icon: "delete",
               title: "data_delete_data",
-              content: <DeletePanel project={project} doc={doc} dispatch={dispatch} datasets={list ?? []} label={label} />,
+              content: <DeletePanel project={project} doc={doc} selected={selected} dispatch={dispatch} datasets={list ?? []} label={label} />,
             },
           ]}
         />
@@ -97,16 +123,17 @@ export function DataScreen({ route, project }: { route: Route; project: string }
           {datasets.isError && <MessageList messages={issuesOf(datasets.error, t).map((text) => ({ kind: "issue", text }))} />}
           <DataTable
             selectable
-            rowId="id"
-            selected={doc.selected as number[]}
-            onSelectionChange={(selected: Row[]) => dispatch({ type: "select", ids: selected.map((r) => Number(r.id)) })}
+            rowId="key"
+            selected={selected as string[]}
+            onSelectionChange={(chosen: Row[]) => dispatch({ type: "select", keys: chosen.map((r) => String(r.key)) })}
             onCellEdited={(row, field, value) => {
-              if (field === "tags") dispatch({ type: "editTags", id: Number(row.id), text: String(value ?? "") });
+              if (field === "tags" && row.kind !== "job") dispatch({ type: "editTags", id: Number(row.id), text: String(value ?? "") });
             }}
             columns={[
-              { field: "tags", title: t("data.column_tags"), editable: renaming },
+              { field: "tags", title: t("data.column_tags"), editable: renaming, editableRow: isDatasetRow },
               { field: "type", title: t("data.column_type") },
               { field: "class", title: t("data.column_class") },
+              ...(filter.run === null ? [] : [{ field: "role", title: t("data.column_role") }]),
             ]}
             data={rows as DataRow[]}
             height="70vh"
@@ -161,7 +188,28 @@ function ImportPanel({ project }: { project: string }) {
   );
 }
 
-function FilterPanel({ filter, onChange }: { filter: DataFilter; onChange: (f: DataFilter) => void }) {
+/** Job rows have no tags of their own to edit: they are the run's. */
+const isDatasetRow = (row: Row) => row.kind !== "job";
+
+function FilterPanel({
+  project,
+  filter,
+  runs,
+  onChange,
+}: {
+  project: string;
+  filter: DataFilter;
+  /** Finished runs, newest first. */
+  runs: readonly Api.RunRecord[];
+  onChange: (f: DataFilter) => void;
+}) {
+  const { t } = useI18n();
+  const last = lastRun(runs);
+  const run = runs.find((r) => r.id === filter.run);
+  const options = [
+    { value: "", label: t("table.none") },
+    ...runs.map((r) => ({ value: String(r.id), label: `#${r.id} ${analysisLabel(t, r.analysis)} [${r.tags.join(" ")}]` })),
+  ];
   return (
     <div className="flex flex-col gap-[15px]">
       <RadioField
@@ -173,13 +221,35 @@ function FilterPanel({ filter, onChange }: { filter: DataFilter; onChange: (f: D
           { value: "vector", label: "data_vector" },
           { value: "raster", label: "data_raster" },
           { value: "table", label: "data_table" },
-          { value: "config", label: "data_config" },
+          { value: "job", label: "data.kind_job" },
           { value: "all", label: "data_all" },
         ]}
       />
       <TextField label="data_filter_text" value={filter.text} onChange={(text) => onChange({ ...filter, text })} />
       <TextField label="data_filter_tag" value={filter.tags} onChange={(tags) => onChange({ ...filter, tags })} />
-      <CheckboxField label="data.last_results" checked={filter.last} onChange={(last) => onChange({ ...filter, last })} />
+      {last !== null && (
+        <CheckboxField label="data.last_results" checked={filter.run === last} onChange={(on) => onChange({ ...filter, run: on ? last : null })} />
+      )}
+      {runs.length > 0 && (
+        <SelectField
+          label="data.run"
+          options={options}
+          value={filter.run === null ? "" : String(filter.run)}
+          onChange={(v) => onChange({ ...filter, run: v === "" ? null : Number(v) })}
+        />
+      )}
+      {run && (
+        <LinkActions
+          actions={[
+            {
+              icon: "logs",
+              k: "data.open_job",
+              onClick: () => navigate({ project, section: "jobs", panel: null, query: { scope: "project", job: `${project}/${run.id}` } }),
+            },
+            { icon: "download", k: "analysis.download_job", onClick: () => downloadJson(`${run.analysis}-${project}-${run.id}`, run.job) },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -187,6 +257,8 @@ function FilterPanel({ filter, onChange }: { filter: DataFilter; onChange: (f: D
 interface DocumentProps {
   project: string;
   doc: DataDocument;
+  /** Keys of the selected rows. */
+  selected: readonly string[];
   dispatch: Dispatch<DataMessage>;
   datasets: readonly Api.Dataset[];
   label: (dataset: Api.Dataset) => string;
@@ -219,10 +291,10 @@ function RenamePanel({ project, doc, dispatch, datasets, label }: DocumentProps)
   );
 }
 
-function DeletePanel({ project, doc, dispatch, datasets, label }: DocumentProps) {
+function DeletePanel({ project, selected: chosen, dispatch, datasets, label }: DocumentProps) {
   const { batch, start } = useBatch();
   const [confirming, setConfirming] = useState(false);
-  const selected = selectedDatasets(doc, datasets);
+  const selected = selectedDatasets(chosen, datasets);
   const remove = async () => {
     const done = await start(selected, label, (d) => api.command("dataset.remove", { project, id: d.id }));
     dispatch({ type: "removed", ids: done.map((d) => d.id) });

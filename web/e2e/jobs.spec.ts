@@ -39,6 +39,13 @@ test("jobs: runs of every project, details, outputs and exported job", async ({ 
   const job = JSON.parse(readFileSync(await (await download).path(), "utf8"));
   expect(job.stack).toEqual([{ type: "land_cover", path: "datasets/2.tif" }]);
 
+  // Data: the run's job, its inputs (DEM, land cover) and its output, selected.
   await page.getByRole("button", { name: "Show in Data" }).click();
-  await expect(page).toHaveURL(/#\/demo\/data/);
+  await expect(page).toHaveURL(/#\/demo\/data\/filter\?.*run=\d+/);
+  const rows = page.locator(".tabulator .tabulator-row");
+  await expect(rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Job$/ }) })).toHaveCount(1);
+  await expect(rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Input$/ }) })).toHaveCount(2);
+  await expect(rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Output$/ }) }).first()).toContainText("jobs");
+  for (const row of await rows.all()) await expect(row.locator("input[type=checkbox]")).toBeChecked();
+  await shot(page, "data-run");
 });

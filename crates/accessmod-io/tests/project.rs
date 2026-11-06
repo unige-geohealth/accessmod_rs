@@ -318,6 +318,8 @@ fn run_registers_outputs_as_datasets() {
             .contains("cells reached")
     );
     assert_eq!(record.job["output_dir"], "runs/1");
+    // The datasets it read: DEM, land cover, facilities.
+    assert_eq!(record.inputs, [1, 2, 3]);
 
     let outputs: Vec<(DataClass, String)> = record
         .datasets
@@ -364,7 +366,12 @@ fn run_registers_outputs_as_datasets() {
     let runs = project.runs().expect("runs");
     assert_eq!(runs.len(), 2);
     assert_eq!(runs[1].status, RunStatus::Failed);
+    assert!(runs[1].inputs.is_empty());
     assert!(!project.root().join("runs/2").exists());
+
+    // A removed input leaves the run's inputs.
+    project.remove_dataset(3).expect("remove facilities");
+    assert_eq!(project.run_record(1).expect("run").inputs, [1, 2]);
 }
 
 #[test]

@@ -5,6 +5,7 @@ import type { Key } from "@accessmod/ui/i18n";
 import classList from "../../schemas/data-classes.json";
 import type { ClassInfo } from "../api/client";
 import type { Api } from "../generated/types";
+import { analysisLabel } from "./jobs";
 
 export type Kind = ClassInfo["kind"];
 
@@ -79,55 +80,95 @@ export function tagsOf(text: string): { tags: string[]; issues: Key[] } {
   return { tags, issues: tags.length === 0 ? ["srv_analysis_accessibility_add_tag_instruction"] : [] };
 }
 
+/**
+ * Kinds of the rows of Data: those of the data classes, and `job`, the job
+ * of a finished run (AM5 "analysis parameters", once a `config` dataset).
+ */
+export type RowKind = Exclude<Kind, "config"> | "job";
+
 /** Data › Filter, from the URL. */
 export interface DataFilter {
-  type: Kind | "all";
+  type: RowKind | "all";
   /** Any field, case sensitive (AM5). */
   text: string;
   /** Every tag must be present. */
   tags: string;
-  /** Only the datasets of the latest finished run ("Filter last results"). */
-  last: boolean;
+  /** Only the job of this run, its inputs and its outputs ("Filter last results" picks the latest). */
+  run: number | null;
 }
 
-const KINDS: readonly string[] = ["vector", "raster", "table", "config"];
+const KINDS: readonly string[] = ["vector", "raster", "table", "job"];
 
 export function filterFromQuery(query: Readonly<Record<string, string>>): DataFilter {
   const type = query.type ?? "all";
+  const run = Number(query.run ?? "");
   return {
-    type: KINDS.includes(type) ? (type as Kind) : "all",
+    type: KINDS.includes(type) ? (type as RowKind) : "all",
     text: query.text ?? "",
     tags: query.tags ?? "",
-    last: query.last === "1",
+    run: query.run !== undefined && query.run !== "" && Number.isSafeInteger(run) && run > 0 ? run : null,
   };
 }
 
 export function filterToQuery(filter: DataFilter): Record<string, string> {
-  return { type: filter.type === "all" ? "" : filter.type, text: filter.text, tags: filter.tags, last: filter.last ? "1" : "" };
+  return { type: filter.type === "all" ? "" : filter.type, text: filter.text, tags: filter.tags, run: filter.run === null ? "" : String(filter.run) };
 }
 
-/** AM5 names of the kinds (Data › Filter). */
-export const KIND_KEYS: Record<Kind, Key> = { vector: "data_vector", raster: "data_raster", table: "data_table", config: "data_config" };
+/** Names of the kinds (Data › Filter; AM5 for the data classes). */
+export const KIND_KEYS: Record<Kind | "job", Key> = {
+  vector: "data_vector",
+  raster: "data_raster",
+  table: "data_table",
+  config: "data_config",
+  job: "data.kind_job",
+};
 
-/** A row of the "Available data" table (AM5: Tags, Type, Class). */
+/** How a row takes part in the run of the filter. */
+export type Role = "input" | "output" | "job";
+
+/** A row of the "Available data" table (AM5: Tags, Type, Class): a dataset or the job of a run. */
 export interface DataRow {
   [field: string]: string | number;
+  /** `d<dataset id>` or `j<run id>`: unique among rows. */
+  key: string;
+  /** Dataset id, or run id for a job. */
   id: number;
   tags: string;
-  kind: Kind;
+  kind: Kind | "job";
   /** The kind, translated. */
   type: string;
   class: string;
 }
 
+export const datasetKey = (id: number) => `d${id}`;
+export const jobRowKey = (run: number) => `j${run}`;
+
+/** Dataset ids among row keys. */
+export const datasetIds = (keys: readonly string[]): number[] => keys.filter((k) => k.startsWith("d")).map((k) => Number(k.slice(1)));
+
 export function toRow(dataset: Api.Dataset, t: (key: Key) => string): DataRow {
   const kind = kindOf(dataset.class);
-  return { id: dataset.id, tags: dataset.tags.join(" "), kind, type: t(KIND_KEYS[kind]), class: classLabel(t, dataset.class) };
+  return { key: datasetKey(dataset.id), id: dataset.id, tags: dataset.tags.join(" "), kind, type: t(KIND_KEYS[kind]), class: classLabel(t, dataset.class) };
 }
 
-/** Whether `row` passes `filter`; `last` holds the datasets of the latest finished run. */
-export function matches(row: DataRow, filter: DataFilter, last: ReadonlySet<number> = new Set()): boolean {
-  if (filter.last && !last.has(row.id)) return false;
+/** The row of a run's job; its class names the analysis. */
+export function jobRow(run: Api.RunRecord, t: (key: Key) => string): DataRow {
+  return { key: jobRowKey(run.id), id: run.id, tags: run.tags.join(" "), kind: "job", type: t(KIND_KEYS.job), class: `${analysisLabel(t, run.analysis)} (#${run.id})` };
+}
+
+/** Rows of a run, by key: its job, its inputs and its outputs. */
+export function runRoles(run: Api.RunRecord | undefined): ReadonlyMap<string, Role> {
+  const roles = new Map<string, Role>();
+  if (run === undefined) return roles;
+  roles.set(jobRowKey(run.id), "job");
+  for (const id of run.inputs) roles.set(datasetKey(id), "input");
+  for (const id of run.datasets) roles.set(datasetKey(id), "output");
+  return roles;
+}
+
+/** Whether `row` passes `filter`; `members` holds the rows of the filter's run. */
+export function matches(row: DataRow, filter: DataFilter, members: ReadonlyMap<string, Role> = new Map()): boolean {
+  if (filter.run !== null && !members.has(row.key)) return false;
   if (filter.type !== "all" && row.kind !== filter.type) return false;
   if (filter.text !== "" && ![row.tags, row.type, row.class].some((f) => f.includes(filter.text))) return false;
   const wanted = normalizeTags(filter.tags);
@@ -140,7 +181,7 @@ export function matches(row: DataRow, filter: DataFilter, last: ReadonlySet<numb
 
 /** Datasets sorted as AM5 lists them: by class label, then tags. */
 export function sortRows(rows: DataRow[]): DataRow[] {
-  return [...rows].sort((a, b) => a.class.localeCompare(b.class) || a.tags.localeCompare(b.tags) || a.id - b.id);
+  return [...rows].sort((a, b) => a.class.localeCompare(b.class) || a.tags.localeCompare(b.tags) || a.key.localeCompare(b.key));
 }
 
 /** Classes a job field accepts: its `x-accessmod-class` in the job schema. */

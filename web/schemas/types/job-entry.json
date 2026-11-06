@@ -60,6 +60,14 @@
           "format": "int64",
           "type": "integer"
         },
+        "inputs": {
+          "description": "Datasets its job reads, still in the project.",
+          "items": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": "array"
+        },
         "job": {
           "description": "Job document, paths relative to the project."
         },
@@ -99,7 +107,8 @@
         "status",
         "output_dir",
         "started",
-        "datasets"
+        "datasets",
+        "inputs"
       ],
       "type": "object"
     },

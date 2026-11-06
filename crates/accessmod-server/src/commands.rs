@@ -573,13 +573,13 @@ fn start_run(state: &AppState, _: &Principal, params: StartRun) -> ApiResult<Run
     // arrive in order.
     state.publish(Event::Run {
         project: params.project.clone(),
-        run: record.clone(),
+        run: Box::new(record.clone()),
     });
     if let Err(e) = state.runner().enqueue(&params.project, id) {
         project.mark_failed(id, &e)?;
         state.publish(Event::Run {
             project: params.project.clone(),
-            run: project.run_record(id)?,
+            run: Box::new(project.run_record(id)?),
         });
         return Err(ApiError::Internal(e));
     }
@@ -602,7 +602,7 @@ fn cancel_run(state: &AppState, _: &Principal, params: RunRef) -> ApiResult<RunR
     }
     state.publish(Event::Run {
         project: params.project,
-        run: record.clone(),
+        run: Box::new(record.clone()),
     });
     Ok(record)
 }

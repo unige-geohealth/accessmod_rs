@@ -53,7 +53,7 @@ _Last updated: 2026-10-31 (6.0.0-alpha.1)._
 | Raster import with CRS / extent checks | `amUploadRaster.R` | ✅ GeoTIFF, ERDAS Imagine; no implicit resampling or reprojection | ✅ Data › Import (uploads) |
 | Vector import (facilities, roads, barriers, zones) | `amUploadVector.R` | ✅ shapefile, GeoPackage, FlatGeobuf, GeoJSON; explicit reprojection | ✅ |
 | Table import (scenarios, capacities, suitability, exclusion) | `amUploadTable.R` | ✅ CSV and XLSX | ✅ and editable in the analyses |
-| Data catalogue: tags, filter, rename, delete | `modules/amManageData` | ✅ `dataset import|list|tag|remove`; run outputs registered as datasets | ✅ Data (filter, last results, rename, delete) |
+| Data catalogue: tags, filter, rename, delete | `modules/amManageData` | ✅ `dataset import|list|tag|remove`; run outputs registered as datasets, run inputs recorded (`RunRecord.inputs`) | ✅ Data (filter, last results, rename, delete); the job of each finished run is a row (type Job, in place of AM5 Config); a run filter (Jobs › Show in Data, Filter last results) lists its job, inputs and outputs, selected |
 | Project export / import (`.am5p`) | `amProjectImportExport.R` | 🗓 converter | 🗓 |
 | Data export | `amExport.R` | ✅ GeoTIFF, FlatGeobuf, CSV, JSON | 🟡 tables as CSV/JSON |
 | Logs | `modules/amManageLogs` | ✅ `run.json` per run, `GET /api/runs` | ✅ Jobs, in place of Logs: runs of every project, progress, cancel, details, outputs, job export |

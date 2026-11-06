@@ -11,10 +11,32 @@ use rusqlite::Connection;
 
 use crate::error::{Error, Result};
 
+/// A schema change: SQL, then an optional data step in Rust.
+struct Migration {
+    sql: &'static str,
+    then: Option<fn(&rusqlite::Transaction<'_>) -> rusqlite::Result<()>>,
+}
+
 /// Migrations, in order; migration `i` brings the schema to version `i + 1`.
-const MIGRATIONS: &[&str] = &[
+const MIGRATIONS: &[Migration] = &[
     // 1: project, runs, datasets (with the run that wrote them), saved jobs.
-    "CREATE TABLE meta (
+    Migration {
+        sql: V1,
+        then: None,
+    },
+    // 2: the datasets each run read, recovered for earlier runs from their jobs.
+    Migration {
+        sql: "CREATE TABLE run_inputs (
+            run INTEGER NOT NULL REFERENCES runs (id) ON DELETE CASCADE,
+            dataset INTEGER NOT NULL REFERENCES datasets (id) ON DELETE CASCADE,
+            PRIMARY KEY (run, dataset)
+        );
+        CREATE INDEX run_inputs_dataset ON run_inputs (dataset);",
+        then: Some(backfill_run_inputs),
+    },
+];
+
+const V1: &str = "CREATE TABLE meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
@@ -56,8 +78,52 @@ const MIGRATIONS: &[&str] = &[
         document TEXT NOT NULL,
         revision INTEGER NOT NULL DEFAULT 1,
         updated INTEGER NOT NULL
-    );",
-];
+    );";
+
+/// Link every recorded run to the ready datasets its job names: any string
+/// of the job equal to a dataset file, `.` components aside.
+fn backfill_run_inputs(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
+    let runs: Vec<(i64, String)> = {
+        let mut stmt = tx.prepare("SELECT id, job FROM runs")?;
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    let mut find = tx
+        .prepare("SELECT id FROM datasets WHERE file = ?1 AND state = 'ready' AND run IS NOT ?2")?;
+    let mut link = tx.prepare("INSERT OR IGNORE INTO run_inputs (run, dataset) VALUES (?1, ?2)")?;
+    for (run, job) in runs {
+        // A job that no longer parses has no inputs to recover.
+        let Ok(job) = serde_json::from_str::<serde_json::Value>(&job) else {
+            continue;
+        };
+        let mut paths = Vec::new();
+        strings(&job, &mut paths);
+        for path in paths {
+            let key = path
+                .split('/')
+                .filter(|part| !part.is_empty() && *part != ".")
+                .collect::<Vec<_>>()
+                .join("/");
+            let ids: Vec<i64> = find
+                .query_map(rusqlite::params![key, run], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            for dataset in ids {
+                link.execute([run, dataset])?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Every string of `value`, depth first.
+fn strings<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
+    match value {
+        serde_json::Value::String(s) => out.push(s),
+        serde_json::Value::Array(items) => items.iter().for_each(|v| strings(v, out)),
+        serde_json::Value::Object(map) => map.values().for_each(|v| strings(v, out)),
+        _ => {}
+    }
+}
 
 /// Schema version this engine writes.
 pub const VERSION: i64 = MIGRATIONS.len() as i64;
@@ -99,8 +165,12 @@ fn migrate(db: &mut Connection, path: &Path) -> Result<()> {
             path.display()
         )));
     }
-    for sql in MIGRATIONS.iter().skip(version as usize) {
-        tx.execute_batch(sql).map_err(Error::database(path))?;
+    for migration in MIGRATIONS.iter().skip(version as usize) {
+        tx.execute_batch(migration.sql)
+            .map_err(Error::database(path))?;
+        if let Some(then) = migration.then {
+            then(&tx).map_err(Error::database(path))?;
+        }
     }
     if version < VERSION {
         tx.pragma_update(None, "user_version", VERSION)
@@ -129,6 +199,43 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         assert_eq!(version, VERSION);
+    }
+
+    #[test]
+    fn runs_of_a_version_1_project_get_their_inputs() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("p.sqlite");
+        let db = open(&path, true).unwrap();
+        // Back to version 1: no run_inputs table.
+        db.execute_batch(
+            "DROP TABLE run_inputs;
+             INSERT INTO runs (id, analysis, tags, job, status, output_dir, started)
+             VALUES (1, 'travel-time', '[]',
+                     '{\"dem\": \"./datasets/1.tif\", \"facilities\": {\"path\": \"datasets/2.fgb\"},
+                       \"scenario\": [{\"class\": 1}], \"output_dir\": \"runs/1\"}',
+                     'done', 'runs/1', 0),
+                    (2, 'travel-time', '[]', 'not json', 'failed', 'runs/2', 0);
+             INSERT INTO datasets (id, class, tags, tags_key, file, state, origin, run, created)
+             VALUES (1, 'rDem', '[]', 'a', 'datasets/1.tif', 'ready', '{}', NULL, 0),
+                    (2, 'vFacility', '[]', 'b', 'datasets/2.fgb', 'ready', '{}', NULL, 0),
+                    (3, 'rLandCoverMerged', '[]', 'c', 'datasets/3.tif', 'ready', '{}', NULL, 0),
+                    (4, 'rTravelTime', '[]', 'd', 'runs/1', 'ready', '{}', 1, 0);",
+        )
+        .unwrap();
+        db.pragma_update(None, "user_version", 1).unwrap();
+        drop(db);
+        let db = open(&path, false).unwrap();
+        let mut stmt = db
+            .prepare("SELECT run, dataset FROM run_inputs ORDER BY run, dataset")
+            .unwrap();
+        let links: Vec<(i64, i64)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        // The DEM (through `./`) and the facilities; not its own output, and
+        // nothing from a job that no longer parses.
+        assert_eq!(links, [(1, 1), (1, 2)]);
     }
 
     #[test]

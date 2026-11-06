@@ -43,8 +43,10 @@ export function minutes(record: Api.RunRecord): number {
   return Math.max(0, (record.finished ?? record.started) - record.started) / 60;
 }
 
-/** Datasets written by the latest finished run of the project ("Filter last results"). */
-export function lastResults(runs: readonly Api.RunRecord[] | undefined): readonly number[] {
-  const done = (runs ?? []).filter((r) => r.status === "done");
-  return done.reduce<Api.RunRecord | undefined>((last, r) => (last === undefined || r.id > last.id ? r : last), undefined)?.datasets ?? [];
+/** Finished runs of the project, newest first: those whose job, inputs and outputs Data shows. */
+export function doneRuns(runs: readonly Api.RunRecord[] | undefined): Api.RunRecord[] {
+  return (runs ?? []).filter((r) => r.status === "done").sort((a, b) => b.id - a.id);
 }
+
+/** The latest finished run ("Filter last results"), if any. */
+export const lastRun = (runs: readonly Api.RunRecord[] | undefined): number | null => doneRuns(runs)[0]?.id ?? null;

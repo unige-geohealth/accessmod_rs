@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { classLabel, datasetOptions, fieldClasses, filterFromQuery, pairedTable, filterToQuery, kindOf, matches, normalizeTags, toRow } from "./catalogue";
+import { classLabel, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRow, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
 
 const dataset = (id: number, cls: Api.DataClass, tags: string[]) => ({ id, class: cls, tags }) as Api.Dataset;
 const t = (key: string) => key;
@@ -21,23 +21,31 @@ describe("catalogue", () => {
     expect(classLabel((k) => (k === "class.rLandCover" ? "occupation du sol" : k), "rLandCover")).toBe("occupation du sol");
   });
 
-  it("filters by type, text and tags", () => {
-    const rows = [dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"])].map((d) => toRow(d, t as never));
-    const ids = (q: Record<string, string>) => rows.filter((r) => matches(r, filterFromQuery(q), new Set([2]))).map((r) => r.id);
+  it("filters by type, text, tags and run", () => {
+    const run = { id: 7, analysis: "travel-time", tags: ["demo"], inputs: [1], datasets: [2] } as Api.RunRecord;
+    const rows = [...[dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"]), dataset(3, "rDem", ["other"])].map((d) => toRow(d, t as never)), jobRow(run, t as never)];
+    const roles = runRoles(run);
+    const keys = (q: Record<string, string>) => rows.filter((r) => matches(r, filterFromQuery(q), roles)).map((r) => r.key);
+    expect(keys({ run: "7" })).toEqual(["d1", "d2", "j7"]);
+    expect(keys({ run: "7", type: "job" })).toEqual(["j7"]);
+    expect(keys({ type: "config" })).toHaveLength(4);
+    expect([...roles]).toEqual([["j7", "job"], ["d1", "input"], ["d2", "output"]]);
+    expect(datasetIds(["d1", "j7", "d2"])).toEqual([1, 2]);
+    const ids = (q: Record<string, string>) => rows.slice(0, 2).filter((r) => matches(r, filterFromQuery(q))).map((r) => r.id);
     expect(ids({})).toEqual([1, 2]);
     expect(ids({ type: "vector" })).toEqual([2]);
     expect(ids({ type: "bogus" })).toEqual([1, 2]);
     expect(ids({ text: "health" })).toEqual([2]);
     expect(ids({ text: "Health" })).toEqual([]);
     expect(ids({ tags: "demo, health" })).toEqual([2]);
-    expect(ids({ last: "1" })).toEqual([2]);
-    expect(ids({ last: "1", type: "raster" })).toEqual([]);
   });
 
   it("round-trips the filter through the URL query", () => {
-    const filter = { type: "raster" as const, text: "a", tags: "", last: true };
+    const filter = { type: "raster" as const, text: "a", tags: "", run: 3 };
     expect(filterFromQuery(filterToQuery(filter))).toEqual(filter);
-    expect(filterToQuery({ type: "all", text: "", tags: "", last: false })).toEqual({ type: "", text: "", tags: "", last: "" });
+    expect(filterToQuery({ type: "all", text: "", tags: "", run: null })).toEqual({ type: "", text: "", tags: "", run: "" });
+    expect(filterFromQuery({ run: "x" }).run).toBeNull();
+    expect(filterFromQuery({ run: "-1" }).run).toBeNull();
   });
 
   it("offers the datasets of a job field's classes, and pairs tables by tags", () => {

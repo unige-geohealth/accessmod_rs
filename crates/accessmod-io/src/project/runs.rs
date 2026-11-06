@@ -98,6 +98,8 @@ pub struct RunRecord {
     pub finished: Option<i64>,
     /// Datasets it wrote.
     pub datasets: Vec<Id>,
+    /// Datasets its job reads, still in the project.
+    pub inputs: Vec<Id>,
 }
 
 /// `path` as the catalogue stores files: components joined by `/`, without
@@ -116,12 +118,13 @@ impl Project {
     /// Job document for analysis `A` with `output_dir` set, typed and
     /// checked: every input path names a ready dataset of this project
     /// whose class its field accepts, and stays inside the project once
-    /// symbolic links are resolved. Paths come back absolute.
+    /// symbolic links are resolved. Paths come back absolute, with the
+    /// datasets they name.
     fn project_job<A: Analysis>(
         &self,
         document: &serde_json::Value,
         output_dir: &str,
-    ) -> Result<(serde_json::Value, A::Job)> {
+    ) -> Result<(serde_json::Value, A::Job, Vec<Id>)> {
         let mut document = document.clone();
         let Some(object) = document.as_object_mut() else {
             return Err(Error::invalid("a job document is a JSON object"));
@@ -143,20 +146,24 @@ impl Project {
             .map(|(path, classes)| (catalogue_key(Path::new(&path)), classes))
             .collect();
         let root = std::fs::canonicalize(&self.root).map_err(Error::file(&self.root))?;
+        let mut inputs = Vec::new();
         for path in paths.iter().filter(|p| p.as_str() != output_dir) {
-            let class: Option<String> = self
+            let found: Option<(Id, String)> = self
                 .db
                 .query_row(
-                    "SELECT class FROM datasets WHERE file = ?1 AND state = 'ready'",
+                    "SELECT id, class FROM datasets WHERE file = ?1 AND state = 'ready'",
                     [path],
-                    |r| r.get(0),
+                    |r| Ok((r.get(0)?, r.get(1)?)),
                 )
                 .optional()
                 .map_err(self.db_error())?;
-            let Some(class) = class else {
+            let Some((id, class)) = found else {
                 issues.push(format!("{path} is not a dataset of this project"));
                 continue;
             };
+            if !inputs.contains(&id) {
+                inputs.push(id);
+            }
             for (_, classes) in accepted.iter().filter(|(p, _)| p == path) {
                 if !classes.contains(&class) {
                     issues.push(format!(
@@ -174,7 +181,7 @@ impl Project {
         if !issues.is_empty() {
             return Err(Error::Validation { issues });
         }
-        Ok((document, job.resolve_paths(&self.root)))
+        Ok((document, job.resolve_paths(&self.root), inputs))
     }
 
     /// Check `document` as a job of analysis `A` in this project, without
@@ -182,7 +189,7 @@ impl Project {
     /// their fields accept.
     pub fn check_job<A: Analysis>(&self, document: &serde_json::Value) -> Result<A::Job> {
         self.project_job::<A>(document, &format!("{RUNS_DIR}/new"))
-            .map(|(_, job)| job)
+            .map(|(_, job, _)| job)
     }
 
     /// Queue a run of `A` on `document`: its outputs will go to `runs/<id>`,
@@ -216,19 +223,34 @@ impl Project {
             .filter_map(|output| output.class)
             .try_for_each(|class| self.free_tags(class, &tags, None).map(drop))
             .and_then(|()| self.project_job::<A>(document, &output_dir));
-        let stored = match checked {
-            Ok((stored, _)) => stored,
+        let (stored, inputs) = match checked {
+            Ok((stored, _, inputs)) => (stored, inputs),
             Err(error) => {
                 self.close_run(id, RunStatus::Failed, None, Some(&error))?;
                 return Err(error);
             }
         };
-        self.db
-            .execute(
+        let (tags, stored) = (json(&tags)?, json(&stored)?);
+        // The job and the datasets it reads, together.
+        let recorded = (|| {
+            let tx = self.db.unchecked_transaction()?;
+            tx.execute(
                 "UPDATE runs SET tags = ?1, job = ?2, output_dir = ?3 WHERE id = ?4",
-                params![json(&tags)?, json(&stored)?, output_dir, id],
-            )
-            .map_err(self.db_error())?;
+                params![tags, stored, output_dir, id],
+            )?;
+            for dataset in &inputs {
+                tx.execute(
+                    "INSERT OR IGNORE INTO run_inputs (run, dataset) VALUES (?1, ?2)",
+                    [id, *dataset],
+                )?;
+            }
+            tx.commit()
+        })()
+        .map_err(self.db_error());
+        if let Err(error) = recorded {
+            self.close_run(id, RunStatus::Failed, None, Some(&error))?;
+            return Err(error);
+        }
         Ok(id)
     }
 
@@ -267,7 +289,7 @@ impl Project {
                 return Err(Error::invalid(format!("run {id} is no longer queued")));
             }
             self.project_job::<A>(&record.job, &record.output_dir)
-                .and_then(|(_, job)| A::prepare(job, settings, monitor))
+                .and_then(|(_, job, _)| A::prepare(job, settings, monitor))
                 .and_then(|prepared| A::run(prepared, settings, monitor))
         };
         let finished = self.finish_run::<A>(
@@ -640,6 +662,19 @@ impl Project {
                 .collect::<rusqlite::Result<_>>()
                 .map_err(self.db_error())?
         };
+        let inputs: Vec<Id> = {
+            let mut stmt = self
+                .db
+                .prepare(
+                    "SELECT d.id FROM run_inputs i JOIN datasets d ON d.id = i.dataset
+                     WHERE i.run = ?1 AND d.state = 'ready' ORDER BY d.id",
+                )
+                .map_err(self.db_error())?;
+            stmt.query_map([id], |r| r.get(0))
+                .map_err(self.db_error())?
+                .collect::<rusqlite::Result<_>>()
+                .map_err(self.db_error())?
+        };
         Ok(RunRecord {
             id,
             analysis,
@@ -653,6 +688,7 @@ impl Project {
             started,
             finished,
             datasets,
+            inputs,
         })
     }
 }

@@ -104,7 +104,7 @@ fn execute(
         if let Ok(run) = project.run_record(task.run) {
             let _ = events.send(Event::Run {
                 project: task.project.clone(),
-                run,
+                run: Box::new(run),
             });
         }
     };

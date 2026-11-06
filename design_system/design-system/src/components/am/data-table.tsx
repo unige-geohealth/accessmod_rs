@@ -10,6 +10,8 @@ export type Column = {
   title?: string;
   /** A text editor, or the given one: a number, or a choice among `values`. */
   editable?: boolean | "number" | { values: string[] };
+  /** Rows whose cell of an `editable` column can be edited; all when absent. */
+  editableRow?: (row: Row) => boolean;
   width?: number;
   /** Kept on the left while the other columns scroll (AM5: the AccessMod columns). */
   frozen?: boolean;
@@ -138,6 +140,7 @@ export function DataTable({
       field: c.field,
       title: c.title ?? c.field,
       ...editorOf(c.editable),
+      ...(c.editableRow ? { editable: (cell: { getRow: () => { getData: () => Row } }) => c.editableRow!(cell.getRow().getData()) } : {}),
       width: c.width,
       minWidth: headerWidth(c.title ?? c.field, host),
       frozen: c.frozen,

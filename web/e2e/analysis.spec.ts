@@ -79,14 +79,19 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   await page.evaluate(() => localStorage.setItem("am.theme", "light"));
   await page.reload();
 
-  // Data › Filter last results: the outputs of this run only.
+  // Data › Filter last results: this run's job, inputs and outputs, selected.
   await sidebar(page, "Data").click();
   await panel(page, "Filter").click();
   await page.getByLabel("Filter last results").click();
   await expect(page.getByLabel("Filter last results")).toBeChecked();
   const rows = page.locator(".tabulator .tabulator-row");
   await expect(rows.first()).toBeVisible();
-  for (const row of await rows.all()) await expect(row).toContainText("e2e");
+  await expect(rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Job$/ }) })).toHaveCount(1);
+  await expect(rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Input$/ }) }).first()).toBeVisible();
+  const outputs = rows.filter({ has: page.locator("[tabulator-field=role]", { hasText: /^Output$/ }) });
+  await expect(outputs.first()).toBeVisible();
+  for (const row of await outputs.all()) await expect(row).toContainText("e2e");
+  for (const row of await rows.all()) await expect(row.locator("input[type=checkbox]")).toBeChecked();
 });
 
 test("geographic coverage: capacity, zones, run", async ({ page }) => {
