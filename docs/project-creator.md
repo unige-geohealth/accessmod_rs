@@ -1,6 +1,6 @@
 # Project Creator: source study
 
-Status: **study, for review** (2026-11-13). No code yet. This document picks the
+Status: **study reviewed, decisions taken** (2026-11-13). No code yet. This document picks the
 sources and the access method of the Project Creator, and lists the decisions
 left to make. Probes are in `_shared/creator/` (GDAL 3.12 command line, from
 macOS, over the public internet).
@@ -180,22 +180,21 @@ later, without changing the build.
 
 At 100 m, the project grid is about 10 000 × 7 000 cells: well within the tiled storage.
 
-## Decisions for you
+## Decisions (2026-11-13)
 
-1. **Network dependency:** option A (`ureq` + `rustls`, my recommendation) or B (curl in the
-   bundled GDAL).
-2. **Default population:** WorldPop (recommended) or GHS-POP.
-3. **DEM:** GLO-90 by default with GLO-30 as an option (recommended), or GLO-30 by default.
-4. **OSM:** HOT exports for v1 (recommended); Overture later.
-5. **Facilities from OSM:** offered and flagged (recommended), or left out, so that only
-   user lists come in.
-6. **Merge step:** should the Creator run Merge land cover (roads and rivers into the land
-   cover) so the project computes at once (recommended), or stop at the inputs?
-7. **Offline servers:** the Creator is hidden when the server cannot reach the sources
-   (recommended), or it can read a cache filled by hand (a USB copy of
-   `cache/sources/`).
+1. **Network:** option A, a Rust HTTP client (`ureq` + `rustls`) filling the cache;
+   GDAL reads local files only.
+2. **Population:** WorldPop by default, GHS-POP as a choice.
+3. **DEM:** GLO-90 by default, GLO-30 as a choice.
+4. **OSM:** HOT exports for v1; Overture later.
+5. **Facilities from OSM:** imported as a starting point and flagged in the dataset note
+   (incomplete; to be replaced by an official list).
+6. **Merge:** the Creator runs Merge land cover with the preset tables, so a travel time
+   computes at once.
+7. **Offline servers:** the Creator says the sources cannot be reached; a cache filled by
+   hand (`cache/sources/`) is read as well.
 
-## Next step after review
+## Next step
 
 A first slice, without the network: catalogue, cache layout, `raster::warp_to_grid` and the
 build from local fixture files, giving a project whose travel time validates. Then the
