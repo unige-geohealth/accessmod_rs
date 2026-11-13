@@ -903,6 +903,102 @@ impl FeatureWriter {
     }
 }
 
+/// The parts of `geometry` of the single-part type of `multi` (e.g. the
+/// lines of an intersection that also holds points), gathered into one
+/// `multi` geometry; `None` when it holds none.
+pub fn parts_as_multi(geometry: &Geometry, multi: OGRwkbGeometryType::Type) -> Option<Geometry> {
+    let single = match geometry_type_flatten(multi) {
+        OGRwkbGeometryType::wkbMultiLineString => OGRwkbGeometryType::wkbLineString,
+        OGRwkbGeometryType::wkbMultiPolygon => OGRwkbGeometryType::wkbPolygon,
+        OGRwkbGeometryType::wkbMultiPoint => OGRwkbGeometryType::wkbPoint,
+        _ => return None,
+    };
+    let mut out = Geometry::empty(multi).ok()?;
+    fn gather(g: &Geometry, single: u32, out: &mut Geometry) {
+        let kind = geometry_type_flatten(g.geometry_type());
+        if kind == single {
+            if !g.is_empty() {
+                let _ = out.add_geometry(g.clone());
+            }
+        } else if g.geometry_count() > 0
+            && matches!(
+                kind,
+                OGRwkbGeometryType::wkbMultiLineString
+                    | OGRwkbGeometryType::wkbMultiPolygon
+                    | OGRwkbGeometryType::wkbMultiPoint
+                    | OGRwkbGeometryType::wkbGeometryCollection
+            )
+        {
+            for i in 0..g.geometry_count() {
+                gather(&g.get_geometry(i), single, out);
+            }
+        }
+    }
+    gather(geometry, single, &mut out);
+    (out.geometry_count() > 0).then_some(out)
+}
+
+/// The centroid of `geometry` (a point for a polygon facility).
+pub fn centroid(geometry: &Geometry) -> Option<Geometry> {
+    let point = Geometry::empty(OGRwkbGeometryType::wkbPoint).ok()?;
+    // SAFETY: both handles are valid; OGR writes the centroid into `point`.
+    let status = unsafe { gdal_sys::OGR_G_Centroid(geometry.c_geometry(), point.c_geometry()) };
+    (status == gdal_sys::OGRErr::OGRERR_NONE as i32 && !point.is_empty()).then_some(point)
+}
+
+/// Copy the features of `input` that `select` keeps into a new FlatGeobuf
+/// `target` in the grid CRS: each geometry is reprojected, clipped to `clip`
+/// (grid CRS) when given, then handed to `select` with its feature, which
+/// returns the geometry to write (of type `kind`) and its `fields` values,
+/// or `None` to leave it out. Returns the features written.
+#[allow(clippy::too_many_arguments)]
+pub fn extract(
+    input: &VectorLayer,
+    clip: Option<&Geometry>,
+    srs: &SpatialRef,
+    kind: OGRwkbGeometryType::Type,
+    fields: &[(&str, gdal::vector::OGRFieldType::Type)],
+    target: &Path,
+    cancelled: &dyn Fn() -> bool,
+    mut select: impl FnMut(&Feature<'_>, Geometry) -> Option<(Geometry, Vec<Option<FieldValue>>)>,
+) -> Result<u64> {
+    let dataset = input.dataset()?;
+    let mut layer = input.layer(&dataset)?;
+    let mut out = FeatureWriter::create(target, &input.name, srs, kind, fields)?;
+    let bounds = clip.map(|c| c.envelope());
+    let mut written = 0u64;
+    for (index, feature) in input.features(&mut layer)?.enumerate() {
+        if index % 1024 == 0 && cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let Some(geometry) = feature.geometry() else {
+            continue;
+        };
+        let Ok(geometry) = input.to_grid_geometry(geometry) else {
+            continue;
+        };
+        let geometry = match (clip, bounds) {
+            (Some(clip), Some(b)) => {
+                let e = geometry.envelope();
+                if e.MaxX < b.MinX || e.MinX > b.MaxX || e.MaxY < b.MinY || e.MinY > b.MaxY {
+                    continue;
+                }
+                match geometry.intersection(clip) {
+                    Some(g) if !g.is_empty() => g,
+                    _ => continue,
+                }
+            }
+            _ => geometry,
+        };
+        if let Some((geometry, values)) = select(&feature, geometry) {
+            out.write(geometry, &values)?;
+            written += 1;
+        }
+    }
+    out.close()?;
+    Ok(written)
+}
+
 /// A point moved by [`relocate_points`]: feature id and its new place in
 /// WGS 84 (longitude, latitude), as the map gives it.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize, schemars::JsonSchema)]

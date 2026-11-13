@@ -358,6 +358,94 @@ fn warp_in_chunks<T: GdalType + Copy>(
     Ok(stats)
 }
 
+/// Sum of the sources over the footprint of `grid` (Float64, NoData left
+/// out), each source cell weighted by the exact fraction of it the grid
+/// covers: what a `Sum` warp should keep (contract 4). The grid outline is
+/// projected into the source CRS (densified), and the source is read row
+/// by row under it.
+pub fn source_total(sources: &[PathBuf], grid: &GridSpec, cancelled: Cancelled<'_>) -> Result<f64> {
+    let mosaic = Mosaic::open(sources)?;
+    let traditional = |srs: &SpatialRef| {
+        let mut srs = srs.clone();
+        srs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
+        srs
+    };
+    let (grid_srs, source_srs) = (traditional(&grid.srs), traditional(&mosaic.srs));
+    let path = &mosaic.tiles[0].path;
+    let to_source = CoordTransform::new(&grid_srs, &source_srs).map_err(Error::gdal(path))?;
+    let Some((cols, rows)) = mosaic.window_under(grid, &to_source) else {
+        return Ok(0.0);
+    };
+    // The outline, densified so that its projection stays faithful.
+    const STEPS: usize = 256;
+    let (mut xs, mut ys) = (Vec::with_capacity(4 * STEPS), Vec::with_capacity(4 * STEPS));
+    let (c1, r1) = (grid.cols as f64, grid.rows as f64);
+    for (from, to) in [
+        ((0.0, 0.0), (c1, 0.0)),
+        ((c1, 0.0), (c1, r1)),
+        ((c1, r1), (0.0, r1)),
+        ((0.0, r1), (0.0, 0.0)),
+    ] {
+        for i in 0..STEPS {
+            let t = i as f64 / STEPS as f64;
+            let (x, y) = grid.to_map(from.0 + (to.0 - from.0) * t, from.1 + (to.1 - from.1) * t);
+            xs.push(x);
+            ys.push(y);
+        }
+    }
+    to_source
+        .transform_coords(&mut xs, &mut ys, &mut [])
+        .map_err(|_| Error::invalid("the grid does not project into the source CRS"))?;
+    let [x0, ew, _, y0, _, ns] = mosaic.geo_transform;
+    let ring: Vec<(f64, f64)> = xs
+        .iter()
+        .zip(&ys)
+        .map(|(x, y)| {
+            (
+                (x - x0) / ew - cols.start as f64,
+                (y - y0) / ns - rows.start as f64,
+            )
+        })
+        .collect();
+    let (width, height) = (
+        (cols.end - cols.start) as usize,
+        (rows.end - rows.start) as usize,
+    );
+    let mut total = 0.0;
+    let mut failure = None;
+    accessmod_core::raster::polygon_coverage(
+        &[ring],
+        height,
+        width,
+        &mut |row, first, fractions| {
+            if cancelled() {
+                failure = Some(Error::Cancelled);
+                return std::ops::ControlFlow::Break(());
+            }
+            let row = rows.start + row as i64;
+            let start = cols.start + first as i64;
+            match mosaic.read(&(start..start + fractions.len() as i64), &(row..row + 1)) {
+                Ok(values) => {
+                    for (value, fraction) in values.iter().zip(fractions) {
+                        if value.is_finite() {
+                            total += value * fraction;
+                        }
+                    }
+                    std::ops::ControlFlow::Continue(())
+                }
+                Err(e) => {
+                    failure = Some(e);
+                    std::ops::ControlFlow::Break(())
+                }
+            }
+        },
+    );
+    match failure {
+        Some(e) => Err(e),
+        None => Ok(total),
+    }
+}
+
 fn predictor<T: GdalType>() -> u8 {
     use gdal::raster::GdalDataType::*;
     match T::datatype() {

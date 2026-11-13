@@ -10,6 +10,7 @@ pub mod archive;
 pub(crate) mod catchment;
 pub mod class;
 pub mod coverage;
+pub mod creator;
 pub mod demo;
 pub mod error;
 pub mod facilities;

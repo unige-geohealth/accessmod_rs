@@ -38,6 +38,19 @@ pub enum Command {
         #[command(flatten)]
         exec: ExecArgs,
     },
+    /// Create a project from a region and local source files: a recipe
+    /// (JSON, `accessmod_io::creator::Recipe`; relative paths from the
+    /// recipe's directory). DEM, land cover, population, OSM roads, rivers
+    /// and facilities, merged land cover and a saved travel-time job.
+    Create {
+        /// Project directory (new or empty).
+        dir: PathBuf,
+        /// Recipe file.
+        #[arg(long, value_name = "FILE")]
+        recipe: PathBuf,
+        #[command(flatten)]
+        exec: ExecArgs,
+    },
     /// Create the demo project (AccessMod 5 sample data, tagged `demo`).
     Demo {
         /// Project directory.
@@ -209,6 +222,44 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             );
             if exec.json {
                 print_value(&info);
+            }
+            Ok(())
+        }
+        Command::Create { dir, recipe, exec } => {
+            let settings = settings(&exec)?;
+            let text = std::fs::read_to_string(&recipe).map_err(|e| {
+                fail(
+                    &accessmod_io::error::Error::invalid(format!("{}: {e}", recipe.display())),
+                    exec.json,
+                )
+            })?;
+            let parsed: accessmod_io::creator::Recipe =
+                serde_json::from_str(&text).map_err(|e| {
+                    fail(
+                        &accessmod_io::error::Error::invalid(format!("{}: {e}", recipe.display())),
+                        exec.json,
+                    )
+                })?;
+            let base = recipe.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let parsed = parsed.relative_to(base);
+            let (project, manifest) = monitored(cancel, |m| {
+                accessmod_io::creator::build(&parsed, &dir, &settings, m)
+            })
+            .map_err(|e| fail(&e, exec.json))?;
+            let info = project.info().map_err(|e| fail(&e, exec.json))?;
+            tracing::info!(
+                "created {} in {} ({}; {} × {} cells)",
+                info.name,
+                dir.display(),
+                manifest.crs_name,
+                info.grid.cols,
+                info.grid.rows
+            );
+            for warning in &manifest.warnings {
+                tracing::warn!("{warning}");
+            }
+            if exec.json {
+                print_value(&serde_json::json!({"project": info, "manifest": manifest}));
             }
             Ok(())
         }

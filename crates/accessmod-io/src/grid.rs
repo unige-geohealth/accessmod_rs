@@ -324,6 +324,16 @@ impl GridSpec {
         })
     }
 
+    /// The outline of the grid, a polygon in its CRS.
+    pub fn outline(&self) -> crate::error::Result<gdal::vector::Geometry> {
+        let (x0, y0) = self.to_map(0.0, 0.0);
+        let (x1, y1) = self.to_map(self.cols as f64, self.rows as f64);
+        gdal::vector::Geometry::from_wkt(&format!(
+            "POLYGON (({x0} {y0}, {x1} {y0}, {x1} {y1}, {x0} {y1}, {x0} {y0}))"
+        ))
+        .map_err(Error::gdal("grid outline"))
+    }
+
     /// The sub-grid of cells `rows × cols` (same CRS and cell size).
     pub fn window(&self, rows: std::ops::Range<usize>, cols: std::ops::Range<usize>) -> Self {
         let (x0, y0) = self.to_map(cols.start as f64, rows.start as f64);
