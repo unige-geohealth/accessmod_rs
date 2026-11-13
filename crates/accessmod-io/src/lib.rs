@@ -25,6 +25,7 @@ pub mod output;
 pub mod population;
 pub mod preview;
 pub mod project;
+pub mod projection;
 pub mod raster;
 pub mod referral;
 pub mod report;

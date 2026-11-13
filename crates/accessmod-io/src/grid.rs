@@ -36,6 +36,19 @@ pub struct GridSpec {
     pub cell: CellSize,
 }
 
+/// Bounds in a CRS.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Extent {
+    /// West.
+    pub xmin: f64,
+    /// South.
+    pub ymin: f64,
+    /// East.
+    pub xmax: f64,
+    /// North.
+    pub ymax: f64,
+}
+
 /// Size and geotransform of a raster, independent of GDAL objects.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RasterFrame {
@@ -246,6 +259,71 @@ impl GridSpec {
         }
     }
 
+    /// The grid covering `extent` (grid CRS coordinates) with square cells of
+    /// `resolution` metres in `srs`, its corners on the lattice through
+    /// `anchor` (any cell corner of the lattice: `(0, 0)`, or the origin of a
+    /// reference raster, so the rasters of both line up). The extent is
+    /// widened to whole cells; at most `max_cells` cells.
+    pub fn from_extent(
+        extent: Extent,
+        resolution: f64,
+        srs: SpatialRef,
+        anchor: (f64, f64),
+        max_cells: u64,
+    ) -> Result<Self, Vec<String>> {
+        let mut issues = check_projected_metric(Some(&srs));
+        let finite = [
+            extent.xmin,
+            extent.ymin,
+            extent.xmax,
+            extent.ymax,
+            anchor.0,
+            anchor.1,
+        ]
+        .iter()
+        .all(|v| v.is_finite());
+        if !finite || extent.xmin >= extent.xmax || extent.ymin >= extent.ymax {
+            issues.push("the extent is empty or not finite".to_owned());
+        }
+        if !(resolution.is_finite() && resolution > 0.0) {
+            issues.push(format!(
+                "resolution {resolution} must be a positive number of metres"
+            ));
+        }
+        if !issues.is_empty() {
+            return Err(issues);
+        }
+        // Whole cells from the anchor, outwards.
+        let snap_down = |v: f64, a: f64| a + ((v - a) / resolution).floor() * resolution;
+        let snap_up = |v: f64, a: f64| a + ((v - a) / resolution).ceil() * resolution;
+        let (x0, x1) = (
+            snap_down(extent.xmin, anchor.0),
+            snap_up(extent.xmax, anchor.0),
+        );
+        let (y0, y1) = (
+            snap_down(extent.ymin, anchor.1),
+            snap_up(extent.ymax, anchor.1),
+        );
+        let cols = ((x1 - x0) / resolution).round();
+        let rows = ((y1 - y0) / resolution).round();
+        let cells = cols * rows;
+        if !(cells >= 1.0 && cells <= max_cells as f64) {
+            return Err(vec![format!(
+                "{cols} × {rows} cells at {resolution} m: more than {max_cells}; \
+                 choose a coarser resolution or a smaller region"
+            )]);
+        }
+        let cell = CellSize::new(resolution, resolution)
+            .ok_or_else(|| vec![format!("resolution {resolution} is not a cell size")])?;
+        Ok(Self {
+            cols: cols as usize,
+            rows: rows as usize,
+            geo_transform: [x0, resolution, 0.0, y1, 0.0, -resolution],
+            srs,
+            cell,
+        })
+    }
+
     /// The sub-grid of cells `rows × cols` (same CRS and cell size).
     pub fn window(&self, rows: std::ops::Range<usize>, cols: std::ops::Range<usize>) -> Self {
         let (x0, y0) = self.to_map(cols.start as f64, rows.start as f64);
@@ -381,5 +459,61 @@ mod tests {
         let mut south_up = frame(2, 2, 0.0, 0.0, 1.0);
         south_up.geo_transform[5] = 1.0;
         assert_eq!(south_up.check_north_up().len(), 1);
+    }
+
+    fn utm36() -> SpatialRef {
+        SpatialRef::from_epsg(32636).expect("srs")
+    }
+
+    #[test]
+    fn grids_from_extents_snap_to_the_lattice() {
+        let extent = Extent {
+            xmin: 555_012.0,
+            ymin: 995_050.0,
+            xmax: 609_990.0,
+            ymax: 1_049_901.0,
+        };
+        let grid =
+            GridSpec::from_extent(extent, 100.0, utm36(), (0.0, 0.0), u64::MAX).expect("grid");
+        assert_eq!(
+            grid.geo_transform,
+            [555_000.0, 100.0, 0.0, 1_050_000.0, 0.0, -100.0]
+        );
+        assert_eq!((grid.cols, grid.rows), (550, 550));
+        // On the lattice of a reference raster (origin 12.5 m off).
+        let grid =
+            GridSpec::from_extent(extent, 100.0, utm36(), (12.5, -7.5), u64::MAX).expect("grid");
+        assert_eq!(grid.geo_transform[0], 554_912.5);
+        assert_eq!(grid.geo_transform[3], 1_049_992.5);
+        assert_eq!((grid.cols, grid.rows), (551, 550));
+        // The extent lies inside the grid.
+        let (x1, y1) = grid.to_map(grid.cols as f64, grid.rows as f64);
+        assert!(grid.geo_transform[0] <= extent.xmin && x1 >= extent.xmax);
+        assert!(y1 <= extent.ymin && grid.geo_transform[3] >= extent.ymax);
+    }
+
+    #[test]
+    fn grids_from_extents_refuse_bad_input() {
+        let ok = Extent {
+            xmin: 0.0,
+            ymin: 0.0,
+            xmax: 1000.0,
+            ymax: 1000.0,
+        };
+        let wgs84 = SpatialRef::from_epsg(4326).expect("srs");
+        assert!(GridSpec::from_extent(ok, 100.0, wgs84, (0.0, 0.0), u64::MAX).is_err());
+        for resolution in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(GridSpec::from_extent(ok, resolution, utm36(), (0.0, 0.0), u64::MAX).is_err());
+        }
+        let empty = Extent { xmax: 0.0, ..ok };
+        assert!(GridSpec::from_extent(empty, 100.0, utm36(), (0.0, 0.0), u64::MAX).is_err());
+        let nan = Extent {
+            xmin: f64::NAN,
+            ..ok
+        };
+        assert!(GridSpec::from_extent(nan, 100.0, utm36(), (0.0, 0.0), u64::MAX).is_err());
+        let error = GridSpec::from_extent(ok, 100.0, utm36(), (0.0, 0.0), 99).unwrap_err();
+        assert!(error[0].contains("coarser"), "{error:?}");
+        assert!(GridSpec::from_extent(ok, 1e-300, utm36(), (0.0, 0.0), u64::MAX).is_err());
     }
 }
