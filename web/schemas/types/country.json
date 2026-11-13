@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A country.",
+  "properties": {
+    "continent": {
+      "description": "Continent.",
+      "type": "string"
+    },
+    "iso3": {
+      "description": "ISO 3166-1 alpha-3 code.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Name.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "iso3",
+    "name",
+    "continent"
+  ],
+  "title": "Country",
+  "type": "object"
+}

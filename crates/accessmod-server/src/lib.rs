@@ -22,6 +22,7 @@
 
 pub mod auth;
 pub mod commands;
+pub mod creator;
 pub mod error;
 pub mod events;
 pub mod guard;

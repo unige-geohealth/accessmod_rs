@@ -104,6 +104,27 @@ pub fn registry() -> Vec<CommandSpec> {
             create_project
         ),
         command!(
+            "creator.countries",
+            "Countries a project can be created in (geoBoundaries)",
+            Requirement::User,
+            crate::creator::Countries,
+            crate::creator::countries
+        ),
+        command!(
+            "creator.units",
+            "Administrative units of a country at a level, simplified, to pick a region",
+            Requirement::User,
+            crate::creator::Units,
+            crate::creator::units
+        ),
+        command!(
+            "creator.create",
+            "Create a project from a region: download its sources (DEM, land cover, population, OpenStreetMap) and build it",
+            Requirement::User,
+            crate::creator::CreateFromRegion,
+            crate::creator::create
+        ),
+        command!(
             "project.rename",
             "Change the name and description of a project",
             Requirement::Project(Role::Owner),

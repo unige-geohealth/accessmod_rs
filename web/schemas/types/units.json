@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`creator.units`.",
+  "properties": {
+    "iso3": {
+      "description": "Country (ISO 3166-1 alpha-3).",
+      "type": "string"
+    },
+    "level": {
+      "description": "Administrative level, 0 (the country) to 5.",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "iso3",
+    "level"
+  ],
+  "title": "Units",
+  "type": "object"
+}

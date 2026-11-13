@@ -116,6 +116,19 @@ export const useFeatures = (slug: string, id: number | null, sample: number | nu
 /** The server's MapTiler key (online basemaps). */
 export const useBasemap = () => useQuery({ queryKey: keys.basemap, queryFn: () => api.basemap(), staleTime: Infinity });
 
+/** Countries a project can be created in (Project Creator). */
+export const useCountries = () => useQuery({ queryKey: ["creator", "countries"], queryFn: () => api.command("creator.countries", {}), staleTime: Infinity, retry: 1 });
+
+/** Units of `iso3` at `level`, simplified (Project Creator). */
+export const useUnits = (iso3: string | null, level: number) =>
+  useQuery({
+    queryKey: ["creator", "units", iso3, level],
+    queryFn: () => api.command("creator.units", { iso3: iso3 ?? "", level }),
+    enabled: iso3 !== null,
+    staleTime: Infinity,
+    retry: false,
+  });
+
 /** Value of a raster dataset at a point; disabled without a dataset or point. */
 export const useValue = (slug: string, id: number | null, point: { lon: number; lat: number } | null) =>
   useQuery({

@@ -212,6 +212,12 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::commands::ArchiveRef>(),
         ),
         ("tile-style", schema::<accessmod_io::tiles::Style>()),
+        (
+            "create-from-region",
+            schema::<accessmod_server::creator::CreateFromRegion>(),
+        ),
+        ("units", schema::<accessmod_server::creator::Units>()),
+        ("country", schema::<accessmod_server::creator::Country>()),
     ]
 }
 

@@ -71,6 +71,7 @@ dependencies = [
 name = "accessmod-server"
 version = "6.0.0-alpha.1"
 dependencies = [
+ "accessmod-fetch",
  "accessmod-io",
  "axum",
  "gdal",

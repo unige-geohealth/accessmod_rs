@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "FacilityList": {
+      "additionalProperties": false,
+      "description": "A facility list of your own.",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/FileSource",
+          "description": "The layer: an upload, or a file on the server's disk (desktop)."
+        },
+        "id_field": {
+          "description": "Field identifying facilities.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "id_field"
+      ],
+      "type": "object"
+    },
+    "FileSource": {
+      "description": "A file a command reads: on the server's disk (desktop) or uploaded.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A path on the server's disk, when the server allows local paths.",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An upload of the same user.",
+          "properties": {
+            "upload": {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "default": null,
+                  "description": "The file to read, when the upload holds several main files.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "description": "Upload identifier, from `POST /api/uploads`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "upload"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Layers": {
+      "additionalProperties": false,
+      "description": "Layers to fetch.",
+      "properties": {
+        "land_cover": {
+          "default": true,
+          "description": "ESA WorldCover land cover.",
+          "type": "boolean"
+        },
+        "osm_facilities": {
+          "default": true,
+          "description": "OpenStreetMap health facilities (a starting point), when no list\nof your own is given.",
+          "type": "boolean"
+        },
+        "population": {
+          "default": true,
+          "description": "WorldPop population.",
+          "type": "boolean"
+        },
+        "roads": {
+          "default": true,
+          "description": "OpenStreetMap roads.",
+          "type": "boolean"
+        },
+        "waterways": {
+          "default": true,
+          "description": "OpenStreetMap rivers and canals (barriers).",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`creator.create`.",
+  "properties": {
+    "area": {
+      "default": null,
+      "description": "A drawn or uploaded region (GeoJSON, WGS 84), instead of units."
+    },
+    "buffer_m": {
+      "default": 10000.0,
+      "description": "Passable distance around the region, metres.",
+      "format": "double",
+      "type": "number"
+    },
+    "facilities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FacilityList"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Facilities of your own (replace OpenStreetMap's)."
+    },
+    "iso3": {
+      "description": "Country (ISO 3166-1 alpha-3): its population and OpenStreetMap layers.",
+      "type": "string"
+    },
+    "layers": {
+      "$ref": "#/$defs/Layers",
+      "default": {
+        "land_cover": true,
+        "osm_facilities": true,
+        "population": true,
+        "roads": true,
+        "waterways": true
+      },
+      "description": "Layers to fetch."
+    },
+    "level": {
+      "default": 0,
+      "description": "Administrative level of `units`.",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "name": {
+      "description": "Project name.",
+      "type": "string"
+    },
+    "resolution_m": {
+      "default": 100.0,
+      "description": "Cell size, metres.",
+      "format": "double",
+      "type": "number"
+    },
+    "units": {
+      "default": [],
+      "description": "Units (geoBoundaries `shapeID`) forming the region; all of the level\nwhen empty.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "iso3"
+  ],
+  "title": "CreateFromRegion",
+  "type": "object"
+}

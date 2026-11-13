@@ -1,5 +1,6 @@
 // The HTTP API of `accessmod serve`, typed with the generated types.
 import type { Key } from "@accessmod/ui/i18n";
+import type { FeatureCollection } from "geojson";
 import type { Api } from "../generated/types";
 
 /** An error document of the API: what failed and every issue found. */
@@ -92,6 +93,9 @@ interface Commands {
   "run.remove": [Api.RemoveRun, null];
   "archive.create": [Api.CreateArchive, Api.RunRecord];
   "archive.remove": [Api.ArchiveRef, null];
+  "creator.countries": [Record<string, never>, Api.Country[]];
+  "creator.units": [Api.Units, FeatureCollection & { licence?: string; source?: string }];
+  "creator.create": [Api.CreateFromRegion, Api.PendingOperation];
 }
 
 /** Query of `GET …/datasets/{id}/rows`. */

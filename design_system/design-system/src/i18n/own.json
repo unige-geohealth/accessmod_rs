@@ -1,4 +1,166 @@
 {
+  "creator.need_name": {
+    "en": "Give the project a name (4 characters or more).",
+    "fr": "Donnez un nom au projet (4 caractères ou plus).",
+    "es": "Dé un nombre al proyecto (4 caracteres o más).",
+    "pt": "Dê um nome ao projeto (4 caracteres ou mais)."
+  },
+  "creator.title": {
+    "en": "New from a region",
+    "fr": "Nouveau depuis une région",
+    "es": "Nuevo desde una región",
+    "pt": "Novo a partir de uma região"
+  },
+  "creator.map_title": {
+    "en": "Region",
+    "fr": "Région",
+    "es": "Región",
+    "pt": "Região"
+  },
+  "creator.map_sub": {
+    "en": "Click the units that form the project's region",
+    "fr": "Cliquez sur les unités qui forment la région du projet",
+    "es": "Haga clic en las unidades que forman la región del proyecto",
+    "pt": "Clique nas unidades que formam a região do projeto"
+  },
+  "creator.country": {
+    "en": "Country",
+    "fr": "Pays",
+    "es": "País",
+    "pt": "País"
+  },
+  "creator.level": {
+    "en": "Administrative level",
+    "fr": "Niveau administratif",
+    "es": "Nivel administrativo",
+    "pt": "Nível administrativo"
+  },
+  "creator.level_country": {
+    "en": "The whole country",
+    "fr": "Le pays entier",
+    "es": "Todo el país",
+    "pt": "O país inteiro"
+  },
+  "creator.level_n": {
+    "en": "Level %s units",
+    "fr": "Unités de niveau %s",
+    "es": "Unidades de nivel %s",
+    "pt": "Unidades de nível %s"
+  },
+  "creator.units_hint": {
+    "en": "Click units on the map to choose the region.",
+    "fr": "Cliquez sur des unités de la carte pour choisir la région.",
+    "es": "Haga clic en unidades del mapa para elegir la región.",
+    "pt": "Clique em unidades do mapa para escolher a região."
+  },
+  "creator.units_chosen": {
+    "en": "Region: %s.",
+    "fr": "Région : %s.",
+    "es": "Región: %s.",
+    "pt": "Região: %s."
+  },
+  "creator.clear": {
+    "en": "Clear",
+    "fr": "Effacer",
+    "es": "Borrar",
+    "pt": "Limpar"
+  },
+  "creator.boundaries": {
+    "en": "Boundaries: geoBoundaries, %s",
+    "fr": "Limites : geoBoundaries, %s",
+    "es": "Límites: geoBoundaries, %s",
+    "pt": "Limites: geoBoundaries, %s"
+  },
+  "creator.buffer": {
+    "en": "Passable distance around the region",
+    "fr": "Distance franchissable autour de la région",
+    "es": "Distancia transitable alrededor de la región",
+    "pt": "Distância transitável em torno da região"
+  },
+  "creator.resolution": {
+    "en": "Cell size",
+    "fr": "Taille des cellules",
+    "es": "Tamaño de celda",
+    "pt": "Tamanho da célula"
+  },
+  "creator.layers": {
+    "en": "Layers",
+    "fr": "Couches",
+    "es": "Capas",
+    "pt": "Camadas"
+  },
+  "creator.layers_hint": {
+    "en": "Downloaded once and kept for later projects. Every layer but the DEM can be left out and imported later from your own files.",
+    "fr": "Téléchargées une fois et gardées pour les projets suivants. Toute couche sauf le MNT peut être omise et importée plus tard depuis vos fichiers.",
+    "es": "Se descargan una vez y se guardan para otros proyectos. Toda capa salvo el MDE puede omitirse e importarse después desde sus archivos.",
+    "pt": "Baixadas uma vez e guardadas para outros projetos. Toda camada exceto o MDE pode ser omitida e importada depois a partir dos seus arquivos."
+  },
+  "creator.dem_always": {
+    "en": "Elevation (Copernicus DEM GLO-90) is always included: it defines the grid.",
+    "fr": "L'altitude (Copernicus DEM GLO-90) est toujours incluse : elle définit la grille.",
+    "es": "La elevación (Copernicus DEM GLO-90) se incluye siempre: define la cuadrícula.",
+    "pt": "A elevação (Copernicus DEM GLO-90) é sempre incluída: ela define a grade."
+  },
+  "creator.layer_land_cover": {
+    "en": "Land cover (ESA WorldCover 2021)",
+    "fr": "Occupation du sol (ESA WorldCover 2021)",
+    "es": "Cobertura del suelo (ESA WorldCover 2021)",
+    "pt": "Cobertura do solo (ESA WorldCover 2021)"
+  },
+  "creator.layer_population": {
+    "en": "Population (WorldPop 2025)",
+    "fr": "Population (WorldPop 2025)",
+    "es": "Población (WorldPop 2025)",
+    "pt": "População (WorldPop 2025)"
+  },
+  "creator.layer_roads": {
+    "en": "Roads (OpenStreetMap)",
+    "fr": "Routes (OpenStreetMap)",
+    "es": "Carreteras (OpenStreetMap)",
+    "pt": "Estradas (OpenStreetMap)"
+  },
+  "creator.layer_waterways": {
+    "en": "Rivers and canals as barriers (OpenStreetMap)",
+    "fr": "Rivières et canaux comme barrières (OpenStreetMap)",
+    "es": "Ríos y canales como barreras (OpenStreetMap)",
+    "pt": "Rios e canais como barreiras (OpenStreetMap)"
+  },
+  "creator.layer_facilities": {
+    "en": "Health facilities (OpenStreetMap, a starting point)",
+    "fr": "Structures de santé (OpenStreetMap, un point de départ)",
+    "es": "Establecimientos de salud (OpenStreetMap, un punto de partida)",
+    "pt": "Unidades de saúde (OpenStreetMap, um ponto de partida)"
+  },
+  "creator.create": {
+    "en": "Create the project",
+    "fr": "Créer le projet",
+    "es": "Crear el proyecto",
+    "pt": "Criar o projeto"
+  },
+  "creator.queued": {
+    "en": "Creating %s: the sources are downloaded, then the project is built. A notification says when it is ready.",
+    "fr": "Création de %s : les sources sont téléchargées, puis le projet est construit. Une notification indique quand il est prêt.",
+    "es": "Creando %s: se descargan las fuentes y se construye el proyecto. Una notificación avisa cuando está listo.",
+    "pt": "Criando %s: as fontes são baixadas e o projeto é construído. Uma notificação avisa quando estiver pronto."
+  },
+  "creator.need_country": {
+    "en": "Choose a country.",
+    "fr": "Choisissez un pays.",
+    "es": "Elija un país.",
+    "pt": "Escolha um país."
+  },
+  "creator.need_units": {
+    "en": "Choose units on the map, or the whole country.",
+    "fr": "Choisissez des unités sur la carte, ou le pays entier.",
+    "es": "Elija unidades en el mapa, o todo el país.",
+    "pt": "Escolha unidades no mapa, ou o país inteiro."
+  },
+  "creator.loading_units": {
+    "en": "Loading the units…",
+    "fr": "Chargement des unités…",
+    "es": "Cargando las unidades…",
+    "pt": "Carregando as unidades…"
+  },
   "table.all": {
     "en": "All",
     "fr": "Tout",

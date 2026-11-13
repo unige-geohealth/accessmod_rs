@@ -66,7 +66,12 @@ const RULES: &[Rule] = &[
     },
     Rule {
         name: "accessmod-cli",
-        workspace: &["accessmod-core", "accessmod-io", "accessmod-fetch", "accessmod-server"],
+        workspace: &[
+            "accessmod-core",
+            "accessmod-io",
+            "accessmod-fetch",
+            "accessmod-server",
+        ],
         forbidden: &[],
         reason: "the binary sits on top of everything",
     },

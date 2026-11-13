@@ -46,6 +46,8 @@ fn recipe(buffer_m: f64, crs: Crs) -> Recipe {
             roads: Some(data("roads.gpkg")),
             waterways: Some(data("waterways.gpkg")),
             facilities: Some(FacilitySource::Osm(data("health_facilities.gpkg"))),
+            urls: vec![],
+            attributions: vec![],
         },
     }
 }
@@ -387,6 +389,8 @@ fn projects_without_facilities_or_land_cover_say_what_they_lack() {
         roads: None,
         waterways: None,
         facilities: None,
+        urls: vec![],
+        attributions: vec![],
     };
     let (project, manifest) =
         creator::build(&dem_only, &dir.path().join("b"), &s, Monitor::QUIET).expect("DEM only");

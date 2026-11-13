@@ -114,6 +114,12 @@ pub struct Sources {
     /// Health facilities.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub facilities: Option<FacilitySource>,
+    /// Where the files came from: file name and URL (kept in the manifest).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub urls: Vec<(String, String)>,
+    /// Licences and attributions of the sources, kept with the project.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attributions: Vec<String>,
 }
 
 fn yes() -> bool {

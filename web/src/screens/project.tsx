@@ -22,6 +22,7 @@ import { extentDegrees, extentMetric, gridParameters, validName } from "../state
 import { demoSlug } from "../state/start";
 import { useTransfer } from "../state/transfer";
 import { BatchStatus, EntryList, TransferStatus, useFmt } from "./common";
+import { RegionMap, RegionPanel } from "./project-region";
 
 export function ProjectScreen({ route }: { route: Route }) {
   return (
@@ -34,12 +35,19 @@ export function ProjectScreen({ route }: { route: Route }) {
           items={[
             { value: "open", icon: "open", title: "project_open_title", content: <OpenPanel route={route} /> },
             { value: "new", icon: "add", title: "project_new_import_title", content: <NewPanel /> },
+            { value: "region", icon: "map", title: "creator.title", content: <RegionPanel /> },
             { value: "delete", icon: "delete", title: "project_delete_title", content: <DeletePanel route={route} /> },
             { value: "export", icon: "export", title: "project_export_title", content: <ExportPanel route={route} /> },
           ]}
         />
       }
       right={
+        route.panel === "region" ? (
+          <>
+            <CenterTitle title="creator.map_title" sub="creator.map_sub" />
+            <RegionMap />
+          </>
+        ) : (
         <>
           <CenterTitle title="project_summary_title" sub="project_summary_sub" />
           {route.project === null ? (
@@ -51,6 +59,7 @@ export function ProjectScreen({ route }: { route: Route }) {
             <Summary slug={route.project} />
           )}
         </>
+        )
       }
     />
   );

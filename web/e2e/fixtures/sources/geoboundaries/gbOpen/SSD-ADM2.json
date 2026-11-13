@@ -1,0 +1,9 @@
+{
+ "boundaryID": "SSD-ADM2-E2E",
+ "boundaryISO": "SSD",
+ "boundaryType": "ADM2",
+ "boundaryLicense": "CC BY 3.0 IGO (test data)",
+ "boundarySource": "e2e fixture",
+ "gjDownloadURL": "https://github.com/wmgeolab/geoBoundaries/raw/e2e/SSD-ADM2-E2E.geojson",
+ "simplifiedGeometryGeoJSON": "https://github.com/wmgeolab/geoBoundaries/raw/e2e/SSD-ADM2-E2E-simplified.geojson"
+}

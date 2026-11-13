@@ -18,7 +18,8 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: "http://127.0.0.1:5198", viewport: { width: 1440, height: 1000 } },
   webServer: {
-    command: `rm -rf ${data} && ${serve}`,
+    // The Project Creator finds its sources in the cache: no network (e2e/fixtures/sources).
+    command: `rm -rf ${data} && mkdir -p ${data}/cache && cp -R web/e2e/fixtures/sources ${data}/cache/sources && ${serve}`,
     cwd: "..",
     url: "http://127.0.0.1:5198/api/health",
     timeout: 300_000,

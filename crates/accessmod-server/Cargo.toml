@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 accessmod-io.workspace = true
+accessmod-fetch.workspace = true
 axum = { version = "0.8", features = ["multipart"] }
 schemars.workspace = true
 serde.workspace = true
