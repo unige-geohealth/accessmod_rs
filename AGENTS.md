@@ -192,7 +192,9 @@ determinism, memory budget, cancellation and error messages included.
 | Open aligned rasters, read windows, blocks of several bands with zones | `accessmod_io::raster` (`for_each_block`) |
 | Open a vector layer (filter, CRS, reprojection), burn features (dense lines, or `Burn::Thin` as `v.to.rast` without `-d`) and zones, polygonise cells, sums over polygons weighted by coverage, geometries spooled to disk, write FlatGeobuf | `accessmod_io::vector` (`burn_layer`, `burn_zones`, `polygonize`, `covered_sum`, `GeometrySpool`, `FeatureWriter`) |
 | Residual population, band search, catchment polygon, removal (capacity analyses) | `accessmod_io::catchment` |
-| DEM grid (or the grid of another raster, `open_raster`), lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
+| DEM grid (or the grid of another raster, `open_raster`, or of an extent on a lattice, `from_extent`), lattice alignment, map ↔ pixel coordinates | `accessmod_io::grid` |
+| Projections for a region (UTM, centred Transverse Mercator, Albers, LAEA) and their distance and area distortion over it (Tissot) | `accessmod_io::projection` |
+| Rasters from elsewhere onto a grid: reprojection and resampling (nearest, mode, bilinear, sum) of tiles, chunked mosaics without seams | `accessmod_io::warp` |
 | Job files, path resolution, schema version, input checks | `accessmod_io::job` |
 | Memory plan and execution settings | `accessmod_io::resources` |
 | Staging directory, GeoTIFF blocks, CSV, `finish` | `accessmod_io::output` |

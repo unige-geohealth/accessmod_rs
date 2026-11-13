@@ -35,4 +35,5 @@ pub mod scaling_up;
 pub mod tiles;
 pub mod travel_time;
 pub mod vector;
+pub mod warp;
 pub mod zonal;
