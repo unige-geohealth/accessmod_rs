@@ -220,3 +220,136 @@ fn reference_lattices_and_refusals() {
         .collect();
     assert!(left.is_empty(), "{left:?}");
 }
+
+/// Refusals that must not leave a silent hole: an invalid polygon (the
+/// outside barrier would be lost), a missing DEM tile, no facility at all.
+#[test]
+fn invalid_areas_missing_tiles_and_no_facilities_are_refused() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = settings(64 << 20, 1);
+    let mut bowtie = recipe(0.0, Crs::Auto);
+    bowtie.area = Area::Geojson(
+        json!({"type": "Polygon", "coordinates": [[[31.6, 4.85], [31.615, 4.865], [31.615, 4.85], [31.6, 4.865], [31.6, 4.85]]]}),
+    );
+    let error = creator::build(&bowtie, &dir.path().join("a"), &s, Monitor::QUIET)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not a valid polygon"), "{error}");
+
+    let mut half = recipe(0.0, Crs::Auto);
+    half.sources.dem = vec![data("dem_west.tif")];
+    let error = creator::build(&half, &dir.path().join("b"), &s, Monitor::QUIET)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("DEM") && error.contains("missing tiles"),
+        "{error}"
+    );
+
+    let mut none = recipe(0.0, Crs::Auto);
+    none.sources.facilities = None;
+    let error = creator::build(&none, &dir.path().join("c"), &s, Monitor::QUIET)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("no health facility"), "{error}");
+    for name in ["a", "b", "c"] {
+        assert!(!dir.path().join(name).exists());
+    }
+}
+
+/// Merged land cover cell at WGS 84 `(lon, lat)` of `project` (UTM 36N).
+fn merged_at(project: &accessmod_io::project::Project, lon: f64, lat: f64) -> Option<f64> {
+    use gdal::spatial_ref::{AxisMappingStrategy, CoordTransform, SpatialRef};
+    let merged = project
+        .datasets(Some(DataClass::LandCoverMerged))
+        .unwrap()
+        .remove(0);
+    let cells = read_valid(&project.resolve(Path::new(&merged.file)).unwrap());
+    let info = project.info().unwrap();
+    let gt = info.grid.geo_transform;
+    let mut wgs = SpatialRef::from_epsg(4326).unwrap();
+    wgs.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
+    let mut utm = SpatialRef::from_epsg(32636).unwrap();
+    utm.set_axis_mapping_strategy(AxisMappingStrategy::TraditionalGisOrder);
+    let t = CoordTransform::new(&wgs, &utm).unwrap();
+    let (mut x, mut y) = ([lon], [lat]);
+    t.transform_coords(&mut x, &mut y, &mut []).unwrap();
+    let col = ((x[0] - gt[0]) / gt[1]).floor();
+    let row = ((y[0] - gt[3]) / gt[5]).floor();
+    if col < 0.0 || row < 0.0 || col >= info.grid.cols as f64 || row >= info.grid.rows as f64 {
+        return None;
+    }
+    cells[row as usize * info.grid.cols + col as usize]
+}
+
+/// Holes stay impassable, islands stay apart; population split in two
+/// country files (no overlap) gives the same total as one file.
+#[test]
+fn holes_islands_and_two_population_files() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = settings(64 << 20, 1);
+    let square = |w: f64, s: f64, e: f64, n: f64| json!([[w, s], [e, s], [e, n], [w, n], [w, s]]);
+    // Without hole nor island first: the points checked below are passable.
+    let mut plain = recipe(0.0, Crs::Epsg(32636));
+    plain.area = Area::Geojson(
+        json!({"type": "Polygon", "coordinates": [square(31.582, 4.832, 31.605, 4.862)]}),
+    );
+    let (base, _) =
+        creator::build(&plain, &dir.path().join("plain"), &s, Monitor::QUIET).expect("plain");
+    let (hole, island, between) = ((31.594, 4.852), (31.585, 4.836), (31.586, 4.843));
+    for (lon, lat) in [hole, island, between] {
+        assert!(
+            merged_at(&base, lon, lat).is_some(),
+            "{lon} {lat} not passable to begin with"
+        );
+    }
+    // A square with a hole, and a separate island south-west of it.
+    let mut r = recipe(0.0, Crs::Epsg(32636));
+    r.area = Area::Geojson(json!({"type": "MultiPolygon", "coordinates": [
+        [square(31.589, 4.846, 31.603, 4.86), square(31.592, 4.85, 31.596, 4.854)],
+        [square(31.583, 4.833, 31.587, 4.839)]
+    ]}));
+    // Population in two halves, west and east of a column of the source.
+    let whole = gdal::Dataset::open(data("worldpop.tif")).unwrap();
+    let (cols, rows) = whole.raster_size();
+    let gt = whole.geo_transform().unwrap();
+    let band = whole.rasterband(1).unwrap();
+    let nodata = band.no_data_value();
+    let mut halves = Vec::new();
+    for (name, c0, c1) in [("west.tif", 0, cols / 2), ("east.tif", cols / 2, cols)] {
+        let mut values = band
+            .read_as::<f32>((c0 as isize, 0), (c1 - c0, rows), (c1 - c0, rows), None)
+            .unwrap();
+        let path = dir.path().join(name);
+        let driver = gdal::DriverManager::get_driver_by_name("GTiff").unwrap();
+        let mut out = driver
+            .create_with_band_type::<f32, _>(&path, c1 - c0, rows, 1)
+            .unwrap();
+        out.set_geo_transform(&[gt[0] + c0 as f64 * gt[1], gt[1], 0.0, gt[3], 0.0, gt[5]])
+            .unwrap();
+        out.set_spatial_ref(&whole.spatial_ref().unwrap()).unwrap();
+        let mut b = out.rasterband(1).unwrap();
+        b.set_no_data_value(nodata).unwrap();
+        b.write((0, 0), (c1 - c0, rows), &mut values).unwrap();
+        halves.push(path);
+    }
+    let (one, m1) =
+        creator::build(&r, &dir.path().join("one"), &s, Monitor::QUIET).expect("one file");
+    r.sources.population = halves;
+    let (_, m2) =
+        creator::build(&r, &dir.path().join("two"), &s, Monitor::QUIET).expect("two files");
+    let (p1, p2) = (m1.population.unwrap(), m2.population.unwrap());
+    assert!((p1.grid - p2.grid).abs() < 1e-6 * p1.grid, "{p1:?} {p2:?}");
+    assert!(
+        merged_at(&one, hole.0, hole.1).is_none(),
+        "the hole is a barrier"
+    );
+    assert!(
+        merged_at(&one, island.0, island.1).is_some(),
+        "the island is passable"
+    );
+    assert!(
+        merged_at(&one, between.0, between.1).is_none(),
+        "between them is a barrier"
+    );
+}

@@ -51,8 +51,13 @@ impl Resample {
     }
 }
 
-/// Source cells a kernel may read beyond the cells under a chunk.
+/// Source cells a kernel may read beyond the cells under a chunk, besides
+/// the downsampling scale (the kernel widens with it).
 const MARGIN: usize = 2;
+/// Largest offset between tiles, in cells.
+const MAX_OFFSET: f64 = (1u64 << 40) as f64;
+/// Largest tile side, in cells.
+const MAX_SIZE: usize = 1 << 31;
 /// Points per edge of a chunk projected into the source CRS.
 const EDGE_SAMPLES: usize = 9;
 
@@ -118,6 +123,16 @@ impl Mosaic {
             let col = (gt[0] - base[0]) / base[1];
             let row = (gt[3] - base[3]) / base[5];
             let on_lattice = (col - col.round()).abs() < 1e-6 && (row - row.round()).abs() < 1e-6;
+            // Offsets and sizes stay far from integer overflow (hostile
+            // origins).
+            let near = col.abs() <= MAX_OFFSET && row.abs() <= MAX_OFFSET;
+            if !near || cols > MAX_SIZE || rows > MAX_SIZE {
+                return Err(Error::invalid(format!(
+                    "{}: too far from {} or too large to mosaic",
+                    path.display(),
+                    first.display()
+                )));
+            }
             if *base_srs != srs || !same_cell || !on_lattice {
                 return Err(Error::invalid(format!(
                     "{}: not on the CRS and lattice of {}",
@@ -184,6 +199,7 @@ impl Mosaic {
         &self,
         frame: &GridSpec,
         to_source: &CoordTransform,
+        margin: i64,
     ) -> Option<(std::ops::Range<i64>, std::ops::Range<i64>)> {
         let mut xs = Vec::with_capacity(EDGE_SAMPLES * 4);
         let mut ys = Vec::with_capacity(EDGE_SAMPLES * 4);
@@ -206,7 +222,6 @@ impl Mosaic {
         let rows: Vec<f64> = ys.iter().map(|y| (y - y0) / ns).collect();
         let lo = |v: &[f64]| v.iter().copied().fold(f64::INFINITY, f64::min);
         let hi = |v: &[f64]| v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let margin = MARGIN as i64;
         let c0 = (lo(&cols).floor() as i64 - margin).max(self.cols.start);
         let c1 = (hi(&cols).ceil() as i64 + margin).min(self.cols.end);
         let r0 = (lo(&rows).floor() as i64 - margin).max(self.rows.start);
@@ -217,10 +232,15 @@ impl Mosaic {
     /// The cells of the lattice window `cols × rows`, NaN where no tile
     /// covers them or a tile holds NoData.
     fn read(&self, cols: &std::ops::Range<i64>, rows: &std::ops::Range<i64>) -> Result<Vec<f64>> {
+        // Which tile gave each value: overlapping tiles must agree (tiles of
+        // one product share their edges; two population rasters holding
+        // people on the same cells would count them twice, or lose some).
+        let mut owner: Vec<u32> = Vec::new();
         let width = (cols.end - cols.start) as usize;
         let height = (rows.end - rows.start) as usize;
         let mut cells = vec![f64::NAN; width * height];
-        for tile in &self.tiles {
+        owner.resize(width * height, u32::MAX);
+        for (index, tile) in self.tiles.iter().enumerate() {
             let c0 = cols.start.max(tile.col);
             let c1 = cols.end.min(tile.col + tile.cols as i64);
             let r0 = rows.start.max(tile.row);
@@ -244,9 +264,21 @@ impl Mosaic {
             let values = buffer.into_shape_and_vec().1;
             for (i, row) in values.chunks_exact(w).enumerate() {
                 let at = ((r0 - rows.start) as usize + i) * width + (c0 - cols.start) as usize;
-                for (cell, &value) in cells[at..at + w].iter_mut().zip(row) {
-                    if Some(value) != tile.nodata && !value.is_nan() {
+                for (k, &value) in row.iter().enumerate() {
+                    if Some(value) == tile.nodata || value.is_nan() {
+                        continue;
+                    }
+                    let cell = &mut cells[at + k];
+                    if cell.is_nan() {
                         *cell = value;
+                        owner[at + k] = index as u32;
+                    } else if *cell != value {
+                        let other = &self.tiles[owner[at + k] as usize].path;
+                        return Err(Error::invalid(format!(
+                            "{} and {} overlap with different values: tiles of one product must agree where they meet",
+                            other.display(),
+                            tile.path.display()
+                        )));
                     }
                 }
             }
@@ -288,8 +320,9 @@ pub fn warp_to_grid<T: GdalType + Copy>(
     )
 }
 
-/// Cells of a chunk's source mosaic, at most about (128 MiB of Float64).
-pub const MOSAIC_CELLS: usize = 1 << 24;
+/// Cells of a chunk's source mosaic, halo included, at most (64 MiB of
+/// Float64; GDAL holds a second copy while warping).
+pub const MOSAIC_CELLS: usize = 1 << 23;
 
 #[allow(clippy::too_many_arguments)]
 fn warp_in_chunks<T: GdalType + Copy>(
@@ -313,12 +346,22 @@ fn warp_in_chunks<T: GdalType + Copy>(
     let to_source =
         CoordTransform::new(&grid_srs, &source_srs).map_err(Error::gdal(&mosaic.tiles[0].path))?;
     let scale = mosaic.cells_per_cell(grid, &to_source)?;
-    // Chunk side such that its source window stays within MOSAIC_CELLS.
+    // The kernel reads up to the downsampling scale beyond the cells under a
+    // chunk; the chunk side keeps its source window, halo included, within
+    // MOSAIC_CELLS.
     let ratio = scale.0.max(scale.1);
-    let side = side.unwrap_or_else(|| {
-        let side = ((MOSAIC_CELLS as f64).sqrt() / ratio - 2.0 * MARGIN as f64).floor();
-        (side.max(16.0) as usize).min(1024)
-    });
+    let margin = MARGIN as i64 + ratio.ceil() as i64;
+    let most = (((MOSAIC_CELLS as f64).sqrt() - 2.0 * margin as f64) / ratio).floor();
+    if most < 1.0 {
+        return Err(Error::invalid(format!(
+            "cells of {} m are too coarse for {} ({ratio:.0} source cells per cell): \
+             choose a finer resolution",
+            grid.geo_transform[1],
+            mosaic.tiles[0].path.display()
+        )));
+    }
+    let most = (most as usize).min(1024);
+    let side = side.map_or(most, |s| s.clamp(1, most));
     let out = GeoTiff::create::<T>(target, grid, predictor::<T>(), threads, nodata)?;
     let mut stats = WarpStats {
         valid_cells: 0,
@@ -332,7 +375,7 @@ fn warp_in_chunks<T: GdalType + Copy>(
         cancelled,
         |rows, cols| {
             let frame = grid.window(rows.clone(), cols.clone());
-            let values = match mosaic.window_under(&frame, &to_source) {
+            let values = match mosaic.window_under(&frame, &to_source, margin) {
                 Some((src_cols, src_rows)) => {
                     let cells = mosaic.read(&src_cols, &src_rows)?;
                     warp_chunk(
@@ -373,7 +416,7 @@ pub fn source_total(sources: &[PathBuf], grid: &GridSpec, cancelled: Cancelled<'
     let (grid_srs, source_srs) = (traditional(&grid.srs), traditional(&mosaic.srs));
     let path = &mosaic.tiles[0].path;
     let to_source = CoordTransform::new(&grid_srs, &source_srs).map_err(Error::gdal(path))?;
-    let Some((cols, rows)) = mosaic.window_under(grid, &to_source) else {
+    let Some((cols, rows)) = mosaic.window_under(grid, &to_source, MARGIN as i64) else {
         return Ok(0.0);
     };
     // The outline, densified so that its projection stays faithful.
@@ -693,6 +736,150 @@ mod tests {
             }
             assert!(outputs[0].iter().any(|v| *v != -9999.0));
         }
+    }
+
+    /// Downsampling (about 11 source cells per cell) widens the kernel: the
+    /// halo follows, so tiles and chunks still show no seam.
+    #[test]
+    fn downsampling_has_no_seams() {
+        let dir = tmp();
+        let res = 1.0 / 1200.0;
+        let one = dir.path().join("one.tif");
+        let west = dir.path().join("west.tif");
+        let east = dir.path().join("east.tif");
+        let wave =
+            |lon: f64, lat: f64| (lon * 400.0).sin() * 50.0 + (lat * 300.0).cos() * 30.0 + 500.0;
+        wgs84_tile(&one, 33.0, 9.5, res, (600, 600), wave);
+        wgs84_tile(&west, 33.0, 9.5, res, (300, 600), wave);
+        wgs84_tile(&east, 33.25, 9.5, res, (300, 600), wave);
+        let g = grid();
+        for resample in [Resample::Bilinear, Resample::Mode, Resample::Sum] {
+            let mut outputs = Vec::new();
+            for (name, sources, side) in [
+                ("single.tif", vec![one.clone()], None),
+                ("tiled.tif", vec![west.clone(), east.clone()], None),
+                ("small.tif", vec![west.clone(), east.clone()], Some(3)),
+            ] {
+                let target = dir.path().join(format!("down-{resample:?}-{name}"));
+                warp_in_chunks::<f64>(
+                    &sources,
+                    &g,
+                    resample,
+                    &target,
+                    -9999.0,
+                    |v| v,
+                    side,
+                    1,
+                    &|| false,
+                )
+                .expect("warp");
+                outputs.push(read(&target));
+            }
+            // The tiles compute their source values from their own origins:
+            // equal up to the last bits, so compare with a tolerance.
+            for other in &outputs[1..] {
+                for (a, b) in outputs[0].iter().zip(other) {
+                    assert!(
+                        (a - b).abs() <= 1e-9 * a.abs().max(1.0),
+                        "{resample:?}: seam: {a} vs {b}"
+                    );
+                }
+            }
+            for (a, b) in outputs[0].iter().zip(&outputs[2]) {
+                assert!(
+                    (a - b).abs() <= 1e-9 * a.abs().max(1.0),
+                    "{resample:?}: seam between chunks: {a} vs {b}"
+                );
+            }
+        }
+    }
+
+    /// Tiles that disagree where they overlap are refused (two population
+    /// rasters on the same cells); a resolution too coarse for the mosaic
+    /// bound is refused; so are tiles far apart (hostile origins).
+    #[test]
+    fn conflicting_far_or_too_coarse_sources_are_refused() {
+        let dir = tmp();
+        let res = 1.0 / 120.0;
+        let a = dir.path().join("a.tif");
+        let b = dir.path().join("b.tif");
+        wgs84_tile(&a, 33.0, 9.5, res, (60, 60), |_, _| 1.0);
+        wgs84_tile(&b, 33.0, 9.5, res, (60, 60), |_, _| 2.0);
+        let g = grid();
+        let target = dir.path().join("x.tif");
+        let error = warp_to_grid::<f64>(
+            &[a.clone(), b],
+            &g,
+            Resample::Sum,
+            &target,
+            -9999.0,
+            |v| v,
+            1,
+            &|| false,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("overlap"), "{error}");
+        // Equal values where tiles meet are fine.
+        let same = dir.path().join("same.tif");
+        wgs84_tile(&same, 33.0, 9.5, res, (60, 60), |_, _| 1.0);
+        let target = dir.path().join("y.tif");
+        warp_to_grid::<f64>(
+            &[a.clone(), same],
+            &g,
+            Resample::Sum,
+            &target,
+            -9999.0,
+            |v| v,
+            1,
+            &|| false,
+        )
+        .expect("equal overlap");
+        // 4 km source cells per... a grid of 1000 km cells over 0.0083° cells.
+        let coarse = GridSpec::from_extent(
+            Extent {
+                xmin: 0.0,
+                ymin: 0.0,
+                xmax: 2_000_000.0,
+                ymax: 2_000_000.0,
+            },
+            1_000_000.0,
+            SpatialRef::from_epsg(32636).unwrap(),
+            (0.0, 0.0),
+            u64::MAX,
+        )
+        .unwrap();
+        let target = dir.path().join("z.tif");
+        let error = warp_to_grid::<f64>(
+            std::slice::from_ref(&a),
+            &coarse,
+            Resample::Mode,
+            &target,
+            -9999.0,
+            |v| v,
+            1,
+            &|| false,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("too coarse"), "{error}");
+        // A tile 1e19 m away on the same lattice.
+        let far = dir.path().join("far.tif");
+        wgs84_tile(&far, 33.0 + 1e19 * res, 9.5, res, (2, 2), |_, _| 1.0);
+        let target = dir.path().join("w.tif");
+        assert!(
+            warp_to_grid::<f64>(
+                &[a, far],
+                &g,
+                Resample::Nearest,
+                &target,
+                -9999.0,
+                |v| v,
+                1,
+                &|| false
+            )
+            .is_err()
+        );
     }
 
     /// Bilinear on a plane in degrees gives the plane at cell centres.

@@ -200,6 +200,8 @@ pub struct Manifest {
     pub files: Vec<UsedFile>,
     /// Preset names and versions.
     pub presets: Vec<(String, u32)>,
+    /// Resampling of each raster layer.
+    pub resampling: Vec<(String, String)>,
     /// Population totals, when there is a population.
     pub population: Option<PopulationCheck>,
     /// Features kept per layer, and left out.
@@ -245,8 +247,25 @@ struct Zone {
 }
 
 /// The zones of `area`, in WGS 84.
-fn zones(area: &Area) -> Result<Vec<Zone>> {
-    let polygon = |g: Geometry, name: String| -> Result<Zone> {
+/// Most polygons of an area.
+pub const MAX_ZONES: usize = 10_000;
+/// Most vertices of an area, all polygons together.
+pub const MAX_VERTICES: usize = 5_000_000;
+
+/// Vertices of a geometry, rings and parts included.
+fn vertices(g: &Geometry) -> usize {
+    match g.geometry_count() {
+        0 => g.point_count(),
+        n => (0..n).map(|i| vertices(&g.get_geometry(i))).sum(),
+    }
+}
+
+fn zones(area: &Area, cancelled: crate::analysis::Cancelled<'_>) -> Result<Vec<Zone>> {
+    let mut seen_vertices = 0usize;
+    let mut polygon = |g: Geometry, name: String| -> Result<Zone> {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
         let flat = gdal::vector::geometry_type_flatten(g.geometry_type());
         if !matches!(
             flat,
@@ -255,6 +274,19 @@ fn zones(area: &Area) -> Result<Vec<Zone>> {
             return Err(Error::invalid(format!(
                 "the area holds a {}: polygons only",
                 g.geometry_name()
+            )));
+        }
+        // Union, buffer and difference need valid polygons: an invalid one
+        // could silently lose the barrier outside the region.
+        if !g.is_valid() {
+            return Err(Error::invalid(format!(
+                "area {name:?}: not a valid polygon (self-intersection, or a ring that crosses itself)"
+            )));
+        }
+        seen_vertices += vertices(&g);
+        if seen_vertices > MAX_VERTICES {
+            return Err(Error::invalid(format!(
+                "the area has more than {MAX_VERTICES} vertices: simplify it"
             )));
         }
         Ok(Zone { geometry: g, name })
@@ -324,10 +356,15 @@ fn zones(area: &Area) -> Result<Vec<Zone>> {
     if out.is_empty() {
         return Err(Error::invalid("the area holds no polygon"));
     }
+    if out.len() > MAX_ZONES {
+        return Err(Error::invalid(format!(
+            "the area has more than {MAX_ZONES} polygons: merge or select them"
+        )));
+    }
     Ok(out)
 }
 
-fn lonlat_bounds(geometries: &[Geometry]) -> LonLatBounds {
+fn lonlat_bounds<'a>(geometries: impl IntoIterator<Item = &'a Geometry>) -> LonLatBounds {
     let mut b = LonLatBounds {
         west: f64::INFINITY,
         south: f64::INFINITY,
@@ -409,8 +446,8 @@ fn choose_crs(crs: &Crs, bounds: &LonLatBounds) -> Result<ChosenCrs> {
     }))
 }
 
-fn file_record(path: &Path) -> Result<UsedFile> {
-    let fingerprint = crate::report::fingerprints(&[("source", path)], &|| false)?
+fn file_record(path: &Path, cancelled: crate::analysis::Cancelled<'_>) -> Result<UsedFile> {
+    let fingerprint = crate::report::fingerprints(&[("source", path)], cancelled)?
         .pop()
         .ok_or_else(|| Error::invalid("no fingerprint"))?;
     Ok(UsedFile {
@@ -441,6 +478,82 @@ fn osm_id(feature: &gdal::vector::Feature<'_>) -> Option<FieldValue> {
         .map(FieldValue::Integer64Value)
 }
 
+/// Cells whose centre lies in `region` (grid CRS), and how many of them
+/// `path` (on the grid) leaves at NoData: a source tile missing under the
+/// region (contract 2).
+fn missing_inside(
+    path: &Path,
+    grid: &GridSpec,
+    region: &Geometry,
+    cancelled: crate::analysis::Cancelled<'_>,
+) -> Result<(u64, u64)> {
+    let dataset = gdal::Dataset::open(path).map_err(Error::gdal(path))?;
+    let band = dataset.rasterband(1).map_err(Error::gdal(path))?;
+    let nodata = band.no_data_value();
+    let polygons: Vec<Geometry> = match gdal::vector::geometry_type_flatten(region.geometry_type())
+    {
+        OGRwkbGeometryType::wkbPolygon => vec![region.clone()],
+        _ => (0..region.geometry_count())
+            .map(|i| region.get_geometry(i).clone())
+            .collect(),
+    };
+    let (mut inside, mut missing) = (0u64, 0u64);
+    let mut failure = None;
+    for polygon in polygons {
+        let rings: Vec<Vec<(f64, f64)>> = (0..polygon.geometry_count())
+            .map(|i| {
+                let mut points = Vec::new();
+                polygon.get_geometry(i).get_points(&mut points);
+                points
+                    .into_iter()
+                    .map(|(x, y, _)| grid.to_pixel(x, y))
+                    .collect()
+            })
+            .collect();
+        accessmod_core::raster::polygon_coverage(
+            &rings,
+            grid.rows,
+            grid.cols,
+            &mut |row, first, fractions| {
+                if cancelled() {
+                    failure = Some(Error::Cancelled);
+                    return std::ops::ControlFlow::Break(());
+                }
+                let read = band.read_as::<f64>(
+                    (first as isize, row as isize),
+                    (fractions.len(), 1),
+                    (fractions.len(), 1),
+                    None,
+                );
+                match read {
+                    Ok(buffer) => {
+                        for (value, fraction) in buffer.into_shape_and_vec().1.iter().zip(fractions)
+                        {
+                            // The cell centre is inside when most of the cell is
+                            // (cells on the boundary count half the time).
+                            if *fraction >= 0.5 {
+                                inside += 1;
+                                if Some(*value) == nodata || value.is_nan() {
+                                    missing += 1;
+                                }
+                            }
+                        }
+                        std::ops::ControlFlow::Continue(())
+                    }
+                    Err(e) => {
+                        failure = Some(Error::gdal(path)(e));
+                        std::ops::ControlFlow::Break(())
+                    }
+                }
+            },
+        );
+        if let Some(e) = failure.take() {
+            return Err(e);
+        }
+    }
+    Ok((inside, missing))
+}
+
 /// Build the project of `recipe` into `target` (a new directory), from
 /// local files: the project, and the manifest of the build.
 pub fn build(
@@ -461,9 +574,8 @@ pub fn build(
     let presets = Presets::shipped()?;
     let cancelled = monitor.cancelled();
     monitor.stage(STAGE_GRID);
-    let zones = zones(&recipe.area)?;
-    let geometries: Vec<Geometry> = zones.iter().map(|z| z.geometry.clone()).collect();
-    let bounds = lonlat_bounds(&geometries);
+    let zones = zones(&recipe.area, cancelled)?;
+    let bounds = lonlat_bounds(zones.iter().map(|z| &z.geometry));
     let ChosenCrs(crs_name, srs, anchor, reference_res) = choose_crs(&recipe.crs, &bounds)?;
     if let Some(res) = reference_res
         && (res - recipe.resolution_m).abs() > res * 1e-9
@@ -479,6 +591,9 @@ pub fn build(
     let mut region: Option<Geometry> = None;
     let mut projected_zones = Vec::new();
     for zone in &zones {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
         let g = zone
             .geometry
             .transform(&to_project)
@@ -502,7 +617,7 @@ pub fn build(
     // Distortion over the traversable extent, back in WGS 84.
     let to_wgs84 =
         CoordTransform::new(&traditional(&srs), &wgs84()?).map_err(Error::gdal("projection"))?;
-    let extent_lonlat = lonlat_bounds(&[traversable
+    let extent_lonlat = lonlat_bounds([&traversable
         .transform(&to_wgs84)
         .map_err(|_| Error::invalid("the buffered area leaves the CRS"))?]);
     let distortion = projection::distortion(&srs, &extent_lonlat)?;
@@ -573,6 +688,17 @@ pub fn build(
             threads,
             cancelled,
         )?;
+        // A tile missing under the region would leave silent holes.
+        for (name, file) in [("DEM", "dem.tif"), ("land cover", "land_cover.tif")] {
+            let (inside, missing) = missing_inside(&work(file), &grid, &traversable, cancelled)?;
+            if missing > 0 {
+                return Err(Error::invalid(format!(
+                    "the {name} sources leave {missing} of {inside} cells of the region without data \
+                     ({:.1} %): add the missing tiles",
+                    missing as f64 * 100.0 / inside.max(1) as f64
+                )));
+            }
+        }
         let population = if recipe.sources.population.is_empty() {
             None
         } else {
@@ -611,9 +737,19 @@ pub fn build(
         // Vectors.
         monitor.stage(STAGE_VECTORS);
         let mut features = Vec::new();
+        // The grid outside the region: a barrier. An overlay failure must
+        // not pass for "nothing outside" (the region would leak).
         let outside = {
             let frame = grid.outline()?;
-            frame.difference(&traversable)
+            if traversable.contains(&frame) {
+                None
+            } else {
+                Some(frame.difference(&traversable).ok_or_else(|| {
+                    Error::invalid(
+                        "the area outline cannot be cut from the grid (invalid geometry)",
+                    )
+                })?)
+            }
         };
         let mut outside_file = None;
         if let Some(outside) =
@@ -720,7 +856,9 @@ pub fn build(
             let mut seen = std::collections::HashSet::new();
             let kept = extract(
                 &input,
-                Some(&traversable),
+                // Not clipped: a facility polygon keeps its own centroid,
+                // whatever the region cuts of it.
+                None,
                 &grid.srs,
                 OGRwkbGeometryType::wkbPoint,
                 &[
@@ -744,6 +882,9 @@ pub fn build(
                         OGRwkbGeometryType::wkbPoint => geometry,
                         _ => centroid(&geometry)?,
                     };
+                    if !traversable.intersects(&point) {
+                        return None;
+                    }
                     Some((
                         point,
                         vec![
@@ -756,10 +897,6 @@ pub fn build(
                 },
             )?;
             features.push(("facilities".to_owned(), kept));
-            if kept == 0 {
-                warnings
-                    .push("no health facility found in OpenStreetMap: import your list".to_owned());
-            }
             facilities_file = (kept > 0).then_some(path);
         }
         // Reporting zones.
@@ -789,6 +926,13 @@ pub fn build(
             writer.close()?;
         }
 
+        // Ready means a travel time can run (contract 7): it needs facilities.
+        if facilities_file.is_none() {
+            return Err(Error::invalid(
+                "no health facility in the region: give a facilities layer (an official list, \
+                 or OpenStreetMap where it has some)",
+            ));
+        }
         let mut files = Vec::new();
         for path in recipe
             .sources
@@ -799,8 +943,16 @@ pub fn build(
             .chain(recipe.sources.roads.iter())
             .chain(recipe.sources.waterways.iter())
             .chain(recipe.sources.facilities.iter())
+            .chain(match &recipe.area {
+                Area::Path(p) => Some(p),
+                Area::Geojson(_) => None,
+            })
+            .chain(match &recipe.crs {
+                Crs::Reference(p) => Some(p),
+                _ => None,
+            })
         {
-            files.push(file_record(path)?);
+            files.push(file_record(path, cancelled)?);
         }
         let mut manifest = Manifest {
             recipe: recipe.clone(),
@@ -822,6 +974,14 @@ pub fn build(
                     presets.facilities.version,
                 ),
             ],
+            resampling: [
+                ("dem", "bilinear"),
+                ("land_cover", "mode (full resolution)"),
+                ("population", "sum, checked over the grid footprint"),
+            ]
+            .iter()
+            .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
+            .collect(),
             population,
             features,
             warnings: warnings.clone(),

@@ -373,7 +373,7 @@ Borders are described neutrally.
 
 Each slice passes every gate and gets a Codex review before the next one.
 
-Done: 1 (contracts, presets); 2 (`accessmod_io::creator`, `accessmod project create --recipe`; tested on real sources cut around Juba: the population over the grid equals the sources over the same footprint to 1e-8, outputs are identical across memory budgets and thread counts). The outside of the buffered region is a barrier at the top of the Merge stack, so the merge job itself keeps everything inside (replayable), rather than a mask applied afterwards.
+Done: 1 (contracts, presets); 2 (`accessmod_io::creator`, `accessmod project create --recipe`; tested on real sources cut around Juba: the population over the grid equals the sources over the same footprint to 1e-8, outputs are identical across memory budgets and thread counts). The outside of the buffered region is a barrier at the top of the Merge stack, so the merge job itself keeps everything inside (replayable), rather than a mask applied afterwards. After the Codex review of slice 2: hostile tile origins and coarse resolutions are refused, the mosaic halo follows the kernel scale, overlapping tiles must agree, a missing DEM or land cover tile under the region refuses the build, invalid area polygons are refused, a project without facilities is not created (readiness), facility polygons keep their own centroid. Left to later slices: population coverage per country against geoBoundaries ADM0 and licences/attributions (slice 5, with the catalogue), the Creator run record (`run.json`, slice 6).
 
 1. These contracts and the presets.
 2. Build from local files (`accessmod_io::creator`):
