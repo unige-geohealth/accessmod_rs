@@ -448,6 +448,45 @@ pub fn extract(
     limits: Limits,
     monitor: Monitor<'_>,
 ) -> Result<Manifest> {
+    extract_checked(archive, target, limits, monitor, true).and_then(|m| {
+        m.ok_or_else(|| Error::invalid(format!("{} has no {MANIFEST}", archive.display())))
+    })
+}
+
+/// [`extract`] for a zip without manifest (e.g. an AccessMod 5 data
+/// archive): the same checks on names, links, entry count and bytes
+/// written, without sizes or hashes to compare.
+pub fn extract_plain(
+    archive: &Path,
+    target: &Path,
+    limits: Limits,
+    monitor: Monitor<'_>,
+) -> Result<()> {
+    extract_checked(archive, target, limits, monitor, false).map(|_| ())
+}
+
+/// Names of the files (not directories) of the zip `archive`, without
+/// extracting it.
+pub fn file_names(archive: &Path, limits: Limits) -> Result<Vec<String>> {
+    let name = archive.to_string_lossy();
+    let zip = open(archive, limits)?;
+    let mut names = Vec::new();
+    for entry in zip.file_names() {
+        let entry = entry.map_err(zip_error(&name))?;
+        if !entry.ends_with('/') {
+            names.push(entry.into_owned());
+        }
+    }
+    Ok(names)
+}
+
+fn extract_checked(
+    archive: &Path,
+    target: &Path,
+    limits: Limits,
+    monitor: Monitor<'_>,
+    with_manifest: bool,
+) -> Result<Option<Manifest>> {
     if target.exists() {
         return Err(Error::invalid(format!(
             "{} already exists",
@@ -455,7 +494,7 @@ pub fn extract(
         )));
     }
     std::fs::create_dir_all(target).map_err(Error::file(target))?;
-    let result = extract_into(archive, target, limits, monitor);
+    let result = extract_into(archive, target, limits, monitor, with_manifest);
     if result.is_err() {
         let _ = std::fs::remove_dir_all(target);
     }
@@ -467,33 +506,46 @@ fn extract_into(
     target: &Path,
     limits: Limits,
     monitor: Monitor<'_>,
-) -> Result<Manifest> {
+    with_manifest: bool,
+) -> Result<Option<Manifest>> {
     let name = archive.to_string_lossy();
     let mut zip = open(archive, limits)?;
-    let manifest = read_manifest(&mut zip, archive, limits)?;
+    let manifest = if with_manifest {
+        Some(read_manifest(&mut zip, archive, limits)?)
+    } else {
+        None
+    };
     let listed: std::collections::HashMap<&str, &ManifestFile> = manifest
-        .files
         .iter()
+        .flat_map(|m| &m.files)
         .map(|f| (f.path.as_str(), f))
         .collect();
-    if listed.len() != manifest.files.len() {
+    if let Some(manifest) = &manifest
+        && listed.len() != manifest.files.len()
+    {
         return Err(Error::invalid(format!(
             "{name}: {MANIFEST} lists a file twice"
         )));
     }
     let mut found = std::collections::HashSet::new();
     let mut written = 0u64;
-    // Hostile sizes: never an overflow (each is checked against the limits below).
-    let total = manifest
-        .files
-        .iter()
-        .fold(0u64, |sum, f| sum.saturating_add(f.bytes));
+    // Hostile sizes: never an overflow (each is checked against the limits
+    // below). Without manifest, the headers' sizes, for progress only.
+    let total = match &manifest {
+        Some(manifest) => manifest
+            .files
+            .iter()
+            .fold(0u64, |sum, f| sum.saturating_add(f.bytes)),
+        None => (0..zip.len())
+            .filter_map(|i| zip.by_index_raw(i).ok().map(|e| e.size()))
+            .fold(0u64, u64::saturating_add),
+    };
     monitor.advance(STAGE_EXTRACT, 0, Some(total));
     let mut buffer = vec![0u8; 1 << 20];
     for index in 0..zip.len() {
         let mut entry = zip.by_index(index).map_err(zip_error(&name))?;
         let entry_name = entry.name().map_err(zip_error(&name))?.into_owned();
-        if entry_name == MANIFEST {
+        if with_manifest && entry_name == MANIFEST {
             continue;
         }
         if entry.is_symlink() {
@@ -510,15 +562,21 @@ fn extract_into(
         if entry.is_dir() {
             continue;
         }
-        let Some(expected) = listed.get(trimmed) else {
-            return Err(Error::invalid(format!(
-                "{name}: {entry_name} is not in {MANIFEST}"
-            )));
+        let expected = if with_manifest {
+            let Some(expected) = listed.get(trimmed) else {
+                return Err(Error::invalid(format!(
+                    "{name}: {entry_name} is not in {MANIFEST}"
+                )));
+            };
+            Some(*expected)
+        } else {
+            None
         };
         if !found.insert(trimmed.to_owned()) {
             return Err(Error::invalid(format!("{name}: {entry_name} is twice")));
         }
-        if expected.bytes > limits.bytes.saturating_sub(written) {
+        let room = limits.bytes.saturating_sub(written);
+        if expected.is_some_and(|e| e.bytes > room) {
             return Err(Error::invalid(format!(
                 "{name}: more than {} bytes to extract",
                 limits.bytes
@@ -551,8 +609,10 @@ fn extract_into(
             .map_err(Error::file(&path))?;
         let mut hasher = Sha256::new();
         let mut bytes = 0u64;
-        // Never more than the manifest says, whatever the header claims.
-        let mut limited = (&mut entry).take(expected.bytes + 1);
+        // Never more than the manifest says (or than the room left),
+        // whatever the header claims.
+        let most = expected.map_or(room, |e| e.bytes);
+        let mut limited = (&mut entry).take(most.saturating_add(1));
         loop {
             if monitor.is_cancelled() {
                 return Err(Error::Cancelled);
@@ -564,25 +624,28 @@ fn extract_into(
                 break;
             }
             bytes += n as u64;
-            if bytes > expected.bytes {
-                return Err(Error::invalid(format!(
-                    "{name}: {entry_name} is larger than {MANIFEST} says"
-                )));
+            if bytes > most {
+                return Err(Error::invalid(match expected {
+                    Some(_) => format!("{name}: {entry_name} is larger than {MANIFEST} says"),
+                    None => format!("{name}: more than {} bytes to extract", limits.bytes),
+                }));
             }
             hasher.update(&buffer[..n]);
             output.write_all(&buffer[..n]).map_err(Error::file(&path))?;
             monitor.advance(STAGE_EXTRACT, written + bytes, Some(total));
         }
         written += bytes;
-        if bytes != expected.bytes || hex(&hasher.finalize()) != expected.sha256 {
+        if let Some(expected) = expected
+            && (bytes != expected.bytes || hex(&hasher.finalize()) != expected.sha256)
+        {
             return Err(Error::invalid(format!(
                 "{name}: {entry_name} does not match {MANIFEST} (damaged archive)"
             )));
         }
     }
     if let Some(missing) = manifest
-        .files
         .iter()
+        .flat_map(|m| &m.files)
         .find(|f| !found.contains(f.path.as_str()))
     {
         return Err(Error::invalid(format!(

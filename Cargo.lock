@@ -73,6 +73,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "zip",
 ]
 
 [[package]]

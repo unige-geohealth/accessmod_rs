@@ -251,7 +251,15 @@ Metadata in SQLite, data in files:
   the plain CLI on the same inputs (checked on the tutorial). Tags follow
   AccessMod 5: any character but letters and digits separates them, so
   `travel_time` is two tags; with its class, a tag set names one dataset.
-- `.am5p` import: a separate converter, after the first testable slice.
+- AccessMod 5 projects: not `.am5p` (a GRASS database), but the data
+  archive AccessMod 5 already writes (Data manager › Archive), imported by
+  `project.import` as a new project (`accessmod_io::am5`). Each directory
+  is named from type, class label (in the user's language) and tags; the
+  class is the longest label of any language that prefixes the name. One
+  DEM is required; every file must be self-contained and every raster on
+  the DEM lattice, else nothing is imported and the report names each
+  misfit. Outputs come too (AccessMod 5 travel times, in minutes, are stored
+  in seconds); analysis parameters (AccessMod 5 replay) are left out.
 
 ### Client
 
@@ -532,7 +540,7 @@ Each slice passes every check and is usable on its own.
    results, facility relocation. The design system has their look
    (`DataTable`, `StackList`, `MapFrame` edit controls); this slice wires
    their behaviour.
-7. **Reach**: four languages, `.am5p` import, self-contained archives with
+7. **Reach**: four languages, AccessMod 5 data archives, self-contained archives with
    GDAL/PROJ (`plan.md`, milestone 4), optional Tauri package.
 
 ## Rejected

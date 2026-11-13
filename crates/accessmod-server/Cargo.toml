@@ -24,6 +24,7 @@ accessmod-io = { workspace = true, features = ["fixtures"] }
 gdal = "0.19"
 http-body-util = "0.1.5"
 tempfile = "3"
+zip = { version = "9.4.1", default-features = false, features = ["deflate"] }
 
 [lints]
 workspace = true

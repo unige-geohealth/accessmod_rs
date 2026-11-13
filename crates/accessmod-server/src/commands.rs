@@ -119,7 +119,7 @@ pub fn registry() -> Vec<CommandSpec> {
         ),
         command!(
             "project.import",
-            "Create a project from a project file (.am6p)",
+            "Create a project from a project file (.am6p) or an AccessMod 5 data archive (.zip)",
             Requirement::User,
             ImportProject,
             import_project
@@ -323,7 +323,8 @@ pub struct ImportProject {
     /// Name of the new project; the file's when empty.
     #[serde(default)]
     pub name: String,
-    /// The project file: an upload, or a file on the server's disk (desktop).
+    /// The project file (`.am6p`) or AccessMod 5 data archive (`.zip`):
+    /// an upload, or a file on the server's disk (desktop).
     pub package: FileSource,
 }
 
@@ -656,6 +657,7 @@ fn import_project(
     principal: &Principal,
     params: ImportProject,
 ) -> ApiResult<PendingOperation> {
+    use accessmod_io::am5;
     use accessmod_io::archive::{self, Limits};
     let package = uploads::resolve_archive(state, principal, &params.package)?;
     let projects = state.projects_dir();
@@ -668,6 +670,40 @@ fn import_project(
             .unwrap_or(Limits::default().bytes),
         ..Limits::default()
     };
+    let file = file_label(&package.path);
+    let rename = params.name.trim().to_owned();
+    // An AccessMod 5 data archive (Data manager › Archive): no manifest, a
+    // DEM directory.
+    if am5::is_archive(&archive::file_names(&package.path, limits)?) {
+        let name = if rename.is_empty() {
+            am5::project_name(&package.path)
+        } else {
+            rename
+        };
+        let slug = free_slug(state, &name);
+        let job = serde_json::json!({ "name": name, "file": file });
+        let project_name = name.clone();
+        return operations::queue_pending(
+            state,
+            principal,
+            "project-import",
+            &slug.clone(),
+            &name,
+            job,
+            move |state, monitor| {
+                let (project, report) = am5::import_archive(
+                    &package.path,
+                    &state.projects_dir().join(&slug),
+                    &project_name,
+                    limits,
+                    &state.config().settings,
+                    monitor,
+                )?;
+                package.consumed();
+                Ok((project, format!("{} from {file}", report.summary())))
+            },
+        );
+    }
     // The manifest is read now: a file that is not a project fails at once.
     let manifest = archive::manifest(&package.path, limits)?;
     let from_file = manifest
@@ -676,7 +712,6 @@ fn import_project(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_owned();
-    let rename = params.name.trim().to_owned();
     let name = if rename.is_empty() {
         from_file
     } else {
@@ -684,7 +719,6 @@ fn import_project(
     };
     let slug = free_slug(state, &name);
     let target = slug.clone();
-    let file = file_label(&package.path);
     let job = serde_json::json!({ "name": name, "file": file });
     operations::queue_pending(
         state,

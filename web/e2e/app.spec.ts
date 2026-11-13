@@ -7,6 +7,7 @@ import { choose, panel, shot, sidebar } from "./helpers";
 // also sent as a shapefile, to upload several files at once.
 const data = new URL("../../docs/tutorial/data/", import.meta.url).pathname;
 const work = new URL("../test-results/e2e-data/", import.meta.url).pathname;
+const am5Archive = new URL("../../crates/accessmod-io/tests/data/am5_archive.zip", import.meta.url).pathname;
 // The demo sample data, as AccessMod 5 ships it (ERDAS Imagine, XLSX).
 const demo = new URL("../../crates/accessmod-io/demo/", import.meta.url).pathname;
 
@@ -153,15 +154,25 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await expect(table.locator(".tabulator-row")).toHaveCount(2);
   await shot(page, "project-imported");
 
-  // Settings › Language (no longer in Project), then delete the project in French.
+  // An AccessMod 5 data archive (Data manager › Archive) becomes a project too.
+  await sidebar(page, "Project").click();
+  await panel(page, "New / Import").click();
+  await page.getByLabel("Enter a new project name (min 4 characters)").fill("From AccessMod 5");
+  await page.locator("input[type=file]").setInputFiles(am5Archive);
+  await expect(page.locator("aside")).toContainText("From AccessMod 5", { timeout: 60_000 });
+  await sidebar(page, "Data").click();
+  await expect(table.locator(".tabulator-row")).toHaveCount(9);
+  await shot(page, "project-imported-am5");
+
+  // Settings › Language (no longer in Project), then delete the open project in French.
   await sidebar(page, "Settings").click();
   await choose(page, "Select the language", "Français");
   await expect(sidebar(page, "Projet")).toBeVisible();
   await sidebar(page, "Projet").click();
   await panel(page, "Supprimer").click();
-  await choose(page, "Sélectionnez le projet à supprimer", "Tutorial copy");
+  await choose(page, "Sélectionnez le projet à supprimer", "From AccessMod 5");
   await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
   await expect(page).toHaveURL(/#\/_\/project/);
-  await expect(page.getByText("Supprimé : Tutorial copy")).toBeVisible();
+  await expect(page.getByText("Supprimé : From AccessMod 5")).toBeVisible();
 });

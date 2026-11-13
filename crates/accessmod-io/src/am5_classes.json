@@ -1,0 +1,370 @@
+[
+  {
+    "class": "lAnalysisParameters",
+    "en": "analysis parameters",
+    "es": "parámetros de análisis",
+    "fr": "paramètres d'analyse",
+    "pt": "parâmetros de análise",
+    "type": "config"
+  },
+  {
+    "class": "rDem",
+    "en": "dem",
+    "es": "mde",
+    "fr": "dem",
+    "pt": "mde",
+    "type": "raster"
+  },
+  {
+    "class": "rExclusion",
+    "en": "exclusion",
+    "es": "exclusión",
+    "fr": "exclusion",
+    "pt": "exclusão",
+    "type": "raster"
+  },
+  {
+    "class": "rFriction",
+    "en": "friction",
+    "es": "fricción",
+    "fr": "friction",
+    "pt": "fricção",
+    "type": "raster"
+  },
+  {
+    "class": "rLandCover",
+    "en": "land cover",
+    "es": "cobertura del suelo",
+    "fr": "occupation du sol",
+    "pt": "cobertura do solo",
+    "type": "raster"
+  },
+  {
+    "class": "rLandCoverBridge",
+    "en": "land cover merged bridge",
+    "es": "cobertura del suelo fusionada puente",
+    "fr": "occupation du sol fusionnée pont",
+    "pt": "cobertura do solo fundida ponte",
+    "type": "raster"
+  },
+  {
+    "class": "rLandCoverMerged",
+    "en": "land cover merged",
+    "es": "cobertura del suelo fusionada",
+    "fr": "occupation du sol fusionnée",
+    "pt": "cobertura do solo fundida",
+    "type": "raster"
+  },
+  {
+    "class": "rNearest",
+    "en": "cost allocation",
+    "es": "asignación de costes",
+    "fr": "allocation de coût",
+    "pt": "alocação de custos",
+    "type": "raster"
+  },
+  {
+    "class": "rPopulation",
+    "en": "population",
+    "es": "población",
+    "fr": "population",
+    "pt": "população",
+    "type": "raster"
+  },
+  {
+    "class": "rPopulationOnBarrier",
+    "en": "population on barrier",
+    "es": "población en barrera",
+    "fr": "population sur barrière",
+    "pt": "população na barreira",
+    "type": "raster"
+  },
+  {
+    "class": "rPopulationResidual",
+    "en": "population residual",
+    "es": "población residual",
+    "fr": "population résiduelle",
+    "pt": "população residual",
+    "type": "raster"
+  },
+  {
+    "class": "rPriority",
+    "en": "priority",
+    "es": "prioridad",
+    "fr": "priorité",
+    "pt": "prioridade",
+    "type": "raster"
+  },
+  {
+    "class": "rSpeed",
+    "en": "speed",
+    "es": "velocidad",
+    "fr": "vitesse",
+    "pt": "velocidade",
+    "type": "raster"
+  },
+  {
+    "class": "rStackBarrier",
+    "en": "stack barrier",
+    "es": "pila barrera",
+    "fr": "pile barrière",
+    "pt": "pilha barreira",
+    "type": "raster"
+  },
+  {
+    "class": "rStackLandCover",
+    "en": "stack land cover",
+    "es": "pila cobertura del suelo",
+    "fr": "pile occupation du sol",
+    "pt": "pilha cobertura do solo",
+    "type": "raster"
+  },
+  {
+    "class": "rStackRoad",
+    "en": "stack road",
+    "es": "pila carreteras",
+    "fr": "pile routes",
+    "pt": "pilha estradas",
+    "type": "raster"
+  },
+  {
+    "class": "rTravelTime",
+    "en": "travel time",
+    "es": "tiempo de desplazamiento",
+    "fr": "temps de voyage",
+    "pt": "tempo de deslocamento",
+    "type": "raster"
+  },
+  {
+    "class": "rTravelTimeImported",
+    "en": "imported travel time",
+    "es": "tiempo de desplazamiento importado",
+    "fr": "temps de voyage importé",
+    "pt": "tempo de deslocamento importado",
+    "type": "raster"
+  },
+  {
+    "class": "tCapacity",
+    "en": "capacity",
+    "es": "capacidad",
+    "fr": "capacité",
+    "pt": "capacidade",
+    "type": "table"
+  },
+  {
+    "class": "tCapacityOut",
+    "en": "capacity processed",
+    "es": "capacidad procesada",
+    "fr": "capacité traitée",
+    "pt": "capacidade processada",
+    "type": "table"
+  },
+  {
+    "class": "tCapacityStat",
+    "en": "result geographic coverage analysis",
+    "es": "resultado análisis de la cobertura geográfica",
+    "fr": "résultat analyse couverture géographique",
+    "pt": "resultado análise da cobertura geográfica",
+    "type": "table"
+  },
+  {
+    "class": "tCapacityStatNew",
+    "en": "result scaling up analysis",
+    "es": "resultados del análisis de ampliación",
+    "fr": "résultat analyse mise à l'échelle",
+    "pt": "resultado da análise de ampliação",
+    "type": "table"
+  },
+  {
+    "class": "tExclusion",
+    "en": "exclusion",
+    "es": "exclusión",
+    "fr": "exclusion",
+    "pt": "exclusão",
+    "type": "table"
+  },
+  {
+    "class": "tExclusionOut",
+    "en": "exclusion processed",
+    "es": "exclusión procesada",
+    "fr": "exclusion traitée",
+    "pt": "exclusão processada",
+    "type": "table"
+  },
+  {
+    "class": "tLandCover",
+    "en": "land cover",
+    "es": "cobertura del suelo",
+    "fr": "occupation du sol",
+    "pt": "cobertura do solo",
+    "type": "table"
+  },
+  {
+    "class": "tOptimization",
+    "en": "optimization",
+    "es": "optimización",
+    "fr": "optimisation",
+    "pt": "otimização",
+    "type": "table"
+  },
+  {
+    "class": "tPopDistribAdjustSummary",
+    "en": "population adjustment summary",
+    "es": "resumen del ajuste de la población",
+    "fr": "resumé de l'ajustement de la population",
+    "pt": "resumo do ajustamento da população",
+    "type": "table"
+  },
+  {
+    "class": "tReferral",
+    "en": "referral",
+    "es": "derivación",
+    "fr": "référence",
+    "pt": "encaminhamento",
+    "type": "table"
+  },
+  {
+    "class": "tReferralDist",
+    "en": "referral nearest by dist",
+    "es": "derivación más cercana por dist",
+    "fr": "référence plus proche par dist",
+    "pt": "encaminhamento mais próximo por distância",
+    "type": "table"
+  },
+  {
+    "class": "tReferralTime",
+    "en": "referral nearest by time",
+    "es": "derivación más cercana por tiempo",
+    "fr": "référence plus proche par temps",
+    "pt": "encaminhamento mais próximo por tempo",
+    "type": "table"
+  },
+  {
+    "class": "tScenario",
+    "en": "scenario",
+    "es": "scenario",
+    "fr": "scénario",
+    "pt": "cenário",
+    "type": "table"
+  },
+  {
+    "class": "tScenarioOut",
+    "en": "scenario processed",
+    "es": "escenario procesado",
+    "fr": "scenario traité",
+    "pt": "cenário processado",
+    "type": "table"
+  },
+  {
+    "class": "tStack",
+    "en": "stack",
+    "es": "pila",
+    "fr": "pile",
+    "pt": "pilha",
+    "type": "table"
+  },
+  {
+    "class": "tStackRoad",
+    "en": "stack road",
+    "es": "pila carretera",
+    "fr": "pile route",
+    "pt": "pilha estradas",
+    "type": "table"
+  },
+  {
+    "class": "tSuitability",
+    "en": "suitability",
+    "es": "relevancia",
+    "fr": "pertinence",
+    "pt": "relevância",
+    "type": "table"
+  },
+  {
+    "class": "tSuitabilityOut",
+    "en": "suitability processed",
+    "es": "relevancia tramitada",
+    "fr": "pertinence traitée",
+    "pt": "relevância processada",
+    "type": "table"
+  },
+  {
+    "class": "tZonalStat",
+    "en": "zonal coverage",
+    "es": "cobertura zonal",
+    "fr": "couverture zonale",
+    "pt": "cobertura zonal",
+    "type": "table"
+  },
+  {
+    "class": "vBarrier",
+    "en": "barrier",
+    "es": "barrera",
+    "fr": "barrière",
+    "pt": "barreira",
+    "type": "vector"
+  },
+  {
+    "class": "vCatchment",
+    "en": "catchment",
+    "es": "área de captación",
+    "fr": "aire de captage",
+    "pt": "área de abrangência",
+    "type": "shape"
+  },
+  {
+    "class": "vCatchmentNew",
+    "en": "catchment scaling up",
+    "es": "área de captación ampliación",
+    "fr": "aire de captage mise à l'échelle",
+    "pt": "área de abrangência ampliação",
+    "type": "shape"
+  },
+  {
+    "class": "vExclusion",
+    "en": "exclusion",
+    "es": "exclusión",
+    "fr": "exclusion",
+    "pt": "exclusão",
+    "type": "vector"
+  },
+  {
+    "class": "vFacility",
+    "en": "facility",
+    "es": "instalación",
+    "fr": "structure",
+    "pt": "instalação",
+    "type": "vector"
+  },
+  {
+    "class": "vFacilityNew",
+    "en": "facility scaling up",
+    "es": "instalación ampliación",
+    "fr": "structure mise à l'échelle",
+    "pt": "instalação ampliação",
+    "type": "vector"
+  },
+  {
+    "class": "vReferralNetwork",
+    "en": "referral network",
+    "es": "red de derivación",
+    "fr": "réseau de références",
+    "pt": "rede de encaminhamento",
+    "type": "vector"
+  },
+  {
+    "class": "vRoad",
+    "en": "road",
+    "es": "carretera",
+    "fr": "route",
+    "pt": "estrada",
+    "type": "vector"
+  },
+  {
+    "class": "vZone",
+    "en": "zone for stat",
+    "es": "zona para estadísticas",
+    "fr": "zone pour stat",
+    "pt": "zona para estatísticas",
+    "type": "vector"
+  }
+]

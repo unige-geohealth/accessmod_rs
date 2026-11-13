@@ -1316,6 +1316,46 @@ async fn projects_export_to_a_file_and_import_from_it() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// An AccessMod 5 data archive (Data manager › Archive) becomes a project.
+#[tokio::test]
+async fn am5_archives_import_as_projects() {
+    let s = server(true);
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../accessmod-io/tests/data/am5_archive.zip");
+    let archive = s.dir.path().join("demo_2026_11_13@16_35.zip");
+    std::fs::copy(&fixture, &archive).expect("copy");
+    let (status, created) = s
+        .command_done(
+            "project.import",
+            json!({"package": {"path": s.path("demo_2026_11_13@16_35.zip")}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    assert_eq!(created["info"]["name"], "demo", "{created}");
+    let slug = created["slug"].as_str().expect("slug");
+    let (_, datasets) = s
+        .call("GET", &format!("/api/projects/{slug}/datasets"), None)
+        .await;
+    assert_eq!(datasets.as_array().map(Vec::len), Some(9), "{datasets}");
+
+    // A zip that is neither: no manifest, no DEM directory.
+    let other = s.dir.path().join("other.zip");
+    {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&other).expect("create"));
+        zip.start_file("notes/readme.txt", zip::write::SimpleFileOptions::default())
+            .expect("start");
+        std::io::Write::write_all(&mut zip, b"no data").expect("write");
+        zip.finish().expect("finish");
+    }
+    let (status, _) = s
+        .command_done(
+            "project.import",
+            json!({"package": {"path": s.path("other.zip")}}),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 #[tokio::test]
 async fn quick_checks_lint_jobs_without_reading_grids() {
     let s = server(true);

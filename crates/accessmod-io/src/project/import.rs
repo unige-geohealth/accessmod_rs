@@ -21,7 +21,7 @@ use crate::analysis::Cancelled;
 use crate::class::{DataClass, Kind};
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
-use crate::output::{CsvWriter, GeoTiff, csv_field};
+use crate::output::{CsvWriter, FLOAT_NODATA, GeoTiff, csv_field};
 use crate::preview::{self, Resampling};
 use crate::raster::{AlignedBand, for_each_chunk, open_aligned_raster, open_class_raster};
 use crate::resources::ExecutionSettings;
@@ -58,14 +58,64 @@ impl Project {
                 class.code()
             )));
         }
+        let origin = source.display().to_string();
+        self.import_any(
+            source, &origin, class, tags, options, None, settings, cancelled,
+        )
+    }
+
+    /// A dataset of an AccessMod 5 data archive ([`crate::am5`]): any class
+    /// but the DEM, outputs included; `origin` names the file in the archive.
+    /// AccessMod 5 travel times are minutes: they are written in seconds.
+    pub(crate) fn import_am5(
+        &self,
+        source: &Path,
+        origin: &str,
+        class: DataClass,
+        tags: &[String],
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<DatasetRecord> {
+        let scale =
+            matches!(class, DataClass::TravelTime | DataClass::TravelTimeImported).then_some(60.0);
+        self.import_any(
+            source,
+            origin,
+            class,
+            tags,
+            &ImportOptions::default(),
+            scale,
+            settings,
+            cancelled,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn import_any(
+        &self,
+        source: &Path,
+        origin: &str,
+        class: DataClass,
+        tags: &[String],
+        options: &ImportOptions,
+        scale: Option<f64>,
+        settings: &ExecutionSettings,
+        cancelled: Cancelled<'_>,
+    ) -> Result<DatasetRecord> {
         let grid = self.grid()?;
         self.import_with(
             source,
+            origin,
             class,
             tags,
             options,
             |target| match class.kind() {
-                Kind::Raster => copy_raster(source, target, &grid, class, settings, cancelled),
+                Kind::Raster => match scale {
+                    Some(factor) => {
+                        copy_scaled(source, target, &grid, class, factor, settings, cancelled)
+                    }
+                    None => copy_raster(source, target, &grid, class, settings, cancelled),
+                },
                 Kind::Vector => copy_vector(
                     source,
                     target,
@@ -104,6 +154,7 @@ impl Project {
         let source = self.resolve(Path::new(&record.file))?;
         self.import_with(
             &source,
+            &source.display().to_string(),
             DataClass::Facility,
             tags,
             &ImportOptions::default(),
@@ -125,6 +176,7 @@ impl Project {
         let (_, grid) = GridSpec::open_dem(source)?;
         self.import_with(
             source,
+            &source.display().to_string(),
             DataClass::Dem,
             &["dem".to_owned()],
             &ImportOptions::default(),
@@ -135,9 +187,11 @@ impl Project {
 
     /// Reserve a row, write the file with `write`, complete the row; on
     /// failure nothing is left.
+    #[allow(clippy::too_many_arguments)]
     fn import_with(
         &self,
         source: &Path,
+        origin: &str,
         class: DataClass,
         tags: &[String],
         options: &ImportOptions,
@@ -152,7 +206,7 @@ impl Project {
         }
         let _hold = self.activity()?;
         let origin = Origin::Import {
-            source: source.display().to_string(),
+            source: origin.to_owned(),
             layer: options.layer.clone(),
         };
         let (id, file) = self.reserve(class, tags, &origin)?;
@@ -304,6 +358,41 @@ fn copy_raster(
     preview::build(target, resampling(class), threads, cancelled).map(Summary::Raster)
 }
 
+/// A raster written in 64-bit floats, every value times `factor` (e.g.
+/// minutes to seconds); NoData and uncovered cells are [`FLOAT_NODATA`].
+fn copy_scaled(
+    source: &Path,
+    target: &Path,
+    grid: &GridSpec,
+    class: DataClass,
+    factor: f64,
+    settings: &ExecutionSettings,
+    cancelled: Cancelled<'_>,
+) -> Result<Summary> {
+    let (dataset, alignment) = open_aligned_raster(source, grid, class.label())?;
+    let band = AlignedBand::new(&dataset, source, alignment, grid)?;
+    let nodata = band.nodata();
+    let threads = settings.threads;
+    let out = GeoTiff::create::<f64>(target, grid, 3, threads, FLOAT_NODATA)?;
+    let mut buffer: Vec<f64> = Vec::new();
+    for_each_chunk(0..grid.rows, 0..grid.cols, cancelled, |rows, cols| {
+        let window = band.read::<f64>(rows.clone(), cols.clone())?;
+        buffer.clear();
+        for row in rows.clone() {
+            for col in cols.clone() {
+                let value = window
+                    .as_ref()
+                    .and_then(|w| w.get(row, col))
+                    .filter(|v| v.is_finite() && Some(*v) != nodata);
+                buffer.push(value.map_or(FLOAT_NODATA, |v| v * factor));
+            }
+        }
+        out.write(rows, cols, &mut buffer)
+    })?;
+    out.close()?;
+    preview::build(target, resampling(class), threads, cancelled).map(Summary::Raster)
+}
+
 /// A NoData value for cells the source does not cover, when it has none:
 /// one the source never holds, so no value turns into NoData.
 fn free_fill<T: Cell>(band: &AlignedBand<'_>, cancelled: Cancelled<'_>) -> Result<f64> {
@@ -423,6 +512,20 @@ fn copy_vector(
         .geom_fields()
         .next()
         .map_or(OGRwkbGeometryType::wkbUnknown, |g| g.field_type());
+    // A shapefile declares polygons or lines whatever it holds: when some
+    // features are multi-part, the layer is written multi-part and every
+    // single-part feature is wrapped (FlatGeobuf refuses mixed types).
+    // SAFETY: pure functions on geometry type codes.
+    let flat = |t| unsafe { gdal_sys::OGR_GT_Flatten(t) };
+    let collection = unsafe { gdal_sys::OGR_GT_GetCollection(kind) };
+    let promote = dataset.driver().short_name() == "ESRI Shapefile"
+        && collection != OGRwkbGeometryType::wkbUnknown
+        && flat(collection) != flat(kind)
+        && layer.features().any(|f| {
+            f.geometry()
+                .is_some_and(|g| flat(g.geometry_type()) == flat(collection))
+        });
+    let kind = if promote { collection } else { kind };
     let field_refs: Vec<(&str, gdal::vector::OGRFieldType::Type)> =
         fields.iter().map(|(n, t)| (n.as_str(), *t)).collect();
     let mut out = FeatureWriter::create(target, &input.name, &grid.srs, kind, &field_refs)?;
@@ -447,7 +550,12 @@ fn copy_vector(
                 geometry.geometry_name().to_lowercase()
             )));
         }
-        let geometry: Geometry = input.to_grid_geometry(geometry).map_err(problem)?;
+        let mut geometry: Geometry = input.to_grid_geometry(geometry).map_err(problem)?;
+        if promote && flat(geometry.geometry_type()) != flat(kind) {
+            let mut multi = Geometry::empty(kind).map_err(Error::gdal(source))?;
+            multi.add_geometry(geometry).map_err(Error::gdal(source))?;
+            geometry = multi;
+        }
         let values = fields
             .iter()
             .enumerate()

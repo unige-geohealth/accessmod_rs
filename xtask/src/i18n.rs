@@ -9,6 +9,10 @@
 //! - `design_system/design-system/src/i18n/own.json`: keys AccessMod 5 has
 //!   no text for, with dotted names (`table.all`), in all four languages.
 //!
+//! It also writes `crates/accessmod-io/src/am5_classes.json` (committed):
+//! the class labels of `classes.json` in every language, as they are,
+//! which name the files of an AccessMod 5 data archive (`accessmod_io::am5`).
+//!
 //! A missing AccessMod 5 translation falls back to English. An own key may
 //! not shadow an AccessMod 5 id.
 //!
@@ -25,6 +29,7 @@ use crate::workspace_root;
 const LANGUAGES: [&str; 4] = ["en", "fr", "es", "pt"];
 const CATALOG: &str = "design_system/design-system/src/i18n/catalog.json";
 const OWN: &str = "design_system/design-system/src/i18n/own.json";
+const CLASSES: &str = "crates/accessmod-io/src/am5_classes.json";
 
 type Catalog = BTreeMap<&'static str, BTreeMap<String, String>>;
 
@@ -44,29 +49,69 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }
         return Err("no AccessMod 5 source: run `sh scripts/fetch-am5.sh`".into());
     }
+    let classes = read(&dictionary.join("classes.json"))?;
     let catalog = catalog(
         &read(&dictionary.join("main.json"))?,
-        &read(&dictionary.join("classes.json"))?,
+        &classes,
         &read(&root.join(OWN))?,
     )?;
-    let mut text = serde_json::to_string_pretty(&catalog).map_err(|e| e.to_string())?;
-    text.push('\n');
-    let path = root.join(CATALOG);
-    if check {
-        let committed = std::fs::read_to_string(&path).unwrap_or_default();
-        if committed != text {
-            return Err(format!("{CATALOG} is out of date; run `cargo xtask i18n`"));
+    let outputs = [
+        (CATALOG, pretty(serde_json::to_string_pretty(&catalog))?),
+        (
+            CLASSES,
+            pretty(serde_json::to_string_pretty(&class_labels(&classes)))?,
+        ),
+    ];
+    for (file, text) in outputs {
+        let path = root.join(file);
+        if check {
+            let committed = std::fs::read_to_string(&path).unwrap_or_default();
+            if committed != text {
+                return Err(format!("{file} is out of date; run `cargo xtask i18n`"));
+            }
+            eprintln!("{file} is up to date");
+        } else {
+            std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+            eprintln!("wrote {file}");
         }
-        eprintln!("{CATALOG} is up to date");
-    } else {
-        std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
-        eprintln!(
-            "wrote {CATALOG}: {} keys × {} languages",
-            catalog["en"].len(),
-            LANGUAGES.len()
-        );
     }
     Ok(())
+}
+
+fn pretty(text: serde_json::Result<String>) -> Result<String, String> {
+    let mut text = text.map_err(|e| e.to_string())?;
+    text.push('\n');
+    Ok(text)
+}
+
+/// Class, type and labels of every AccessMod 5 class, as `classes.json`
+/// has them (no fallback: AccessMod 5 names files with the label as is).
+fn class_labels(classes: &Value) -> Vec<BTreeMap<&'static str, String>> {
+    let mut out: Vec<BTreeMap<&'static str, String>> = classes
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let field = |k: &str| {
+                entry
+                    .get(k)
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned()
+            };
+            let class = field("class");
+            if class.is_empty() {
+                return None;
+            }
+            let mut row = BTreeMap::from([("class", class), ("type", field("type"))]);
+            for language in LANGUAGES {
+                row.insert(language, field(language));
+            }
+            Some(row)
+        })
+        .collect();
+    out.sort_by(|a, b| a["class"].cmp(&b["class"]));
+    out
 }
 
 fn read(path: &Path) -> Result<Value, String> {

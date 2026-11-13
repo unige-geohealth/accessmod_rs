@@ -61,7 +61,7 @@
     },
     "package": {
       "$ref": "#/$defs/FileSource",
-      "description": "The project file: an upload, or a file on the server's disk (desktop)."
+      "description": "The project file (`.am6p`) or AccessMod 5 data archive (`.zip`):\nan upload, or a file on the server's disk (desktop)."
     }
   },
   "required": [

@@ -105,15 +105,15 @@ function OpenPanel({ route }: { route: Route }) {
   );
 }
 
-/** A project file (`.am6p`), rather than a DEM. */
-const isProjectFile = (files: readonly File[]) => files.length === 1 && files[0]!.name.toLowerCase().endsWith(".am6p");
+/** A project file (`.am6p`) or an AccessMod 5 data archive (`.zip`, Data manager › Archive), rather than a DEM. */
+const isProjectFile = (files: readonly File[]) => files.length === 1 && /\.(am6p|zip)$/i.test(files[0]!.name);
 
 function NewPanel() {
   const { t } = useI18n();
   const [name, setName] = useState("");
   const { state, start } = useTransfer();
   const busy = state.state === "uploading" || state.state === "processing";
-  // AM5 "Choose DEM or project": a DEM creates a project, a project file imports one.
+  // AM5 "Choose DEM or project": a DEM creates a project, a project file or an AM5 archive imports one.
   const create = (files: File[]) =>
     start(files, async (upload, queued) => {
       const source = { upload: { id: upload.id } };
@@ -130,7 +130,8 @@ function NewPanel() {
     <div className="flex flex-col gap-[15px]">
       <TextField label="project_new_name_text" value={name} onChange={setName} />
       {!validName(name) && <p className="text-xs text-muted-foreground">{t("project_new_name_unlock_dem")}</p>}
-      <FilePicker block multiple k="project_import_btn" accept={`${ACCEPT.raster},.am6p`} disabled={!validName(name) || busy} onFiles={create} />
+      <FilePicker block multiple k="project_import_btn" accept={`${ACCEPT.raster},.am6p,.zip`} disabled={!validName(name) || busy} onFiles={create} />
+      <p className="text-xs text-muted-foreground">{t("project.import_am5_hint")}</p>
       <TransferStatus transfer={state} doneKey="data.imported" />
     </div>
   );

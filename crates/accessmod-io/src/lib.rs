@@ -4,6 +4,7 @@
 //! Everything that touches files or GDAL lives here; the numerical engine is
 //! `accessmod-core`.
 
+pub mod am5;
 pub mod analysis;
 pub mod archive;
 pub(crate) mod catchment;

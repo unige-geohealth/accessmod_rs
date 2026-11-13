@@ -247,7 +247,7 @@ pub fn normalize_tags<S: AsRef<str>>(tags: &[S]) -> Vec<String> {
 /// Latin letters without their diacritics, ligatures spelled out, as ICU's
 /// `Latin-ASCII` transform does for the letters tags use. Other scripts
 /// are kept.
-fn latin_to_ascii(text: &str) -> String {
+pub(crate) fn latin_to_ascii(text: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
     use unicode_normalization::char::is_combining_mark;
     let mut out = String::with_capacity(text.len());

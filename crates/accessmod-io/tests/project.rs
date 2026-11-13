@@ -192,6 +192,62 @@ fn tags_name_datasets_uniquely_per_class() {
     assert_eq!(retagged.tags, ["base", "2024"]);
 }
 
+/// A shapefile declares "Polygon" for polygons and multipolygons alike
+/// (AccessMod 5 writes such layers): the copy is multi-part, every feature
+/// kept. FlatGeobuf refused the multipolygon before.
+#[test]
+fn shapefiles_mixing_single_and_multi_parts_import() {
+    use gdal::vector::{Feature, Geometry, LayerAccess, LayerOptions, OGRwkbGeometryType};
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let path = dir.path().join("zones.shp");
+    {
+        let driver = gdal::DriverManager::get_driver_by_name("ESRI Shapefile").expect("driver");
+        let mut ds = driver.create_vector_only(&path).expect("create");
+        let srs = gdal::spatial_ref::SpatialRef::from_epsg(EPSG).expect("srs");
+        let layer = ds
+            .create_layer(LayerOptions {
+                name: "zones",
+                srs: Some(&srs),
+                ty: OGRwkbGeometryType::wkbPolygon,
+                options: None,
+            })
+            .expect("layer");
+        let single = fixtures_polygon(0.0, 0.0, 2.0, 2.0);
+        let multi = format!(
+            "MULTIPOLYGON ({}, {})",
+            fixtures_polygon(3.0, 0.0, 4.0, 1.0).trim_start_matches("POLYGON "),
+            fixtures_polygon(4.0, 2.0, 5.0, 3.0).trim_start_matches("POLYGON ")
+        );
+        for wkt in [single, multi] {
+            let mut feature = Feature::new(layer.defn()).expect("feature");
+            feature
+                .set_geometry(Geometry::from_wkt(&wkt).expect("wkt"))
+                .expect("geometry");
+            feature.create(&layer).expect("create feature");
+        }
+    }
+    let record = project
+        .import(
+            &path,
+            DataClass::Zone,
+            &tags(&["mixed"]),
+            &ImportOptions::default(),
+            &settings(64 << 20, 1),
+            &|| false,
+        )
+        .expect("import");
+    let Summary::Vector(summary) = record.summary else {
+        panic!("vector");
+    };
+    assert_eq!(summary.features, 2);
+    assert_eq!(summary.geometry, "Multi Polygon");
+}
+
+fn fixtures_polygon(c0: f64, r0: f64, c1: f64, r1: f64) -> String {
+    accessmod_io::fixtures::cell_polygon(c0, r0, c1, r1)
+}
+
 #[test]
 fn imports_check_lattice_and_geometry() {
     let dir = tempfile::tempdir().expect("tempdir");

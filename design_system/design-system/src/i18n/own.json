@@ -377,6 +377,12 @@
     "es": "Guardado: %s",
     "pt": "Salvo: %s"
   },
+  "project.import_am5_hint": {
+    "en": "Coming from AccessMod 5? In AccessMod 5, Data manager: select all the data with the DEM, create an archive and export it, then choose that .zip here.",
+    "fr": "Vous venez d'AccessMod 5 ? Dans AccessMod 5, Gestion des données : sélectionnez toutes les données avec le MNT, créez une archive et exportez-la, puis choisissez ce .zip ici.",
+    "es": "¿Viene de AccessMod 5? En AccessMod 5, Gestión de datos: seleccione todos los datos con el MDE, cree un archivo y expórtelo, luego elija ese .zip aquí.",
+    "pt": "Vem do AccessMod 5? No AccessMod 5, Gestão de dados: selecione todos os dados com o MDE, crie um arquivo e exporte-o, depois escolha esse .zip aqui."
+  },
   "analysis.id_field_missing": {
     "en": "Select the facilities ID field.",
     "fr": "Sélectionnez le champ identifiant des structures.",
