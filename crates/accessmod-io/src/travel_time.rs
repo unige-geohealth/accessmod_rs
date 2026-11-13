@@ -9,13 +9,16 @@ use accessmod_core::solver::{Flow, InputCell, SolveStats, SolverCell, SolverConf
 use accessmod_core::store::{DEFAULT_TILE, StoreStats, TileGeometry, TiledGrid};
 use serde::Serialize;
 
-use crate::analysis::{Analysis, Monitor, Output, PROGRESS_CELLS};
+use crate::analysis::{Analysis, LintContext, Monitor, Output, PROGRESS_CELLS};
 use crate::class::DataClass;
 use crate::error::{Error, Result};
-use crate::facilities::{FacilityIssue, LoadedFacilities, load_facilities};
+use crate::facilities::{CellProbe, FacilityIssue, LoadedFacilities, load_facilities};
 use crate::grid::GridSpec;
 use crate::inputs::{InputSummary, load_inputs};
-use crate::job::{FacilityIssues, MethodName, ScenarioEntry, TravelTimeJob, check_files};
+use crate::job::{
+    FacilityIssues, FacilitySource, MethodName, ScenarioEntry, TravelTimeJob, check_files,
+    scenario_table,
+};
 use crate::output::{self, Staging};
 use crate::raster::{CHUNK_COLS, STRIP_ROWS, open_class_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
@@ -250,6 +253,34 @@ pub(crate) fn screen_facilities(
         });
     }
     Ok(())
+}
+
+/// [`Analysis::lint`] of an analysis on a DEM, a land cover with a
+/// scenario and facility layers (`(role, source)`): the facility issues
+/// and the class warnings of its `prepare`, without loading the grid.
+/// Facilities are read one cell each; class counts come from `context`
+/// (none when unknown).
+pub(crate) fn lint_landscape(
+    dem: &Path,
+    land_cover: &Path,
+    scenario: &[ScenarioEntry],
+    layers: &[(&str, &FacilitySource)],
+    policy: FacilityIssues,
+    context: &dyn LintContext,
+) -> Result<Vec<Warning>> {
+    let (_, grid) = GridSpec::open_dem(dem)?;
+    open_class_raster(land_cover, &grid, "land cover")?;
+    let (slots, _) = scenario_table(scenario);
+    let probe = CellProbe::open(&grid, dem, land_cover, &slots)?;
+    let mut warnings = Vec::new();
+    for (role, source) in layers {
+        screen_facilities(&probe.facilities(source)?, policy, role, &mut warnings)?;
+    }
+    if let Some(counts) = context.class_counts(land_cover) {
+        let summary = InputSummary::from_class_counts(&counts, &slots);
+        warnings.extend(landscape_warnings(&summary, scenario));
+    }
+    Ok(warnings)
 }
 
 /// Warnings about land-cover classes and the scenario.
@@ -591,6 +622,17 @@ impl Analysis for TravelTime {
         monitor: Monitor<'_>,
     ) -> Result<Prepared> {
         prepare(job, settings, monitor)
+    }
+
+    fn lint(job: &Self::Job, context: &dyn LintContext) -> Result<Vec<Warning>> {
+        lint_landscape(
+            &job.dem,
+            &job.land_cover,
+            &job.scenario,
+            &[("facilities", &job.facilities)],
+            job.facility_issues,
+            context,
+        )
     }
 
     fn run(

@@ -18,32 +18,29 @@ function keyed<S, M>(key: string, initial: S, update: (state: S, message: M) => 
 export const draftStore = <S, M>(project: string, analysis: string, empty: S, update: (state: S, message: M) => S): Store<S, M> =>
   keyed(`draft/${project}/${analysis}`, empty, update);
 
-/** The run a screen started, whether its outcome was acknowledged, and
+/** The last run a screen started (zonal statistics shows its table), and
  * whether Compute was pressed and the run is not queued yet (`starting`:
- * kept across tab switches, so no pre-analysis starts meanwhile). */
+ * one click, one job). */
 export interface Session {
   run: number | null;
-  acknowledged: boolean;
   starting: boolean;
 }
 
-export type SessionMessage = { type: "starting" } | { type: "started"; run: number } | { type: "start_failed" } | { type: "acknowledged" };
+export type SessionMessage = { type: "starting" } | { type: "started"; run: number } | { type: "start_failed" };
 
 export function updateSession(session: Session, message: SessionMessage): Session {
   switch (message.type) {
     case "starting":
       return { ...session, starting: true };
     case "started":
-      return { run: message.run, acknowledged: false, starting: false };
+      return { run: message.run, starting: false };
     case "start_failed":
       return { ...session, starting: false };
-    case "acknowledged":
-      return { ...session, acknowledged: true };
   }
 }
 
 export const sessionStore = (project: string, analysis: string): Store<Session, SessionMessage> =>
-  keyed(`session/${project}/${analysis}`, { run: null, acknowledged: true, starting: false }, updateSession);
+  keyed(`session/${project}/${analysis}`, { run: null, starting: false }, updateSession);
 
 /** A validation message: a catalogue key, or a key with its `%s` arguments. */
 export type Issue = Key | { key: Key; args: (string | number)[] };

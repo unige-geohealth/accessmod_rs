@@ -16,7 +16,7 @@ use accessmod_core::store::{TileGeometry, TiledGrid};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor, Output};
+use crate::analysis::{Analysis, LintContext, Monitor, Output};
 use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::facilities::{FacilityRecord, LoadedFacilities, load_facilities};
@@ -29,7 +29,9 @@ use crate::job::{
 use crate::output::{self, CsvWriter, Staging, csv_field};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
-use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
+use crate::travel_time::{
+    Landscape, landscape_warnings, lint_landscape, load_landscape, screen_facilities,
+};
 
 /// Referral job (schema version 1).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -607,6 +609,21 @@ impl Analysis for Referral {
         monitor: Monitor<'_>,
     ) -> Result<PreparedReferral> {
         prepare(job, settings, monitor)
+    }
+
+    fn lint(job: &Self::Job, context: &dyn LintContext) -> Result<Vec<Warning>> {
+        let layers = [
+            ("origins", &job.origins),
+            ("destinations", &job.destinations),
+        ];
+        lint_landscape(
+            &job.dem,
+            &job.land_cover,
+            &job.scenario,
+            &layers,
+            job.facility_issues,
+            context,
+        )
     }
 
     fn run(

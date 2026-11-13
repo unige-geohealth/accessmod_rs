@@ -1,7 +1,6 @@
 // A run started from an analysis screen, seen through the server's run
 // records (refreshed by events) and progress events. Pure selectors; the
-// screen keeps only the id of the run it started and whether its outcome
-// was acknowledged.
+// screen keeps only the id of the last run it started.
 import type { Key } from "@accessmod/ui/i18n";
 import type { Api } from "../generated/types";
 
@@ -67,11 +66,6 @@ export const busy = (view: RunView) => view.state === "queued" || view.state ===
 export function percent(progress: Api.Progress | undefined): number | undefined {
   if (!progress?.total) return undefined;
   return Math.min(100, Math.round((progress.done / progress.total) * 100));
-}
-
-/** Duration of a finished run, minutes (presentation only). */
-export function minutes(record: Api.RunRecord): number {
-  return Math.max(0, (record.finished ?? record.started) - record.started) / 60;
 }
 
 /** Finished analyses of the project, newest first: those whose job, inputs and outputs Data shows (operations are not jobs). */

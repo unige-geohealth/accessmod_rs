@@ -125,13 +125,18 @@ browser (TypeScript)                         accessmod serve (Rust)
     are then neither removed nor replaced. Operations that make a project
     (`project-create`, `project-import`, `demo-reset`) are pending in memory
     (`GET /api/operations`, event `pending`) and are recorded in the project
-    once it is made;
-  - *check*: pre-analyses. `POST …/analyses/{name}/check` is the quick
-    check that gates Compute, with types, paths and classes and no input
-    read. `POST …/precheck?client=` queues `prepare` on the inputs, with
-    progress; the latest one wins per tab, project and analysis, and it ends
-    as a `check` event. `POST …/validate` stays as a blocking call for API
-    users.
+    once it is made.
+
+  There is no pre-analysis. `POST …/analyses/{name}/check` is the quick
+  check that gates Compute: types, paths and classes, then the analysis’s
+  `lint`, which finds what `prepare` would find at a cost per facility or
+  per stored fact, never per cell (facilities read one cell each, land-cover
+  class counts stored at import); its warnings are shown. The run is the
+  full validation; a problem only it finds ends the job as failed, with a
+  notification. Compute queues a job and leaves the form editable, so
+  another scenario is one change and one click away; a job that would
+  write the output class and tags of a queued or running one is refused.
+  `POST …/validate` stays as a blocking call for API users.
 
   A task polls its control: cancelled or paused. A paused task holds at
   its next check, keeping its memory and temporary files; a paused queued
@@ -288,7 +293,7 @@ Four kinds of state, each with one owner and one way to change:
 | --- | --- | --- | --- |
 | Server | projects, catalogue, dataset metadata, runs, reports | server | API responses and events, held in the query cache |
 | Document | the job being edited, merge stack, scenario table, facility selection | client store, one per document | typed messages through a pure `update` |
-| Process | run or operation: queued → running (progress, paused) → done, failed, cancelled or interrupted; pre-analysis | server, mirrored | events, into an explicit state machine; a click handler awaits the task it queued (`api/tasks.ts`) |
+| Process | run or operation: queued → running (progress, paused) → done, failed, cancelled or interrupted | server, mirrored | events, into an explicit state machine; a click handler awaits the task it queued (`api/tasks.ts`) |
 | View | route, open panel, map viewport, table sort | component or URL | local |
 
 Rules:

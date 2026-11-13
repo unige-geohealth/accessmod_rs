@@ -1317,7 +1317,7 @@ async fn projects_export_to_a_file_and_import_from_it() {
 }
 
 #[tokio::test]
-async fn quick_checks_answer_at_once_and_pre_analyses_run_as_tasks() {
+async fn quick_checks_lint_jobs_without_reading_grids() {
     let s = server(true);
     let slug = s.demo().await;
     let base = format!("/api/projects/{slug}/analyses/travel-time");
@@ -1325,104 +1325,35 @@ async fn quick_checks_answer_at_once_and_pre_analyses_run_as_tasks() {
         .call("POST", &format!("{base}/check"), Some(travel_time_job()))
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["status"], "valid", "{body}");
+    assert!(body["warnings"].is_array(), "{body}");
     let mut wrong = travel_time_job();
     wrong["land_cover"] = json!("datasets/3.fgb");
     let (status, _) = s.call("POST", &format!("{base}/check"), Some(wrong)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-
-    // A pre-analysis: queued, then done with the validation summary.
-    let (status, check) = s
-        .call(
-            "POST",
-            &format!("{base}/precheck?client=tab-1"),
-            Some(travel_time_job()),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "{check}");
-    let mut state = Value::Null;
-    for _ in 0..500 {
-        (_, state) = s
-            .call("GET", &format!("/api/checks/{}", check["id"]), None)
-            .await;
-        if !matches!(state["status"].as_str(), Some("queued" | "running")) {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    }
-    assert_eq!(state["status"], "done", "{state}");
-    assert_eq!(state["result"]["status"], "valid", "{state}");
-    // Its issues when the job does not hold against the inputs.
+    // What the run would fail on, found at once: a missing identifier field.
     let mut invalid = travel_time_job();
     invalid["facilities"]["id_field"] = json!("missing_field");
-    let (_, check) = s
-        .call(
-            "POST",
-            &format!("{base}/precheck?client=tab-1"),
-            Some(invalid),
-        )
+    let (status, body) = s
+        .call("POST", &format!("{base}/check"), Some(invalid))
         .await;
-    for _ in 0..500 {
-        (_, state) = s
-            .call("GET", &format!("/api/checks/{}", check["id"]), None)
-            .await;
-        if !matches!(state["status"].as_str(), Some("queued" | "running")) {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    }
-    assert_eq!(state["status"], "failed", "{state}");
-    assert!(
-        state["error"]["issues"]
-            .to_string()
-            .contains("missing_field"),
-        "{state}"
-    );
-    // A client token is short and plain; the analysis exists.
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body.to_string().contains("missing_field"), "{body}");
     let (status, _) = s
         .call(
             "POST",
-            &format!("{base}/precheck?client=a%20b"),
+            &format!("/api/projects/{slug}/analyses/nope/check"),
             Some(travel_time_job()),
         )
         .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    // The pre-analysis is gone.
     let (status, _) = s
         .call(
             "POST",
-            &format!("/api/projects/{slug}/analyses/nope/precheck?client=t"),
+            &format!("{base}/precheck?client=t"),
             Some(travel_time_job()),
         )
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-
-    // A run started from a tab ends that tab's pre-analysis: it is
-    // cancelled, unless it had already finished.
-    let (_, check) = s
-        .call(
-            "POST",
-            &format!("{base}/precheck?client=tab-2"),
-            Some(travel_time_job()),
-        )
-        .await;
-    let (status, run) = s
-        .command(
-            "run.start",
-            json!({"project": slug, "analysis": "travel-time", "document": travel_time_job(),
-                   "tags": ["superseding"], "client": "tab-2"}),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "{run}");
-    for _ in 0..500 {
-        (_, state) = s
-            .call("GET", &format!("/api/checks/{}", check["id"]), None)
-            .await;
-        if !matches!(state["status"].as_str(), Some("queued" | "running")) {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    }
-    assert!(
-        matches!(state["status"].as_str(), Some("cancelled" | "done")),
-        "{state}"
-    );
 }

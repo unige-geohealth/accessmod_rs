@@ -1,6 +1,7 @@
 //! Facility points: reading, explicit reprojection, location on the grid.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::path::Path;
 
 use accessmod_core::solver::{Facility, InputCell};
 use accessmod_core::store::TiledGrid;
@@ -10,6 +11,7 @@ use serde::Serialize;
 use crate::error::{Error, Result};
 use crate::grid::GridSpec;
 use crate::job::{FacilityId, FacilitySource};
+use crate::tiles::PointSampler;
 use crate::vector::{VectorLayer, id_key, json_attribute};
 
 /// A facility used by the solver.
@@ -153,13 +155,90 @@ pub fn open_facilities(
 }
 
 /// Read the facilities, reproject them to the grid CRS when needed and
-/// locate them. Facilities outside the grid, on a barrier or without a
-/// usable point are returned as issues; the caller decides whether they are
-/// errors or warnings.
+/// locate them on the loaded solver inputs. Facilities outside the grid,
+/// on a barrier or without a usable point are returned as issues; the
+/// caller decides whether they are errors or warnings.
 pub fn load_facilities(
     source: &FacilitySource,
     grid: &GridSpec,
     inputs: &mut TiledGrid<InputCell>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<LoadedFacilities> {
+    let mut barrier = |row: usize, col: usize| -> Result<Option<&'static str>> {
+        let input = inputs.get(row, col)?;
+        Ok(barrier_reason(!input.dem_m.is_nan(), input.is_passable()))
+    };
+    locate_facilities(source, grid, &mut barrier, cancelled)
+}
+
+/// Why a facility cannot stand on a cell: `None` when the cell is passable.
+fn barrier_reason(dem_valid: bool, passable: bool) -> Option<&'static str> {
+    match (passable, dem_valid) {
+        (true, _) => None,
+        (false, false) => Some("on a barrier (DEM NoData)"),
+        (false, true) => Some("on a barrier (land cover NoData or class without scenario)"),
+    }
+}
+
+/// The cells of a DEM and a land cover read one at a time: where
+/// facilities stand, without loading the grid (the quick check). The land
+/// cover lies on the DEM lattice, with its CRS.
+#[derive(Debug)]
+pub struct CellProbe<'a> {
+    grid: &'a GridSpec,
+    dem: PointSampler,
+    land_cover: PointSampler,
+    slots: &'a BTreeMap<i64, u16>,
+}
+
+impl<'a> CellProbe<'a> {
+    /// Open the DEM and the land cover; `slots` maps the classes with a
+    /// speed to their scenario slot (the others are barriers).
+    pub fn open(
+        grid: &'a GridSpec,
+        dem: &Path,
+        land_cover: &Path,
+        slots: &'a BTreeMap<i64, u16>,
+    ) -> Result<Self> {
+        Ok(Self {
+            grid,
+            dem: PointSampler::open(dem, None)?,
+            land_cover: PointSampler::open(land_cover, None)?,
+            slots,
+        })
+    }
+
+    /// Why cell `(row, col)` is a barrier, as [`load_facilities`] says it;
+    /// `None` when it is passable.
+    pub fn barrier(&self, row: usize, col: usize) -> Result<Option<&'static str>> {
+        let (x, y) = self.grid.cell_centre(row, col);
+        let dem_valid = self.dem.sample(x, y)?.is_some_and(f64::is_finite);
+        let class = self
+            .land_cover
+            .sample(x, y)?
+            .filter(|v| v.fract() == 0.0 && v.abs() < 9.2e18)
+            .map(|v| v as i64);
+        let passable = dem_valid && class.is_some_and(|c| self.slots.contains_key(&c));
+        Ok(barrier_reason(dem_valid, passable))
+    }
+
+    /// The facilities of `source` located on these cells: the issues
+    /// [`load_facilities`] would find, at a cost per facility.
+    pub fn facilities(&self, source: &FacilitySource) -> Result<LoadedFacilities> {
+        locate_facilities(
+            source,
+            self.grid,
+            &mut |row, col| self.barrier(row, col),
+            &|| false,
+        )
+    }
+}
+
+/// [`load_facilities`] with the barrier test `barrier(row, col)`.
+fn locate_facilities(
+    source: &FacilitySource,
+    grid: &GridSpec,
+    barrier: &mut dyn FnMut(usize, usize) -> Result<Option<&'static str>>,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<LoadedFacilities> {
     let vector = open_facilities(source, grid, "facilities")?;
@@ -211,13 +290,7 @@ pub fn load_facilities(
             issue("outside the DEM grid".into());
             continue;
         };
-        let input = inputs.get(row, col)?;
-        if !input.is_passable() {
-            let why = if input.dem_m.is_nan() {
-                "on a barrier (DEM NoData)"
-            } else {
-                "on a barrier (land cover NoData or class without scenario)"
-            };
+        if let Some(why) = barrier(row, col)? {
             issue(why.into());
             continue;
         }

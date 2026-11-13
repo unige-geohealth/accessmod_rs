@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { choose, command, finished, importFile, panel, shot, sidebar } from "./helpers";
+import { choose, command, computed, finished, importFile, panel, shot, sidebar } from "./helpers";
 
 // Analysis screens on the demo project. The demo has no merged land cover
 // and no scenario table: both are made through the API first, as a user
@@ -67,12 +67,17 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   expect(job.facilities.ids).toHaveLength(2);
   expect(job.scenario.find((e: { class: number }) => e.class === 1001)).toMatchObject({ speed_kmh: 80, mode: "motorized" });
 
-  await page.getByRole("button", { name: "Compute", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(dialog).toContainText("[e2e]");
+  // Compute queues a job and leaves the form as it was: another scenario
+  // is one change and one click away, with no progress bar in the way.
+  const compute = page.getByRole("button", { name: "Compute", exact: true });
+  await compute.click();
+  await expect(page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: "e2e" })).toBeVisible();
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
+  await page.getByLabel("Add short tags").fill("e2e2");
+  await expect(compute).toBeEnabled({ timeout: 30_000 });
+  await compute.click();
+  await computed(page, "e2e2");
   await shot(page, "analysis-accessibility-finished");
-  await page.keyboard.press("Escape");
   await page.evaluate(() => localStorage.setItem("am.theme", "dark"));
   await page.reload();
   await shot(page, "dark-analysis-accessibility");
@@ -123,9 +128,7 @@ test("geographic coverage: capacity, zones, run", async ({ page }) => {
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "analysis-coverage");
   await page.getByRole("button", { name: "Compute", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(dialog).toContainText("[cov]");
+  await computed(page, "cov");
 });
 
 test("referral: From and To groups, closest pair, run", async ({ page }) => {
@@ -142,9 +145,7 @@ test("referral: From and To groups, closest pair, run", async ({ page }) => {
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "analysis-referral");
   await page.getByRole("button", { name: "Compute", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(dialog).toContainText("[ref]");
+  await computed(page, "ref");
 });
 
 test("optimization: catchments of the coverage run, minimum per zone, run", async ({ page }) => {
@@ -158,9 +159,7 @@ test("optimization: catchments of the coverage run, minimum per zone, run", asyn
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "analysis-optimization");
   await page.getByRole("button", { name: "Compute", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(dialog).toContainText("[opt]");
+  await computed(page, "opt");
 });
 
 test("scaling up: capacity table, a factor from the form, run", async ({ page }) => {
@@ -181,9 +180,7 @@ test("scaling up: capacity table, a factor from the form, run", async ({ page })
   await expect(page.getByRole("button", { name: "Compute", exact: true })).toBeEnabled({ timeout: 30_000 });
   await shot(page, "analysis-scaling-up");
   await page.getByRole("button", { name: "Compute", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(dialog).toContainText("[up]");
+  await computed(page, "up");
 });
 
 test("zonal statistics: Update fills the table in place, one column per time step, download", async ({ page }) => {

@@ -65,7 +65,6 @@ describe("jobs", () => {
     const places = queuePlaces([
       { lane: "compute", project: "a", run: 3, position: 0, paused: true },
       { lane: "compute", project: "b", run: 1, position: 2, paused: false },
-      { lane: "check", project: ":check/a", run: 1, position: 0, paused: false },
       { lane: "io", project: ":pending", run: 4, position: 1, paused: false },
     ]);
     expect(Object.keys(places).sort()).toEqual([":pending/4", "a/3", "b/1"]);

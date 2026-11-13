@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { FADE_S, NO_NOTIFICATIONS, operationNotice, runNotice, updateNotifications, visibleNotices } from "./notifications";
+import { FADE_S, NO_NOTIFICATIONS, operationNotice, queuedNotice, runNotice, updateNotifications, visibleNotices } from "./notifications";
 
 const run = (id: number, status: Api.RunStatus, extra: Partial<Api.RunRecord> = {}) =>
   ({ id, analysis: "archive", kind: "manage", tags: [], job: {}, status, output_dir: "", started: 0, datasets: [], inputs: [], ...extra }) as Api.RunRecord;
@@ -18,6 +18,18 @@ describe("notifications", () => {
     state = updateNotifications(state, { type: "dismiss", id: failed.id });
     expect(visibleNotices(state, 101).map((n) => n.id)).toEqual([done.id]);
     expect(updateNotifications(state, { type: "dismiss", id: "nope" })).toBe(state);
+  });
+
+  it("notices a job queued from a tab, which fades like a success", () => {
+    const queued = queuedNotice("p", run(3, "queued", { analysis: "travel-time", kind: "analysis", tags: ["scenario", "b"] }), 50);
+    expect([queued.id, queued.status, queued.text]).toEqual(["p/3/queued", "queued", "scenario b"]);
+    const state = updateNotifications(NO_NOTIFICATIONS, { type: "notice", notice: queued });
+    expect(visibleNotices(state, 51).map((n) => n.id)).toEqual([queued.id]);
+    expect(visibleNotices(state, 50 + FADE_S)).toEqual([]);
+    // Its end is another notice.
+    const done = runNotice("p", run(3, "done", { analysis: "travel-time", kind: "analysis" }), 60)!;
+    expect(updateNotifications(state, { type: "notice", notice: done }).notices.length).toBe(2);
+    expect(updateNotifications(state, { type: "notice", notice: { ...queued, id: "x", status: "running" } })).toBe(state);
   });
 
   it("notices operations making projects apart from runs", () => {

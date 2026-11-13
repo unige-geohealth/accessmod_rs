@@ -59,3 +59,9 @@ export async function importFile(request: APIRequestContext, project: string, cl
   const upload = (await response.json()) as { id: string };
   return command<{ id: number }>(request, "dataset.import", { project, class: cls, tags, source: { upload: { id: upload.id } } });
 }
+
+/** After Compute: the notice of the job queued with `tags`, then the notice of a job done. */
+export async function computed(page: Page, tags: string) {
+  await expect(page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: tags })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: /: done/ }).first()).toBeVisible({ timeout: 120_000 });
+}

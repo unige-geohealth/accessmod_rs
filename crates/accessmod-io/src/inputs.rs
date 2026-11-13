@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::error::Result;
 use crate::grid::{Alignment, GridSpec};
+use crate::preview::ValueCount;
 use crate::raster::{AlignedBand, CHUNK_COLS, for_each_chunk, integer_nodata};
 
 /// Distinct unmapped classes tracked individually; the rest are counted.
@@ -34,6 +35,26 @@ pub struct InputSummary {
     pub unmapped_classes: BTreeMap<i64, u64>,
     /// Cells of further unmapped classes beyond the tracked ones.
     pub unmapped_other_cells: u64,
+}
+
+impl InputSummary {
+    /// The class counts of a summary from the cells per land-cover class
+    /// (stored at import), without reading the raster: what
+    /// [`load_inputs`] counts in `class_cells`, `unmapped_classes` and
+    /// `unmapped_other_cells`; the other counts stay zero.
+    pub fn from_class_counts(counts: &[ValueCount], slots: &BTreeMap<i64, u16>) -> Self {
+        let mut summary = Self::default();
+        for &ValueCount { value, count } in counts {
+            if slots.contains_key(&value) {
+                summary.class_cells.insert(value, count);
+            } else if summary.unmapped_classes.len() < MAX_TRACKED_CLASSES {
+                summary.unmapped_classes.insert(value, count);
+            } else {
+                summary.unmapped_other_cells += count;
+            }
+        }
+        summary
+    }
 }
 
 /// Fill `inputs` from the DEM and the land cover.

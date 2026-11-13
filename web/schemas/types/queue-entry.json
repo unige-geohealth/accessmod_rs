@@ -12,11 +12,6 @@
           "const": "io",
           "description": "Operations: archives, exports, imports.",
           "type": "string"
-        },
-        {
-          "const": "check",
-          "description": "Pre-analyses of jobs being edited.",
-          "type": "string"
         }
       ]
     }

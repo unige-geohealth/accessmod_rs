@@ -83,11 +83,7 @@ export const newestFirst = (entries: readonly JobItem[]): JobItem[] => [...entri
 
 /** Place of each queued or running job in its lane, by row key. */
 export function queuePlaces(queue: readonly Api.QueueEntry[]): Readonly<Record<string, Api.QueueEntry>> {
-  return Object.fromEntries(
-    queue
-      .filter((e) => e.lane !== "check")
-      .map((e) => [e.project === ":pending" ? `:pending/${e.run}` : `${e.project}/${e.run}`, e] as const),
-  );
+  return Object.fromEntries(queue.map((e) => [e.project === ":pending" ? `:pending/${e.run}` : `${e.project}/${e.run}`, e] as const));
 }
 
 export const isActive = (run: Api.RunRecord) => run.status === "queued" || run.status === "running";

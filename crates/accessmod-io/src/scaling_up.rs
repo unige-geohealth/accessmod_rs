@@ -35,7 +35,7 @@ use gdal::vector::{FieldValue, Geometry, OGRFieldType, OGRwkbGeometryType};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::{Analysis, Monitor, Output};
+use crate::analysis::{Analysis, LintContext, Monitor, Output};
 use crate::catchment::{
     CATCHMENT_COLUMNS, CellSpool, PopulationTotals, ResidualStep, catchment_fields,
     catchment_polygon, init_residual, remove_covered, search_bands, table_number,
@@ -53,7 +53,9 @@ use crate::output::{self, BLOCK, CsvWriter, FLOAT_NODATA, GeoTiff, Staging, csv_
 use crate::raster::{AlignedBand, for_each_block, for_each_window, open_aligned_raster};
 use crate::report::{Deviation, Execution, Fingerprint, GridReport, Report, Warning, fingerprints};
 use crate::resources::{ExecutionSettings, ResourcePlan};
-use crate::travel_time::{Landscape, landscape_warnings, load_landscape, screen_facilities};
+use crate::travel_time::{
+    Landscape, landscape_warnings, lint_landscape, load_landscape, screen_facilities,
+};
 use crate::vector::{Burn, FeatureWriter, VectorLayer, burn_layer};
 
 /// Capacity table file name.
@@ -1984,6 +1986,18 @@ impl Analysis for ScalingUp {
         monitor: Monitor<'_>,
     ) -> Result<PreparedScalingUp> {
         prepare(job, settings, monitor)
+    }
+
+    fn lint(job: &Self::Job, context: &dyn LintContext) -> Result<Vec<Warning>> {
+        let layers: Vec<_> = job.facilities.iter().map(|f| ("facilities", f)).collect();
+        lint_landscape(
+            &job.dem,
+            &job.land_cover,
+            &job.scenario,
+            &layers,
+            job.facility_issues,
+            context,
+        )
     }
 
     fn run(

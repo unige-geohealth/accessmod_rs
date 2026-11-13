@@ -1,5 +1,6 @@
-// Notifications: a job (a run, an operation making a project) that ended.
-// Events (api/events.ts) dispatch them; the toaster shows them. A success
+// Notifications: a job (a run, an operation making a project) that ended,
+// and a job just queued from an analysis tab. Events (api/events.ts) and
+// Compute dispatch them; the toaster shows them. A success, a queued job
 // or a cancellation fades after a while (a selector on the clock), a
 // failure stays until closed.
 import type { Api } from "../generated/types";
@@ -42,7 +43,8 @@ const ended = (status: Api.RunStatus) => status !== "queued" && status !== "runn
 export function updateNotifications(state: Notifications, message: NotificationMessage): Notifications {
   switch (message.type) {
     case "notice": {
-      if (!ended(message.notice.status) || state.notices.some((n) => n.id === message.notice.id)) return state;
+      // A job ended, or was just queued: never one still running.
+      if (message.notice.status === "running" || state.notices.some((n) => n.id === message.notice.id)) return state;
       const notices = [...state.notices, message.notice];
       // Beyond the bound, the oldest that is closed or not a failure goes
       // first: a failure stays until closed.
@@ -72,6 +74,21 @@ export function runNotice(project: string, run: Api.RunRecord, at: number): Noti
     kind: run.kind ?? "analysis",
     status: run.status,
     text: run.outcome ?? run.error?.issues[0] ?? "",
+    at,
+  };
+}
+
+/** The notice of analysis `run`, just queued from a tab: it opens the job. */
+export function queuedNotice(project: string, run: Api.RunRecord, at: number): Notice {
+  return {
+    id: `${project}/${run.id}/queued`,
+    project,
+    run: run.id,
+    pending: false,
+    analysis: run.analysis,
+    kind: "analysis",
+    status: "queued",
+    text: run.tags.join(" "),
     at,
   };
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { choose, command, shot } from "./helpers";
+import { choose, command, computed, shot } from "./helpers";
 
 // Toolbox tools on the demo project, as a user starts from it: merge the
 // land cover with roads and barriers, then adjust the population on it.
@@ -38,10 +38,7 @@ test("merge land cover: land cover, road classes and barriers stacked, then merg
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "toolbox-merge");
   await page.getByRole("button", { name: "Merge the items in the stack" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(dialog).toContainText("[e2e]");
-  await page.keyboard.press("Escape");
+  await computed(page, "e2e");
 });
 
 test("adjust population distribution: population kept by zone, moved off barriers", async ({ page, request }) => {
@@ -53,7 +50,7 @@ test("adjust population distribution: population kept by zone, moved off barrier
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "toolbox-population");
   await page.getByRole("button", { name: "Compute", exact: true }).click();
-  await expect(page.getByRole("dialog").getByText("Process finished", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await computed(page, "e2e");
 });
 
 test("interactive map: facilities to inspect, Next, a drag, Save; additional layers", async ({ page, request }) => {

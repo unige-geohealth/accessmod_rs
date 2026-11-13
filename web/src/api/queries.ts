@@ -2,8 +2,7 @@
 // (events.ts) and after commands; nothing else writes them.
 import { QueryClient, useQueries, useQuery } from "@tanstack/react-query";
 import type { Api } from "../generated/types";
-import { api, ApiError, type RowsQuery } from "./client";
-import { checkDone } from "./tasks";
+import { api, type RowsQuery } from "./client";
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 30_000 } },
@@ -29,9 +28,6 @@ export const keys = {
   queue: ["queue"] as const,
   /** Operations making projects (events keep it current). */
   operations: ["operations"] as const,
-  preAnalysis: (slug: string, analysis: string) => ["project", slug, "pre-analysis", analysis] as const,
-  /** This tab's latest pre-analysis of an analysis, written by events only. */
-  check: (slug: string, analysis: string) => ["project", slug, "check", analysis] as const,
   /** Latest progress of each running run, written by events only. */
   progress: (slug: string) => ["project", slug, "progress"] as const,
 };
@@ -128,7 +124,9 @@ export const useValue = (slug: string, id: number | null, point: { lon: number; 
     enabled: id !== null && point !== null,
   });
 
-/** The quick check of a complete job document (types, paths, classes); `null` disables it. */
+/** The quick check of a complete job document: types, paths, classes, then
+ * the analysis's lint (facilities read one cell each, class counts stored at
+ * import), never a whole grid. Its warnings; `null` disables it. */
 export const useQuickCheck = (slug: string, analysis: string, document: unknown) => {
   const text = document === null ? null : JSON.stringify(document);
   return useQuery({
@@ -140,53 +138,3 @@ export const useQuickCheck = (slug: string, analysis: string, document: unknown)
   });
 };
 
-/**
- * The pre-analysis (`prepare` on the inputs) of a job document, a task on
- * the server: its validation summary, or its issues. Runs once the quick
- * check passed (`enabled`); a newer one replaces it on the server.
- */
-/** Pre-analysis submissions not answered yet, by project and analysis. */
-const submitting = new Map<string, Set<Promise<unknown>>>();
-
-/** Once every pre-analysis of `analysis` submitted so far is registered by the
- * server: a run started after it supersedes them all. */
-export const prechecksSubmitted = async (slug: string, analysis: string): Promise<void> => {
-  await Promise.allSettled([...(submitting.get(JSON.stringify([slug, analysis])) ?? [])]);
-};
-
-export const usePreAnalysis = (slug: string, analysis: string, document: unknown, enabled: boolean) => {
-  const text = document === null ? null : JSON.stringify(document);
-  return useQuery({
-    queryKey: [...keys.preAnalysis(slug, analysis), text] as const,
-    queryFn: async ({ signal }) => {
-      // Another pre-analysis of this tab may cancel this one (an edit, then
-      // back): asked again while it is still wanted, a few times at most.
-      for (let attempt = 0; ; attempt++) {
-        const key = JSON.stringify([slug, analysis]);
-        const posted = api.precheck(slug, analysis, document);
-        const pending = submitting.get(key) ?? new Set<Promise<unknown>>();
-        submitting.set(key, pending.add(posted));
-        const check = await posted.finally(() => {
-          pending.delete(posted);
-          if (pending.size === 0 && submitting.get(key) === pending) submitting.delete(key);
-        });
-        try {
-          return await checkDone(check.id);
-        } catch (error) {
-          if (!(error instanceof ApiError) || error.kind !== "cancelled" || signal.aborted || attempt >= 2) throw error;
-        }
-      }
-    },
-    enabled: text !== null && enabled,
-    retry: false,
-    staleTime: 60_000,
-  });
-};
-
-/** This tab's latest pre-analysis of `analysis` as events report it (progress). */
-export const useCheckState = (slug: string, analysis: string) =>
-  useQuery<Api.Check | null>({
-    queryKey: keys.check(slug, analysis),
-    queryFn: () => queryClient.getQueryData<Api.Check>(keys.check(slug, analysis)) ?? null,
-    staleTime: Infinity,
-  });

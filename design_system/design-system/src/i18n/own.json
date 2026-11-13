@@ -431,12 +431,6 @@
     "es": "Cancelar el cálculo",
     "pt": "Cancelar o cálculo"
   },
-  "analysis.queued": {
-    "en": "Waiting for the computation to start…",
-    "fr": "En attente du début du calcul…",
-    "es": "Esperando el inicio del cálculo…",
-    "pt": "À espera do início do cálculo…"
-  },
   "analysis.running": {
     "en": "Computing: %s",
     "fr": "Calcul en cours : %s",
@@ -454,18 +448,6 @@
     "fr": "Prêt pour le calcul.",
     "es": "Listo para calcular.",
     "pt": "Pronto para calcular."
-  },
-  "analysis.run_failed": {
-    "en": "Process failed",
-    "fr": "Échec du calcul",
-    "es": "El cálculo falló",
-    "pt": "O cálculo falhou"
-  },
-  "analysis.run_cancelled": {
-    "en": "Process cancelled",
-    "fr": "Calcul annulé",
-    "es": "Cálculo cancelado",
-    "pt": "Cálculo cancelado"
   },
   "analysis.download_job": {
     "en": "Export job",
@@ -1229,18 +1211,6 @@
     "es": "Demo reconstruida",
     "pt": "Demo reconstruída"
   },
-  "analysis.precheck": {
-    "en": "Pre-analysis of the inputs: %s",
-    "fr": "Pré-analyse des données : %s",
-    "es": "Análisis previo de los datos: %s",
-    "pt": "Pré-análise dos dados: %s"
-  },
-  "analysis.precheck_note": {
-    "en": "Compute is available now: the computation checks the inputs again and stops on an issue.",
-    "fr": "Calculer est déjà disponible : le calcul revérifie les données et s'arrête au premier problème.",
-    "es": "Calcular ya está disponible: el cálculo vuelve a verificar los datos y se detiene ante un problema.",
-    "pt": "Calcular já está disponível: o cálculo verifica os dados novamente e para diante de um problema."
-  },
   "jobs.kind": {
     "en": "Kind",
     "fr": "Type",
@@ -1342,5 +1312,23 @@
     "fr": "%1$s : %2$s",
     "es": "%1$s: %2$s",
     "pt": "%1$s: %2$s"
+  },
+  "analysis.outputs_reserved": {
+    "en": "A queued or running job already writes datasets with these tags: change the tags.",
+    "fr": "Un job en attente ou en cours écrit déjà des données avec ces tags : changez les tags.",
+    "es": "Un trabajo en espera o en curso ya escribe datos con estas etiquetas: cambie las etiquetas.",
+    "pt": "Um trabalho em espera ou em curso já escreve dados com estas etiquetas: altere as etiquetas."
+  },
+  "analysis.output_reserved": {
+    "en": "written by job #%s",
+    "fr": "écrit par le job n° %s",
+    "es": "escrito por el trabajo n.º %s",
+    "pt": "escrito pelo trabalho n.º %s"
+  },
+  "analysis.zonal_updating": {
+    "en": "Updating the table…",
+    "fr": "Mise à jour du tableau…",
+    "es": "Actualizando la tabla…",
+    "pt": "A atualizar a tabela…"
   }
 }

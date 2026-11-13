@@ -50,6 +50,18 @@ describe("catalogue", () => {
     expect(plannedOutputs("nope", ["a"], list)).toEqual([]);
   });
 
+  it("marks outputs a queued or running job already writes", () => {
+    const job = (id: number, status: Api.RunStatus, analysis: string, tags: string[]) =>
+      ({ id, status, analysis, tags, kind: "analysis", job: {}, output_dir: "", started: 0, datasets: [], inputs: [] }) as Api.RunRecord;
+    const runs = [job(4, "queued", "travel-time", ["a"]), job(5, "done", "travel-time", ["b"]), job(6, "running", "travel-time", ["b"])];
+    const reserved = (tags: string[]) => plannedOutputs("travel-time", tags, [], runs).map((o) => o.reservedBy);
+    expect(reserved(["a"])).toEqual([4, 4]);
+    expect(reserved(["b"])).toEqual([6, 6]);
+    expect(reserved(["c"])).toEqual([undefined, undefined]);
+    // Another analysis writing other classes does not reserve them.
+    expect(plannedOutputs("travel-time", ["z"], [], [job(7, "queued", "zonal-statistics", ["z"])]).map((o) => o.reservedBy)).toEqual([undefined, undefined]);
+  });
+
   it("round-trips the filter through the URL query", () => {
     const filter = { type: "raster" as const, text: "a", tags: "", run: 3 };
     expect(filterFromQuery(filterToQuery(filter))).toEqual(filter);

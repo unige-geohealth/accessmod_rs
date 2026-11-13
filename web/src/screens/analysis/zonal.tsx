@@ -14,7 +14,7 @@ import { useProgress, useRows, useRuns } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import { datasetOptions, fieldClasses } from "../../state/catalogue";
 import { draftStore, sessionStore } from "../../state/drafts";
-import { runView } from "../../state/run";
+import { busy, runView } from "../../state/run";
 import { useStore } from "../../state/store";
 import { ANALYSIS, buildJob, EMPTY, updateZonal, type ZonalDraft, zonalOutput, zonalTable } from "../../state/zonal";
 import { withZoneDefaults } from "../../state/zones";
@@ -103,7 +103,6 @@ export function Zonal({ project }: { project: string }) {
             tags={[]}
             datasets={byId}
             button="analysis_validation_update_btn"
-            dialog={false}
           />
         </>
       }
@@ -124,7 +123,7 @@ function ZonalResult({ project, ready, wide, datasets }: { project: string; read
         {!ready ? (
           <MessageList messages={[{ kind: "info", k: "analysis_zonal_stat_add" }]} />
         ) : output === null ? (
-          <MessageList messages={[{ kind: "info", k: "analysis.zonal_update" }]} />
+          <MessageList messages={[{ kind: "info", k: busy(view) ? "analysis.zonal_updating" : "analysis.zonal_update" }]} />
         ) : (
           // Keyed by output: a new table starts at its first page.
           <ZonalTable key={output} project={project} output={output} wide={wide} />

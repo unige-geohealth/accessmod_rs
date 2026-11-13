@@ -14,9 +14,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Id, Origin, Project, RUNS_DIR, check_relative, decode, json, now};
-use crate::analysis::{Analysis, ForAnalysis, Monitor, by_name};
+use crate::analysis::{Analysis, ForAnalysis, LintContext, Monitor, by_name};
+use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::job::JobFile;
+use crate::preview::ValueCount;
+use crate::report::Warning;
 use crate::resources::ExecutionSettings;
 
 /// State of a run.
@@ -163,6 +166,25 @@ pub(super) fn job_paths(analysis: &str, job: &str) -> Vec<String> {
     by_name(analysis, Paths(job)).unwrap_or_default()
 }
 
+/// Class counts stored when a raster dataset was imported.
+impl LintContext for Project {
+    fn class_counts(&self, path: &Path) -> Option<Vec<ValueCount>> {
+        let key = catalogue_key(path.strip_prefix(&self.root).ok()?);
+        let preview: Option<String> = self
+            .db
+            .query_row(
+                "SELECT preview FROM datasets WHERE file = ?1 AND state = 'ready'",
+                [key],
+                |r| r.get(0),
+            )
+            .ok()?;
+        match serde_json::from_str(&preview?).ok()? {
+            super::Summary::Raster(preview) => preview.stats.values,
+            _ => None,
+        }
+    }
+}
+
 impl Project {
     /// Job document for analysis `A` with `output_dir` set, typed and
     /// checked: every input path names a ready dataset of this project
@@ -230,6 +252,39 @@ impl Project {
         Ok((document, job.resolve_paths(&self.root), inputs))
     }
 
+    /// Refuse output `class` tagged `tags` when another queued or running
+    /// analysis (`run` excepted) will write it: two jobs never race for the
+    /// same dataset, overwrite or not.
+    fn not_reserved(&self, class: DataClass, tags: &[String], run: Id) -> Result<()> {
+        let tags = super::normalize_tags(tags);
+        let mut statement = self
+            .db
+            .prepare(
+                "SELECT id, analysis, tags FROM runs
+                 WHERE status IN ('queued', 'running') AND kind = 'analysis' AND id <> ?1",
+            )
+            .map_err(self.db_error())?;
+        let active: Vec<(Id, String, String)> = statement
+            .query_map([run], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .and_then(Iterator::collect)
+            .map_err(self.db_error())?;
+        let classes = crate::analysis::output_classes();
+        for (other, analysis, other_tags) in active {
+            let writes = classes
+                .iter()
+                .any(|(name, list)| *name == analysis && list.contains(&class));
+            let other_tags: Vec<String> = decode(&other_tags, "tags")?;
+            if writes && super::normalize_tags(&other_tags) == tags {
+                return Err(Error::invalid(format!(
+                    "run {other} already writes a {} tagged {}: choose other tags",
+                    class.label(),
+                    tags.join(" ")
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Check `document` as a job of analysis `A` in this project, without
     /// reading its inputs: types, and paths naming datasets of the classes
     /// their fields accept.
@@ -271,7 +326,10 @@ impl Project {
         let checked = A::OUTPUTS
             .iter()
             .filter_map(|output| output.class)
-            .try_for_each(|class| self.replaceable(class, &tags, overwrite, id).map(drop))
+            .try_for_each(|class| {
+                self.not_reserved(class, &tags, id)?;
+                self.replaceable(class, &tags, overwrite, id).map(drop)
+            })
             .and_then(|()| self.project_job::<A>(document, &output_dir));
         let (stored, inputs) = match checked {
             Ok((stored, _, inputs)) => (stored, inputs),
@@ -637,14 +695,20 @@ impl Project {
             .unwrap_or_else(|| Err(unknown(&analysis)))
     }
 
-    /// [`Project::check_job`] of the analysis named `analysis`: the quick
-    /// check, without reading the inputs.
-    pub fn check_named(&self, analysis: &str, document: &serde_json::Value) -> Result<()> {
+    /// The quick check of a job of the analysis named `analysis`:
+    /// [`Project::check_job`], then [`Analysis::lint`] on the facts stored
+    /// with the datasets. Never reads a whole grid; returns the warnings.
+    pub fn check_named(
+        &self,
+        analysis: &str,
+        document: &serde_json::Value,
+    ) -> Result<Vec<Warning>> {
         struct Check<'a>(&'a Project, &'a serde_json::Value);
         impl ForAnalysis for Check<'_> {
-            type Output = Result<()>;
-            fn call<A: Analysis>(self) -> Result<()> {
-                self.0.check_job::<A>(self.1).map(drop)
+            type Output = Result<Vec<Warning>>;
+            fn call<A: Analysis>(self) -> Result<Vec<Warning>> {
+                let job = self.0.check_job::<A>(self.1)?;
+                A::lint(&job, self.0)
             }
         }
         by_name(analysis, Check(self, document)).unwrap_or_else(|| Err(unknown(analysis)))

@@ -7,13 +7,6 @@
       "description": "Analysis name.",
       "type": "string"
     },
-    "client": {
-      "description": "Token of the client (browser tab) starting it: its pre-analysis of\nthis analysis is cancelled, the run validates the job itself.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "document": {
       "description": "Job document, paths relative to the project."
     },

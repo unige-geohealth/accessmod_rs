@@ -2,7 +2,7 @@
 //! against the inputs (`prepare`), execution (`run`) and its `run.json`.
 //! The CLI drives any analysis through it, and so will `accessmod serve`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::class::DataClass;
 use crate::error::Result;
 use crate::job::JobFile;
+use crate::preview::ValueCount;
 use crate::report::Warning;
 use crate::resources::ExecutionSettings;
 
@@ -95,6 +96,25 @@ pub struct Output {
     pub class: Option<DataClass>,
 }
 
+/// What [`Analysis::lint`] may know of its inputs without reading a grid:
+/// facts stored when they were imported.
+pub trait LintContext {
+    /// Cells per value of the integer raster at `path`, in ascending
+    /// order; `None` when unknown (not a project dataset, too many values).
+    fn class_counts(&self, path: &Path) -> Option<Vec<ValueCount>>;
+}
+
+/// A context that knows nothing: [`Analysis::lint`] checks only what it
+/// can read cheaply.
+#[derive(Debug, Clone, Copy)]
+pub struct NoContext;
+
+impl LintContext for NoContext {
+    fn class_counts(&self, _path: &Path) -> Option<Vec<ValueCount>> {
+        None
+    }
+}
+
 /// Cells between two progress reports of a cell-by-cell stage.
 pub const PROGRESS_CELLS: u64 = 1 << 16;
 
@@ -119,6 +139,17 @@ pub trait Analysis {
         settings: &ExecutionSettings,
         monitor: Monitor<'_>,
     ) -> Result<Self::Prepared>;
+
+    /// Cheap checks of a job whose paths are resolved: what [`prepare`]
+    /// would find, at a cost per facility or per stored fact, never per
+    /// cell of a grid. Fails with the problems `prepare` fails on; returns
+    /// the warnings it would give. The quick check of an interface.
+    ///
+    /// [`prepare`]: Analysis::prepare
+    fn lint(job: &Self::Job, context: &dyn LintContext) -> Result<Vec<Warning>> {
+        let _ = (job, context);
+        Ok(Vec::new())
+    }
 
     /// Compute and write every output atomically; returns the output
     /// directory and the report.

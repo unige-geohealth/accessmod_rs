@@ -189,19 +189,32 @@ export function sortRows(rows: DataRow[]): DataRow[] {
 export interface PlannedOutput {
   class: Api.DataClass;
   existing: Api.Dataset | undefined;
+  /** A queued or running job that already writes it (the server refuses a second one). */
+  reservedBy?: number;
 }
 
 /**
  * Datasets a run of `analysis` tagged `tags` registers, one per output class
  * (`cargo xtask schemas`), each with the dataset of that class and the same
- * tags if there is one (AM5 validation "Output datasets").
+ * tags if there is one (AM5 validation "Output datasets"), and the queued
+ * or running analysis of `runs` that already writes it.
  */
-export function plannedOutputs(analysis: string, tags: readonly string[], datasets: Iterable<Api.Dataset>): PlannedOutput[] {
-  const classes = ((analysisOutputs as Record<string, string[]>)[analysis] ?? []) as Api.DataClass[];
+export function plannedOutputs(
+  analysis: string,
+  tags: readonly string[],
+  datasets: Iterable<Api.Dataset>,
+  runs: readonly Api.RunRecord[] = [],
+): PlannedOutput[] {
+  const outputs = analysisOutputs as Record<string, string[]>;
+  const classes = (outputs[analysis] ?? []) as Api.DataClass[];
   if (tags.length === 0) return [];
   const key = tags.join("_");
   const list = [...datasets];
-  return classes.map((cls) => ({ class: cls, existing: list.find((d) => d.class === cls && d.tags.join("_") === key) }));
+  const active = runs.filter((r) => (r.status === "queued" || r.status === "running") && (r.kind ?? "analysis") === "analysis" && r.tags.join("_") === key);
+  return classes.map((cls) => {
+    const run = active.find((r) => (outputs[r.analysis] ?? []).includes(cls));
+    return { class: cls, existing: list.find((d) => d.class === cls && d.tags.join("_") === key), ...(run ? { reservedBy: run.id } : {}) };
+  });
 }
 
 /** Classes a job field accepts: its `x-accessmod-class` in the job schema. */

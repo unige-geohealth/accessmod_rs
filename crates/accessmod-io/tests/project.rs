@@ -1552,3 +1552,135 @@ fn run_removal_keeps_directories_it_does_not_own_and_inputs_must_be_ready() {
             .all(|r| r.analysis != "archive")
     );
 }
+
+/// The quick check finds what `prepare` finds, without loading the grid:
+/// the same facility issues and class warnings, on the demo project.
+#[test]
+fn quick_checks_lint_like_prepare() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let settings = settings(64 << 20, 1);
+    let project =
+        accessmod_io::demo::create(&dir.path().join("demo"), &settings, &|| false).expect("demo");
+    let first = |class| project.datasets(Some(class)).expect("datasets").remove(0);
+    // Analyses take a merged land cover: the sample one, imported as such.
+    let sample = project.root().join(&first(DataClass::LandCover).file);
+    project
+        .import(
+            &sample,
+            DataClass::LandCoverMerged,
+            &tags(&["merged"]),
+            &ImportOptions::default(),
+            &settings,
+            &|| false,
+        )
+        .expect("merged land cover");
+    let (dem, land_cover, facilities) = (
+        first(DataClass::Dem),
+        first(DataClass::LandCoverMerged),
+        first(DataClass::Facility),
+    );
+    let Summary::Raster(preview) = &land_cover.summary else {
+        panic!("raster summary");
+    };
+    let classes: Vec<i64> = preview
+        .stats
+        .values
+        .as_ref()
+        .expect("classes")
+        .iter()
+        .map(|v| v.value)
+        .collect();
+    let Summary::Vector(vector) = &facilities.summary else {
+        panic!("vector summary");
+    };
+    let source = json!({"path": facilities.file, "id_field": vector.fields[0]});
+    // Every class but the last two: one at 0 km/h, one without speed; and
+    // a class absent from the map.
+    let mut scenario: Vec<_> = classes[..classes.len() - 2]
+        .iter()
+        .map(|c| json!({"class": c, "mode": "walking", "speed_kmh": 5.0}))
+        .collect();
+    scenario
+        .push(json!({"class": classes[classes.len() - 2], "mode": "walking", "speed_kmh": 0.0}));
+    scenario.push(json!({"class": 9999, "mode": "walking", "speed_kmh": 5.0}));
+    let base = json!({
+        "schema_version": 1,
+        "dem": dem.file,
+        "land_cover": land_cover.file,
+        "scenario": scenario,
+        "method": "anisotropic",
+        "neighbourhood": 8,
+    });
+    let mut travel_time = base.clone();
+    travel_time["facilities"] = source.clone();
+    travel_time["direction"] = json!("from_facilities");
+    let mut referral = base.clone();
+    referral["origins"] = source.clone();
+    referral["destinations"] = source;
+    for (analysis, mut job) in [("travel-time", travel_time), ("referral", referral)] {
+        for policy in ["skip", "error"] {
+            job["facility_issues"] = json!(policy);
+            let quick = project.check_named(analysis, &job);
+            let full = project.validate_named(analysis, &job, &settings, Monitor::QUIET);
+            match (policy, quick, full) {
+                ("skip", Ok(warnings), Ok(validation)) => {
+                    let warnings = serde_json::to_value(&warnings).expect("json");
+                    assert_eq!(warnings, validation["warnings"], "{analysis}");
+                    let codes = warnings.to_string();
+                    for code in [
+                        "facility_skipped",
+                        "scenario_speed_zero",
+                        "classes_without_scenario",
+                        "scenario_class_absent",
+                    ] {
+                        assert!(codes.contains(code), "{analysis}: {code} in {codes}");
+                    }
+                }
+                ("error", Err(quick), Err(full)) => {
+                    assert_eq!(quick.to_string(), full.to_string(), "{analysis}");
+                }
+                (policy, quick, full) => panic!("{analysis} {policy}: {quick:?} / {full:?}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn active_runs_reserve_their_output_tags() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let settings = settings(64 << 20, 1);
+    let scenario = tags(&["scenario", "a"]);
+    let first = project
+        .start_named("travel-time", &travel_time_job(), &scenario, false)
+        .expect("queue");
+    // Same output class and tags as a queued run: refused, overwrite or not.
+    for overwrite in [false, true] {
+        let err = project
+            .start_named("travel-time", &travel_time_job(), &scenario, overwrite)
+            .expect_err("reserved");
+        assert!(
+            err.to_string()
+                .contains(&format!("run {first} already writes")),
+            "{err}"
+        );
+    }
+    // Other tags are free.
+    let other = project
+        .start_named(
+            "travel-time",
+            &travel_time_job(),
+            &tags(&["scenario", "b"]),
+            false,
+        )
+        .expect("other tags");
+    assert!(project.cancel_queued(other).expect("cancel"));
+    // A cancelled run frees its tags.
+    assert!(project.cancel_queued(first).expect("cancel"));
+    let again = project
+        .start_named("travel-time", &travel_time_job(), &scenario, false)
+        .expect("freed");
+    project
+        .execute_queued(again, &settings, Monitor::QUIET)
+        .expect("execute");
+}
