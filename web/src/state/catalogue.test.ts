@@ -79,6 +79,9 @@ describe("catalogue", () => {
     expect(show("Other")[0]).toBe("Other 2 (free)");
     expect(show("new")).toEqual([]);
     expect(show("test 5")).toEqual([]);
+    // A number beyond exact arithmetic is not a counter (no endless search).
+    const huge = [at(9, "rTravelTime", ["big", "9007199254740992"])];
+    expect(tagSuggestions("travel-time", "big", huge).map((x) => x.note.kind)).toEqual(["exists"]);
   });
 
   it("round-trips the filter through the URL query", () => {

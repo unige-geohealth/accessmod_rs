@@ -37,8 +37,7 @@ test("merge land cover: land cover, road classes and barriers stacked, then merg
   await page.getByLabel("Add short tags").fill("e2e");
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "toolbox-merge");
-  await page.getByRole("button", { name: "Merge the items in the stack" }).click();
-  await computed(page, "e2e");
+  await computed(page, project, "e2e", page.getByRole("button", { name: "Merge the items in the stack" }));
 });
 
 test("adjust population distribution: population kept by zone, moved off barriers", async ({ page, request }) => {
@@ -49,8 +48,7 @@ test("adjust population distribution: population kept by zone, moved off barrier
   await page.getByLabel("Add short tag").fill("e2e");
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "toolbox-population");
-  await page.getByRole("button", { name: "Compute", exact: true }).click();
-  await computed(page, "e2e");
+  await computed(page, project, "e2e", page.getByRole("button", { name: "Compute", exact: true }));
 });
 
 test("interactive map: facilities to inspect, Next, a drag, Save; additional layers", async ({ page, request }) => {

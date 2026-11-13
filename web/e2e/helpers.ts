@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 export async function shot(page: Page, name: string) {
   await page.waitForTimeout(300);
@@ -60,8 +60,13 @@ export async function importFile(request: APIRequestContext, project: string, cl
   return command<{ id: number }>(request, "dataset.import", { project, class: cls, tags, source: { upload: { id: upload.id } } });
 }
 
-/** After Compute: the notice of the job queued with `tags`, then the notice of a job done. */
-export async function computed(page: Page, tags: string) {
+/** Click `button` (Compute): the notice of the job it queued with `tags`, then that very job done. */
+export async function computed(page: Page, project: string, tags: string, button: Locator) {
+  const started = page.waitForResponse((r) => r.url().includes("/api/commands/run.start"));
+  await button.click();
+  const response = await started;
+  expect(response.ok(), await response.text()).toBe(true);
+  const run = (await response.json()) as { id: number };
   await expect(page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: tags })).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: /: done/ }).first()).toBeVisible({ timeout: 120_000 });
+  await finished(page.request, project, run.id);
 }

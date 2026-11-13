@@ -88,8 +88,7 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   await free.click();
   await expect(tags).toHaveValue("e2e 2");
   await expect(compute).toBeEnabled({ timeout: 30_000 });
-  await compute.click();
-  await computed(page, "e2e 2");
+  await computed(page, project, "e2e 2", compute);
   await shot(page, "analysis-accessibility-finished");
   await page.evaluate(() => localStorage.setItem("am.theme", "dark"));
   await page.reload();
@@ -140,8 +139,7 @@ test("geographic coverage: capacity, zones, run", async ({ page }) => {
   await page.getByLabel("Add short tags").fill("cov");
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "analysis-coverage");
-  await page.getByRole("button", { name: "Compute", exact: true }).click();
-  await computed(page, "cov");
+  await computed(page, project, "cov", page.getByRole("button", { name: "Compute", exact: true }));
 });
 
 test("referral: From and To groups, closest pair, run", async ({ page }) => {
@@ -157,8 +155,7 @@ test("referral: From and To groups, closest pair, run", async ({ page }) => {
   await page.getByLabel("Add short tags").fill("ref");
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "analysis-referral");
-  await page.getByRole("button", { name: "Compute", exact: true }).click();
-  await computed(page, "ref");
+  await computed(page, project, "ref", page.getByRole("button", { name: "Compute", exact: true }));
 });
 
 test("optimization: catchments of the coverage run, minimum per zone, run", async ({ page }) => {
@@ -171,8 +168,7 @@ test("optimization: catchments of the coverage run, minimum per zone, run", asyn
   await page.getByLabel("Add short tags").fill("opt");
   await expect(page.getByText("Ready to compute.")).toBeVisible({ timeout: 30_000 });
   await shot(page, "analysis-optimization");
-  await page.getByRole("button", { name: "Compute", exact: true }).click();
-  await computed(page, "opt");
+  await computed(page, project, "opt", page.getByRole("button", { name: "Compute", exact: true }));
 });
 
 test("scaling up: capacity table, a factor from the form, run", async ({ page }) => {
@@ -192,8 +188,7 @@ test("scaling up: capacity table, a factor from the form, run", async ({ page })
   // Information messages only: Compute is enabled.
   await expect(page.getByRole("button", { name: "Compute", exact: true })).toBeEnabled({ timeout: 30_000 });
   await shot(page, "analysis-scaling-up");
-  await page.getByRole("button", { name: "Compute", exact: true }).click();
-  await computed(page, "up");
+  await computed(page, project, "up", page.getByRole("button", { name: "Compute", exact: true }));
 });
 
 test("zonal statistics: Update fills the table in place, one column per time step, download", async ({ page }) => {

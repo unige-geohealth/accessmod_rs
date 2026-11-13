@@ -338,10 +338,23 @@ impl Project {
                 return Err(error);
             }
         };
-        let (tags, stored) = (json(&tags)?, json(&stored)?);
-        // The job and the datasets it reads, together.
+        let classes: Vec<DataClass> = A::OUTPUTS.iter().filter_map(|o| o.class).collect();
+        let normalized = tags;
+        let (tags, stored) = (json(&normalized)?, json(&stored)?);
+        // The job, its tags and the datasets it reads, together; the tags
+        // are checked again under the write lock, so two starts at once
+        // never both take them.
         let recorded = (|| {
-            let tx = self.db.unchecked_transaction()?;
+            let tx = rusqlite::Transaction::new_unchecked(
+                &self.db,
+                rusqlite::TransactionBehavior::Immediate,
+            )?;
+            if let Err(error) = classes
+                .iter()
+                .try_for_each(|&class| self.not_reserved(class, &normalized, id))
+            {
+                return Ok(Err(error));
+            }
             tx.execute(
                 "UPDATE runs SET tags = ?1, job = ?2, output_dir = ?3 WHERE id = ?4",
                 params![tags, stored, output_dir, id],

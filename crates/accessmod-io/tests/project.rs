@@ -1684,3 +1684,35 @@ fn active_runs_reserve_their_output_tags() {
         .execute_queued(again, &settings, Monitor::QUIET)
         .expect("execute");
 }
+
+#[test]
+fn concurrent_starts_never_take_the_same_tags() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = project_with_inputs(dir.path()).root().to_path_buf();
+    for round in 0..10 {
+        let tags = tags(&["race", &format!("r{round}")]);
+        let barrier = std::sync::Barrier::new(2);
+        let results: Vec<bool> = std::thread::scope(|scope| {
+            let starts: Vec<_> = (0..2)
+                .map(|_| {
+                    scope.spawn(|| {
+                        let project = Project::open(&root).expect("open");
+                        barrier.wait();
+                        project
+                            .start_named("travel-time", &travel_time_job(), &tags, false)
+                            .is_ok()
+                    })
+                })
+                .collect();
+            starts
+                .into_iter()
+                .map(|h| h.join().expect("thread"))
+                .collect()
+        });
+        assert_eq!(
+            results.iter().filter(|ok| **ok).count(),
+            1,
+            "round {round}: {results:?}"
+        );
+    }
+}

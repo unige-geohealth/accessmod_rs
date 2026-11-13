@@ -131,7 +131,10 @@ browser (TypeScript)                         accessmod serve (Rust)
   check that gates Compute: types, paths and classes, then the analysis’s
   `lint`, which finds what `prepare` would find at a cost per facility or
   per stored fact, never per cell (facilities read one cell each, land-cover
-  class counts stored at import); its warnings are shown. The run is the
+  class counts stored at import); its warnings are shown. Its class
+  warnings match the run’s up to the stored counts: none beyond 1024
+  distinct values (`preview::MAX_DISTINCT`), and past 256 classes without a
+  scenario it names the lowest ones where the run names the first met. The run is the
   full validation; a problem only it finds ends the job as failed, with a
   notification. Compute queues a job and leaves the form editable, so
   another scenario is one change and one click away; a job that would

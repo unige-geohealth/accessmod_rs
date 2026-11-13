@@ -296,7 +296,8 @@ export function tagSuggestions(
   const matching = taken.filter((s) => lower.every((w) => s.tags.some((tag) => tag.toLowerCase().startsWith(w))));
 
   // The next free numbered set on the stem typed (`test 4` → `test 5`).
-  const numeric = (w: string | undefined) => w !== undefined && /^\d+$/.test(w);
+  // Numbers up to 15 digits: exact as JavaScript numbers, so the next one is always one more.
+  const numeric = (w: string | undefined) => w !== undefined && /^\d{1,15}$/.test(w);
   const stem = numeric(words.at(-1)) ? words.slice(0, -1) : words;
   const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((w, i) => w.toLowerCase() === b[i]?.toLowerCase());
   const numbers = taken.filter((s) => numeric(s.tags.at(-1)) && same(s.tags.slice(0, -1), stem)).map((s) => Number(s.tags.at(-1)));
