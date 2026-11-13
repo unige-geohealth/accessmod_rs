@@ -15,6 +15,9 @@ use crate::workspace_root;
 /// Crates that bring the HTTP server stack.
 const SERVER_STACK: &[&str] = &["axum", "hyper", "tokio", "tower", "tower-http"];
 
+/// Crates that bring an HTTP client and TLS.
+const CLIENT_STACK: &[&str] = &["ureq", "rustls"];
+
 /// Crates that bring GDAL, PROJ or a database.
 const IO_STACK: &[&str] = &[
     "gdal",
@@ -40,24 +43,30 @@ const RULES: &[Rule] = &[
     Rule {
         name: "accessmod-core",
         workspace: &[],
-        forbidden: &[IO_STACK, SERVER_STACK],
-        reason: "the engine core has no GDAL, PROJ, database or server",
+        forbidden: &[IO_STACK, SERVER_STACK, CLIENT_STACK],
+        reason: "the engine core has no GDAL, PROJ, database, server or network",
     },
     Rule {
         name: "accessmod-io",
         workspace: &["accessmod-core"],
-        forbidden: &[SERVER_STACK],
+        forbidden: &[SERVER_STACK, CLIENT_STACK],
         reason: "the I/O layer and the project layer know nothing of HTTP",
     },
     Rule {
+        name: "accessmod-fetch",
+        workspace: &[],
+        forbidden: &[IO_STACK, SERVER_STACK],
+        reason: "downloads know nothing of GDAL, projects or the server",
+    },
+    Rule {
         name: "accessmod-server",
-        workspace: &["accessmod-core", "accessmod-io"],
+        workspace: &["accessmod-core", "accessmod-io", "accessmod-fetch"],
         forbidden: &[],
         reason: "the server sits on the I/O layer",
     },
     Rule {
         name: "accessmod-cli",
-        workspace: &["accessmod-core", "accessmod-io", "accessmod-server"],
+        workspace: &["accessmod-core", "accessmod-io", "accessmod-fetch", "accessmod-server"],
         forbidden: &[],
         reason: "the binary sits on top of everything",
     },

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/accessmod-core", "crates/accessmod-io", "crates/accessmod-server", "crates/accessmod-cli", "xtask"]
+members = ["crates/accessmod-core", "crates/accessmod-io", "crates/accessmod-fetch", "crates/accessmod-server", "crates/accessmod-cli", "xtask"]
 
 [workspace.package]
 version = "6.0.0-alpha.1"
@@ -11,6 +11,7 @@ license = "LGPL-3.0-or-later"
 [workspace.dependencies]
 accessmod-core = { path = "crates/accessmod-core" }
 accessmod-io = { path = "crates/accessmod-io" }
+accessmod-fetch = { path = "crates/accessmod-fetch" }
 accessmod-server = { path = "crates/accessmod-server" }
 serde = { version = "1", features = ["derive"] }
 schemars = "1"
