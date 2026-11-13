@@ -1330,5 +1330,29 @@
     "fr": "Mise à jour du tableau…",
     "es": "Actualizando la tabla…",
     "pt": "A atualizar a tabela…"
+  },
+  "tags.suggest_free": {
+    "en": "free",
+    "fr": "libre",
+    "es": "libre",
+    "pt": "livre"
+  },
+  "tags.suggest_exists": {
+    "en": "exists",
+    "fr": "existe",
+    "es": "existe",
+    "pt": "existe"
+  },
+  "tags.suggest_job": {
+    "en": "job #%s",
+    "fr": "job n° %s",
+    "es": "trabajo n.º %s",
+    "pt": "trabalho n.º %s"
+  },
+  "analysis.outputs_own_job": {
+    "en": "Job #%s computes these tags. Change them to try another scenario.",
+    "fr": "Le job n° %s calcule ces tags. Changez-les pour essayer un autre scénario.",
+    "es": "El trabajo n.º %s calcula estas etiquetas. Cámbielas para probar otro escenario.",
+    "pt": "O trabalho n.º %s calcula estas etiquetas. Altere-as para experimentar outro cenário."
   }
 }

@@ -36,7 +36,7 @@ export const NO_NOTIFICATIONS: Notifications = { notices: [], closed: [] };
 /** Notices kept at most. */
 const KEPT = 20;
 /** Seconds a success or a cancellation stays. */
-export const FADE_S = 8;
+export const FADE_S = 20;
 
 const ended = (status: Api.RunStatus) => status !== "queued" && status !== "running";
 
@@ -109,11 +109,11 @@ export function operationNotice(operation: Api.PendingOperation, at: number): No
   };
 }
 
-/** Notices shown at `now`: not closed; failures always, others for a while. */
+/** Notices shown at `now`, newest first: not closed; failures always, others for a while. */
 export function visibleNotices(state: Notifications, now: number): Notice[] {
-  return state.notices.filter(
-    (n) => !state.closed.includes(n.id) && (n.status === "failed" || n.status === "interrupted" || now - n.at < FADE_S),
-  );
+  return state.notices
+    .filter((n) => !state.closed.includes(n.id) && (n.status === "failed" || n.status === "interrupted" || now - n.at < FADE_S))
+    .reverse();
 }
 
 export const notifications = createStore(NO_NOTIFICATIONS, updateNotifications);

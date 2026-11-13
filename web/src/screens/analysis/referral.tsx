@@ -13,8 +13,8 @@ import { ANALYSIS, buildJob, EMPTY, type ReferralDraft, type Side, updateReferra
 import { hasZero } from "../../state/scenario";
 import { useStore } from "../../state/store";
 import { FacilityInputs, FacilitySection } from "./facility-section";
-import { fieldsOf, firstOf, useCatalogue } from "./inputs";
-import { LimitField, ScenarioSection, TagsField, TravelInputs, TravelSettings, useTravel } from "./travel";
+import { fieldsOf, firstOf, useCatalogue, TagsField } from "./inputs";
+import { LimitField, ScenarioSection, TravelInputs, TravelSettings, useTravel } from "./travel";
 import { ValidationCard } from "./validation-card";
 
 const LAND_COVER = fieldClasses(schema, "land_cover");
@@ -74,7 +74,7 @@ export function Referral({ project }: { project: string }) {
               onChange={(on) => dispatch({ type: "nearestOnly", on })}
             />
             <LimitField draft={draft} dispatch={dispatch} />
-            <TagsField value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <TagsField project={project} analysis={ANALYSIS} value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
 
           <ValidationCard

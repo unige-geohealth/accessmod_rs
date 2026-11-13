@@ -43,14 +43,17 @@ export function ValidationCard({
   const f = useFmt();
   const message = (kind: Message["kind"], i: Issue): Message => (typeof i === "string" ? { kind, k: i } : { kind, text: f(i.key, ...i.args) });
   const session = sessionStore(project, analysis);
-  const starting = useStore(session, (s) => s.starting);
+  const { run: started, starting } = useStore(session, (s) => s);
   const runs = useRuns(project).data;
   const quick = useQuickCheck(project, analysis, document);
   const [failure, setFailure] = useState<string[]>([]);
   const overwrite = usePreference("overwrite");
   const outputs = plannedOutputs(analysis, tags, datasets.values(), runs);
   const taken = outputs.some((o) => o.existing !== undefined);
-  const reserved = outputs.some((o) => o.reservedBy !== undefined);
+  const reservers = [...new Set(outputs.flatMap((o) => (o.reservedBy === undefined ? [] : [o.reservedBy])))];
+  const reserved = reservers.length > 0;
+  // The job this tab just queued holds these tags: information, not an error.
+  const ownJob = reservers.length === 1 && reservers[0] === started;
 
   const messages: Message[] = [
     ...issues.map((i) => message("issue", i)),
@@ -59,7 +62,7 @@ export function ValidationCard({
     ...(quick.data?.warnings ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
     ...failure.map((text) => ({ kind: "issue" as const, text })),
     ...(taken && !overwrite ? [{ kind: "issue" as const, k: "analysis.outputs_taken" as const }] : []),
-    ...(reserved ? [{ kind: "issue" as const, k: "analysis.outputs_reserved" as const }] : []),
+    ...(ownJob ? [{ kind: "info" as const, text: f("analysis.outputs_own_job", started) }] : reserved ? [{ kind: "issue" as const, k: "analysis.outputs_reserved" as const }] : []),
   ];
   const ready = document !== null && quick.isSuccess && !starting && (overwrite || !taken) && !reserved;
 
@@ -108,7 +111,8 @@ export function ValidationCard({
           </ul>
         </div>
       )}
-      <AmButton variant="danger" block disabled={!ready} k={button} onClick={() => void compute()} />
+      {/* Red while something blocks it, primary once it can run. */}
+      <AmButton variant={ready ? "primary" : "danger"} block disabled={!ready} k={button} onClick={() => void compute()} />
       {document !== null && <LinkActions actions={[{ icon: "download", k: "analysis.download_job", onClick: () => downloadJson(analysis, document) }]} />}
     </SectionCard>
   );

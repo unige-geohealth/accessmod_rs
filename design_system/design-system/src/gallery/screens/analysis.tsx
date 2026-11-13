@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Columns } from "#ui/components/am/columns";
 import { type Column, DataTable } from "#ui/components/am/data-table";
-import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
+import { CheckboxField, ComboboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
 import { AmButton, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
 import { PanelAccordion } from "#ui/components/am/panel-accordion";
 import { CenterTitle, SectionCard, SubTitle } from "#ui/components/am/section";
@@ -46,6 +46,7 @@ export function AnalysisScreen({ initial = "accessibility" }: { initial?: Module
   const set = (k: string) => (v: string) => setSel({ ...sel, [k]: v });
   const [type, setType] = useState("anisotropic");
   const [dir, setDir] = useState("to");
+  const [tags, setTags] = useState("test");
   const [knight, setKnight] = useState(false);
 
   if (module === "zonal") {
@@ -117,7 +118,16 @@ export function AnalysisScreen({ initial = "accessibility" }: { initial?: Module
               />
               <CheckboxField label="analysis_settings_knight_move" help="analysis_settings_knight_move_desc" checked={knight} onChange={setKnight} />
               <TextField label="analysis_settings_max_travel_time" type="number" value={120} />
-              <TextField label="analysis_settings_add_tag" />
+              <ComboboxField
+                label="analysis_settings_add_tag"
+                value={tags}
+                onChange={setTags}
+                suggestions={[
+                  { value: "test 5", note: "free" },
+                  { value: "test 4", note: "job #12" },
+                  { value: "test 3", note: "exists" },
+                ].filter((o) => tags.trim() === "" || o.value.startsWith(tags.trim().split(" ")[0]))}
+              />
             </SectionCard>
 
             <SectionCard title="analysis_validation_title" sub="analysis_validation_sub" icon="validation">

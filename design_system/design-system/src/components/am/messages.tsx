@@ -117,7 +117,7 @@ const amButton = cva(
   },
 );
 
-/** AM5 `.btn` (square corners). `danger` is the Compute button. */
+/** AM5 `.btn` (square corners). Compute is `danger` while blocked, `primary` once it can run. */
 export function AmButton({
   className,
   variant,

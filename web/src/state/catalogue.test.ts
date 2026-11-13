@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { classLabel, plannedOutputs, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRow, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
+import { classLabel, plannedOutputs, tagSuggestions, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRow, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
 
 const dataset = (id: number, cls: Api.DataClass, tags: string[]) => ({ id, class: cls, tags }) as Api.Dataset;
 const t = (key: string) => key;
@@ -60,6 +60,25 @@ describe("catalogue", () => {
     expect(reserved(["c"])).toEqual([undefined, undefined]);
     // Another analysis writing other classes does not reserve them.
     expect(plannedOutputs("travel-time", ["z"], [], [job(7, "queued", "zonal-statistics", ["z"])]).map((o) => o.reservedBy)).toEqual([undefined, undefined]);
+  });
+
+  it("suggests the tag sets of the analysis, newest first, and the next free number", () => {
+    const at = (id: number, cls: Api.DataClass, tags: string[]) => ({ ...dataset(id, cls, tags), created: id }) as Api.Dataset;
+    const list = [at(1, "rTravelTime", ["test", "3"]), at(2, "rTravelTime", ["test", "4"]), at(3, "rTravelTime", ["other"]), at(4, "tZonalStat", ["test", "9"])];
+    const queued = [{ id: 7, status: "queued", analysis: "travel-time", kind: "analysis", tags: ["test", "5"], started: 10 }] as Api.RunRecord[];
+    const show = (text: string, runs: Api.RunRecord[] = []) =>
+      tagSuggestions("travel-time", text, list, runs).map((s) => `${s.tags.join(" ")} (${s.note.kind === "job" ? `job ${s.note.run}` : s.note.kind})`);
+    expect(show("")).toEqual(["other (exists)", "test 4 (exists)", "test 3 (exists)"]);
+    // Words typed start tags; zonal statistics outputs are not travel-time ones.
+    expect(show("te")).toEqual(["test 4 (exists)", "test 3 (exists)"]);
+    expect(show("test")).toEqual(["test 5 (free)", "test 4 (exists)", "test 3 (exists)"]);
+    // A queued job holds its set: the free one skips it and it comes first.
+    expect(show("test 4", queued)).toEqual(["test 6 (free)", "test 4 (exists)"]);
+    expect(show("test", queued)).toEqual(["test 6 (free)", "test 5 (job 7)", "test 4 (exists)", "test 3 (exists)"]);
+    // A taken set without a number: the free one is numbered 2; a free text gets none.
+    expect(show("Other")[0]).toBe("Other 2 (free)");
+    expect(show("new")).toEqual([]);
+    expect(show("test 5")).toEqual([]);
   });
 
   it("round-trips the filter through the URL query", () => {

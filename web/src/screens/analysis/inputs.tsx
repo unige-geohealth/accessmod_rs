@@ -1,10 +1,11 @@
 // Selectors shared by the analysis tabs: datasets of the catalogue (AM5
 // labels "(r) land cover merged [demo]") and fields of a vector dataset.
-import { SelectField } from "@accessmod/ui/am/form";
+import { ComboboxField, SelectField } from "@accessmod/ui/am/form";
 import { type Key, useI18n } from "@accessmod/ui/i18n";
 import { useMemo } from "react";
-import { useDatasets, useProject } from "../../api/queries";
+import { useDatasets, useProject, useRuns } from "../../api/queries";
 import type { Api } from "../../generated/types";
+import { type TagNote, tagSuggestions } from "../../state/catalogue";
 import type { ZoneInput, ZoneMessage } from "../../state/zones";
 import { useFmt } from "../common";
 
@@ -110,4 +111,28 @@ export function Pager({ offset, page, total, onOffset }: { offset: number; page:
       </button>
     </div>
   );
+}
+
+/** Output tags of `analysis`, with the tag sets it already wrote or is writing
+ * as suggestions, and the next free numbered one: pick, edit, compute. */
+export function TagsField({
+  project,
+  analysis,
+  label = "analysis_settings_add_tag",
+  value,
+  onChange,
+}: {
+  project: string;
+  analysis: string;
+  label?: Key;
+  value: string;
+  onChange: (text: string) => void;
+}) {
+  const { t } = useI18n();
+  const f = useFmt();
+  const datasets = useDatasets(project).data ?? [];
+  const runs = useRuns(project).data;
+  const note = (n: TagNote) => (n.kind === "job" ? f("tags.suggest_job", n.run) : t(n.kind === "free" ? "tags.suggest_free" : "tags.suggest_exists"));
+  const suggestions = tagSuggestions(analysis, value, datasets, runs).map((s) => ({ value: s.tags.join(" "), note: note(s.note) }));
+  return <ComboboxField label={label} value={value} onChange={onChange} suggestions={suggestions} />;
 }

@@ -156,8 +156,3 @@ export function ScenarioSection({ project, travel, dispatch }: { project: string
 export function LimitField({ draft, dispatch }: { draft: TravelDraft; dispatch: (message: TravelMessage) => void }) {
   return <TextField label="analysis_settings_max_travel_time" type="number" value={draft.minutes} onChange={(text) => dispatch({ type: "minutes", text })} />;
 }
-
-/** Output tags. */
-export function TagsField({ value, onChange }: { value: string; onChange: (text: string) => void }) {
-  return <TextField label="analysis_settings_add_tag" value={value} onChange={onChange} />;
-}

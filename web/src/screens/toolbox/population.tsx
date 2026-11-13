@@ -1,7 +1,7 @@
 // Toolbox › Adjust population distribution (AM5 `amPopulationBarrierCorrection`):
 // population moved off barriers, within zones, optionally scaled to the
 // known population of each zone.
-import { RadioField, TextField } from "@accessmod/ui/am/form";
+import { RadioField } from "@accessmod/ui/am/form";
 import { CenterTitle, SectionCard } from "@accessmod/ui/am/section";
 import { useI18n } from "@accessmod/ui/i18n";
 import { useMemo } from "react";
@@ -10,7 +10,7 @@ import { datasetOptions, fieldClasses } from "../../state/catalogue";
 import { draftStore } from "../../state/drafts";
 import { ANALYSIS, buildJob, EMPTY, updatePopulation, withPopulationDefaults } from "../../state/population";
 import { useStore } from "../../state/store";
-import { DatasetSelect, FieldSelect, fieldsOf, firstOf, useCatalogue } from "../analysis/inputs";
+import { DatasetSelect, FieldSelect, fieldsOf, firstOf, TagsField, useCatalogue } from "../analysis/inputs";
 import { ValidationCard } from "../analysis/validation-card";
 
 const POPULATION = fieldClasses(schema, "population");
@@ -85,7 +85,7 @@ export function AdjustPopulation({ project }: { project: string }) {
               />
             )}
             <hr className="border-separator" />
-            <TextField label="toolbox_popcor_add_tag" value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <TagsField project={project} analysis={ANALYSIS} label="toolbox_popcor_add_tag" value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
           <ValidationCard
             project={project}

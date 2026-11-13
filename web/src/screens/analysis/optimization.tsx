@@ -13,8 +13,8 @@ import { ANALYSIS, buildJob, EMPTY, type OptimizationDraft, updateOptimization }
 import { useStore } from "../../state/store";
 import { withZoneDefaults } from "../../state/zones";
 import { FacilityInputs } from "./facility-section";
-import { DatasetSelect, fieldsOf, firstOf, useCatalogue, ZoneInputs } from "./inputs";
-import { TagsField } from "./travel";
+import { DatasetSelect, fieldsOf, firstOf, useCatalogue, ZoneInputs, TagsField } from "./inputs";
+
 import { ValidationCard } from "./validation-card";
 
 const CATCHMENTS = fieldClasses(schema, "catchments");
@@ -93,7 +93,7 @@ export function Optimization({ project }: { project: string }) {
             {draft.adminCheck && (
               <TextField label="analysis_optimization_np_admin" type="number" value={draft.perZone} onChange={(text) => dispatch({ type: "perZone", text })} />
             )}
-            <TagsField value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <TagsField project={project} analysis={ANALYSIS} value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
 
           <ValidationCard

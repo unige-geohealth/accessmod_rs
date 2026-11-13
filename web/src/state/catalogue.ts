@@ -257,3 +257,57 @@ export function pickField(chosen: string, fields: readonly string[], prefer: rea
 /** Project path of a dataset of the catalogue. */
 export const fileOf = (context: { datasets: ReadonlyMap<number, Api.Dataset> }, id: number | null): string | undefined =>
   id === null ? undefined : context.datasets.get(id)?.file;
+
+/** Why a tag set is suggested: free (the next number), taken by a dataset, or by a queued or running job. */
+export type TagNote = { kind: "free" } | { kind: "exists" } | { kind: "job"; run: number };
+
+/** Tag sets suggested at most, the free one included. */
+const SUGGESTED = 8;
+
+/**
+ * Tag sets to offer under the tags field of `analysis`: the next free
+ * numbered set first, when the text (or a set it matches) ends with a
+ * number, or names a taken set; then the sets of its queued or running
+ * jobs and of the datasets of its output classes, newest first. Each word
+ * typed must start one of the set's tags (case-insensitive).
+ */
+export function tagSuggestions(
+  analysis: string,
+  text: string,
+  datasets: Iterable<Api.Dataset>,
+  runs: readonly Api.RunRecord[] = [],
+): { tags: string[]; note: TagNote }[] {
+  const outputs = analysisOutputs as Record<string, string[]>;
+  const classes = outputs[analysis] ?? [];
+  const sets = new Map<string, { tags: string[]; note: TagNote; at: number }>();
+  const add = (tags: readonly string[], note: TagNote, at: number) => {
+    const key = tags.join("_");
+    if (tags.length > 0 && !sets.has(key)) sets.set(key, { tags: [...tags], note, at });
+  };
+  const active = runs.filter((r) => (r.status === "queued" || r.status === "running") && (r.kind ?? "analysis") === "analysis");
+  for (const r of [...active].sort((a, b) => b.started - a.started)) {
+    if ((outputs[r.analysis] ?? []).some((c) => classes.includes(c))) add(r.tags, { kind: "job", run: r.id }, r.started);
+  }
+  for (const d of [...datasets].filter((d) => classes.includes(d.class)).sort((a, b) => b.created - a.created)) add(d.tags, { kind: "exists" }, d.created);
+  const taken = [...sets.values()].sort((a, b) => b.at - a.at);
+
+  const words = normalizeTags(text);
+  const lower = words.map((w) => w.toLowerCase());
+  const matching = taken.filter((s) => lower.every((w) => s.tags.some((tag) => tag.toLowerCase().startsWith(w))));
+
+  // The next free numbered set on the stem typed (`test 4` → `test 5`).
+  const numeric = (w: string | undefined) => w !== undefined && /^\d+$/.test(w);
+  const stem = numeric(words.at(-1)) ? words.slice(0, -1) : words;
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((w, i) => w.toLowerCase() === b[i]?.toLowerCase());
+  const numbers = taken.filter((s) => numeric(s.tags.at(-1)) && same(s.tags.slice(0, -1), stem)).map((s) => Number(s.tags.at(-1)));
+  if (taken.some((s) => same(s.tags, stem))) numbers.push(1);
+  const free: { tags: string[]; note: TagNote }[] = [];
+  if (stem.length > 0 && numbers.length > 0) {
+    let next = Math.max(...numbers) + 1;
+    while (sets.has([...stem, String(next)].join("_"))) next++;
+    const tags = [...stem, String(next)];
+    // Not when it is what is typed already.
+    if (!same(tags, words)) free.push({ tags, note: { kind: "free" } });
+  }
+  return [...free, ...matching.map(({ tags, note }) => ({ tags, note }))].slice(0, SUGGESTED);
+}

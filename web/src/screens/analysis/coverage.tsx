@@ -14,8 +14,8 @@ import { hasZero } from "../../state/scenario";
 import { useStore } from "../../state/store";
 import { withZoneDefaults } from "../../state/zones";
 import { FacilityInputs, FacilitySection } from "./facility-section";
-import { DatasetSelect, FieldSelect, fieldsOf, firstOf, useCatalogue, ZoneInputs } from "./inputs";
-import { LimitField, ScenarioSection, TagsField, TravelInputs, TravelSettings, useTravel } from "./travel";
+import { DatasetSelect, FieldSelect, fieldsOf, firstOf, useCatalogue, ZoneInputs, TagsField } from "./inputs";
+import { LimitField, ScenarioSection, TravelInputs, TravelSettings, useTravel } from "./travel";
 import { ValidationCard } from "./validation-card";
 
 const LAND_COVER = fieldClasses(schema, "land_cover");
@@ -118,7 +118,7 @@ export function Coverage({ project }: { project: string }) {
                 <CheckboxField key={option} label={label} checked={draft[option]} onChange={(on) => dispatch({ type: "option", option, on })} />
               ))}
             </Field>
-            <TagsField value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <TagsField project={project} analysis={ANALYSIS} value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
 
           <ValidationCard

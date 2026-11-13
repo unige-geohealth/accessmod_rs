@@ -3,7 +3,7 @@
 // The stack is the draft (state/merge.ts): nothing is written before Merge.
 import { Columns } from "@accessmod/ui/am/columns";
 import { type Column, DataTable, type Row } from "@accessmod/ui/am/data-table";
-import { CheckboxField, Field, TextField } from "@accessmod/ui/am/form";
+import { CheckboxField, Field } from "@accessmod/ui/am/form";
 import { AmButton, LinkActions, MessageList } from "@accessmod/ui/am/messages";
 import { PageTabs } from "@accessmod/ui/am/page-tabs";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
@@ -39,7 +39,7 @@ import {
 import { usePreference } from "../../state/preferences";
 import { labelsOf, landCoverClasses } from "../../state/scenario";
 import { useStore } from "../../state/store";
-import { DatasetSelect, FieldSelect, fieldsOf, firstOf, useCatalogue } from "../analysis/inputs";
+import { DatasetSelect, FieldSelect, fieldsOf, firstOf, TagsField, useCatalogue } from "../analysis/inputs";
 import { WHOLE } from "../analysis/travel";
 import { ValidationCard } from "../analysis/validation-card";
 
@@ -338,7 +338,7 @@ function MergeTab({
               checked={draft.clean}
               onChange={(on) => dispatch({ type: "clean", on })}
             />
-            <TextField label="toolbox_land_cover_merge_tag" value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <TagsField project={project} analysis={ANALYSIS} label="toolbox_land_cover_merge_tag" value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
           <ValidationCard
             project={project}

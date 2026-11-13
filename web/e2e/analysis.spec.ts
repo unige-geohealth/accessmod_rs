@@ -71,12 +71,25 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   // is one change and one click away, with no progress bar in the way.
   const compute = page.getByRole("button", { name: "Compute", exact: true });
   await compute.click();
-  await expect(page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: "e2e" })).toBeVisible();
+  // The notice, at the top, under the header.
+  const queued = page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: "e2e" });
+  await expect(queued).toBeVisible();
+  expect((await queued.boundingBox())!.y).toBeLessThan(200);
   await expect(page.getByRole("progressbar")).toHaveCount(0);
-  await page.getByLabel("Add short tags").fill("e2e2");
+  // The job holds these tags (or, done already, its datasets do): Compute waits for others.
+  await expect(page.getByText(/computes these tags|Datasets with these tags exist/).first()).toBeVisible({ timeout: 30_000 });
+  await expect(compute).toBeDisabled();
+  // The tags field offers the next free set: pick it.
+  const tags = page.getByRole("combobox", { name: "Add short tags" });
+  await tags.click();
+  const free = page.getByRole("option", { name: /^e2e 2\s*free$/ });
+  await expect(free).toBeVisible();
+  await shot(page, "analysis-tags-suggestions");
+  await free.click();
+  await expect(tags).toHaveValue("e2e 2");
   await expect(compute).toBeEnabled({ timeout: 30_000 });
   await compute.click();
-  await computed(page, "e2e2");
+  await computed(page, "e2e 2");
   await shot(page, "analysis-accessibility-finished");
   await page.evaluate(() => localStorage.setItem("am.theme", "dark"));
   await page.reload();

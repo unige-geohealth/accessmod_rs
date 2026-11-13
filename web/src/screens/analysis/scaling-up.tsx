@@ -15,9 +15,9 @@ import { capacityRows, exclusionRows, factorRows } from "../../state/scaling-up-
 import { hasZero } from "../../state/scenario";
 import { useStore } from "../../state/store";
 import { FacilityInputs, FacilitySection } from "./facility-section";
-import { DatasetSelect, fieldsOf, firstOf, useCatalogue } from "./inputs";
+import { DatasetSelect, fieldsOf, firstOf, useCatalogue, TagsField } from "./inputs";
 import { RuleForms, ScalingUpTables } from "./scaling-up-tables";
-import { LimitField, ScenarioSection, TagsField, TravelInputs, TravelSettings, useTravel, WHOLE } from "./travel";
+import { LimitField, ScenarioSection, TravelInputs, TravelSettings, useTravel, WHOLE } from "./travel";
 import { ValidationCard } from "./validation-card";
 
 const LAND_COVER = fieldClasses(schema, "land_cover");
@@ -143,7 +143,7 @@ export function ScalingUp({ project }: { project: string }) {
             <TextField label="analysis_settings_pop_cover_percent" type="number" value={draft.coverPercent} onChange={limit("coverPercent")} />
             <TextField label="analysis_settings_new_health_facility_number" type="number" value={draft.newFacilities} onChange={limit("newFacilities")} />
             <TextField label="analysis_settings_max_process_time" type="number" value={draft.maxMinutes} onChange={limit("maxMinutes")} />
-            <TagsField value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
+            <TagsField project={project} analysis={ANALYSIS} value={draft.tags} onChange={(text) => dispatch({ type: "tags", text })} />
           </SectionCard>
 
           <ValidationCard

@@ -13,7 +13,8 @@ describe("notifications", () => {
     let state = updateNotifications(NO_NOTIFICATIONS, { type: "notice", notice: done });
     state = updateNotifications(state, { type: "notice", notice: failed });
     expect(updateNotifications(state, { type: "notice", notice: done })).toBe(state);
-    expect(visibleNotices(state, 101).map((n) => n.text)).toEqual(["archived as a.zip", "disk full"]);
+    // Newest first.
+    expect(visibleNotices(state, 101).map((n) => n.text)).toEqual(["disk full", "archived as a.zip"]);
     expect(visibleNotices(state, 100 + FADE_S).map((n) => n.text)).toEqual(["disk full"]);
     state = updateNotifications(state, { type: "dismiss", id: failed.id });
     expect(visibleNotices(state, 101).map((n) => n.id)).toEqual([done.id]);
