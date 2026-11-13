@@ -109,12 +109,9 @@ fn archive_imports_with_classes_tags_and_report() {
     assert!(report.warnings.iter().any(|w| w.contains("10 characters")));
     assert!(report.warnings.iter().any(|w| w.contains("minutes")));
     // `raster_land_cover_merged_demo` also reads as a land cover tagged
-    // `merged demo`: imported as the longer label, and said.
+    // `merged demo`, but its report names `rLandCoverMerged__demo`: no doubt.
     assert!(
-        report
-            .warnings
-            .iter()
-            .any(|w| w.contains("another class") && w.contains("raster_land_cover_merged_demo")),
+        !report.warnings.iter().any(|w| w.contains("another class")),
         "{:?}",
         report.warnings
     );
@@ -315,8 +312,59 @@ fn misfits_refuse_the_whole_archive() {
     assert!(left.is_empty(), "{left:?}");
 }
 
-/// A class this engine has not (`rLandCoverBridge`) gives way to the next
-/// reading of the name: a merged land cover tagged `bridge …`.
+/// The GRASS name AccessMod 5 wrote beside the data wins over the directory
+/// name: a land cover in a directory renamed `raster_land_cover_merged_x`
+/// is still `rLandCover__demo`, as its `r.report` says.
+#[test]
+fn grass_names_beside_the_data_win() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let renamed = variant(
+        dir.path(),
+        "renamed.zip",
+        |n| Some(n.replace("raster_land_cover_demo/", "raster_land_cover_merged_x/")),
+        &[],
+    );
+    let (project, report) = import(&renamed, &dir.path().join("p")).expect("import");
+    let tags = |class| {
+        project
+            .datasets(Some(class))
+            .unwrap()
+            .into_iter()
+            .map(|d| d.tags.join(" "))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(tags(DataClass::LandCover), ["demo"]);
+    assert_eq!(tags(DataClass::LandCoverMerged), ["demo"]);
+    assert!(!report.warnings.iter().any(|w| w.contains("another class")));
+
+    // Tables carry no name: the label decides, and the doubt is said.
+    let table = variant(
+        dir.path(),
+        "table.zip",
+        |n| Some(n.replace("table_scenario_demo/", "table_scenario_processed_demo/")),
+        &[],
+    );
+    let (project, report) = import(&table, &dir.path().join("q")).expect("import");
+    assert_eq!(
+        project
+            .datasets(Some(DataClass::ScenarioProcessed))
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("another class") && w.contains("table_scenario_processed_demo")),
+        "{:?}",
+        report.warnings
+    );
+}
+
+/// Without a GRASS name beside the data, a class this engine has not
+/// (`rLandCoverBridge`) gives way to the next reading of the directory name:
+/// a merged land cover tagged `bridge …`.
 #[test]
 fn names_of_unused_classes_read_as_the_next_label() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -324,10 +372,14 @@ fn names_of_unused_classes_read_as_the_next_label() {
         dir.path(),
         "bridge.zip",
         |n| {
-            Some(n.replace(
-                "raster_land_cover_merged_demo/",
-                "raster_land_cover_merged_bridge_x/",
-            ))
+            (!n.ends_with("_report.txt") || !n.starts_with("raster_land_cover_merged_demo/")).then(
+                || {
+                    n.replace(
+                        "raster_land_cover_merged_demo/",
+                        "raster_land_cover_merged_bridge_x/",
+                    )
+                },
+            )
         },
         &[],
     );
@@ -381,6 +433,7 @@ fn full_archive_imports() {
     };
     let dir = tempfile::tempdir().expect("tempdir");
     let (project, report) = import(&archive, &dir.path().join("p")).expect("import");
+    eprintln!("{}", report.summary());
     let datasets = project.datasets(None).unwrap();
     assert_eq!(datasets.len(), report.imported);
     for class in [

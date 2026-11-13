@@ -254,7 +254,11 @@ Metadata in SQLite, data in files:
 - AccessMod 5 projects: not `.am5p` (a GRASS database), but the data
   archive AccessMod 5 already writes (Data manager › Archive), imported by
   `project.import` as a new project (`accessmod_io::am5`). Each directory
-  is named from type, class label (in the user's language) and tags; the
+  is named from type, class label (in the user's language) and tags. The
+  exact GRASS name (`class__tags`) is read first from what AccessMod 5 wrote
+  beside the data: `*_info.txt` (vectors), `*_report.txt` (rasters, when its
+  79-character line still shows where the name ends), the GeoPackage layer
+  (catchments). Otherwise (tables, plain shapefiles) the
   class is the longest label of any language that prefixes the name and
   names a class used here (a name that also reads as another class with
   more tags is imported and named in a warning). One DEM is required; every

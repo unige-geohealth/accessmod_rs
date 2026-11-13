@@ -141,6 +141,111 @@ pub fn parse_names(name: &str) -> Vec<Name> {
     out
 }
 
+/// The GRASS name (`class__tags`) of the dataset in the directory `dir`, as
+/// AccessMod 5 wrote it beside the data: the `Name:` line of `v.info`
+/// (`*_info.txt`, vectors), the `MAP: title (name in mapset)` line of
+/// `r.report` (`*_report.txt`, rasters), or the layer of a GeoPackage
+/// (catchments). Tables carry none.
+fn grass_name(dir: &Path) -> Option<String> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .map(|e| e.path())
+        .collect();
+    files.sort();
+    let named = |suffix: &str| {
+        files.iter().find(|f| {
+            f.file_name()
+                .is_some_and(|n| n.to_string_lossy().to_lowercase().ends_with(suffix))
+        })
+    };
+    if let Some(name) = named("_info.txt")
+        .and_then(|f| read_head(f))
+        .and_then(|t| info_name(&t))
+    {
+        return Some(name);
+    }
+    if let Some(name) = named("_report.txt")
+        .and_then(|f| read_head(f))
+        .and_then(|t| report_name(&t))
+    {
+        return Some(name);
+    }
+    named(".gpkg").and_then(|f| geopackage_layer(f))
+}
+
+/// The first 64 KiB of a text file (hostile: never more).
+fn read_head(path: &Path) -> Option<String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .ok()?
+        .take(64 << 10)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// `| Name:            vRoad__64_fixed      |` of `v.info`.
+fn info_name(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let rest = line
+            .trim()
+            .trim_start_matches('|')
+            .trim()
+            .strip_prefix("Name:")?;
+        Some(rest.trim().trim_end_matches('|').trim().to_owned())
+    })
+}
+
+/// `|MAP: title (rLandCoverMerged__demo in demo)   |` of `r.report`: the
+/// first word of the last parenthesis. `r.report` cuts lines at 79
+/// characters (`(rPopulationResidual__demo_patients i|`): the name counts
+/// only when a space or the closing parenthesis shows where it ends.
+fn report_name(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let rest = line.trim().trim_start_matches('|').strip_prefix("MAP:")?;
+        let rest = rest.trim_end();
+        let rest = rest.strip_suffix('|').unwrap_or(rest);
+        let inner = rest.get(rest.rfind('(')? + 1..)?;
+        let end = inner.find(|c: char| c.is_whitespace() || c == ')')?;
+        let name = inner.get(..end)?;
+        (!name.is_empty()).then(|| name.to_owned())
+    })
+}
+
+/// The single layer of a GeoPackage, opened with the GeoPackage driver only.
+fn geopackage_layer(path: &Path) -> Option<String> {
+    use gdal::vector::LayerAccess;
+    let options = gdal::DatasetOptions {
+        open_flags: gdal::GdalOpenFlags::GDAL_OF_VECTOR | gdal::GdalOpenFlags::GDAL_OF_READONLY,
+        allowed_drivers: Some(&["GPKG"]),
+        ..gdal::DatasetOptions::default()
+    };
+    let dataset = gdal::Dataset::open_ex(path, options).ok()?;
+    if dataset.layer_count() != 1 {
+        return None;
+    }
+    dataset.layer(0).ok().map(|l| l.name())
+}
+
+/// A GRASS name `class__tag1_tag2` of a known AccessMod 5 class, read.
+pub fn parse_grass_name(name: &str) -> Option<Name> {
+    let (code, tags) = name.split_once("__")?;
+    let labels: Vec<Label> = serde_json::from_str(LABELS).unwrap_or_default();
+    let label = labels.into_iter().find(|l| l.class == code)?;
+    let tags = normalize_tags(&tags.split('_').collect::<Vec<_>>());
+    if tags.is_empty() {
+        return None;
+    }
+    Some(Name {
+        code: label.class,
+        kind: label.kind,
+        tags,
+    })
+}
+
 /// A dataset of an archive to import.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
@@ -264,7 +369,13 @@ pub fn scan(root: &Path) -> Result<Contents> {
             skip(&name, "not a dataset directory".to_owned());
             continue;
         }
-        let readings = parse_names(&name);
+        // The GRASS name AccessMod 5 wrote beside the data is exact; the
+        // directory name (translated label and tags) is read otherwise.
+        let (readings, from_metadata) =
+            match grass_name(&path).as_deref().and_then(parse_grass_name) {
+                Some(exact) => (vec![exact], true),
+                None => (parse_names(&name), false),
+            };
         let Some(first) = readings.first() else {
             skip(&name, "no AccessMod 5 data class in its name".to_owned());
             continue;
@@ -289,7 +400,7 @@ pub fn scan(root: &Path) -> Result<Contents> {
             );
             continue;
         };
-        if usable.next().is_some() {
+        if usable.next().is_some() && !from_metadata {
             ambiguous.push(name.clone());
         }
         let parsed = parsed.clone();
@@ -698,6 +809,61 @@ mod tests {
             ]
         );
         assert_eq!(codes("vector_road_demo"), [pair("vRoad", "demo")]);
+    }
+
+    #[test]
+    fn grass_names_are_exact() {
+        let read = |n: &str| parse_grass_name(n).map(|n| (n.code, n.tags.join(" ")));
+        let pair = |c: &str, t: &str| Some((c.to_owned(), t.to_owned()));
+        assert_eq!(read("vRoad__64_fixed"), pair("vRoad", "64 fixed"));
+        assert_eq!(
+            read("rLandCover__merged_demo"),
+            pair("rLandCover", "merged demo")
+        );
+        assert_eq!(
+            read("lAnalysisParameters__ca"),
+            pair("lAnalysisParameters", "ca")
+        );
+        for wrong in ["nonsense", "xYz__a", "rDem__", "rDem__ _", "", "__"] {
+            assert_eq!(read(wrong), None, "{wrong:?}");
+        }
+    }
+
+    #[test]
+    fn grass_names_come_from_v_info_and_r_report() {
+        let info = " +-------------+\n | Name:            vRoad__64_fixed                 |\n | Mapset:          demo  |\n";
+        assert_eq!(info_name(info).as_deref(), Some("vRoad__64_fixed"));
+        let report = "|MASK: none |\n|MAP: Land (cover) merged (rLandCoverMerged__demo in demo)          |\n";
+        assert_eq!(
+            report_name(report).as_deref(),
+            Some("rLandCoverMerged__demo")
+        );
+        // Cut at 79 characters: the space still ends the name.
+        let cut = "|MAP: rPopulationResidual__demo_patients (rPopulationResidual__demo_patients i|";
+        assert_eq!(
+            report_name(cut).as_deref(),
+            Some("rPopulationResidual__demo_patients")
+        );
+        // Cut inside the name: not read.
+        let cut = "|MAP: rPopulationResidual__demo_patients (rPopulationResidual__demo_patie|";
+        assert_eq!(report_name(cut), None);
+        for garbage in [
+            "",
+            "MAP:",
+            "|MAP: (",
+            "|MAP: x (y)",
+            "Name:",
+            "\u{0}\u{ff}MAP: )(",
+        ] {
+            assert!(
+                report_name(garbage).is_none_or(|n| parse_grass_name(&n).is_none()),
+                "{garbage:?}"
+            );
+            assert!(
+                info_name(garbage).is_none_or(|n| parse_grass_name(&n).is_none()),
+                "{garbage:?}"
+            );
+        }
     }
 
     #[test]
