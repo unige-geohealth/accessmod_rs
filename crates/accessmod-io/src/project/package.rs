@@ -177,6 +177,13 @@ impl Project {
         // not run outputs.
         copy.execute("DELETE FROM datasets WHERE state != 'ready'", [])
             .map_err(Error::database(snapshot))?;
+        // Unfinished runs stay behind: this export itself, and analyses whose
+        // outputs are partial (imported, they would only read "interrupted").
+        copy.execute_batch(
+            "DELETE FROM runs WHERE status IN ('queued', 'running');
+             DELETE FROM run_inputs WHERE run NOT IN (SELECT id FROM runs);",
+        )
+        .map_err(Error::database(snapshot))?;
         if !results {
             copy.execute(
                 "DELETE FROM datasets WHERE file NOT LIKE ?1",

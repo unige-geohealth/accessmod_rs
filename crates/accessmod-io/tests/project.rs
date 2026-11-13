@@ -471,6 +471,46 @@ fn run_registers_outputs_as_datasets() {
     assert_eq!(project.run_record(1).expect("run").inputs, [1, 2]);
 }
 
+/// Runs queued or running when the project is exported (the export's own
+/// run among them) are left out of the file: imported, they would only
+/// read "interrupted".
+#[test]
+fn project_files_leave_unfinished_runs_out() {
+    use accessmod_io::archive::Limits;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let run = project
+        .run_named(
+            "travel-time",
+            &travel_time_job(),
+            &[],
+            false,
+            &settings(64 << 20, 1),
+            Monitor::QUIET,
+        )
+        .expect("run");
+    project
+        .start_named("travel-time", &travel_time_job(), &[], false)
+        .expect("queue");
+    let file = project
+        .export_package(&dir.path().join("exports"), true, Monitor::QUIET)
+        .expect("export");
+    let copy = Project::import_package(
+        &file,
+        &dir.path().join("copy"),
+        Limits::default(),
+        Monitor::QUIET,
+    )
+    .expect("import");
+    let runs = copy.runs().expect("runs");
+    assert_eq!(
+        runs.iter().map(|r| r.id).collect::<Vec<_>>(),
+        [run.id],
+        "{runs:?}"
+    );
+}
+
 #[test]
 fn project_files_round_trip_with_or_without_results() {
     use accessmod_io::archive::{Entry, Limits, Source};
