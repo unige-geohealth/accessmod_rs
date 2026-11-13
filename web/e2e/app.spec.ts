@@ -157,6 +157,10 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   // An AccessMod 5 data archive (Data manager › Archive) becomes a project too.
   await sidebar(page, "Project").click();
   await panel(page, "New / Import").click();
+  await page.getByRole("button", { name: "AccessMod 5 archive" }).click();
+  await expect(page.getByText("A .zip from AccessMod 5")).toBeVisible();
+  await shot(page, "project-import-supported");
+  await page.keyboard.press("Escape");
   await page.getByLabel("Enter a new project name (min 4 characters)").fill("From AccessMod 5");
   await page.locator("input[type=file]").setInputFiles(am5Archive);
   await expect(page.locator("aside")).toContainText("From AccessMod 5", { timeout: 60_000 });
@@ -175,4 +179,8 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
   await expect(page).toHaveURL(/#\/_\/project/);
   await expect(page.getByText("Supprimé : From AccessMod 5")).toBeVisible();
+  await choose(page, "Sélectionnez le projet à supprimer", "Tutorial copy");
+  await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
+  await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
+  await expect(page.getByText("Supprimé : Tutorial copy")).toBeVisible();
 });

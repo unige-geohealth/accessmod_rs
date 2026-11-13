@@ -111,6 +111,7 @@ npm -w @accessmod/ui run build
 | `Callout` | `.callout-info` | blocking empty state ("Please add …") |
 | `MessageList` | validation output | Issue(s) / Information lists |
 | `InfoList` | Data › Import notes | bullet notes with an info icon |
+| `InfoTip` | — | (i) after a short label, its explanation in a bubble on click or tap ("Supported: AccessMod 5 archive (i)") |
 | `AmButton` | `.btn` | `default`, `primary`, `danger` (Delete; Compute while blocked, `primary` once it can run); `block` for full width |
 | `FilePicker` | Shiny `fileInput` buttons | "Choose and import data", "Choose DEM or project": an `AmButton` opening the browser file picker |
 | `ConfirmDialog` | `amUpdateModal` | "Confirmation" modal before a deletion: [Cancel] and the danger action |

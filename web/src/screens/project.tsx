@@ -5,7 +5,7 @@ import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
 import { CheckboxField, SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
-import { AmButton, Callout, FilePicker, LinkActions } from "@accessmod/ui/am/messages";
+import { AmButton, Callout, FilePicker, InfoTip, LinkActions } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
 import { useI18n } from "@accessmod/ui/i18n";
@@ -131,7 +131,10 @@ function NewPanel() {
       <TextField label="project_new_name_text" value={name} onChange={setName} />
       {!validName(name) && <p className="text-xs text-muted-foreground">{t("project_new_name_unlock_dem")}</p>}
       <FilePicker block multiple k="project_import_btn" accept={`${ACCEPT.raster},.am6p,.zip`} disabled={!validName(name) || busy} onFiles={create} />
-      <p className="text-xs text-muted-foreground">{t("project.import_am5_hint")}</p>
+      <p className="text-xs text-muted-foreground">
+        {t("project.import_supported")} {t("project.import_am5")} <InfoTip k="project.import_am5_hint" label="project.import_am5" />, {t("project.import_am6")}{" "}
+        <InfoTip k="project.import_am6_hint" label="project.import_am6" />
+      </p>
       <TransferStatus transfer={state} doneKey="data.imported" />
     </div>
   );

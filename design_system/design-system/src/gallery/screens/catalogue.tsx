@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Callout, AmButton, FilePicker, InfoList, LinkActions, MessageList } from "#ui/components/am/messages";
+import { Callout, AmButton, FilePicker, InfoList, InfoTip, LinkActions, MessageList } from "#ui/components/am/messages";
 import { ConfirmDialog } from "#ui/components/am/confirm-dialog";
 import { MessageDialog } from "#ui/components/am/message-dialog";
 import { CheckboxField, RadioField, SelectField, TextField } from "#ui/components/am/form";
@@ -93,6 +93,9 @@ export function Catalogue() {
           <AmButton variant="danger" k="analysis_validation_compute_btn" />
           <AmButton variant="danger" disabled k="analysis_validation_compute_btn" />
           <FilePicker k="project_import_btn" accept=".tif" onFiles={() => {}} />
+          <span className="text-xs text-muted-foreground">
+            <T k="project.import_am5" /> <InfoTip k="project.import_am5_hint" label="project.import_am5" />
+          </span>
           <AmButton variant="danger" k="data_delete_permanently" onClick={() => setConfirming(true)} />
           <ConfirmDialog open={confirming} onOpenChange={setConfirming} confirm="data_delete_permanently" onConfirm={() => {}}>
             <T k="data_delete_warning" />

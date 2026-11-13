@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { Popover } from "radix-ui";
 import { type ComponentProps, type ReactNode, useRef } from "react";
-import { type Key, T } from "#ui/i18n";
+import { type Key, T, useI18n } from "#ui/i18n";
 import { cn } from "#ui/lib/utils";
 import { type IconName, icons } from "./icons";
 
@@ -10,6 +11,33 @@ export function Callout({ k, children, className }: { k?: Key; children?: ReactN
     <p className={cn("mb-5 border-l-[5px] border-callout-border bg-callout px-[15px] py-[15px] text-callout-foreground", className)}>
       {k ? <T k={k} /> : children}
     </p>
+  );
+}
+
+/** An (i) after a short label: its explanation in a bubble, opened by a
+ * click, a tap or the keyboard (a tooltip would hide it on touch screens). */
+export function InfoTip({ k, label }: { k: Key; label: Key }) {
+  const { t } = useI18n();
+  const Icon = icons.info;
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        className="inline-flex size-4 items-center justify-center rounded-full align-middle text-link hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        aria-label={t(label)}
+      >
+        <Icon className="size-3.5" aria-hidden />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          sideOffset={4}
+          className="z-50 max-w-xs rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md"
+        >
+          <T k={k} />
+          <Popover.Arrow className="fill-popover" />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 

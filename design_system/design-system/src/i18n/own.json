@@ -377,11 +377,35 @@
     "es": "Guardado: %s",
     "pt": "Salvo: %s"
   },
+  "project.import_supported": {
+    "en": "Supported:",
+    "fr": "Supporté :",
+    "es": "Admitido:",
+    "pt": "Suportado:"
+  },
+  "project.import_am5": {
+    "en": "AccessMod 5 archive",
+    "fr": "archive AccessMod 5",
+    "es": "archivo AccessMod 5",
+    "pt": "arquivo AccessMod 5"
+  },
   "project.import_am5_hint": {
-    "en": "Coming from AccessMod 5? In AccessMod 5, Data manager: select all the data with the DEM, create an archive and export it, then choose that .zip here.",
-    "fr": "Vous venez d'AccessMod 5 ? Dans AccessMod 5, Gestion des données : sélectionnez toutes les données avec le MNT, créez une archive et exportez-la, puis choisissez ce .zip ici.",
-    "es": "¿Viene de AccessMod 5? En AccessMod 5, Gestión de datos: seleccione todos los datos con el MDE, cree un archivo y expórtelo, luego elija ese .zip aquí.",
-    "pt": "Vem do AccessMod 5? No AccessMod 5, Gestão de dados: selecione todos os dados com o MDE, crie um arquivo e exporte-o, depois escolha esse .zip aqui."
+    "en": "A .zip from AccessMod 5: in Data manager, select all the data with the DEM, then create and export an archive.",
+    "fr": "Un .zip d'AccessMod 5 : dans Gestion des données, sélectionnez toutes les données avec le MNT, puis créez et exportez une archive.",
+    "es": "Un .zip de AccessMod 5: en Gestión de datos, seleccione todos los datos con el MDE, luego cree y exporte un archivo.",
+    "pt": "Um .zip do AccessMod 5: em Gestão de dados, selecione todos os dados com o MDE, depois crie e exporte um arquivo."
+  },
+  "project.import_am6": {
+    "en": "AccessMod 6 project",
+    "fr": "projet AccessMod 6",
+    "es": "proyecto AccessMod 6",
+    "pt": "projeto AccessMod 6"
+  },
+  "project.import_am6_hint": {
+    "en": "A project file (.am6p), written by Project › Export.",
+    "fr": "Un fichier de projet (.am6p), écrit par Projet › Exporter.",
+    "es": "Un archivo de proyecto (.am6p), escrito por Proyecto › Exportar.",
+    "pt": "Um arquivo de projeto (.am6p), escrito por Projeto › Exportar."
   },
   "analysis.id_field_missing": {
     "en": "Select the facilities ID field.",
