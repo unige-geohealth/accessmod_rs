@@ -1,0 +1,14 @@
+{
+  "preset": "osm_facilities",
+  "version": 1,
+  "status": "starting point only: OpenStreetMap is incomplete; replace with an official list (ministry, HeRAMS)",
+  "source": "OpenStreetMap (HOT export, health facilities points and polygons), ODbL",
+  "keep": {
+    "amenity": ["hospital", "clinic", "doctors", "health_post"],
+    "healthcare": ["hospital", "clinic", "centre", "doctor", "health_post"]
+  },
+  "fields": ["osm_id", "name", "amenity", "healthcare"],
+  "polygons": "centroid",
+  "capacity": "none (never invented)",
+  "snapping": "none: facilities on barriers are listed in the build report"
+}

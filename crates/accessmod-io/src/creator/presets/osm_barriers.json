@@ -1,0 +1,12 @@
+{
+  "preset": "osm_barriers",
+  "version": 1,
+  "status": "provisional: to be reviewed before release",
+  "source": "OpenStreetMap (HOT export, waterways lines), ODbL",
+  "rules": [
+    { "label": "River", "waterway": ["river"] },
+    { "label": "Canal", "waterway": ["canal"] }
+  ],
+  "excluded": { "waterway": ["stream", "ditch", "drain", "brook", "dam", "weir", "lock_gate", "waterfall"] },
+  "crossings": "Merge land cover removes barrier cells under roads only where AccessMod 5's bridge rule says so (clean_bridges)"
+}

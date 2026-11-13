@@ -1,0 +1,21 @@
+{
+  "preset": "worldcover",
+  "version": 1,
+  "status": "provisional: speeds to be reviewed before release",
+  "product": "ESA WorldCover 10 m v200 (2021)",
+  "resampling": "mode",
+  "nodata": 0,
+  "classes": [
+    { "value": 10, "label": "Tree cover", "mode": "walking", "speed_kmh": 3.0 },
+    { "value": 20, "label": "Shrubland", "mode": "walking", "speed_kmh": 4.0 },
+    { "value": 30, "label": "Grassland", "mode": "walking", "speed_kmh": 5.0 },
+    { "value": 40, "label": "Cropland", "mode": "walking", "speed_kmh": 4.0 },
+    { "value": 50, "label": "Built-up", "mode": "walking", "speed_kmh": 5.0 },
+    { "value": 60, "label": "Bare / sparse vegetation", "mode": "walking", "speed_kmh": 4.0 },
+    { "value": 70, "label": "Snow and ice", "mode": "walking", "speed_kmh": 1.0 },
+    { "value": 80, "label": "Permanent water bodies", "mode": "walking", "speed_kmh": 0.0 },
+    { "value": 90, "label": "Herbaceous wetland", "mode": "walking", "speed_kmh": 1.0, "review": "barrier or slow walking?" },
+    { "value": 95, "label": "Mangroves", "mode": "walking", "speed_kmh": 0.5, "review": "barrier or slow walking?" },
+    { "value": 100, "label": "Moss and lichen", "mode": "walking", "speed_kmh": 3.0 }
+  ]
+}
