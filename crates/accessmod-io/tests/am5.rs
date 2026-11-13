@@ -108,6 +108,16 @@ fn archive_imports_with_classes_tags_and_report() {
     assert!(report.skipped[0].reason.contains("not imported"));
     assert!(report.warnings.iter().any(|w| w.contains("10 characters")));
     assert!(report.warnings.iter().any(|w| w.contains("minutes")));
+    // `raster_land_cover_merged_demo` also reads as a land cover tagged
+    // `merged demo`: imported as the longer label, and said.
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("another class") && w.contains("raster_land_cover_merged_demo")),
+        "{:?}",
+        report.warnings
+    );
 
     let datasets = project.datasets(None).expect("datasets");
     let of = |class: DataClass| datasets.iter().find(|d| d.class == class).expect("dataset");
@@ -305,6 +315,48 @@ fn misfits_refuse_the_whole_archive() {
     assert!(left.is_empty(), "{left:?}");
 }
 
+/// A class this engine has not (`rLandCoverBridge`) gives way to the next
+/// reading of the name: a merged land cover tagged `bridge …`.
+#[test]
+fn names_of_unused_classes_read_as_the_next_label() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let renamed = variant(
+        dir.path(),
+        "bridge.zip",
+        |n| {
+            Some(n.replace(
+                "raster_land_cover_merged_demo/",
+                "raster_land_cover_merged_bridge_x/",
+            ))
+        },
+        &[],
+    );
+    let (project, _) = import(&renamed, &dir.path().join("p")).expect("import");
+    let merged = project
+        .datasets(Some(DataClass::LandCoverMerged))
+        .expect("datasets");
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].tags, ["bridge", "x"]);
+}
+
+/// A dataset directory without its main file (a shapefile without
+/// `.shp`) refuses the archive: whole or nothing.
+#[test]
+fn damaged_datasets_refuse_the_archive() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let damaged = variant(
+        dir.path(),
+        "damaged.zip",
+        |n| (!n.ends_with("vector_facility_demo.shp")).then(|| n.to_owned()),
+        &[],
+    );
+    let target = dir.path().join("p");
+    let error = import(&damaged, &target).expect_err("damaged").to_string();
+    assert!(error.contains("vector_facility_demo"), "{error}");
+    assert!(error.contains("no vector file"), "{error}");
+    assert!(!target.exists());
+}
+
 #[test]
 fn archives_zipped_from_a_folder_import_too() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -318,8 +370,9 @@ fn archives_zipped_from_a_folder_import_too() {
     assert_eq!(project.datasets(None).unwrap().len(), 9);
 }
 
-/// The whole archive of the AccessMod 5 demo, when `ACCESSMOD_AM5_ARCHIVE`
-/// names one: every dataset but the analysis parameters imports.
+/// The whole archive of the AccessMod 5 demo project, when
+/// `ACCESSMOD_AM5_ARCHIVE` names one: every dataset but the analysis
+/// parameters imports, the demo inputs among them.
 #[test]
 fn full_archive_imports() {
     let Some(archive) = std::env::var_os("ACCESSMOD_AM5_ARCHIVE").map(PathBuf::from) else {
@@ -328,7 +381,27 @@ fn full_archive_imports() {
     };
     let dir = tempfile::tempdir().expect("tempdir");
     let (project, report) = import(&archive, &dir.path().join("p")).expect("import");
-    assert_eq!(project.datasets(None).unwrap().len(), report.imported);
+    let datasets = project.datasets(None).unwrap();
+    assert_eq!(datasets.len(), report.imported);
+    for class in [
+        DataClass::Dem,
+        DataClass::LandCover,
+        DataClass::LandCoverMerged,
+        DataClass::Population,
+        DataClass::Facility,
+        DataClass::Road,
+        DataClass::Barrier,
+        DataClass::Zone,
+        DataClass::Scenario,
+        DataClass::LandCoverTable,
+        DataClass::TravelTime,
+        DataClass::Catchment,
+    ] {
+        assert!(
+            datasets.iter().any(|d| d.class == class),
+            "no {class:?} imported"
+        );
+    }
     assert!(
         report.skipped.iter().all(|s| s.name.starts_with("config_")),
         "{:?}",

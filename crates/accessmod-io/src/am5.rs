@@ -102,10 +102,19 @@ pub struct Name {
 }
 
 /// Read the directory name `name` of an archive; `None` when it names no
-/// AccessMod 5 class.
+/// AccessMod 5 class. The longest label wins: see [`parse_names`].
 pub fn parse_name(name: &str) -> Option<Name> {
+    parse_names(name).into_iter().next()
+}
+
+/// Every reading of the directory name `name`, longest label first, one per
+/// class. AccessMod 5 joins label and tags with `_` like the words of a
+/// label: `raster_land_cover_merged_demo` is a merged land cover tagged
+/// `demo`, or a land cover tagged `merged demo`.
+pub fn parse_names(name: &str) -> Vec<Name> {
     let lower = name.to_lowercase();
-    prefixes().into_iter().find_map(|(prefix, code, kind)| {
+    let mut out: Vec<Name> = Vec::new();
+    for found in prefixes().into_iter().filter_map(|(prefix, code, kind)| {
         let rest = if lower == prefix {
             ""
         } else {
@@ -124,7 +133,12 @@ pub fn parse_name(name: &str) -> Option<Name> {
             kind,
             tags: normalize_tags(&rest.split('_').collect::<Vec<_>>()),
         })
-    })
+    }) {
+        if !out.iter().any(|n| n.code == found.code) {
+            out.push(found);
+        }
+    }
+    out
 }
 
 /// A dataset of an archive to import.
@@ -158,6 +172,10 @@ pub struct Contents {
     pub datasets: Vec<Entry>,
     /// What is left out.
     pub skipped: Vec<Skipped>,
+    /// Datasets whose name also reads as another class.
+    pub ambiguous: Vec<String>,
+    /// Datasets that cannot be imported, with why: the archive is refused.
+    pub misfits: Vec<String>,
 }
 
 /// Extensions read for a kind, preferred first: GeoPackage keeps column
@@ -233,6 +251,8 @@ pub fn scan(root: &Path) -> Result<Contents> {
     let mut dems = Vec::new();
     let mut datasets: Vec<Entry> = Vec::new();
     let mut skipped = Vec::new();
+    let mut ambiguous = Vec::new();
+    let mut misfits = Vec::new();
     let mut skip = |name: &str, reason: String| {
         skipped.push(Skipped {
             name: name.to_owned(),
@@ -244,26 +264,40 @@ pub fn scan(root: &Path) -> Result<Contents> {
             skip(&name, "not a dataset directory".to_owned());
             continue;
         }
-        let Some(parsed) = parse_name(&name) else {
+        let readings = parse_names(&name);
+        let Some(first) = readings.first() else {
             skip(&name, "no AccessMod 5 data class in its name".to_owned());
             continue;
         };
-        if parsed.kind == "config" {
+        if first.kind == "config" {
             skip(
                 &name,
                 "AccessMod 5 analysis parameters (replay) are not imported".to_owned(),
             );
             continue;
         }
-        let Some(class) = DataClass::from_code(&parsed.code) else {
+        // The longest label of a class used here; a shorter one is the
+        // same name read with more tags.
+        let mut usable = readings
+            .iter()
+            .filter(|r| r.kind != "config")
+            .filter_map(|r| DataClass::from_code(&r.code).map(|c| (c, r)));
+        let Some((class, parsed)) = usable.next() else {
             skip(
                 &name,
-                format!("AccessMod 5 class {} is not used here", parsed.code),
+                format!("AccessMod 5 class {} is not used here", first.code),
             );
             continue;
         };
+        if usable.next().is_some() {
+            ambiguous.push(name.clone());
+        }
+        let parsed = parsed.clone();
         let Some(file) = pick(&path, class.kind()) else {
-            skip(&name, format!("no {} file in it", kind_name(class.kind())));
+            misfits.push(format!(
+                "- {name}: no {} file in it (damaged archive?)",
+                kind_name(class.kind())
+            ));
             continue;
         };
         let entry = Entry {
@@ -303,6 +337,8 @@ pub fn scan(root: &Path) -> Result<Contents> {
         dem,
         datasets,
         skipped,
+        ambiguous,
+        misfits,
     })
 }
 
@@ -510,6 +546,13 @@ fn build(
             list(&minutes)
         ));
     }
+    if !contents.ambiguous.is_empty() {
+        let names: Vec<&str> = contents.ambiguous.iter().map(String::as_str).collect();
+        warnings.push(format!(
+            "names that also read as another class with more tags (check class and tags): {}",
+            list(&names)
+        ));
+    }
     let report = Report {
         imported: contents.datasets.len() + 1,
         skipped: contents.skipped,
@@ -525,7 +568,7 @@ fn check(contents: &Contents, monitor: Monitor<'_>) -> Result<()> {
         .and_then(|()| GridSpec::open_dem(&contents.dem.file))
         .map(|(_, grid)| grid)
         .map_err(|e| named(&contents.dem.name, e))?;
-    let mut misfits = Vec::new();
+    let mut misfits = contents.misfits.clone();
     for entry in &contents.datasets {
         if monitor.is_cancelled() {
             return Err(Error::Cancelled);
@@ -628,6 +671,33 @@ mod tests {
         }
         assert_eq!(parse_name("readme"), None);
         assert_eq!(parse_name("raster_land_coverage"), None);
+    }
+
+    #[test]
+    fn names_read_as_every_class_whose_label_prefixes_them() {
+        let codes = |name: &str| {
+            parse_names(name)
+                .into_iter()
+                .map(|n| (n.code, n.tags.join(" ")))
+                .collect::<Vec<_>>()
+        };
+        let pair = |c: &str, t: &str| (c.to_owned(), t.to_owned());
+        assert_eq!(
+            codes("raster_land_cover_merged_demo"),
+            [
+                pair("rLandCoverMerged", "demo"),
+                pair("rLandCover", "merged demo")
+            ]
+        );
+        assert_eq!(
+            codes("raster_land_cover_merged_bridge_demo"),
+            [
+                pair("rLandCoverBridge", "demo"),
+                pair("rLandCoverMerged", "bridge demo"),
+                pair("rLandCover", "merged bridge demo")
+            ]
+        );
+        assert_eq!(codes("vector_road_demo"), [pair("vRoad", "demo")]);
     }
 
     #[test]

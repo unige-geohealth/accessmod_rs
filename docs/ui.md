@@ -255,10 +255,12 @@ Metadata in SQLite, data in files:
   archive AccessMod 5 already writes (Data manager › Archive), imported by
   `project.import` as a new project (`accessmod_io::am5`). Each directory
   is named from type, class label (in the user's language) and tags; the
-  class is the longest label of any language that prefixes the name. One
-  DEM is required; every file must be self-contained and every raster on
-  the DEM lattice, else nothing is imported and the report names each
-  misfit. Outputs come too (AccessMod 5 travel times, in minutes, are stored
+  class is the longest label of any language that prefixes the name and
+  names a class used here (a name that also reads as another class with
+  more tags is imported and named in a warning). One DEM is required; every
+  dataset directory must hold its file, every file be self-contained and
+  every raster lie on the DEM lattice, else nothing is imported and the
+  report names each misfit. Outputs come too (AccessMod 5 travel times, in minutes, are stored
   in seconds); analysis parameters (AccessMod 5 replay) are left out.
 
 ### Client

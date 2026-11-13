@@ -518,13 +518,24 @@ fn copy_vector(
     // SAFETY: pure functions on geometry type codes.
     let flat = |t| unsafe { gdal_sys::OGR_GT_Flatten(t) };
     let collection = unsafe { gdal_sys::OGR_GT_GetCollection(kind) };
-    let promote = dataset.driver().short_name() == "ESRI Shapefile"
+    let mut promote = false;
+    if dataset.driver().short_name() == "ESRI Shapefile"
         && collection != OGRwkbGeometryType::wkbUnknown
         && flat(collection) != flat(kind)
-        && layer.features().any(|f| {
-            f.geometry()
+    {
+        for (index, feature) in layer.features().enumerate() {
+            if index % 1024 == 0 && cancelled() {
+                return Err(Error::Cancelled);
+            }
+            if feature
+                .geometry()
                 .is_some_and(|g| flat(g.geometry_type()) == flat(collection))
-        });
+            {
+                promote = true;
+                break;
+            }
+        }
+    }
     let kind = if promote { collection } else { kind };
     let field_refs: Vec<(&str, gdal::vector::OGRFieldType::Type)> =
         fields.iter().map(|(n, t)| (n.as_str(), *t)).collect();
