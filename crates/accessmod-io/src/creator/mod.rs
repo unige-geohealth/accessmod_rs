@@ -94,8 +94,14 @@ pub enum Crs {
 pub struct Sources {
     /// DEM tiles (one product, one lattice).
     pub dem: Vec<PathBuf>,
-    /// Land cover tiles (ESA WorldCover classes).
+    /// Land cover tiles; none: no land cover (nothing to merge).
+    #[serde(default)]
     pub land_cover: Vec<PathBuf>,
+    /// Whether the land cover holds ESA WorldCover classes: its labels and
+    /// default scenario come from the preset. A land cover of your own has
+    /// its classes and scenario set in the project.
+    #[serde(default = "yes")]
+    pub land_cover_worldcover: bool,
     /// Population count rasters (one per country).
     #[serde(default)]
     pub population: Vec<PathBuf>,
@@ -105,9 +111,39 @@ pub struct Sources {
     /// OSM waterways (`waterway`, `name`, `osm_id`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waterways: Option<PathBuf>,
-    /// OSM health facilities (`amenity`, `healthcare`, `name`, `osm_id`).
+    /// Health facilities.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub facilities: Option<PathBuf>,
+    pub facilities: Option<FacilitySource>,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// Where facilities come from.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum FacilitySource {
+    /// A list of your own (ministry, HeRAMS…): every feature in the region
+    /// is kept, with all its fields; `id_field` identifies facilities.
+    List {
+        /// Point (or polygon) layer file.
+        path: PathBuf,
+        /// Field holding facility identifiers.
+        id_field: String,
+    },
+    /// OpenStreetMap (HOT export layout: `amenity`, `healthcare`, `name`,
+    /// `osm_id`), filtered by the preset: a starting point, often
+    /// incomplete.
+    Osm(PathBuf),
+}
+
+impl FacilitySource {
+    fn path(&self) -> &PathBuf {
+        match self {
+            FacilitySource::List { path, .. } | FacilitySource::Osm(path) => path,
+        }
+    }
 }
 
 /// What to build.
@@ -147,10 +183,15 @@ impl Recipe {
             .chain(&mut s.land_cover)
             .chain(&mut s.population)
             .for_each(fix);
-        [&mut s.roads, &mut s.waterways, &mut s.facilities]
+        [&mut s.roads, &mut s.waterways]
             .into_iter()
             .flatten()
             .for_each(fix);
+        if let Some(FacilitySource::List { path, .. } | FacilitySource::Osm(path)) =
+            &mut s.facilities
+        {
+            fix(path);
+        }
         if let Area::Path(p) = &mut self.area {
             fix(p);
         }
@@ -208,6 +249,11 @@ pub struct Manifest {
     pub features: Vec<(String, u64)>,
     /// What the user should know.
     pub warnings: Vec<String>,
+    /// Whether a travel time computes at once (merged land cover, scenario,
+    /// facilities, saved job checked).
+    pub ready: bool,
+    /// What is missing for it, otherwise.
+    pub not_ready: Vec<String>,
 }
 
 /// [`Distortion`] for the manifest.
@@ -568,9 +614,10 @@ pub fn build(
     if !(recipe.buffer_m.is_finite() && recipe.buffer_m >= 0.0) {
         return Err(Error::invalid("buffer_m must be 0 or more metres"));
     }
-    if recipe.sources.dem.is_empty() || recipe.sources.land_cover.is_empty() {
-        return Err(Error::invalid("a DEM and a land cover are needed"));
+    if recipe.sources.dem.is_empty() {
+        return Err(Error::invalid("a DEM is needed: it defines the grid"));
     }
+    let has_land_cover = !recipe.sources.land_cover.is_empty();
     let presets = Presets::shipped()?;
     let cancelled = monitor.cancelled();
     monitor.stage(STAGE_GRID);
@@ -677,19 +724,25 @@ pub fn build(
             threads,
             cancelled,
         )?;
-        let lc_nodata = presets.land_cover.nodata as f64;
-        warp_to_grid::<i32>(
-            &recipe.sources.land_cover,
-            &grid,
-            Resample::Mode,
-            &work("land_cover.tif"),
-            lc_nodata,
-            |v| v.round() as i32,
-            threads,
-            cancelled,
-        )?;
+        if has_land_cover {
+            let lc_nodata = presets.land_cover.nodata as f64;
+            warp_to_grid::<i32>(
+                &recipe.sources.land_cover,
+                &grid,
+                Resample::Mode,
+                &work("land_cover.tif"),
+                lc_nodata,
+                |v| v.round() as i32,
+                threads,
+                cancelled,
+            )?;
+        }
         // A tile missing under the region would leave silent holes.
-        for (name, file) in [("DEM", "dem.tif"), ("land cover", "land_cover.tif")] {
+        let mut checked = vec![("DEM", "dem.tif")];
+        if has_land_cover {
+            checked.push(("land cover", "land_cover.tif"));
+        }
+        for (name, file) in checked {
             let (inside, missing) = missing_inside(&work(file), &grid, &traversable, cancelled)?;
             if missing > 0 {
                 return Err(Error::invalid(format!(
@@ -850,7 +903,63 @@ pub fn build(
             rivers_file = (kept > 0).then_some(path);
         }
         let mut facilities_file = None;
-        if let Some(source) = &recipe.sources.facilities {
+        let mut facility_id = "osm_id".to_owned();
+        if let Some(FacilitySource::List {
+            path: source,
+            id_field,
+        }) = &recipe.sources.facilities
+        {
+            let input = VectorLayer::open(source, None, None, &grid, "facilities")?;
+            let fields: Vec<(String, gdal::vector::OGRFieldType::Type)> = {
+                let dataset = input.dataset()?;
+                let layer = input.layer(&dataset)?;
+                layer
+                    .defn()
+                    .fields()
+                    .map(|f| (f.name(), f.field_type()))
+                    .collect()
+            };
+            if !fields.iter().any(|(n, _)| n == id_field) {
+                return Err(Error::invalid(format!(
+                    "facilities: no field {id_field:?} (fields: {})",
+                    fields
+                        .iter()
+                        .map(|(n, _)| n.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )));
+            }
+            let refs: Vec<(&str, gdal::vector::OGRFieldType::Type)> =
+                fields.iter().map(|(n, t)| (n.as_str(), *t)).collect();
+            let path = work("facilities.fgb");
+            let kept = extract(
+                &input,
+                None,
+                &grid.srs,
+                OGRwkbGeometryType::wkbPoint,
+                &refs,
+                &path,
+                cancelled,
+                |feature, geometry| {
+                    let point = match gdal::vector::geometry_type_flatten(geometry.geometry_type())
+                    {
+                        OGRwkbGeometryType::wkbPoint => geometry,
+                        _ => centroid(&geometry)?,
+                    };
+                    if !traversable.intersects(&point) {
+                        return None;
+                    }
+                    let values = (0..fields.len())
+                        .map(|i| feature.field(i).ok().flatten())
+                        .collect();
+                    Some((point, values))
+                },
+            )?;
+            features.push(("facilities (list)".to_owned(), kept));
+            facility_id = id_field.clone();
+            facilities_file = (kept > 0).then_some(path);
+        }
+        if let Some(FacilitySource::Osm(source)) = &recipe.sources.facilities {
             let input = VectorLayer::open(source, None, None, &grid, "facilities")?;
             let path = work("facilities.fgb");
             let mut seen = std::collections::HashSet::new();
@@ -896,7 +1005,13 @@ pub fn build(
                     ))
                 },
             )?;
-            features.push(("facilities".to_owned(), kept));
+            features.push(("facilities (OpenStreetMap)".to_owned(), kept));
+            if kept > 0 {
+                warnings.push(format!(
+                    "{kept} facilities come from OpenStreetMap: a starting point, often incomplete; \
+                     replace them with an official list"
+                ));
+            }
             facilities_file = (kept > 0).then_some(path);
         }
         // Reporting zones.
@@ -926,13 +1041,6 @@ pub fn build(
             writer.close()?;
         }
 
-        // Ready means a travel time can run (contract 7): it needs facilities.
-        if facilities_file.is_none() {
-            return Err(Error::invalid(
-                "no health facility in the region: give a facilities layer (an official list, \
-                 or OpenStreetMap where it has some)",
-            ));
-        }
         let mut files = Vec::new();
         for path in recipe
             .sources
@@ -942,7 +1050,7 @@ pub fn build(
             .chain(&recipe.sources.population)
             .chain(recipe.sources.roads.iter())
             .chain(recipe.sources.waterways.iter())
-            .chain(recipe.sources.facilities.iter())
+            .chain(recipe.sources.facilities.as_ref().map(FacilitySource::path))
             .chain(match &recipe.area {
                 Area::Path(p) => Some(p),
                 Area::Geojson(_) => None,
@@ -985,6 +1093,8 @@ pub fn build(
             population,
             features,
             warnings: warnings.clone(),
+            ready: false,
+            not_ready: Vec::new(),
         };
 
         // The project, whole or not at all.
@@ -1008,11 +1118,20 @@ pub fn build(
                         cancelled,
                     )
                 };
-                let lc = import(
-                    &work("land_cover.tif"),
-                    DataClass::LandCover,
-                    &["worldcover"],
-                )?;
+                let lc = if has_land_cover {
+                    let tag = if recipe.sources.land_cover_worldcover {
+                        "worldcover"
+                    } else {
+                        "land"
+                    };
+                    Some(import(
+                        &work("land_cover.tif"),
+                        DataClass::LandCover,
+                        &[tag],
+                    )?)
+                } else {
+                    None
+                };
                 if population.is_some() {
                     import(
                         &work("population.tif"),
@@ -1032,103 +1151,161 @@ pub fn build(
                     .as_deref()
                     .map(|p| import(p, DataClass::Barrier, &["outside", "region"]))
                     .transpose()?;
+                let facility_tags: &[&str] = match &recipe.sources.facilities {
+                    Some(FacilitySource::Osm(_)) => &["osm"],
+                    _ => &["list"],
+                };
                 let facilities = facilities_file
                     .as_deref()
-                    .map(|p| import(p, DataClass::Facility, &["osm"]))
+                    .map(|p| import(p, DataClass::Facility, facility_tags))
                     .transpose()?;
                 import(&zones_file, DataClass::Zone, &["area"])?;
+                let dem = project.dataset(project.info()?.dem)?;
+                let mut not_ready = Vec::new();
 
                 // Merge: the outside first, then rivers, roads, land cover.
-                monitor.stage(STAGE_MERGE);
-                let dem = project.dataset(project.info()?.dem)?;
-                let mut stack = Vec::new();
-                for barrier in [&outside, &rivers].into_iter().flatten() {
-                    stack.push(serde_json::json!({"type": "barrier", "path": barrier.file}));
-                }
-                if let Some(roads) = &roads {
-                    stack.push(serde_json::json!({"type": "road", "path": roads.file, "class_field": "road_class", "label_field": "label", "add_1000": true}));
-                }
-                let labels: Vec<serde_json::Value> = presets
-                    .land_cover
-                    .classes
-                    .iter()
-                    .map(|c| serde_json::json!({"class": c.value, "label": c.label}))
-                    .collect();
-                stack.push(
-                    serde_json::json!({"type": "land_cover", "path": lc.file, "labels": labels}),
-                );
-                let merge =
-                    serde_json::json!({"schema_version": 1, "dem": dem.file, "stack": stack});
-                let run = project.run_named(
-                    "merge-land-cover",
-                    &merge,
-                    &tags(&["creator"]),
-                    false,
-                    settings,
-                    monitor,
-                )?;
-                if run.status != crate::project::RunStatus::Done {
-                    return Err(Error::invalid(format!(
-                        "merge land cover: {}",
-                        run.outcome.unwrap_or_default()
-                    )));
-                }
-                let merged = run
-                    .datasets
-                    .iter()
-                    .filter_map(|&id| project.dataset(id).ok())
-                    .find(|d| d.class == DataClass::LandCoverMerged)
-                    .ok_or_else(|| Error::invalid("merge land cover wrote no merged land cover"))?;
-
-                // The scenario of the presets, and a travel-time job.
-                // Only the classes the merged land cover holds (when its
-                // classes are known), so the check warns about real issues.
-                let present: Option<Vec<i64>> = match &merged.summary {
-                    crate::project::Summary::Raster(p) => p
-                        .stats
-                        .values
-                        .as_ref()
-                        .map(|v| v.iter().map(|c| c.value).collect()),
-                    _ => None,
+                let merged = match &lc {
+                    None => {
+                        not_ready.push(
+                            "no land cover: import one, then run Merge land cover".to_owned(),
+                        );
+                        None
+                    }
+                    Some(lc) => {
+                        monitor.stage(STAGE_MERGE);
+                        let mut stack = Vec::new();
+                        for barrier in [&outside, &rivers].into_iter().flatten() {
+                            stack
+                                .push(serde_json::json!({"type": "barrier", "path": barrier.file}));
+                        }
+                        if let Some(roads) = &roads {
+                            stack.push(serde_json::json!({"type": "road", "path": roads.file, "class_field": "road_class", "label_field": "label", "add_1000": true}));
+                        }
+                        let labels: Vec<serde_json::Value> = if recipe.sources.land_cover_worldcover
+                        {
+                            presets
+                                .land_cover
+                                .classes
+                                .iter()
+                                .map(|c| serde_json::json!({"class": c.value, "label": c.label}))
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
+                        stack.push(serde_json::json!({"type": "land_cover", "path": lc.file, "labels": labels}));
+                        let merge = serde_json::json!({"schema_version": 1, "dem": dem.file, "stack": stack});
+                        let run = project.run_named(
+                            "merge-land-cover",
+                            &merge,
+                            &tags(&["creator"]),
+                            false,
+                            settings,
+                            monitor,
+                        )?;
+                        if run.status != crate::project::RunStatus::Done {
+                            return Err(Error::invalid(format!(
+                                "merge land cover: {}",
+                                run.outcome.unwrap_or_default()
+                            )));
+                        }
+                        Some(
+                            run.datasets
+                                .iter()
+                                .filter_map(|&id| project.dataset(id).ok())
+                                .find(|d| d.class == DataClass::LandCoverMerged)
+                                .ok_or_else(|| {
+                                    Error::invalid("merge land cover wrote no merged land cover")
+                                })?,
+                        )
+                    }
                 };
-                let holds = |class: i64| present.as_ref().is_none_or(|p| p.contains(&class));
-                let mut scenario: Vec<serde_json::Value> = presets
-                    .land_cover
-                    .classes
-                    .iter()
-                    .filter(|c| holds(c.value))
-                    .map(|c| serde_json::json!({"class": c.value, "mode": c.mode, "speed_kmh": c.speed_kmh, "label": c.label}))
-                    .collect();
-                if roads.is_some() {
-                    scenario.extend(
-                        presets
-                            .roads
-                            .rules
+
+                // The scenario of the presets (WorldCover classes, OSM road
+                // classes), limited to the classes the merged land cover holds.
+                let scenario: Option<Vec<serde_json::Value>> = match (
+                    &merged,
+                    recipe.sources.land_cover_worldcover,
+                ) {
+                    (Some(merged), true) => {
+                        let present: Option<Vec<i64>> = match &merged.summary {
+                            crate::project::Summary::Raster(p) => p
+                                .stats
+                                .values
+                                .as_ref()
+                                .map(|v| v.iter().map(|c| c.value).collect()),
+                            _ => None,
+                        };
+                        let holds =
+                            |class: i64| present.as_ref().is_none_or(|p| p.contains(&class));
+                        let mut scenario: Vec<serde_json::Value> = presets
+                            .land_cover
+                            .classes
                             .iter()
-                            .filter(|r| holds(r.class + 1000))
-                            .map(|r| serde_json::json!({"class": r.class + 1000, "mode": r.mode, "speed_kmh": r.speed_kmh, "label": r.label})),
+                            .filter(|c| holds(c.value))
+                            .map(|c| serde_json::json!({"class": c.value, "mode": c.mode, "speed_kmh": c.speed_kmh, "label": c.label}))
+                            .collect();
+                        if roads.is_some() {
+                            scenario.extend(
+                                presets
+                                    .roads
+                                    .rules
+                                    .iter()
+                                    .filter(|r| holds(r.class + 1000))
+                                    .map(|r| serde_json::json!({"class": r.class + 1000, "mode": r.mode, "speed_kmh": r.speed_kmh, "label": r.label})),
+                            );
+                        }
+                        Some(scenario)
+                    }
+                    (Some(_), false) => {
+                        not_ready.push(
+                            "your land cover's classes need a scenario (Analysis › Accessibility)"
+                                .to_owned(),
+                        );
+                        None
+                    }
+                    (None, _) => None,
+                };
+                if facilities.is_none() {
+                    not_ready.push(
+                        "no health facility in the region: import a list (ministry, HeRAMS…)"
+                            .to_owned(),
                     );
                 }
-                if let Some(facilities) = &facilities {
+                if let (Some(merged), Some(scenario), Some(facilities)) =
+                    (&merged, scenario, &facilities)
+                {
                     let job = serde_json::json!({
                         "schema_version": 1,
                         "dem": dem.file,
                         "land_cover": merged.file,
-                        "facilities": {"path": facilities.file, "id_field": "osm_id"},
+                        "facilities": {"path": facilities.file, "id_field": facility_id},
                         "scenario": scenario,
                         "method": "anisotropic",
                         "direction": "from_facilities",
                         "neighbourhood": 8,
-                        // OSM facilities on a barrier are listed, never
-                        // moved (contract 6): the job runs without them.
+                        // Facilities on a barrier are listed, never moved
+                        // (contract 6): the job runs without them.
                         "facility_issues": "skip"
                     });
-                    let warnings = project.check_named("travel-time", &job)?;
-                    manifest
-                        .warnings
-                        .extend(warnings.into_iter().map(|w| w.message));
-                    project.save_job(None, "travel-time", "Travel time (Project Creator)", &job)?;
+                    match project.check_named("travel-time", &job) {
+                        Ok(warnings) => {
+                            manifest
+                                .warnings
+                                .extend(warnings.into_iter().map(|w| w.message));
+                            project.save_job(
+                                None,
+                                "travel-time",
+                                "Travel time (Project Creator)",
+                                &job,
+                            )?;
+                        }
+                        Err(Error::Cancelled) => return Err(Error::Cancelled),
+                        Err(error) => not_ready
+                            .push(format!("the travel-time job does not validate: {error}")),
+                    }
                 }
+                manifest.ready = not_ready.is_empty();
+                manifest.not_ready = not_ready;
                 let text =
                     serde_json::to_string(&manifest).map_err(|e| Error::invalid(e.to_string()))?;
                 project.set_meta("creator", &text)

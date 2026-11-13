@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use accessmod_io::analysis::Monitor;
 use accessmod_io::class::DataClass;
-use accessmod_io::creator::{self, Area, Crs, Recipe, Sources};
+use accessmod_io::creator::{self, Area, Crs, FacilitySource, Recipe, Sources};
 use accessmod_io::fixtures::{read_valid, settings};
 use accessmod_io::project::RunStatus;
 use serde_json::json;
@@ -41,10 +41,11 @@ fn recipe(buffer_m: f64, crs: Crs) -> Recipe {
         sources: Sources {
             dem: vec![data("dem_west.tif"), data("dem_east.tif")],
             land_cover: vec![data("worldcover.tif")],
+            land_cover_worldcover: true,
             population: vec![data("worldpop.tif")],
             roads: Some(data("roads.gpkg")),
             waterways: Some(data("waterways.gpkg")),
-            facilities: Some(data("health_facilities.gpkg")),
+            facilities: Some(FacilitySource::Osm(data("health_facilities.gpkg"))),
         },
     }
 }
@@ -61,6 +62,7 @@ fn a_region_becomes_a_project_that_computes() {
     )
     .expect("build");
     eprintln!("{manifest:#?}");
+    assert!(manifest.ready, "{:?}", manifest.not_ready);
     // UTM 36N fits; distances within 0.1 %.
     assert!(
         manifest.crs_name.starts_with("UTM zone 36N"),
@@ -222,9 +224,9 @@ fn reference_lattices_and_refusals() {
 }
 
 /// Refusals that must not leave a silent hole: an invalid polygon (the
-/// outside barrier would be lost), a missing DEM tile, no facility at all.
+/// outside barrier would be lost), a missing DEM tile.
 #[test]
-fn invalid_areas_missing_tiles_and_no_facilities_are_refused() {
+fn invalid_areas_and_missing_tiles_are_refused() {
     let dir = tempfile::tempdir().expect("tempdir");
     let s = settings(64 << 20, 1);
     let mut bowtie = recipe(0.0, Crs::Auto);
@@ -246,13 +248,7 @@ fn invalid_areas_missing_tiles_and_no_facilities_are_refused() {
         "{error}"
     );
 
-    let mut none = recipe(0.0, Crs::Auto);
-    none.sources.facilities = None;
-    let error = creator::build(&none, &dir.path().join("c"), &s, Monitor::QUIET)
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("no health facility"), "{error}");
-    for name in ["a", "b", "c"] {
+    for name in ["a", "b"] {
         assert!(!dir.path().join(name).exists());
     }
 }
@@ -351,5 +347,124 @@ fn holes_islands_and_two_population_files() {
     assert!(
         merged_at(&one, between.0, between.1).is_none(),
         "between them is a barrier"
+    );
+}
+
+/// Only the DEM is required: without facilities, or without land cover,
+/// the project is created and says what it lacks to compute.
+#[test]
+fn projects_without_facilities_or_land_cover_say_what_they_lack() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = settings(64 << 20, 1);
+    let mut no_facilities = recipe(0.0, Crs::Auto);
+    no_facilities.sources.facilities = None;
+    let (project, manifest) =
+        creator::build(&no_facilities, &dir.path().join("a"), &s, Monitor::QUIET)
+            .expect("no facilities");
+    assert!(!manifest.ready);
+    assert!(
+        manifest
+            .not_ready
+            .iter()
+            .any(|r| r.contains("no health facility")),
+        "{:?}",
+        manifest.not_ready
+    );
+    assert!(project.jobs().unwrap().is_empty());
+    assert!(
+        !project
+            .datasets(Some(DataClass::LandCoverMerged))
+            .unwrap()
+            .is_empty()
+    );
+
+    let mut dem_only = recipe(0.0, Crs::Auto);
+    dem_only.sources = Sources {
+        dem: vec![data("dem_west.tif"), data("dem_east.tif")],
+        land_cover: vec![],
+        land_cover_worldcover: true,
+        population: vec![],
+        roads: None,
+        waterways: None,
+        facilities: None,
+    };
+    let (project, manifest) =
+        creator::build(&dem_only, &dir.path().join("b"), &s, Monitor::QUIET).expect("DEM only");
+    assert!(!manifest.ready);
+    assert!(
+        manifest
+            .not_ready
+            .iter()
+            .any(|r| r.contains("no land cover"))
+    );
+    let classes: Vec<DataClass> = project
+        .datasets(None)
+        .unwrap()
+        .iter()
+        .map(|d| d.class)
+        .collect();
+    assert_eq!(classes.len(), 3, "{classes:?}"); // DEM, outside barrier, zones
+}
+
+/// A facility list of your own is kept whole (every feature in the region,
+/// every field), with its own identifier; no OpenStreetMap warning.
+#[test]
+fn facility_lists_are_kept_whole() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = settings(64 << 20, 1);
+    let mut osm = recipe(500.0, Crs::Auto);
+    let (_, from_osm) =
+        creator::build(&osm, &dir.path().join("osm"), &s, Monitor::QUIET).expect("osm");
+    osm.sources.facilities = Some(FacilitySource::List {
+        path: data("health_facilities.gpkg"),
+        id_field: "osm_id".to_owned(),
+    });
+    let (project, from_list) =
+        creator::build(&osm, &dir.path().join("list"), &s, Monitor::QUIET).expect("list");
+    let count = |m: &creator::Manifest, key: &str| {
+        m.features
+            .iter()
+            .find(|(k, _)| k.starts_with(key))
+            .map(|(_, n)| *n)
+    };
+    let (osm_n, list_n) = (
+        count(&from_osm, "facilities").unwrap(),
+        count(&from_list, "facilities").unwrap(),
+    );
+    assert!(
+        list_n > osm_n,
+        "the list keeps pharmacies too: {list_n} vs {osm_n}"
+    );
+    assert!(
+        from_osm
+            .warnings
+            .iter()
+            .any(|w| w.contains("OpenStreetMap"))
+    );
+    assert!(
+        !from_list
+            .warnings
+            .iter()
+            .any(|w| w.contains("OpenStreetMap"))
+    );
+    assert!(from_list.ready, "{:?}", from_list.not_ready);
+    let facilities = project
+        .datasets(Some(DataClass::Facility))
+        .unwrap()
+        .remove(0);
+    let accessmod_io::project::Summary::Vector(v) = facilities.summary else {
+        panic!("vector")
+    };
+    assert!(v.fields.iter().any(|f| f == "amenity"), "{:?}", v.fields);
+    let mut bad = osm.clone();
+    bad.sources.facilities = Some(FacilitySource::List {
+        path: data("health_facilities.gpkg"),
+        id_field: "nope".to_owned(),
+    });
+    assert!(
+        creator::build(&bad, &dir.path().join("bad"), &s, Monitor::QUIET)
+            .unwrap_err()
+            .to_string()
+            .contains("no field")
     );
 }
