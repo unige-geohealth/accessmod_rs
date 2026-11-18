@@ -2,21 +2,29 @@
 % Please edit documentation in R/binary.R
 \name{am_install}
 \alias{am_install}
-\title{Install the AccessMod 6 binary}
+\title{Install the AccessMod engine}
 \usage{
-am_install(version = "latest", force = FALSE)
+am_install(version = am_engine_version(), force = FALSE, file = NULL)
 }
 \arguments{
-\item{version}{A release version such as `"6.0.0-alpha.1"`, or
-`"latest"`: the most recent release, pre-releases included.}
+\item{version}{Engine version; default: the one this package is made for
+([am_engine_version()]).}
 
-\item{force}{Download again even when this version is installed.}
+\item{force}{Install again when this version is already installed.}
+
+\item{file}{A release archive already downloaded (offline install).}
 }
 \value{
-The path of the binary, invisibly.
+The path of the engine, invisibly.
 }
 \description{
-Downloads the release archive for this platform from GitHub, checks its
-SHA-256 and unpacks it under [tools::R_user_dir()] (`accessmod`, `data`).
-Nothing else is needed: GDAL and PROJ are inside the binary.
+Downloads the release archive of this platform from GitHub (about 20 MB),
+checks its SHA-256, unpacks it, runs `accessmod doctor` on it, and only
+then makes it the engine used by [am_init()]. It goes under
+`tools::R_user_dir("accessmod", "data")`; [am_uninstall()] removes it.
+}
+\details{
+Offline: download `accessmod-<version>-<target>.tar.gz` (`.zip` on
+Windows) and its `.sha256` from the release page, then give the archive
+as `file`; the `.sha256` must sit next to it.
 }

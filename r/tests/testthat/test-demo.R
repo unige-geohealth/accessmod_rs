@@ -1,57 +1,66 @@
-# The demo project end to end: merge land cover, then travel time, for two
-# scenarios. Needs the binary (ACCESSMOD_BIN, or am_install()).
-has_binary <- function() !inherits(try(accessmod::am_binary(), silent = TRUE), "try-error")
+# The demo project end to end through a session: merge land cover, travel
+# time, scenarios derived from a run's job, then the same from an exported
+# project file, the jobs found by tags (as in Data › Job). Needs the engine
+# (ACCESSMOD_BIN, or am_install()).
 
-test_that("scenarios on the demo: merge, travel time, slower roads take longer", {
-  skip_if_not(has_binary(), "no AccessMod binary (ACCESSMOD_BIN or am_install())")
-  dir <- file.path(tempfile("am-"), "demo")
-  p <- am_project_demo(dir)
-  on.exit(unlink(dirname(dir), recursive = TRUE), add = TRUE)
-  expect_s3_class(p, "am_project")
-  expect_output(print(p), "AccessMod project")
-  ds <- am_datasets(p)
-  path <- function(class, tag = "demo") ds$file[ds$class == class & grepl(tag, ds$tags)][1]
+test_that("scenarios on the demo, then on its project file", {
+  skip_if_not(has_engine(), "no AccessMod engine (ACCESSMOD_BIN or am_install())")
+  root <- tempfile("am-")
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  am <- init(file.path(root, "demo"), demo = TRUE)
+  expect_output(print(am), "AccessMod project")
+  expect_equal(nrow(am$list_data(type = "job")), 0)
 
-  merge <- am_job_new("merge-land-cover", list(
-    schema_version = 1L,
-    dem = path("rDem"),
+  merge <- am$job("merge-land-cover",
+    dem = am$get("raster", class = "rDem"),
     stack = list(
-      list(type = "road", path = path("vRoad"), class_field = "class_n", label_field = "label"),
-      list(type = "barrier", path = path("vBarrier", "rivers")),
-      list(type = "land_cover", path = path("rLandCover"))
+      list(type = "road", path = am$get("vector", class = "vRoad"), class_field = "class_n", label_field = "label"),
+      list(type = "barrier", path = am$get("vector", class = "vBarrier", tags = "rivers")),
+      list(type = "land_cover", path = am$get("raster", class = "rLandCover"))
     )
-  ))
-  merged <- am_merge_land_cover(p, merge, tags = c("r", "merged"))
-  expect_equal(merged$status, "done")
-  expect_equal(nrow(am_outputs(merged, "rLandCoverMerged")), 1)
-
-  travel <- am_job_new("travel-time", list(
-    schema_version = 1L,
-    dem = path("rDem"),
-    land_cover = "",
-    facilities = list(path = path("vFacility"), id_field = "cat"),
-    scenario = list(),
-    method = "isotropic",
-    direction = "from_facilities",
-    neighbourhood = 16L
-  ))
-  am_scenario(travel) <- data.frame(
-    class = c(1, 2, 3, 1001, 1002, 1003),
-    mode = c("walking", "walking", "walking", "motorized", "motorized", "motorized"),
-    speed_kmh = c(5, 4, 2, 80, 50, 30)
   )
-  fast <- am_travel_time(p, travel, land_cover = merged, tags = c("r", "fast"))
-  slow_job <- travel
-  s <- am_scenario(slow_job)
-  s$speed_kmh[s$class > 1000] <- 10
-  am_scenario(slow_job) <- s
-  slow <- am_travel_time(p, slow_job, land_cover = merged, tags = c("r", "slow"))
-  mean_of <- function(run) am_outputs(run, "rTravelTime")$mean
-  expect_gt(mean_of(slow), mean_of(fast))
-  expect_equal(nrow(am_runs(p)), 3)
-  expect_equal(nrow(am_jobs(p)), 0)
-  # Same tags again: refused, unless overwrite.
-  expect_error(am_travel_time(p, travel, land_cover = merged, tags = c("r", "fast")), "failed")
-  again <- am_travel_time(p, travel, land_cover = merged, tags = c("r", "fast"), overwrite = TRUE)
+  merged_run <- am$run(merge, tags = "base")
+  expect_equal(merged_run$status, "done")
+  merged <- merged_run$get_output("rLandCoverMerged")
+  expect_equal(merged$run, merged_run$id)
+
+  tt <- am$job("travel-time",
+    dem = am$get("raster", class = "rDem"), land_cover = merged,
+    facilities = list(path = am$get("vector", class = "vFacility"), id_field = "cat"),
+    scenario = lapply(c(1, 2, 3, 1001, 1002, 1003), function(k) {
+      list(class = k, mode = if (k > 1000) "motorized" else "walking", speed_kmh = if (k > 1000) 60 else 4)
+    }),
+    method = "isotropic", direction = "from_facilities", neighbourhood = 16L
+  )
+  base <- am$run(tt, tags = "test")
+  expect_equal(base$status, "done")
+
+  # The job of a run, by tags, as in Data › Job; slower roads take longer.
+  baseline <- am$get("job", class = "travel-time", tags = "test")
+  expect_equal(baseline$run, base$id)
+  slow <- am$new_scenario(baseline, data.frame(class = 1001:1003, speed_kmh = 10))
+  slow_run <- am$run(slow, tags = c("slow"))
+  # Outcome: "<n> cells reached, max <t> s".
+  max_time <- function(run) as.numeric(sub(".*max ([0-9.]+) s.*", "\\1", run$outcome))
+  expect_gt(max_time(slow_run), max_time(base))
+  expect_equal(nrow(slow_run$list_outputs("rTravelTime")), 1)
+  expect_equal(baseline$scenario()$speed_kmh[4], 60)
+  expect_error(am$run(baseline, tags = "test"), class = "accessmod_error")
+  expect_equal(am$run(baseline, tags = "test", overwrite = TRUE)$status, "done")
+
+  # The project file, without results: jobs are there, outputs are not.
+  file <- am$export(file.path(root, "exports"), results = FALSE)
+  copy <- init(file.path(root, "copy"), import = file)
+  job <- copy$get("job", class = "travel-time", tags = "slow")
+  expect_equal(job$scenario()$speed_kmh[4], 10)
+  copied_run <- copy$list_runs()
+  expect_true(all(c("merge-land-cover", "travel-time") %in% copied_run$analysis))
+  expect_error(copy$run(job, tags = "again"), class = "accessmod_error")
+
+  # With results: the copy runs its jobs.
+  full <- init(file.path(root, "full"), import = am$export(file.path(root, "exports"), results = TRUE))
+  again <- full$run(full$new_scenario(full$get("job", class = "travel-time", tags = "slow"), data.frame(class = 1001, speed_kmh = 30)), tags = "again")
   expect_equal(again$status, "done")
+  expect_equal(again$get_output("rTravelTime")$class, "rTravelTime")
+  expect_error(slow$with(land_cover = full$get("raster", class = "rLandCoverMerged", tags = "base")), "another project")
 })

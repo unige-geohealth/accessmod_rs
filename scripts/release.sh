@@ -61,8 +61,8 @@ if [ "$dry" -eq 1 ]; then
 	exit 0
 fi
 
-# The version lives in the Cargo workspace, the desktop crate and the two
-# npm packages; a version already set (e.g. by hand for the first release)
+# The version lives in the Cargo workspace, the desktop crate, the two
+# npm packages and the engine version the R package installs; a version already set (e.g. by hand for the first release)
 # is only tagged.
 current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
 if [ "$current" != "$version" ]; then
@@ -73,13 +73,14 @@ if [ "$current" != "$version" ]; then
 		sed -i.bak "s/\"version\": \"$current\"/\"version\": \"$version\"/" "$f"
 	done
 	sed -i.bak "s/\"@accessmod\/ui\": \"$current\"/\"@accessmod\/ui\": \"$version\"/" web/package.json
+	sed -i.bak "s/^Config\/accessmod\/engine: .*/Config\/accessmod\/engine: $version/" r/DESCRIPTION
 	# README badge: shields.io writes "-" as "--".
 	sed -i.bak "s/version-$(echo "$current" | sed 's/-/--/g')-/version-$(echo "$version" | sed 's/-/--/g')-/" README.md
-	rm -f Cargo.toml.bak desktop/Cargo.toml.bak web/package.json.bak design_system/design-system/package.json.bak README.md.bak
+	rm -f Cargo.toml.bak desktop/Cargo.toml.bak web/package.json.bak design_system/design-system/package.json.bak README.md.bak r/DESCRIPTION.bak
 	cargo update -q -w
 	cargo update -q -w --manifest-path desktop/Cargo.toml
 	npm install --package-lock-only --ignore-scripts --silent
-	git add Cargo.toml Cargo.lock desktop/Cargo.toml desktop/Cargo.lock package-lock.json web/package.json design_system/design-system/package.json README.md
+	git add Cargo.toml Cargo.lock desktop/Cargo.toml desktop/Cargo.lock package-lock.json web/package.json design_system/design-system/package.json README.md r/DESCRIPTION
 	git commit -q -m "chore(release): $tag"
 fi
 [ "$(cargo run -q -p accessmod-cli -- --version)" = "accessmod $version" ] || fail "the binary does not report $version"

@@ -14,7 +14,7 @@ machine, from [Sys.info()]).}
 A string.
 }
 \description{
-The Rust target name of the release archive for the running platform:
+The Rust target name of the release archive for a platform:
 `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
 `aarch64-unknown-linux-gnu` or `x86_64-pc-windows-msvc`. Windows on arm
 runs the x86_64 build (emulation).

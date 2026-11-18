@@ -2,13 +2,16 @@
 % Please edit documentation in R/binary.R
 \name{am_version}
 \alias{am_version}
-\title{Version of the AccessMod 6 binary}
+\title{Version of an AccessMod engine}
 \usage{
-am_version()
+am_version(binary = am_binary())
+}
+\arguments{
+\item{binary}{The engine (default: [am_binary()]).}
 }
 \value{
-A string such as `"6.0.0-alpha.1"`.
+A string such as `"6.0.0-alpha.2"`.
 }
 \description{
-Version of the AccessMod 6 binary
+Version of an AccessMod engine
 }

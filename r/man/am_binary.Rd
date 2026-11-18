@@ -2,14 +2,19 @@
 % Please edit documentation in R/binary.R
 \name{am_binary}
 \alias{am_binary}
-\title{Path of the AccessMod 6 binary}
+\title{Path of the AccessMod engine}
 \usage{
-am_binary()
+am_binary(binary = NULL)
+}
+\arguments{
+\item{binary}{An explicit path.}
 }
 \value{
-The path of the binary.
+The path, or an error saying how to install the engine.
 }
 \description{
-In order: the option `accessmod.binary`, the environment variable
-`ACCESSMOD_BIN`, then the copy installed by [am_install()].
+In order: `binary`, the option `accessmod.binary`, the environment
+variable `ACCESSMOD_BIN`, then the engine installed by [am_install()]. The
+desktop application's engine can be used through `binary` or
+`ACCESSMOD_BIN` (see the package README).
 }

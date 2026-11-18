@@ -1,5 +1,7 @@
 # The R package (r/, docs/r-package.md): R CMD check on Windows, macOS and
-# Linux (x86_64, arm64). After a release, and on demand, the package also
+# Linux (x86_64, arm64); on Linux, also with an engine built from this commit,
+# so the end-to-end test covers unreleased changes. After a release, and on
+# demand, the package also
 # installs the released binary with am_install() and runs the demo end to end
 # (merge land cover, then travel-time scenarios): the proof that R users get
 # a working engine on each platform. A release made by the release workflow
@@ -9,9 +11,9 @@ name: r
 on:
   push:
     branches: [main]
-    paths: ["r/**", ".github/workflows/r.yml"]
+    paths: ["r/**", "crates/accessmod-cli/**", ".github/workflows/r.yml"]
   pull_request:
-    paths: ["r/**", ".github/workflows/r.yml"]
+    paths: ["r/**", "crates/accessmod-cli/**", ".github/workflows/r.yml"]
   workflow_run:
     workflows: [release]
     types: [completed]
@@ -59,6 +61,35 @@ jobs:
 
       # With ACCESSMOD_BIN set, tests/testthat/test-demo.R runs the demo end
       # to end; otherwise it is skipped.
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: r
+          args: 'c("--no-manual")'
+          error-on: '"warning"'
+        env:
+          _R_CHECK_FORCE_SUGGESTS_: "false"
+
+  # The engine of this commit (system GDAL, debug build) and the end-to-end
+  # test against it.
+  engine-from-source:
+    name: ubuntu + engine from source
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: GDAL and PROJ
+        run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends libgdal-dev gdal-bin libproj-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p accessmod-cli
+      - run: echo "ACCESSMOD_BIN=$PWD/target/debug/accessmod" >> "$GITHUB_ENV"
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: r
+          extra-packages: any::rcmdcheck
+          needs: check
       - uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: r
