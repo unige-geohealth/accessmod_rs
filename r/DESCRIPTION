@@ -15,5 +15,5 @@ Depends: R (>= 4.1)
 Imports: digest, jsonlite, R6, tools, utils
 Suggests: terra, testthat (>= 3.0.0)
 Config/testthat/edition: 3
-Config/accessmod/engine: 6.0.0-alpha.1
+Config/accessmod/engine: 6.0.0-alpha.2
 RoxygenNote: 7.3.2

@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/unige-geohealth/accessmod_rs/actions/workflows/ci.yml/badge.svg)](https://github.com/unige-geohealth/accessmod_rs/actions/workflows/ci.yml)
 [![release](https://github.com/unige-geohealth/accessmod_rs/actions/workflows/release.yml/badge.svg)](https://github.com/unige-geohealth/accessmod_rs/actions/workflows/release.yml)
-[![version](https://img.shields.io/badge/version-6.0.0--alpha.1-orange)](docs/coverage.md)
+[![version](https://img.shields.io/badge/version-6.0.0--alpha.2-orange)](docs/coverage.md)
 [![licence](https://img.shields.io/badge/licence-LGPL--3.0--or--later-blue)](LICENSE)
 [![rust](https://img.shields.io/badge/rust-1.92-brown)](rust-toolchain.toml)
 
