@@ -106,7 +106,8 @@ am_install <- function(version = am_engine_version(), force = FALSE, file = NULL
   # new one moved in, and the old one removed only once `current` points
   # to the new one.
   final <- file.path(dir, name)
-  previous <- file.path(tmp, "previous")
+  # Outside `tmp` (removed on exit): kept if it cannot be restored.
+  previous <- paste0(final, ".previous-", basename(tmp))
   if (file.exists(final) && !file.rename(final, previous)) .am_stop(paste("cannot replace", final))
   if (!file.rename(file.path(staging, name), final)) {
     if (file.exists(previous) && !file.rename(previous, final)) {
@@ -115,6 +116,7 @@ am_install <- function(version = am_engine_version(), force = FALSE, file = NULL
     .am_stop(paste("cannot move the engine into", final))
   }
   .set_current(bin)
+  unlink(previous, recursive = TRUE)
   message("Installed AccessMod ", version, ": ", bin)
   invisible(bin)
 }
