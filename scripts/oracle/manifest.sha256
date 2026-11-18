@@ -14,10 +14,13 @@ bd13cf51faf7bf4fc4d84aaebe3a656c3a2459f96f57c88f9433357c170cf2a1  ./merge-land-c
 6f912f972b8a25c8599b48c1779bda94d736db2a7c477504143f864417fc9a9f  ./merge-land-cover/demo/input/river.fgb
 efd8d0e14e9cd6752f4023acdc950b11e7f416961ac1b6222c7a04b999ecb896  ./merge-land-cover/demo/input/roads.fgb
 29e1302f49b2816465cd0bfc7031236e668f95476f7fc5836c3d5c777f3996e6  ./merge-land-cover/demo/input/wetland.fgb
+1056ddab9c6a2888f57d80768b04ef34be5da6d75c1357deb4cc8e7aa2fa71f7  ./merge-land-cover/demo/oracle/bridges-river_below_roads.tif
 ba2823e98e431bfa881a999e05680bec253218e8f9f685e8859c29970dfdef1e  ./merge-land-cover/demo/oracle/bridges-roads_first.tif
 ba2823e98e431bfa881a999e05680bec253218e8f9f685e8859c29970dfdef1e  ./merge-land-cover/demo/oracle/bridges-roads_reversed.tif
+a3d4c17390f02342ade37633b16823e55343b59ed27a65871d6c3bbb364c07b8  ./merge-land-cover/demo/oracle/merged-cleaned-river_below_roads.tif
 52d4a91e33e4a4f827067bd44268e1d388c7b1ca2a0cebf41c5c17d36df1dfde  ./merge-land-cover/demo/oracle/merged-cleaned-roads_first.tif
 8b2a2f230be466c13d873d68c1412da30e031177560088afca7d4fb2081b0167  ./merge-land-cover/demo/oracle/merged-cleaned-roads_reversed.tif
+0079c3ed3e537c150a4e84358575c31ab3650b85a2a0852434b7464b8bb10559  ./merge-land-cover/demo/oracle/merged-river_below_roads.tif
 9f6007182548226c94aba808ab3b78196197a03d08f36f63589a1c1bd1630579  ./merge-land-cover/demo/oracle/merged-roads_first.tif
 14681b8f05a6525f75e38f333f0bf8a1e2cec0566f53cbf5a1c7fce3ab73c852  ./merge-land-cover/demo/oracle/merged-roads_reversed.tif
 c2901d3024150bb0b4645aa503ea357b7a92feb8bd203321e0a2974acf3ca78e  ./merge-land-cover/demo/oracle/stack-barrier-river.tif

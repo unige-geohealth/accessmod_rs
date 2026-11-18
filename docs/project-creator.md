@@ -303,9 +303,11 @@ notes: `crates/accessmod-io/src/creator/presets/`.
   - wetland and mangroves to be reviewed;
   - ocean and areas without coverage NoData, never inferred from a boundary.
 
-  Mode aggregation can remove narrow water. Rivers therefore come from OSM barriers, and
-  Merge's bridge cleaning (AccessMod 5's rule) decides crossings: a road does not clear every
-  river it meets.
+  Mode aggregation can remove narrow water. Rivers therefore come from OSM barriers. The
+  Merge stack is: the outside of the region (closes everything), roads, rivers, land cover.
+  A barrier empties only the items below it, so roads cross rivers and WorldCover water
+  where they pass, while a river without a road stays closed; Merge's bridge cleaning
+  (AccessMod 5's rule) removes diagonal leaks.
 - **OSM roads:**
   - `highway` values to road classes, labels and speeds;
   - explicit rules for unknown values, `track` and `path`, `access=no`, construction and

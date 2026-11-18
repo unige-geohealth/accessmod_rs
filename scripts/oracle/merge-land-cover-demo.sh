@@ -10,8 +10,11 @@
 #   rasterised with `v.to.rast -d type=line` and value class + 1000;
 # - barriers: value 1, `v.to.rast -d type=line` for lines,
 #   `v.to.rast type=area` for areas;
-# - merge: barrier cells are masked out of every other item, then
-#   `r.patch` keeps the first non-null item in stack order;
+# - merge (amServer.R, processStack): the first barrier of the stack is a
+#   mask for every item; each later barrier is added to the mask of the items
+#   after it (below it in the stack). Then `r.patch` keeps the first non-null
+#   item in stack order. The cases below put the first barrier at the top,
+#   where AccessMod 6 (a barrier empties the items below it) is the same;
 # - bridges: a road cell whose merged diagonal neighbour is non-null while
 #   the two cells sharing that corner are null is set to null.
 set -eu
@@ -50,15 +53,40 @@ v.to.rast --quiet --overwrite input=vBarrier__demo_wetland output=oracle_barrier
 export_int oracle_barrier_river "$out/oracle/stack-barrier-river.tif"
 export_int oracle_barrier_wetland "$out/oracle/stack-barrier-wetland.tif"
 
-# merge NAME ITEM... : merge non-barrier items in the given order.
+# merge NAME ITEM... : merge the stack in the given order; barriers are
+# the items named oracle_barrier_*.
 merge() {
     name=$1
     shift
     patch=""
+    first=1
     for item in "$@"; do
-        r.mapcalc --quiet --overwrite expression="oracle_tmp_$item = \
-if(isnull(oracle_barrier_river) && isnull(oracle_barrier_wetland), $item, null())"
-        patch="${patch:+$patch,}oracle_tmp_$item"
+        case "$item" in
+        oracle_barrier_*)
+            if [ "$first" = 1 ]; then
+                first=0
+                # The first barrier masks every item, those above it too.
+                global=$item
+            fi
+            ;;
+        *)
+            patch="${patch:+$patch,}oracle_tmp_$item"
+            ;;
+        esac
+    done
+    # Items above the first barrier: the global mask only; below: every
+    # barrier seen so far.
+    mask=""
+    for item in "$@"; do
+        case "$item" in
+        oracle_barrier_*)
+            mask="${mask:+$mask && }isnull($item)"
+            ;;
+        *)
+            r.mapcalc --quiet --overwrite expression="oracle_tmp_$item = \
+if(isnull($global)${mask:+ && $mask}, $item, null())"
+            ;;
+        esac
     done
     r.patch --quiet --overwrite input="$patch" output="oracle_merged_$name"
     export_int "oracle_merged_$name" "$out/oracle/merged-$name.tif"
@@ -77,5 +105,12 @@ if(!isnull(oracle_bridges_$name), null(), $m)"
     export_int "oracle_cleaned_$name" "$out/oracle/merged-cleaned-$name.tif"
 }
 
-merge roads_first oracle_road_1 oracle_road_2 oracle_road_3 rLandCover__demo
-merge roads_reversed oracle_road_3 oracle_road_2 oracle_road_1 rLandCover__demo
+# Both barriers at the top: they empty every item (roads cut by the river).
+merge roads_first oracle_barrier_river oracle_barrier_wetland \
+    oracle_road_1 oracle_road_2 oracle_road_3 rLandCover__demo
+merge roads_reversed oracle_barrier_river oracle_barrier_wetland \
+    oracle_road_3 oracle_road_2 oracle_road_1 rLandCover__demo
+# The wetland at the top, the river between the roads and the land cover:
+# roads cross the river.
+merge river_below_roads oracle_barrier_wetland \
+    oracle_road_1 oracle_road_2 oracle_road_3 oracle_barrier_river rLandCover__demo

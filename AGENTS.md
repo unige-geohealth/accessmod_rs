@@ -266,6 +266,10 @@ Things learned the hard way; check here before re-investigating.
   half-open "all touched" rule differs on 1 road and 1 river cell of the
   demo (`gdal_rasterize -at`: 7), so the merged land cover differs on 2 of
   44 492 cells; areas (`type=area`, cell centre) and bridges are identical.
+  Barriers work by position in AM5 (`processStack`): the first is a mask
+  for every item, each later one masks the items below it. The first oracle
+  script masked every item with every barrier and hid that; reproduce the
+  module's sequence, not a summary of it.
 - Adjust population distribution: equal to AM5 within 6e-15 relative on the
   demo (summation order). The demo merged land cover has few barrier cells,
   so the estimated case moves only 41 people; the known case (field

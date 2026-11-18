@@ -23,9 +23,13 @@ project. Polygon skeletons for barriers are not implemented.
 2. **Conflicts**: the classes of all non-barrier items are listed, and a
    class that appears in more than one item blocks the merge. An advanced
    "quick correction" reclassifies an item.
-3. **Merge**: barrier cells are masked out of every other item. `r.patch`
+3. **Merge** (`processStack`): the first barrier of the stack becomes a mask
+   for every item (`amGrassMaskNS`); each later barrier is added to the mask
+   of the items processed after it, that is below it in the stack. `r.patch`
    then keeps, for each cell, the first non-null item in stack order. The
-   position of a barrier in the stack does not matter.
+   usual stack: barriers that close everything (conflict areas, destroyed
+   bridges) at the top, then roads, then rivers and lakes, then the land
+   cover: roads cross rivers, a river without a road stays closed.
 4. **Bridges** (option on by default): a road cell is set to null when one
    of its diagonal neighbours is non-null in the merged raster while the two
    cells sharing that corner are null. Such a cell would otherwise let
@@ -57,6 +61,15 @@ project. Polygon skeletons for barriers are not implemented.
   are the only memory not counted in the budget), and outputs are written
   in 256 × 256 blocks with a one-cell halo for the bridge test. Outputs are
   byte-identical at any budget (`tests/merge.rs`).
+- **Barriers by position.** A barrier empties the cells it covers in the
+  items below it, never in those above: at the top it closes everything,
+  between the roads and the land cover it lets roads cross it. This is
+  AccessMod 5's rule for every barrier but the first, which AccessMod 5
+  applies to the whole stack wherever it is; here the first barrier follows
+  the same rule as the others (deviation `barrier_position`). The two agree
+  whenever the first barrier is at the top.
+  (Until 2026-11-18 every barrier emptied every item; redo the merge of an
+  older project with a new output tag to get roads across rivers.)
 - **Explicit reprojection.** Vector layers in another CRS are reprojected
   to the DEM CRS, with a warning in `run.json`. Rasters must already lie on
   the DEM lattice, in its CRS.
@@ -70,13 +83,14 @@ Job (`accessmod merge-land-cover schema` prints it):
   "schema_version": 1,
   "dem": "dem.tif",
   "stack": [
+    {"type": "barrier", "path": "conflict_areas.gpkg"},
     {"type": "road", "path": "roads.gpkg", "class_field": "class",
      "label_field": "label", "classes": [1, 2, 3]},
+    {"type": "barrier", "path": "rivers.gpkg"},
+    {"type": "barrier", "path": "lakes.gpkg", "where": "area_km2 > 1"},
     {"type": "land_cover", "path": "land_cover.tif",
      "labels": [{"class": 1, "label": "forest"}],
-     "reclass": [{"from": 7, "to": 70}]},
-    {"type": "barrier", "path": "rivers.gpkg"},
-    {"type": "barrier", "path": "lakes.gpkg", "where": "area_km2 > 1"}
+     "reclass": [{"from": 7, "to": 70}]}
   ],
   "clean_bridges": true,
   "output_dir": "merged"
@@ -92,7 +106,9 @@ Job (`accessmod merge-land-cover schema` prints it):
   be several. `labels` refer to the raster's classes; `reclass` changes
   classes while merging.
 - `barrier`: lines and polygons; multi-geometries and collections are
-  split. Points and curves are left out, with a warning.
+  split. Points and curves are left out, with a warning. It empties the
+  items below it in the stack (above: conflict areas closing roads too;
+  below the roads: rivers the roads cross).
 - Validation fails when a class comes from more than one item. The message
   names the items, as AccessMod 5 does.
 - A feature that cannot be reprojected, or has non-finite coordinates,
@@ -112,16 +128,24 @@ Outputs:
 ## Comparison with AccessMod 5
 
 `scripts/oracle/merge-land-cover-demo.sh` runs the GRASS commands of the
-toolbox on the demo project. The stack is roads (classes 1, 2, 3), the land
-cover, then the river (lines) and wetland (areas) barriers. The road order
-is tested both ways, with and without bridge cleaning
-(`tests/oracle_merge.rs`):
+toolbox on the demo project, in the module's sequence (`processStack`:
+the first barrier masks every item, each later one the items below it).
+Every case has its first barrier at the top, where AccessMod 5 and this
+rule agree (`tests/oracle_merge.rs`):
+
+- both barriers, the river (lines) and the wetland (areas), at the top,
+  then the roads (classes 1, 2, 3, both ways) and the land cover: roads are
+  cut by the river;
+- the wetland at the top, the roads, the river, then the land cover: roads
+  cross the river.
 
 | Case | Cells differing (of 44 492) | Bridge map |
 | --- | --- | --- |
 | roads 1, 2, 3, no cleaning | 2 | — |
 | roads 1, 2, 3, cleaned | 2 | identical |
 | roads 3, 2, 1, cleaned | 2 | identical |
+| river below the roads | 2 | — |
+| river below the roads, cleaned | 2 | identical |
 
 The two cells come from line rasterisation. Against the GRASS stack items,
 our lines differ on 1 of about 1 320 road cells and 1 of about 1 680 river
@@ -137,6 +161,8 @@ Listed in `run.json` (`deviations`):
 - `stack_rules`: any number of `land_cover` items, no output tag.
 - `labels_verbatim`: labels are kept as given; AccessMod 5 lowercases them
   and replaces punctuation with underscores.
+- `barrier_position`: every barrier empties only the items below it; AccessMod
+  5 applies the first barrier of the stack to every item, wherever it is.
 
 Not implemented: the skeleton option for polygon barriers
 (`polyAsSkeleton` in `amAddStackBarrier`).

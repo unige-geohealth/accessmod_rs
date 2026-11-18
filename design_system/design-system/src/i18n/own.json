@@ -1546,5 +1546,11 @@
     "fr": "Le job n° %s calcule ces tags. Changez-les pour essayer un autre scénario.",
     "es": "El trabajo n.º %s calcula estas etiquetas. Cámbielas para probar otro escenario.",
     "pt": "O trabalho n.º %s calcula estas etiquetas. Altere-as para experimentar outro cenário."
+  },
+  "merge.barrier_order_hint": {
+    "en": "An item covers the items below it. A barrier empties the items below it: at the top it closes everything (conflict areas, destroyed bridges); between the roads and the land cover, roads cross it (rivers, lakes).",
+    "fr": "Un élément recouvre les éléments en dessous. Une barrière vide les éléments en dessous d'elle : tout en haut, elle ferme tout (zones de conflit, ponts détruits) ; entre les routes et l'occupation du sol, les routes la traversent (rivières, lacs).",
+    "es": "Un elemento cubre los elementos de abajo. Una barrera vacía los elementos debajo de ella: arriba del todo, lo cierra todo (zonas de conflicto, puentes destruidos); entre las carreteras y la cobertura del suelo, las carreteras la cruzan (ríos, lagos).",
+    "pt": "Um item cobre os itens abaixo. Uma barreira esvazia os itens abaixo dela: no topo, fecha tudo (zonas de conflito, pontes destruídas); entre as estradas e a cobertura do solo, as estradas a atravessam (rios, lagos)."
   }
 }

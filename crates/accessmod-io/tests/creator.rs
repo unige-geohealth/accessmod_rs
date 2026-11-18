@@ -108,6 +108,52 @@ fn a_region_becomes_a_project_that_computes() {
     assert!(cells[(rows / 2) * cols + cols / 2].is_some());
     // Roads are in (class + 1000).
     assert!(cells.iter().flatten().any(|v| *v > 1000.0));
+    // Roads cross rivers: the rivers sit below the roads in the stack. The
+    // same merge with the rivers above the roads (every barrier closing
+    // everything, as before 2026-11-18) keeps fewer road cells.
+    let road_cells =
+        |cells: &[Option<f64>]| cells.iter().flatten().filter(|v| **v > 1000.0).count();
+    let merge_run = project
+        .runs()
+        .unwrap()
+        .into_iter()
+        .find(|r| r.analysis == "merge-land-cover")
+        .expect("merge run");
+    let mut closed = merge_run.job.clone();
+    let stack = closed["stack"].as_array_mut().expect("stack");
+    let road = stack
+        .iter()
+        .position(|i| i["type"] == "road")
+        .expect("road item");
+    let river = stack
+        .iter()
+        .rposition(|i| i["type"] == "barrier")
+        .expect("river item");
+    assert!(road < river, "rivers below the roads: {stack:?}");
+    let item = stack.remove(river);
+    stack.insert(road, item);
+    let closed_run = project
+        .run_named(
+            "merge-land-cover",
+            &closed,
+            &["rivers-on-top".to_owned()],
+            false,
+            &s,
+            Monitor::QUIET,
+        )
+        .expect("merge with rivers on top");
+    let closed_merged = project.datasets(Some(DataClass::LandCoverMerged)).unwrap();
+    let closed_merged = closed_merged
+        .iter()
+        .find(|d| closed_run.datasets.contains(&d.id))
+        .expect("merged of the rivers-on-top run");
+    let closed_cells = read_valid(&project.resolve(Path::new(&closed_merged.file)).unwrap());
+    assert!(
+        road_cells(&cells) > road_cells(&closed_cells),
+        "roads over rivers: {} road cells, {} with rivers on top",
+        road_cells(&cells),
+        road_cells(&closed_cells)
+    );
     // The saved travel-time job runs.
     let jobs = project.jobs().expect("jobs");
     let job = jobs

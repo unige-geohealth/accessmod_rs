@@ -38,7 +38,7 @@ _Last updated: 2026-11-18 (6.0.0-alpha.2)._
 
 | AccessMod 5 feature | Where in AM5 | Engine | Web |
 | --- | --- | --- | --- |
-| **Merge land cover**: land cover, roads and barriers in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); 🗓 polygon skeleton option | ✅ Toolbox › Merge land cover: land cover with editable labels, road classes, barriers (lines or polygons as the layer holds them, no type to choose), stack order, conflicts; 🗓 quick correction of conflicts |
+| **Merge land cover**: land cover, roads and barriers in priority order | `modules/amAnalysisMergeLandCover`, `amStackBarrier.R` | ✅ `merge-land-cover run`: 2 cells of 44 492 differ from AM5 on the demo ([`merge-land-cover.md`](merge-land-cover.md)); a barrier empties the items below it (AM5 also applies its first barrier to every item: deviation `barrier_position`); 🗓 polygon skeleton option | ✅ Toolbox › Merge land cover: land cover with editable labels, road classes, barriers (lines or polygons as the layer holds them, no type to choose), stack order, conflicts; 🗓 quick correction of conflicts |
 | Bridge and artefact cleaning when merging | `amBridgeTools.R` | ✅ `clean_bridges`, `bridges.tif` identical to AM5 on the demo | 🗓 |
 | Conflicting classes report | merge module | ✅ validation error naming the items; `reclass` (AM5 quick correction) | 🗓 |
 | **Adjust population distribution** | `modules/amPopulationBarrierCorrection` | ✅ `adjust-population-distribution run`: equal to AM5 within 6e-15 ([`adjust-population.md`](adjust-population.md)) | ✅ Toolbox › Adjust population distribution |

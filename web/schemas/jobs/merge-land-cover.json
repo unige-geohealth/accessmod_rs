@@ -146,7 +146,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Barrier lines or polygons (stack barrier).",
+          "description": "Barrier lines or polygons (stack barrier): it empties the items\nbelow it in the stack.",
           "properties": {
             "layer": {
               "description": "Layer name; the first layer when omitted.",
@@ -210,7 +210,7 @@
       "type": "integer"
     },
     "stack": {
-      "description": "Stack items. A cell takes the class of the first non-barrier item\ncovering it; a barrier anywhere in the stack empties the cell.",
+      "description": "Stack items, highest priority first. A cell takes the class of the\nfirst item covering it, unless a barrier above that item covers it:\na barrier empties the items below it (at the top, every item; below\nthe roads, only what is under them, so roads cross it).",
       "items": {
         "$ref": "#/$defs/StackItem"
       },

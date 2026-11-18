@@ -22,7 +22,15 @@ fn differing_cells(ours: &Path, theirs: &Path) -> usize {
     a.iter().zip(&b).filter(|(x, y)| x != y).count()
 }
 
-fn job(classes: Vec<i64>, clean_bridges: bool, out: &Path) -> MergeLandCoverJob {
+/// Stack of a case: the barriers named before the roads, then the roads,
+/// the barriers named after them, then the land cover.
+fn job(
+    above: &[&str],
+    classes: Vec<i64>,
+    below: &[&str],
+    clean_bridges: bool,
+    out: &Path,
+) -> MergeLandCoverJob {
     let input = root().join("input");
     let barrier = |name: &str| {
         StackItem::Barrier(BarrierItem {
@@ -31,27 +39,26 @@ fn job(classes: Vec<i64>, clean_bridges: bool, out: &Path) -> MergeLandCoverJob 
             filter: None,
         })
     };
+    let mut stack: Vec<StackItem> = above.iter().map(|b| barrier(b)).collect();
+    stack.push(StackItem::Road(RoadItem {
+        path: input.join("roads.fgb"),
+        layer: None,
+        class_field: "class_n".into(),
+        label_field: Some("label".into()),
+        filter: None,
+        classes: Some(classes),
+        add_1000: true,
+    }));
+    stack.extend(below.iter().map(|b| barrier(b)));
+    stack.push(StackItem::LandCover(LandCoverItem {
+        path: input.join("land_cover.tif"),
+        labels: Vec::new(),
+        reclass: Vec::new(),
+    }));
     MergeLandCoverJob {
         schema_version: SCHEMA_VERSION,
         dem: input.join("dem.tif"),
-        stack: vec![
-            StackItem::Road(RoadItem {
-                path: input.join("roads.fgb"),
-                layer: None,
-                class_field: "class_n".into(),
-                label_field: Some("label".into()),
-                filter: None,
-                classes: Some(classes),
-                add_1000: true,
-            }),
-            StackItem::LandCover(LandCoverItem {
-                path: input.join("land_cover.tif"),
-                labels: Vec::new(),
-                reclass: Vec::new(),
-            }),
-            barrier("river.fgb"),
-            barrier("wetland.fgb"),
-        ],
+        stack,
         clean_bridges,
         output_dir: out.to_path_buf(),
     }
@@ -71,14 +78,32 @@ fn demo_merge_matches_accessmod5() {
     // merged rasters differ on 2 cells (2026-10-16).
     const MAX_DIFFERING_CELLS: usize = 4;
     let mut failures = Vec::new();
-    for (name, classes, clean) in [
-        ("roads_first", vec![1, 2, 3], false),
-        ("roads_first", vec![1, 2, 3], true),
-        ("roads_reversed", vec![3, 2, 1], true),
+    // Every case has its first barrier at the top, where AccessMod 5 (the
+    // first barrier masks every item) and AccessMod 6 (a barrier empties the
+    // items below it) agree.
+    let both: &[&str] = &["river.fgb", "wetland.fgb"];
+    for (name, above, classes, below, clean) in [
+        ("roads_first", both, vec![1, 2, 3], &[][..], false),
+        ("roads_first", both, vec![1, 2, 3], &[], true),
+        ("roads_reversed", both, vec![3, 2, 1], &[], true),
+        (
+            "river_below_roads",
+            &["wetland.fgb"][..],
+            vec![1, 2, 3],
+            &["river.fgb"][..],
+            false,
+        ),
+        (
+            "river_below_roads",
+            &["wetland.fgb"],
+            vec![1, 2, 3],
+            &["river.fgb"],
+            true,
+        ),
     ] {
         let label = format!("{name}{}", if clean { " cleaned" } else { "" });
         let out = tmp.path().join(label.replace(' ', "-"));
-        run_job::<MergeLandCover>(job(classes, clean, &out), &settings).expect("run");
+        run_job::<MergeLandCover>(job(above, classes, below, clean, &out), &settings).expect("run");
         let reference = if clean {
             oracle.join(format!("merged-cleaned-{name}.tif"))
         } else {

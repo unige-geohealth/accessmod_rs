@@ -4,7 +4,7 @@
 import { Columns } from "@accessmod/ui/am/columns";
 import { type Column, DataTable, type Row } from "@accessmod/ui/am/data-table";
 import { CheckboxField, Field } from "@accessmod/ui/am/form";
-import { AmButton, LinkActions, MessageList } from "@accessmod/ui/am/messages";
+import { AmButton, InfoTip, LinkActions, MessageList } from "@accessmod/ui/am/messages";
 import { PageTabs } from "@accessmod/ui/am/page-tabs";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle, SectionCard, SubTitle } from "@accessmod/ui/am/section";
@@ -362,7 +362,8 @@ function MergeTab({
               content: (
                 <>
                   <p className="mb-4">
-                    <T k="toolbox_land_cover_merge_reorder_mouse" />
+                    <T k="toolbox_land_cover_merge_reorder_mouse" />{" "}
+                    <InfoTip k="merge.barrier_order_hint" label="toolbox_land_cover_merge_order" />
                   </p>
                   <StackList value={{ use: toStack(draft.use), skip: toStack(draft.skip) }} onChange={fromStack} />
                 </>

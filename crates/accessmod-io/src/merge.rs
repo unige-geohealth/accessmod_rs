@@ -59,8 +59,10 @@ pub struct MergeLandCoverJob {
     /// extent). Its values are not used.
     #[schemars(extend("x-accessmod-class" = ["rDem"]))]
     pub dem: PathBuf,
-    /// Stack items. A cell takes the class of the first non-barrier item
-    /// covering it; a barrier anywhere in the stack empties the cell.
+    /// Stack items, highest priority first. A cell takes the class of the
+    /// first item covering it, unless a barrier above that item covers it:
+    /// a barrier empties the items below it (at the top, every item; below
+    /// the roads, only what is under them, so roads cross it).
     pub stack: Vec<StackItem>,
     /// Remove one-cell diagonal bridges created by roads across barriers
     /// and write `bridges.tif` (AccessMod 5 default: on).
@@ -78,7 +80,8 @@ pub enum StackItem {
     LandCover(LandCoverItem),
     /// Road lines with a class attribute (stack road).
     Road(RoadItem),
-    /// Barrier lines or polygons (stack barrier).
+    /// Barrier lines or polygons (stack barrier): it empties the items
+    /// below it in the stack.
     Barrier(BarrierItem),
 }
 
@@ -290,6 +293,9 @@ pub struct ItemPlan {
     /// Feature counts, filled while merging (vector items).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub features: Option<FeatureCounts>,
+    /// Priority of a barrier: it empties the items of a higher rank.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub barrier_rank: Option<u32>,
 }
 
 /// Inputs validated, ready to merge.
@@ -369,7 +375,15 @@ pub fn prepare(
                 &mut warnings,
                 cancelled,
             ),
-            StackItem::Barrier(item) => plan_barrier(item, &grid, &at, position, &mut warnings),
+            StackItem::Barrier(item) => {
+                // Its own rank, between the items above and below it.
+                let barrier_rank = rank;
+                rank += 1;
+                plan_barrier(item, &grid, &at, position, &mut warnings).map(|mut plan| {
+                    plan.barrier_rank = Some(barrier_rank);
+                    plan
+                })
+            }
         };
         match planned {
             Ok(planned) => items.push(planned),
@@ -516,6 +530,7 @@ fn plan_land_cover(
         reprojected: None,
         classes,
         features: None,
+        barrier_rank: None,
     })
 }
 
@@ -643,6 +658,7 @@ fn plan_road(
         layer: Some(vector.name),
         classes,
         features: None,
+        barrier_rank: None,
     })
 }
 
@@ -669,6 +685,7 @@ fn plan_barrier(
         layer: Some(vector.name),
         classes: Vec::new(),
         features: None,
+        barrier_rank: None,
     })
 }
 
@@ -799,6 +816,12 @@ pub fn deviations() -> Vec<Deviation> {
                       needed. AccessMod 5 requires exactly one stack land cover and a tag.",
         },
         Deviation {
+            code: "barrier_position",
+            message: "Every barrier empties only the items below it in the stack. AccessMod 5 \
+                      applies the first barrier to every item, wherever it is; the two agree \
+                      when the first barrier is at the top.",
+        },
+        Deviation {
             code: "labels_verbatim",
             message: "Labels are kept as given. AccessMod 5 lowercases them and replaces \
                       punctuation and spaces with underscores.",
@@ -837,7 +860,10 @@ pub fn run(
             }
             StackItem::Barrier(item) => {
                 let vector = open_item_layer(&item.path, &item.layer, &item.filter, grid, &at)?;
-                let barrier = |cell: &mut MergeCell| cell.flags |= MergeCell::BARRIER;
+                let rank = plan
+                    .barrier_rank
+                    .ok_or_else(|| Error::invalid(format!("{at}: barrier without a rank")))?;
+                let barrier = move |cell: &mut MergeCell| cell.bar(rank);
                 plan.features = Some(burn_layer(
                     &vector,
                     grid,
@@ -1323,6 +1349,7 @@ mod tests {
             reprojected: None,
             classes,
             features: None,
+            barrier_rank: None,
         };
         let items = vec![
             item(1, "road", vec![class(1001, 0), class(2, 1)]),

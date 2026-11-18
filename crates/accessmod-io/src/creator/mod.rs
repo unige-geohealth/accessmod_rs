@@ -9,8 +9,10 @@
 //!
 //! 1. imports: DEM, land cover, population, roads, rivers, the area outside
 //!    the traversable region as a barrier, facilities, zones;
-//! 2. Merge land cover, the outside barrier first, so nothing outside the
-//!    region can be crossed (contract 1);
+//! 2. Merge land cover: the outside barrier at the top, so nothing outside
+//!    the region can be crossed (contract 1); then roads, rivers and the land
+//!    cover: a barrier empties only the items below it, so roads cross rivers
+//!    and water while a river without a road stays closed;
 //! 3. a travel-time job with the preset scenario, saved and checked: the
 //!    project is published only once it is ready (contract 7);
 //! 4. the manifest of what was used, in the project's metadata (contract 8).
@@ -1179,14 +1181,15 @@ pub fn build(
                     }
                     Some(lc) => {
                         monitor.stage(STAGE_MERGE);
+                        // Outside (blocks everything), roads, rivers (block the
+                        // land cover only: roads cross them), land cover.
+                        let barrier = |d: &crate::project::DatasetRecord| serde_json::json!({"type": "barrier", "path": d.file});
                         let mut stack = Vec::new();
-                        for barrier in [&outside, &rivers].into_iter().flatten() {
-                            stack
-                                .push(serde_json::json!({"type": "barrier", "path": barrier.file}));
-                        }
+                        stack.extend(outside.as_ref().map(barrier));
                         if let Some(roads) = &roads {
                             stack.push(serde_json::json!({"type": "road", "path": roads.file, "class_field": "road_class", "label_field": "label", "add_1000": true}));
                         }
+                        stack.extend(rivers.as_ref().map(barrier));
                         let labels: Vec<serde_json::Value> = if recipe.sources.land_cover_worldcover
                         {
                             presets

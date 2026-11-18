@@ -160,10 +160,18 @@ fn by_hand_fixture(dir: &Path) -> MergeLandCoverJob {
     }
 }
 
+/// The fixture's barrier (last item) moved to the top of the stack, where
+/// it empties every item.
+fn barrier_on_top(mut job: MergeLandCoverJob) -> MergeLandCoverJob {
+    let barrier = job.stack.remove(2);
+    job.stack.insert(0, barrier);
+    job
+}
+
 #[test]
 fn stack_priority_barriers_and_bridges_by_hand() {
     let dir = tempfile::tempdir().expect("tmp");
-    let job = by_hand_fixture(dir.path());
+    let job = barrier_on_top(by_hand_fixture(dir.path()));
     let out = merge(job, 256 << 20).expect("merge");
     let merged = read::<i32>(&out.join(MERGED_FILE));
     let bridges = read::<u8>(&out.join(BRIDGES_FILE));
@@ -188,15 +196,48 @@ fn stack_priority_barriers_and_bridges_by_hand() {
     assert_eq!(result["barrier_cells"], 2);
     assert_eq!(result["bridges_removed"], 1);
     assert_eq!(result["uncovered_cells"], 2);
-    let road = &report["run"]["stack"][0];
+    let road = &report["run"]["stack"][1];
     assert_eq!(road["features"]["read"], 3);
     assert_eq!(road["features"]["without_class"], 1);
     assert_eq!(road["classes"][1]["class"], 1007);
     let csv = std::fs::read_to_string(out.join(CLASSES_FILE)).expect("classes.csv");
     assert_eq!(
         csv,
-        "class,label,stack_item,cells\n1,,2,17\n2,,2,5\n1003,,1,3\n"
+        "class,label,stack_item,cells\n1,,3,17\n2,,3,5\n1003,,2,3\n"
     );
+}
+
+#[test]
+fn a_barrier_empties_only_the_items_below_it() {
+    // The fixture's barrier (column 4, rows 0 and 1) with a road over it:
+    // between the road and the land cover, the road crosses it and only the
+    // land cover is emptied; at the top, it closes the road too.
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut job = by_hand_fixture(dir.path());
+    write_items(
+        &dir.path().join("crossing.gpkg"),
+        &[(Some(3), "LINESTRING (4.5 0.5, 4.5 1.5)")],
+    );
+    job.stack = vec![
+        road(dir.path().join("crossing.gpkg")),
+        barrier(dir.path().join("barrier.gpkg")),
+        land_cover(dir.path().join("lc.tif")),
+    ];
+    let merged = read::<i32>(
+        &merge(job.clone(), 256 << 20)
+            .expect("merge")
+            .join(MERGED_FILE),
+    );
+    assert_eq!((merged[4], merged[6 + 4]), (1003, 1003));
+    job.stack.swap(0, 1);
+    job.output_dir = dir.path().join("closed");
+    let merged = read::<i32>(&merge(job, 256 << 20).expect("merge").join(MERGED_FILE));
+    assert_eq!((merged[4], merged[6 + 4]), (MERGED_NODATA, MERGED_NODATA));
+    // Below the land cover, it empties nothing.
+    let mut below = by_hand_fixture(dir.path());
+    below.output_dir = dir.path().join("below");
+    let merged = read::<i32>(&merge(below, 256 << 20).expect("merge").join(MERGED_FILE));
+    assert_eq!((merged[4], merged[6 + 4]), (1, 1));
 }
 
 #[test]
@@ -322,17 +363,17 @@ fn outputs_do_not_depend_on_memory() {
         schema_version: SCHEMA_VERSION,
         dem: path.join("dem.tif"),
         stack: vec![
-            road(path.join("roads.gpkg")),
-            land_cover(path.join("lc.tif")),
             barrier(path.join("rivers.gpkg")),
             barrier(path.join("lakes.gpkg")),
+            road(path.join("roads.gpkg")),
+            land_cover(path.join("lc.tif")),
         ],
         clean_bridges: true,
         output_dir: path.join(out),
     };
-    // 23 MiB: the 16 MiB GDAL cache floor and buffers leave about 80 of
-    // the 165 tiles resident.
-    let minimum = 23 << 20;
+    // 24 MiB, just above the minimum: the 16 MiB GDAL cache floor and
+    // buffers leave only part of the 165 tiles resident.
+    let minimum = 24 << 20;
     let tight =
         prepare(job("a"), &settings(minimum, 2), Monitor::QUIET).expect("prepare at minimum");
     assert!(tight.plan.resident_tiles < tight.plan.total_tiles);
@@ -386,6 +427,7 @@ fn layers_in_another_crs_are_reprojected_and_outside_features_counted() {
         layer: None,
         filter: None,
     });
+    let job = barrier_on_top(job);
     let prepared = prepare(job, &settings(256 << 20, 2), Monitor::QUIET).expect("prepare");
     assert!(
         prepared
@@ -397,7 +439,7 @@ fn layers_in_another_crs_are_reprojected_and_outside_features_counted() {
     let merged = read::<i32>(&out.join(MERGED_FILE));
     assert_eq!((merged[4], merged[6 + 4]), (MERGED_NODATA, MERGED_NODATA));
     assert_eq!(report.run.result.barrier_cells, 2);
-    let features = report.run.stack[2].features.as_ref().expect("counts");
+    let features = report.run.stack[0].features.as_ref().expect("counts");
     assert_eq!((features.used, features.outside_grid), (1, 1));
     assert!(
         report
