@@ -79,14 +79,18 @@ before drawing conclusions ([`docs/project-creator.md`](docs/project-creator.md)
 ## R
 
 The [R package](r/README.md) drives the same engine from R, for scenario
-batches on a project made in the web interface: import the `.am6p` file,
-edit the saved jobs' scenarios, regenerate the merged land cover, compute
-travel times, compare. Windows, macOS and Linux; experimental
+batches on a project made in the web interface: open it (or its `.am6p`
+file), take the job of a past run by its tags, derive scenarios (speeds,
+merged land cover) and run them. Windows, macOS and Linux; experimental
 ([`docs/r-package.md`](docs/r-package.md)).
 
 ```r
 remotes::install_github("unige-geohealth/accessmod_rs", subdir = "r")
-accessmod::am_install()   # the binary of this release, for this machine
+library(accessmod)
+am_install()                                   # the engine, for this machine
+am <- am_init("~/AccessMod/demo")              # a project of the web interface
+tt <- am$get("job", class = "travel-time", tags = "test")
+am$run(am$new_scenario(tt, data.frame(class = 1001, speed_kmh = 40)), tags = "s40")
 ```
 
 ## Deliverables
