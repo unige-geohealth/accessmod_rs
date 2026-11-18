@@ -1,0 +1,18 @@
+Package: accessmod
+Title: Run AccessMod 6 Accessibility Analyses from R
+Version: 6.0.0.9001
+Authors@R: person("Fred", "Moser", email = "frederic.moser@unige.ch", role = c("aut", "cre"))
+Description: A thin wrapper around the AccessMod 6 command line: installs the
+    released binary for the platform, imports projects (AccessMod 6 project
+    files and AccessMod 5 data archives), lists and edits saved jobs and their
+    scenarios, and runs analyses such as merge land cover and travel time on
+    a project, returning the runs and their output datasets.
+License: LGPL (>= 3)
+URL: https://github.com/unige-geohealth/accessmod_rs
+BugReports: https://github.com/unige-geohealth/accessmod_rs/issues
+Encoding: UTF-8
+Depends: R (>= 4.1)
+Imports: digest, jsonlite, tools, utils
+Suggests: terra, testthat (>= 3.0.0)
+Config/testthat/edition: 3
+RoxygenNote: 7.3.2
