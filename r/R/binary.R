@@ -68,11 +68,15 @@ am_install <- function(version = am_engine_version(), force = FALSE, file = NULL
   dir <- file.path(.install_root(), version)
   bin <- file.path(dir, name, .exe())
   if (file.exists(bin) && !force) {
+    .doctor(bin, version)
     .set_current(bin)
     message("AccessMod ", version, " is installed: ", bin)
     return(invisible(bin))
   }
-  tmp <- tempfile("accessmod-")
+  # Staged next to its destination (one volume: the final move is a rename),
+  # checked whole, then swapped in; a previous install is kept until then.
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  tmp <- tempfile("staging-", tmpdir = dir)
   dir.create(tmp)
   on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
   if (is.null(file)) {
@@ -93,17 +97,20 @@ am_install <- function(version = am_engine_version(), force = FALSE, file = NULL
   }
   .check_sha256(file)
   staging <- file.path(tmp, "unpacked")
-  if (grepl("\\.zip$", archive)) utils::unzip(file, exdir = staging) else utils::untar(file, exdir = staging)
+  unpacked <- if (grepl("\\.zip$", archive)) utils::unzip(file, exdir = staging) else utils::untar(file, exdir = staging)
   staged <- file.path(staging, name, .exe())
-  if (!file.exists(staged)) .am_stop(paste("the archive", archive, "holds no", .exe()))
+  if (is.null(unpacked) || (is.numeric(unpacked) && any(unpacked != 0)) || !file.exists(staged)) .am_stop(paste("cannot unpack", archive))
   Sys.chmod(staged, "755")
-  .doctor(staged)
-  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
-  unlink(file.path(dir, name), recursive = TRUE)
-  if (!file.rename(file.path(staging, name), file.path(dir, name))) {
-    file.copy(file.path(staging, name), dir, recursive = TRUE)
-    Sys.chmod(bin, "755")
+  .doctor(staged, version)
+  final <- file.path(dir, name)
+  previous <- paste0(final, ".previous")
+  unlink(previous, recursive = TRUE)
+  if (file.exists(final) && !file.rename(final, previous)) .am_stop(paste("cannot replace", final))
+  if (!file.rename(file.path(staging, name), final)) {
+    if (file.exists(previous)) file.rename(previous, final)
+    .am_stop(paste("cannot move the engine into", final))
   }
+  unlink(previous, recursive = TRUE)
   .set_current(bin)
   message("Installed AccessMod ", version, ": ", bin)
   invisible(bin)
@@ -132,11 +139,13 @@ am_uninstall <- function(version = NULL) {
   }
 }
 
-.doctor <- function(bin) {
+# `doctor` passes and the engine is the version expected.
+.doctor <- function(bin, version = NULL) {
   out <- .exec_json(bin, c("doctor", "--json"))
-  failed <- Filter(function(c) !isTRUE(c$ok), out$checks)
-  if (length(failed) > 0) {
-    .am_stop(paste0("the engine fails its checks: ", paste(vapply(failed, function(c) paste0(c$name, ": ", paste(c$detail, collapse = " ")), ""), collapse = "; ")))
+  issues <- .issues(out)
+  if (length(issues) > 0) .am_stop(paste("the engine fails its checks:", paste(issues, collapse = "; ")), kind = "doctor", issues = issues)
+  if (!is.null(version) && !identical(am_version(bin), version)) {
+    .am_stop(paste0("the engine reports version ", am_version(bin), ", expected ", version))
   }
   invisible(out)
 }

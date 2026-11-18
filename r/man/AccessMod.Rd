@@ -25,9 +25,13 @@ Made by [am_init()].
   \item{`get(type, class = NULL, tags = NULL, id = NULL)`}{The one
     Job or Dataset matching: every given tag among its tags, in any order.
     None or several: an error listing the candidates.}
+  \item{`get_run(id)`}{A past run (see `list_runs()`), to list or get
+    its outputs.}
   \item{`job(analysis, ...)`}{A new Job: `...` are the fields of the job
     document (`accessmod <analysis> schema`), Datasets for their paths;
-    `schema_version` is set.}
+    `schema_version` is set. Object fields take lists
+    (`facilities = list(path = ds, id_field = "id")`); a JSON array of one
+    element is `I(x)` or `list(x)`.}
   \item{`new_scenario(job, speeds)`}{A new Job with the speeds of the
     classes in `speeds` (a data frame: `class`, `speed_kmh`, optionally
     `mode`, `label`) changed; every class must be in the job's scenario.}

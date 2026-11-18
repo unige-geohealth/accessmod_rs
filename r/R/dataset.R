@@ -23,6 +23,7 @@ Dataset <- R6::R6Class("AccessModDataset",
   cloneable = FALSE,
   public = list(
     initialize = function(row, project) {
+      .once(private$.row)
       private$.row <- row
       private$.project <- project
     },
@@ -72,6 +73,7 @@ Run <- R6::R6Class("AccessModRun",
   cloneable = FALSE,
   public = list(
     initialize = function(record, session) {
+      .once(private$.record)
       private$.record <- record
       private$.session <- session
     },
@@ -83,10 +85,11 @@ Run <- R6::R6Class("AccessModRun",
       out <- self$list_outputs(class)
       if (nrow(out) == 1) return(Dataset$new(out, private$.session$path))
       if (nrow(out) > 1) .am_stop(paste0("run ", self$id, " wrote several ", class, ": ", paste(out$id, collapse = ", ")), kind = "ambiguous")
-      missing <- setdiff(self$datasets, private$.session$list_data()$id)
+      data <- private$.session$list_data()
+      missing <- setdiff(self$datasets, data$id[data$type != "job"])
       .am_stop(paste0(
         "run ", self$id, " has no output ", class, " in this project",
-        if (length(missing) > 0) " (its outputs are missing: a project file exported without results?)" else ""
+        if (length(missing) > 0 || length(self$datasets) == 0) " (its outputs are missing: a project file exported without results?)" else ""
       ), kind = "not_found")
     },
     print = function(...) {

@@ -26,3 +26,9 @@ test_that("one match or an error naming the candidates", {
   expect_error(.select_one(cat, "raster", class = "rTravelTime"), class = "accessmod_not_found")
   expect_error(.select(cat, type = "rasters"), "unknown type")
 })
+
+test_that("a fractional id is refused, not truncated", {
+  cat <- .catalogue(fake_datasets(), fake_runs())
+  expect_error(.select(cat, id = 1.9), "whole numbers")
+  expect_equal(.select(cat, type = "raster", id = 12)$class, "rLandCoverMerged")
+})

@@ -35,6 +35,8 @@ Job <- R6::R6Class("AccessModJob",
   cloneable = FALSE,
   public = list(
     initialize = function(analysis, document, project, run = NA_integer_, tags = character()) {
+      .once(private$.analysis)
+      if (!is.list(document) || !.is_json_value(document)) .am_stop("a job document holds JSON values only (lists, numbers, strings, logicals)")
       private$.analysis <- analysis
       private$.document <- document
       private$.project <- project
@@ -86,6 +88,12 @@ Job <- R6::R6Class("AccessModJob",
   private = list(.analysis = NULL, .document = NULL, .project = NULL, .run = NULL, .tags = NULL)
 )
 
+# R6 makes `initialize` public: calling it again on an object (or an alias
+# of it) would change it in place.
+.once <- function(field) {
+  if (!is.null(field)) .am_stop("AccessMod objects are made once: make a new one instead")
+}
+
 .read_only <- function(value, current) {
   if (!missing(value)) .am_stop("AccessMod objects are read only: use $with() or am$new_scenario() for a changed job")
   current
@@ -131,10 +139,11 @@ Job <- R6::R6Class("AccessModJob",
     .am_stop("speeds must be a data frame with the columns class and speed_kmh (optionally mode, label)")
   }
   current <- .scenario_frame(document, analysis)
-  classes <- as.integer(speeds$class)
-  if (anyNA(classes) || anyDuplicated(classes)) .am_stop("each class must be given once, as a whole number")
+  classes <- .whole(speeds$class, "classes")
+  if (anyDuplicated(classes)) .am_stop("each class must be given once")
   unknown <- setdiff(classes, current$class)
   if (length(unknown) > 0) .am_stop(paste("classes not in the scenario:", paste(unknown, collapse = ", ")))
+  if (!is.numeric(speeds$speed_kmh)) .am_stop("speed_kmh must be numbers (not text or factors)")
   speed <- as.numeric(speeds$speed_kmh)
   if (any(!is.finite(speed) | speed < 0)) .am_stop("speeds must be finite numbers >= 0 (0 makes a barrier)")
   if ("mode" %in% names(speeds)) {

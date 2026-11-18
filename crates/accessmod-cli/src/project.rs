@@ -77,7 +77,9 @@ pub enum Command {
     Export {
         #[command(flatten)]
         project: ProjectArg,
-        /// Directory receiving the file (created if missing).
+        /// Directory receiving the file (created if missing). The file is
+        /// published with a hard link: the directory's file system must
+        /// support them (not exFAT or FAT32).
         #[arg(long, value_name = "DIR")]
         dir: PathBuf,
         /// Leave run outputs out (their jobs are kept).
@@ -351,8 +353,6 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             json,
         } => {
             let project = open(&project.project, json)?;
-            std::fs::create_dir_all(&dir)
-                .map_err(|e| fail(&Error::invalid(format!("{}: {e}", dir.display())), json))?;
             let file = monitored(cancel, |m| project.export_package(&dir, !no_results, m))
                 .map_err(|e| fail(&e, json))?;
             tracing::info!("exported {}", file.display());

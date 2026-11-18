@@ -47,3 +47,21 @@ test_that("new speeds: listed classes only, each once, finite and >= 0", {
   expect_error(.with_speeds(d, data.frame(speed = 4), "travel-time"), "columns class and speed_kmh")
   expect_error(.with_speeds(list(), data.frame(class = 1, speed_kmh = 1), "merge-land-cover"), "no scenario")
 })
+
+test_that("fractional classes and text or factor speeds are refused, not truncated", {
+  d <- scenario_doc()
+  expect_error(.with_speeds(d, data.frame(class = 1.9, speed_kmh = 4), "travel-time"), "whole numbers")
+  expect_error(.with_speeds(d, data.frame(class = factor(1), speed_kmh = 4), "travel-time"), "whole numbers")
+  expect_error(.with_speeds(d, data.frame(class = 1, speed_kmh = factor("80")), "travel-time"), "not text or factors")
+  expect_error(.with_speeds(d, data.frame(class = 1, speed_kmh = "80"), "travel-time"), "not text or factors")
+})
+
+test_that("a made object cannot be re-initialised through an alias", {
+  tt <- job()
+  alias <- tt
+  expect_error(alias$initialize("referral", list(), "/elsewhere"), "made once")
+  expect_equal(tt$analysis, "travel-time")
+  expect_equal(tt$project, "/p")
+  expect_error(Job$new("travel-time", list(f = function() 1), "/p"), "JSON values only")
+  expect_error(Job$new("travel-time", list(f = factor("a")), "/p"), "JSON values only")
+})

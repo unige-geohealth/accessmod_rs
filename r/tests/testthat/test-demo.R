@@ -56,6 +56,10 @@ test_that("scenarios on the demo, then on its project file", {
   copied_run <- copy$list_runs()
   expect_true(all(c("merge-land-cover", "travel-time") %in% copied_run$analysis))
   expect_error(copy$run(job, tags = "again"), class = "accessmod_error")
+  # Its runs are there, their outputs are not: said as such.
+  slow_copy <- copy$get_run(job$run)
+  expect_equal(nrow(slow_copy$list_outputs()), 0)
+  expect_error(slow_copy$get_output("rTravelTime"), "without results")
 
   # With results: the copy runs its jobs.
   full <- init(file.path(root, "full"), import = am$export(file.path(root, "exports"), results = TRUE))

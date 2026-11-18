@@ -62,7 +62,8 @@ if [ "$dry" -eq 1 ]; then
 fi
 
 # The version lives in the Cargo workspace, the desktop crate, the two
-# npm packages and the engine version the R package installs; a version already set (e.g. by hand for the first release)
+# npm packages and the engine version the R package installs; a version
+# already set (e.g. by hand for the first release)
 # is only tagged.
 current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
 if [ "$current" != "$version" ]; then
@@ -84,6 +85,7 @@ if [ "$current" != "$version" ]; then
 	git commit -q -m "chore(release): $tag"
 fi
 [ "$(cargo run -q -p accessmod-cli -- --version)" = "accessmod $version" ] || fail "the binary does not report $version"
+grep -qx "Config/accessmod/engine: $version" r/DESCRIPTION || fail "r/DESCRIPTION does not pin the engine $version (Config/accessmod/engine)"
 
 git tag -a "$tag" -m "AccessMod $version"
 git push -q origin main "$tag"
