@@ -693,50 +693,30 @@ fn import_project(
     };
     let file = file_label(&package.path);
     let rename = params.name.trim().to_owned();
-    // An AccessMod 5 data archive (Data manager › Archive): no manifest, a
-    // DEM directory.
-    if am5::is_archive(&archive::file_names(&package.path, limits)?) {
+    // An AccessMod 5 data archive (Data manager › Archive) has no manifest
+    // and a DEM directory; it takes the archive's name. A project file's
+    // manifest is read now: a file that is neither fails at once.
+    let (name, import_name) = if am5::is_archive(&archive::file_names(&package.path, limits)?) {
         let name = if rename.is_empty() {
             am5::project_name(&package.path)
         } else {
             rename
         };
-        let slug = free_slug(state, &name);
-        let job = serde_json::json!({ "name": name, "file": file });
-        let project_name = name.clone();
-        return operations::queue_pending(
-            state,
-            principal,
-            "project-import",
-            &slug.clone(),
-            &name,
-            job,
-            move |state, monitor| {
-                let (project, report) = am5::import_archive(
-                    &package.path,
-                    &state.projects_dir().join(&slug),
-                    &project_name,
-                    limits,
-                    &state.config().settings,
-                    monitor,
-                )?;
-                package.consumed();
-                Ok((project, format!("{} from {file}", report.summary())))
-            },
-        );
-    }
-    // The manifest is read now: a file that is not a project fails at once.
-    let manifest = archive::manifest(&package.path, limits)?;
-    let from_file = manifest
-        .content
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_owned();
-    let name = if rename.is_empty() {
-        from_file
+        (name.clone(), name)
     } else {
-        rename.clone()
+        let manifest = archive::manifest(&package.path, limits)?;
+        let from_file = manifest
+            .content
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
+        let name = if rename.is_empty() {
+            from_file
+        } else {
+            rename.clone()
+        };
+        (name, rename)
     };
     let slug = free_slug(state, &name);
     let target = slug.clone();
@@ -749,18 +729,16 @@ fn import_project(
         &name,
         job,
         move |state, monitor| {
-            let project = Project::import_package(
+            let (project, summary) = Project::import_file(
                 &package.path,
                 &state.projects_dir().join(&target),
+                &import_name,
                 limits,
+                &state.config().settings,
                 monitor,
             )?;
-            if !rename.is_empty() {
-                let description = project.info()?.description;
-                project.rename(&rename, &description)?;
-            }
             package.consumed();
-            Ok((project, format!("imported from {file}")))
+            Ok((project, format!("{summary} from {file}")))
         },
     )
 }

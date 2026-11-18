@@ -404,3 +404,76 @@ fn every_registered_analysis_has_a_command_with_its_schema() {
         assert_eq!(stdout_json(&output), schema, "{name}");
     }
 }
+
+#[test]
+fn project_import_of_an_archive_and_a_project_file_then_saved_jobs() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let d = dir.path().to_str().expect("utf-8");
+    let archive = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../accessmod-io/tests/data/am5_archive.zip"
+    );
+    let from_am5 = format!("{d}/from-am5");
+    let output = accessmod(&["project", "import", archive, &from_am5, "--json"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = stdout_json(&output);
+    assert!(
+        report["summary"].as_str().is_some_and(|s| !s.is_empty()),
+        "{report}"
+    );
+
+    // A saved job, then the project as a file, imported under a new name.
+    let project = accessmod_io::project::Project::open(Path::new(&from_am5)).expect("open");
+    project
+        .save_job(
+            None,
+            "travel-time",
+            "Walking",
+            &serde_json::json!({"schema_version": 1}),
+        )
+        .expect("save job");
+    let file = project
+        .export_package(
+            &dir.path().join("exports"),
+            false,
+            accessmod_io::analysis::Monitor::QUIET,
+        )
+        .expect("export");
+    let copy = format!("{d}/copy");
+    let output = accessmod(&[
+        "project",
+        "import",
+        file.to_str().expect("utf-8"),
+        &copy,
+        "--name",
+        "Copy",
+        "--json",
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(stdout_json(&output)["project"]["name"], "Copy");
+    let jobs = stdout_json(&accessmod(&[
+        "project",
+        "jobs",
+        "--project",
+        &copy,
+        "--json",
+    ]));
+    assert_eq!(jobs[0]["analysis"], "travel-time");
+    assert_eq!(jobs[0]["name"], "Walking");
+    assert_eq!(jobs[0]["document"]["schema_version"], 1);
+
+    // An existing directory is refused, and nothing changes.
+    let output = accessmod(&["project", "import", archive, &copy, "--json"]);
+    assert_ne!(output.status.code(), Some(0));
+    assert_eq!(stdout_json(&output)["status"], "error");
+}

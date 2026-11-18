@@ -58,6 +58,30 @@ pub enum Command {
         #[command(flatten)]
         exec: ExecArgs,
     },
+    /// Import a project file (`.am6p`) or an AccessMod 5 data archive
+    /// (Data manager › Archive, `.zip`) as a new project directory.
+    Import {
+        /// Project file or AccessMod 5 data archive.
+        file: PathBuf,
+        /// New project directory (must not exist).
+        dir: PathBuf,
+        /// Project name (default: the one in the file, or the archive's
+        /// file name).
+        #[arg(long, default_value = "")]
+        name: String,
+        #[command(flatten)]
+        exec: ExecArgs,
+    },
+    /// Saved jobs of the project (made in the web interface or saved by
+    /// `accessmod serve`): identifier, analysis, name and job document,
+    /// paths relative to the project.
+    Jobs {
+        #[command(flatten)]
+        project: ProjectArg,
+        /// Print a JSON document on stdout.
+        #[arg(long)]
+        json: bool,
+    },
     /// Name, grid and content of a project.
     Info {
         #[command(flatten)]
@@ -273,6 +297,47 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             tracing::info!("created the demo project in {}", dir.display());
             if exec.json {
                 print_value(&info);
+            }
+            Ok(())
+        }
+        Command::Import {
+            file,
+            dir,
+            name,
+            exec,
+        } => {
+            let settings = settings(&exec)?;
+            let parent = dir
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."));
+            // A zip bomb fills at most 90 % of the free disk.
+            let limits = accessmod_io::archive::Limits {
+                bytes: accessmod_io::resources::free_disk(parent)
+                    .map(|free| free / 10 * 9)
+                    .unwrap_or(accessmod_io::archive::Limits::default().bytes),
+                ..accessmod_io::archive::Limits::default()
+            };
+            let (project, summary) = monitored(cancel, |m| {
+                Project::import_file(&file, &dir, name.trim(), limits, &settings, m)
+            })
+            .map_err(|e| fail(&e, exec.json))?;
+            let info = project.info().map_err(|e| fail(&e, exec.json))?;
+            tracing::info!("{summary}: {} in {}", info.name, dir.display());
+            if exec.json {
+                print_value(&serde_json::json!({"project": info, "summary": summary}));
+            }
+            Ok(())
+        }
+        Command::Jobs { project, json } => {
+            let project = open(&project.project, json)?;
+            let jobs = project.jobs().map_err(|e| fail(&e, json))?;
+            if json {
+                print_value(&jobs);
+            } else {
+                for j in &jobs {
+                    println!("{:>4}  {:<30} {}", j.id, j.analysis, j.name);
+                }
             }
             Ok(())
         }

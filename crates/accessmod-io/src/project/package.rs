@@ -337,6 +337,38 @@ impl Project {
         Project::open(target)
     }
 
+    /// Import `file` as the new project directory `target`: a project file
+    /// ([`Self::import_package`]) or an AccessMod 5 data archive
+    /// ([`crate::am5::import_archive`]). A non-empty `name` renames the
+    /// project; otherwise it keeps the name in the file (a project file) or
+    /// takes the file's (an archive). Returns the project and a summary.
+    pub fn import_file(
+        file: &Path,
+        target: &Path,
+        name: &str,
+        limits: Limits,
+        settings: &crate::resources::ExecutionSettings,
+        monitor: Monitor<'_>,
+    ) -> Result<(Project, String)> {
+        use crate::am5;
+        if am5::is_archive(&archive::file_names(file, limits)?) {
+            let name = if name.is_empty() {
+                am5::project_name(file)
+            } else {
+                name.to_owned()
+            };
+            let (project, report) =
+                am5::import_archive(file, target, &name, limits, settings, monitor)?;
+            return Ok((project, report.summary()));
+        }
+        let project = Self::import_package(file, target, limits, monitor)?;
+        if !name.is_empty() {
+            let description = project.info()?.description;
+            project.rename(name, &description)?;
+        }
+        Ok((project, "imported".to_owned()))
+    }
+
     /// Every ready dataset's file is inside the project and reads nothing
     /// but itself (as an upload: [`super::check_self_contained`]); no other
     /// file GDAL would read beside a dataset (sidecars) is there.
