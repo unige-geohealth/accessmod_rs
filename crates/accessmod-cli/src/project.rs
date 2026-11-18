@@ -72,6 +72,21 @@ pub enum Command {
         #[command(flatten)]
         exec: ExecArgs,
     },
+    /// Write the project to a new project file (`.am6p`) in a directory:
+    /// datasets, runs and their jobs, with or without run outputs.
+    Export {
+        #[command(flatten)]
+        project: ProjectArg,
+        /// Directory receiving the file (created if missing).
+        #[arg(long, value_name = "DIR")]
+        dir: PathBuf,
+        /// Leave run outputs out (their jobs are kept).
+        #[arg(long)]
+        no_results: bool,
+        /// Print a JSON document on stdout.
+        #[arg(long)]
+        json: bool,
+    },
     /// Saved jobs of the project (made in the web interface or saved by
     /// `accessmod serve`): identifier, analysis, name and job document,
     /// paths relative to the project.
@@ -326,6 +341,23 @@ pub fn run(command: Command, cancel: &Cancel) -> Result<(), Failure> {
             tracing::info!("{summary}: {} in {}", info.name, dir.display());
             if exec.json {
                 print_value(&serde_json::json!({"project": info, "summary": summary}));
+            }
+            Ok(())
+        }
+        Command::Export {
+            project,
+            dir,
+            no_results,
+            json,
+        } => {
+            let project = open(&project.project, json)?;
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| fail(&Error::invalid(format!("{}: {e}", dir.display())), json))?;
+            let file = monitored(cancel, |m| project.export_package(&dir, !no_results, m))
+                .map_err(|e| fail(&e, json))?;
+            tracing::info!("exported {}", file.display());
+            if json {
+                print_value(&serde_json::json!({ "file": file }));
             }
             Ok(())
         }

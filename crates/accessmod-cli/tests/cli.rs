@@ -437,13 +437,29 @@ fn project_import_of_an_archive_and_a_project_file_then_saved_jobs() {
             &serde_json::json!({"schema_version": 1}),
         )
         .expect("save job");
-    let file = project
-        .export_package(
-            &dir.path().join("exports"),
-            false,
-            accessmod_io::analysis::Monitor::QUIET,
-        )
-        .expect("export");
+    let exports = format!("{d}/exports");
+    let output = accessmod(&[
+        "project",
+        "export",
+        "--project",
+        &from_am5,
+        "--dir",
+        &exports,
+        "--no-results",
+        "--json",
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let file = std::path::PathBuf::from(
+        stdout_json(&output)["file"]
+            .as_str()
+            .expect("file")
+            .to_owned(),
+    );
     let copy = format!("{d}/copy");
     let output = accessmod(&[
         "project",
