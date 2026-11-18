@@ -54,7 +54,11 @@
   keep <- rep(TRUE, nrow(catalogue))
   if (!is.null(type)) keep <- keep & catalogue$type == type
   if (!is.null(class)) keep <- keep & catalogue$class == class
-  if (!is.null(id)) keep <- keep & catalogue$id == .whole(id, "id")
+  if (!is.null(id)) {
+    id <- .whole(id, "id")
+    if (length(id) != 1) .am_stop("give one id")
+    keep <- keep & catalogue$id == id
+  }
   if (length(tags) > 0) {
     tags <- as.character(tags)
     keep <- keep & vapply(catalogue$tags, function(t) all(tags %in% t), TRUE)

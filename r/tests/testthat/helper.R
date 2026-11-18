@@ -34,6 +34,11 @@ scenario_doc <- function() {
 # An engine for the end-to-end tests: ACCESSMOD_BIN, or am_install().
 has_engine <- function() !inherits(try(am_binary(), silent = TRUE), "try-error")
 
+# Whether the engine has `project export` (6.0.0-alpha.2 and later).
+has_export <- function() {
+  identical(suppressWarnings(system2(am_binary(), c("project", "export", "--help"), stdout = FALSE, stderr = FALSE)), 0L)
+}
+
 # am_init without the warning of a development engine (another version than
 # the one the package is made for).
 init <- function(...) {

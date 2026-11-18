@@ -89,7 +89,7 @@ Run <- R6::R6Class("AccessModRun",
       missing <- setdiff(self$datasets, data$id[data$type != "job"])
       .am_stop(paste0(
         "run ", self$id, " has no output ", class, " in this project",
-        if (length(missing) > 0 || length(self$datasets) == 0) " (its outputs are missing: a project file exported without results?)" else ""
+        if (identical(self$status, "done") && (length(missing) > 0 || length(self$datasets) == 0)) " (its outputs are missing: a project file exported without results?)" else ""
       ), kind = "not_found")
     },
     print = function(...) {

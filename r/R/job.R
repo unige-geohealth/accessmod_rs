@@ -36,6 +36,7 @@ Job <- R6::R6Class("AccessModJob",
   public = list(
     initialize = function(analysis, document, project, run = NA_integer_, tags = character()) {
       .once(private$.analysis)
+      if (!is.character(analysis) || length(analysis) != 1 || is.na(analysis) || !nzchar(analysis)) .am_stop("the analysis is a name, e.g. \"travel-time\"")
       if (!is.list(document) || !.is_json_value(document)) .am_stop("a job document holds JSON values only (lists, numbers, strings, logicals)")
       private$.analysis <- analysis
       private$.document <- document

@@ -50,6 +50,7 @@ test_that("failures keep the engine's issues, doctor checks included", {
   expect_equal(.issues(list(issues = list("a", "b"))), c("a", "b"))
   expect_equal(.issues(list(checks = list(list(name = "driver GTiff", ok = TRUE, detail = "ok"), list(name = "proj.db", ok = FALSE, detail = "missing")))), "proj.db: missing")
   expect_equal(.issues(NULL), character())
+  expect_equal(.issues(list(checks = list(FALSE))), "a malformed check")
 })
 
 test_that("an engine that cannot run or prints no JSON is an accessmod_error", {
@@ -58,6 +59,10 @@ test_that("an engine that cannot run or prints no JSON is an accessmod_error", {
   writeLines(c("#!/bin/sh", "echo not json"), fake)
   Sys.chmod(fake, "755")
   expect_error(.exec_json(fake, "doctor"), class = "accessmod_error")
+  writeLines(c("#!/bin/sh", "echo true"), fake)
+  expect_error(.exec_json(fake, "doctor"), class = "accessmod_error")
+  writeLines(c("#!/bin/sh", "echo true", "exit 3"), fake)
+  expect_error(.exec_json(fake, "doctor"), class = "accessmod_engine")
   writeLines(c("#!/bin/sh", "echo 'boom error' >&2", "exit 3"), fake)
   err <- tryCatch(.exec_json(fake, "doctor"), error = identity)
   expect_s3_class(err, "accessmod_engine")

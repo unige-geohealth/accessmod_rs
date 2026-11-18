@@ -64,4 +64,5 @@ test_that("a made object cannot be re-initialised through an alias", {
   expect_equal(tt$project, "/p")
   expect_error(Job$new("travel-time", list(f = function() 1), "/p"), "JSON values only")
   expect_error(Job$new("travel-time", list(f = factor("a")), "/p"), "JSON values only")
+  expect_error(Job$new(NULL, list(), "/p"), "a name")
 })

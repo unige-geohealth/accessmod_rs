@@ -30,5 +30,7 @@ test_that("one match or an error naming the candidates", {
 test_that("a fractional id is refused, not truncated", {
   cat <- .catalogue(fake_datasets(), fake_runs())
   expect_error(.select(cat, id = 1.9), "whole numbers")
+  expect_error(.select(cat, id = 3e9), "integer range")
+  expect_error(.select(cat, id = c(1, 2)), "one id")
   expect_equal(.select(cat, type = "raster", id = 12)$class, "rLandCoverMerged")
 })

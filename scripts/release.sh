@@ -85,7 +85,7 @@ if [ "$current" != "$version" ]; then
 	git commit -q -m "chore(release): $tag"
 fi
 [ "$(cargo run -q -p accessmod-cli -- --version)" = "accessmod $version" ] || fail "the binary does not report $version"
-grep -qx "Config/accessmod/engine: $version" r/DESCRIPTION || fail "r/DESCRIPTION does not pin the engine $version (Config/accessmod/engine)"
+grep -qxF "Config/accessmod/engine: $version" r/DESCRIPTION || fail "r/DESCRIPTION does not pin the engine $version (Config/accessmod/engine)"
 
 git tag -a "$tag" -m "AccessMod $version"
 git push -q origin main "$tag"

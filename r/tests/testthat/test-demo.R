@@ -49,6 +49,7 @@ test_that("scenarios on the demo, then on its project file", {
   expect_equal(am$run(baseline, tags = "test", overwrite = TRUE)$status, "done")
 
   # The project file, without results: jobs are there, outputs are not.
+  skip_if_not(has_export(), "this engine has no project export (6.0.0-alpha.2 and later)")
   file <- am$export(file.path(root, "exports"), results = FALSE)
   copy <- init(file.path(root, "copy"), import = file)
   job <- copy$get("job", class = "travel-time", tags = "slow")

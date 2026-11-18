@@ -33,11 +33,11 @@
     }
     .am_stop(
       paste(c(sprintf("accessmod %s failed:", args[1]), paste0("  - ", issues)), collapse = "\n"),
-      kind = if (is.character(parsed$kind)) parsed$kind else "engine", status = as.integer(status), issues = issues
+      kind = if (is.list(parsed) && is.character(parsed$kind)) parsed$kind else "engine", status = as.integer(status), issues = issues
     )
   }
-  if (is.null(parsed)) {
-    .am_stop(sprintf("accessmod %s printed no JSON: %s", args[1], substr(text, 1, 200)), kind = "engine")
+  if (!is.list(parsed)) {
+    .am_stop(sprintf("accessmod %s printed no JSON document: %s", args[1], substr(text, 1, 200)), kind = "engine")
   }
   parsed
 }
@@ -47,8 +47,11 @@
   if (!is.list(parsed)) return(character())
   issues <- as.character(unlist(parsed$issues))
   if (length(issues) == 0 && is.list(parsed$checks)) {
-    failed <- Filter(function(c) !isTRUE(c$ok), parsed$checks)
-    issues <- vapply(failed, function(c) paste0(c$name, ": ", paste(c$detail, collapse = " ")), "")
+    failed <- Filter(function(c) !is.list(c) || !isTRUE(c$ok), parsed$checks)
+    issues <- vapply(failed, function(c) {
+      if (!is.list(c)) return("a malformed check")
+      paste0(paste(c$name, collapse = " "), ": ", paste(c$detail, collapse = " "))
+    }, "")
   }
   issues
 }
@@ -73,8 +76,9 @@
 
 # Whole numbers as integers; anything else (1.9, a factor, NA) is refused.
 .whole <- function(value, what) {
-  if (is.factor(value) || !is.numeric(value) || anyNA(value) || any(!is.finite(value)) || any(value != round(value))) {
-    .am_stop(paste(what, "must be whole numbers"))
+  if (is.factor(value) || !is.numeric(value) || anyNA(value) || any(!is.finite(value)) || any(value != round(value)) ||
+    any(abs(value) > .Machine$integer.max)) {
+    .am_stop(paste(what, "must be whole numbers (within R's integer range)"))
   }
   as.integer(value)
 }

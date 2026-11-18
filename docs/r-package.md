@@ -88,5 +88,8 @@ and the end-to-end test on the four platforms.
   older distributions may lack the glibc version they need (not measured
   yet). There: build from source, or use a container.
 - Windows on arm runs the x86_64 build (emulation).
+- Numbers are R doubles: an integer beyond 2^53 in a job (a facility id
+  such as 9007199254740993) is rounded when a job is read; use text ids
+  for such facilities.
 - The tags of a run must be new for its output classes, unless
   `overwrite = TRUE`: give each scenario its own tags.

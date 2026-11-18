@@ -102,15 +102,18 @@ am_install <- function(version = am_engine_version(), force = FALSE, file = NULL
   if (is.null(unpacked) || (is.numeric(unpacked) && any(unpacked != 0)) || !file.exists(staged)) .am_stop(paste("cannot unpack", archive))
   Sys.chmod(staged, "755")
   .doctor(staged, version)
+  # The working engine is moved aside (a name of this install only), the
+  # new one moved in, and the old one removed only once `current` points
+  # to the new one.
   final <- file.path(dir, name)
-  previous <- paste0(final, ".previous")
-  unlink(previous, recursive = TRUE)
+  previous <- file.path(tmp, "previous")
   if (file.exists(final) && !file.rename(final, previous)) .am_stop(paste("cannot replace", final))
   if (!file.rename(file.path(staging, name), final)) {
-    if (file.exists(previous)) file.rename(previous, final)
+    if (file.exists(previous) && !file.rename(previous, final)) {
+      .am_stop(paste0("cannot move the engine into ", final, ", nor restore the previous one (kept in ", previous, ")"))
+    }
     .am_stop(paste("cannot move the engine into", final))
   }
-  unlink(previous, recursive = TRUE)
   .set_current(bin)
   message("Installed AccessMod ", version, ": ", bin)
   invisible(bin)

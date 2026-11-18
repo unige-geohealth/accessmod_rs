@@ -137,7 +137,8 @@ AccessMod <- R6::R6Class("AccessMod",
     },
     get_run = function(id) {
       id <- .whole(id, "id")
-      found <- Filter(function(r) as.integer(r$id) == id, private$runs())
+      if (length(id) != 1) .am_stop("get_run() takes one id")
+      found <- Filter(function(r) identical(as.integer(r$id), id), private$runs())
       if (length(found) == 0) .am_stop(paste("no run", id, "in this project"), kind = "not_found")
       Run$new(found[[1]], self)
     },
