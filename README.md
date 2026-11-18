@@ -15,7 +15,7 @@ facilities: schools, shelters and evacuation points, markets, water points. Acce
 GIS, Docker) as one binary with a web interface, in Rust (repository
 `accessmod-rs`).
 
-**Status: alpha** (6.0.0-alpha.1). Every AccessMod 5 analysis runs from the
+**Status: alpha** (6.0.0-alpha.2). Every AccessMod 5 analysis runs from the
 command line and gives the same results as AccessMod 5 on its demo project;
 the web interface runs them all, with the toolbox, the interactive map and a
 jobs view. AccessMod 5 projects come in through their data archive (Data

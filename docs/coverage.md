@@ -11,7 +11,7 @@ Status: ✅ available · 🟡 partial · 🗓 planned (milestone in
 **Engine**: command line and job files, checked against AccessMod 5 (the
 oracle). **Web**: the screen in the web interface.
 
-_Last updated: 2026-11-18 (6.0.0-alpha.1)._
+_Last updated: 2026-11-18 (6.0.0-alpha.2)._
 
 ## Analyses
 
@@ -69,7 +69,7 @@ _Last updated: 2026-11-18 (6.0.0-alpha.1)._
 | AccessMod 5 | AccessMod 6 |
 | --- | --- |
 | R/Shiny + GRASS GIS + Docker, packaged as Electron app or VM | One `accessmod` binary: command line and `accessmod serve` (web interface on the desktop); ✅ self-contained archives with GDAL/PROJ for Linux, macOS and Windows ([`distribution.md`](distribution.md)); 🗓 country server with accounts; 🟡 desktop application (Tauri window over the same engine, unsigned installers: [`desktop.md`](desktop.md)) |
-| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; every web action is a reproducible job; 🟡 R package (experimental: projects, saved jobs, scenarios, any analysis; [`r-package.md`](r-package.md)); ➖ MCP server deferred |
+| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; every web action is a reproducible job; 🟡 R package (experimental: project sessions, jobs of past runs selected by tags, scenarios, any analysis; [`r-package.md`](r-package.md)); ➖ MCP server deferred |
 | Memory needs grow with the grid (GRASS segments) | Explicit memory budget, tiled disk storage, same results at any budget ([benchmarks](../benchmark/README.md)) |
 | Results in minutes (rounded) | Results in seconds and metres; minutes in the interface, compatibility export 🗓 |
 
