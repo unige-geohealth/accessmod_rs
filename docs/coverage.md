@@ -11,7 +11,7 @@ Status: ✅ available · 🟡 partial · 🗓 planned (milestone in
 **Engine**: command line and job files, checked against AccessMod 5 (the
 oracle). **Web**: the screen in the web interface.
 
-_Last updated: 2026-10-31 (6.0.0-alpha.1)._
+_Last updated: 2026-11-18 (6.0.0-alpha.1)._
 
 ## Analyses
 
@@ -50,6 +50,7 @@ _Last updated: 2026-10-31 (6.0.0-alpha.1)._
 | AccessMod 5 feature | Where in AM5 | Engine | Web |
 | --- | --- | --- | --- |
 | Project built from the DEM | `amProjectCreateFromDem` | ✅ `project init`: the DEM defines the grid; imports must lie on its lattice (stricter than AM5, which resamples); 🗓 explicit resampling | ✅ Project › New / Import, summary, location map, delete |
+| Project from a region (inAccessMod, outside AM5) | — | 🟡 experimental: `project create --recipe` (local sources) and `creator.create` (downloads GLO-90, WorldCover, WorldPop, HOT OSM exports, geoBoundaries into a shared cache): projection and lattice chosen for the region, warps with population check, outside as a barrier, merged land cover, saved travel-time job, manifest with sources and licences; presets provisional ([`project-creator.md`](project-creator.md)) | 🟡 Project › New from a region (experimental): country, units on the map, distance, cell size, layers; 🗓 preflight, drawn or uploaded region, facility list upload |
 | Raster import with CRS / extent checks | `amUploadRaster.R` | ✅ GeoTIFF, ERDAS Imagine; no implicit resampling or reprojection | ✅ Data › Import (uploads) |
 | Vector import (facilities, roads, barriers, zones) | `amUploadVector.R` | ✅ shapefile, GeoPackage, FlatGeobuf, GeoJSON; explicit reprojection | ✅ |
 | Table import (scenarios, capacities, suitability, exclusion) | `amUploadTable.R` | ✅ CSV and XLSX | ✅ and editable in the analyses |
@@ -68,7 +69,7 @@ _Last updated: 2026-10-31 (6.0.0-alpha.1)._
 | AccessMod 5 | AccessMod 6 |
 | --- | --- |
 | R/Shiny + GRASS GIS + Docker, packaged as Electron app or VM | One `accessmod` binary: command line and `accessmod serve` (web interface on the desktop); ✅ self-contained archives with GDAL/PROJ for Linux, macOS and Windows ([`distribution.md`](distribution.md)); 🗓 country server with accounts; 🟡 desktop application (Tauri window over the same engine, unsigned installers: [`desktop.md`](desktop.md)) |
-| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; every web action is a reproducible job; ➖ MCP server deferred |
+| Interactive use only (plus replay) | Scriptable: job files, JSON on stdout, exit codes; every web action is a reproducible job; 🟡 R package (experimental: projects, saved jobs, scenarios, any analysis; [`r-package.md`](r-package.md)); ➖ MCP server deferred |
 | Memory needs grow with the grid (GRASS segments) | Explicit memory budget, tiled disk storage, same results at any budget ([benchmarks](../benchmark/README.md)) |
 | Results in minutes (rounded) | Results in seconds and metres; minutes in the interface, compatibility export 🗓 |
 

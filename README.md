@@ -6,19 +6,23 @@
 [![licence](https://img.shields.io/badge/licence-LGPL--3.0--or--later-blue)](LICENSE)
 [![rust](https://img.shields.io/badge/rust-1.92-brown)](rust-toolchain.toml)
 
-Physical accessibility to health services: travel time to facilities,
-geographic coverage and catchments, referral, zonal statistics, scaling up
-and optimization. AccessMod 6 is the rewrite of
+Physical accessibility to services: travel time to facilities, geographic
+coverage and catchments, referral, zonal statistics, scaling up and
+optimization, on foot, by bicycle or motorized, over terrain, land cover,
+roads and barriers. Built for health services, it works for any network of
+facilities: schools, shelters and evacuation points, markets, water points. AccessMod 6 is the rewrite of
 [AccessMod 5](https://github.com/unige-geohealth/accessmod) (R/Shiny, GRASS
 GIS, Docker) as one binary with a web interface, in Rust (repository
 `accessmod-rs`).
 
-**Status: alpha.** Every AccessMod 5 analysis runs from the command line
-and gives the same results as AccessMod 5 on its demo project; the web
-interface runs them all, with the toolbox, the interactive map and a
-jobs view. AccessMod 5 projects come in through their data archive
-(Data manager › Archive, then Project › New / Import here). What is done,
-feature by feature:
+**Status: alpha** (6.0.0-alpha.1). Every AccessMod 5 analysis runs from the
+command line and gives the same results as AccessMod 5 on its demo project;
+the web interface runs them all, with the toolbox, the interactive map and a
+jobs view. AccessMod 5 projects come in through their data archive (Data
+manager › Archive, then Project › New / Import here). New and
+**experimental**: a project from a region, with open data downloaded
+for it ([below](#new-project-from-a-region-experimental)), and an
+[R package](#r). What is done, feature by feature:
 [`docs/coverage.md`](docs/coverage.md).
 
 AccessMod 5 serves only as the numerical oracle: its outputs validate this
@@ -26,12 +30,21 @@ engine in the tests; its code is not copied.
 
 ## Install
 
-Release archives (binary with GDAL, PROJ and the web client, nothing else
-to install) come from the [releases](https://github.com/unige-geohealth/accessmod_rs/releases);
-Linux (x86_64, arm64), macOS (Apple silicon, Intel) and Windows (x86_64)
-([`docs/distribution.md`](docs/distribution.md)). Desktop installers
-(`.dmg`, `.deb`, `.AppImage`, Windows setup) open the same interface in an
-application window, unsigned for now ([`docs/desktop.md`](docs/desktop.md)).
+From the [releases](https://github.com/unige-geohealth/accessmod_rs/releases),
+for Linux (x86_64, arm64), macOS (Apple silicon, Intel) and Windows
+(x86_64):
+
+- **Desktop application**: `.dmg` (macOS), Windows setup `.exe`, `.deb` or
+  `.AppImage` (Linux). It opens the web interface in its own window.
+  Installers are not signed yet: on macOS, right-click › Open the first time
+  (or `xattr -dr com.apple.quarantine /Applications/AccessMod.app`); on
+  Windows, SmartScreen › More info › Run anyway
+  ([`docs/desktop.md`](docs/desktop.md)).
+- **Archive** (`accessmod-<version>-<target>.tar.gz`, `.zip` on Windows):
+  one binary with GDAL, PROJ and the web client, nothing else to install
+  ([`docs/distribution.md`](docs/distribution.md)). On macOS, if Gatekeeper
+  blocks an archive downloaded with a browser: `xattr -dr
+  com.apple.quarantine accessmod-*`.
 
 ```sh
 ./accessmod doctor        # check GDAL, PROJ, drivers, memory and disk
@@ -50,14 +63,40 @@ cargo build --release -p accessmod-cli
 The [tutorial](docs/tutorial/README.md) walks through inputs, jobs, outputs
 and figures on a small synthetic landscape.
 
+## New project from a region (experimental)
+
+Project › New from a region: choose a country and administrative units on
+the map (geoBoundaries), a passable distance around them and a cell size;
+AccessMod downloads the open data for it (Copernicus DEM GLO-90, ESA
+WorldCover, WorldPop, OpenStreetMap roads, rivers and, flagged as a starting
+point, health facilities from the HOT exports), keeps them in a shared cache
+and builds the project: grid in a suitable projection, merged land cover,
+a travel-time job ready to run. Only the DEM is required; every other layer
+can be left out and imported from your own files (an official facility list
+in particular). Speeds and class presets are provisional: review them
+before drawing conclusions ([`docs/project-creator.md`](docs/project-creator.md)).
+
+## R
+
+The [R package](r/README.md) drives the same engine from R, for scenario
+batches on a project made in the web interface: import the `.am6p` file,
+edit the saved jobs' scenarios, regenerate the merged land cover, compute
+travel times, compare. Windows, macOS and Linux; experimental
+([`docs/r-package.md`](docs/r-package.md)).
+
+```r
+remotes::install_github("unige-geohealth/accessmod_rs", subdir = "r")
+accessmod::am_install()   # the binary of this release, for this machine
+```
+
 ## Deliverables
 
 | Milestone | Deliverable | Status |
 | --- | --- | --- |
 | 1 | Travel-time engine on disk-backed tiled rasters, under a memory budget | ✅ |
 | 2 | Every analysis and tool as a command-line job, equal to AccessMod 5 | ✅ (referral network output 🗓) |
-| 3 | Projects and web interface (`accessmod serve`) | ✅ every section, project files (`.am6p`), AccessMod 5 data archives |
-| 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives for Linux, macOS and Windows ✅; desktop installers 🟡 (unsigned); macOS notarization in CI 🗓 |
+| 3 | Projects and web interface (`accessmod serve`) | ✅ every section, project files (`.am6p`), AccessMod 5 data archives; project from a region 🟡 (experimental) |
+| 4 | Distribution: self-contained archives, CI | 🟡 CI on every push (Linux, macOS with bundled GDAL, web and end-to-end); release archives for Linux, macOS and Windows ✅; desktop installers 🟡 (unsigned); R package 🟡 (experimental); macOS notarization in CI 🗓 |
 
 ## AccessMod 6 against AccessMod 5
 
@@ -97,6 +136,8 @@ analysis (AccessMod 5 replay without its 5.4 s of R start-up):
 ## Documentation
 
 - **Use**: [tutorial](docs/tutorial/README.md) ·
+  [R package](docs/r-package.md) ·
+  [project from a region](docs/project-creator.md) ·
   [coverage of AccessMod 5 features](docs/coverage.md) ·
   [benchmarks](benchmark/README.md) ·
   [distribution](docs/distribution.md) ·

@@ -2,7 +2,9 @@
 
 Self-contained archives of AccessMod 6: one binary with GDAL, PROJ, GEOS and
 SQLite linked statically, the PROJ database and the built web client next to
-it. Milestone 4 of [`plan.md`](plan.md). Status (2026-10-30): archives
+it. Milestone 4 of [`plan.md`](plan.md). First public release: 6.0.0-alpha.1
+(2026-11-18); the [R package](r-package.md) installs these archives.
+Status (2026-10-30): archives
 build in CI for the five targets (Linux x86_64 and arm64, macOS arm64 and
 x86_64, Windows x86_64; 17–20 MB each, `doctor` passing); macOS arm64 is
 also tested end to end locally. macOS notarization waits for the Apple
@@ -110,8 +112,8 @@ GDAL and PROJ are MIT, SQLite public domain, GEOS LGPL-2.1. GEOS is linked
 statically: its licence requires that users can relink the program with
 another GEOS, which holds because this program's source is published under
 LGPL-3.0-or-later. **Binaries are distributed only with the source
-available** (the repository is private today: keep releases private too
-until it is public).
+available** (the repository is public since 2026-11-18; each release
+links its tag).
 
 ## Next
 
