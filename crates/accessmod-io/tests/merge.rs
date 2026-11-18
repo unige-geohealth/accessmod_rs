@@ -362,10 +362,11 @@ fn outputs_do_not_depend_on_memory() {
     let job = |out: &str| MergeLandCoverJob {
         schema_version: SCHEMA_VERSION,
         dem: path.join("dem.tif"),
+        // Lakes close everything, roads cross the rivers below them.
         stack: vec![
-            barrier(path.join("rivers.gpkg")),
             barrier(path.join("lakes.gpkg")),
             road(path.join("roads.gpkg")),
+            barrier(path.join("rivers.gpkg")),
             land_cover(path.join("lc.tif")),
         ],
         clean_bridges: true,
@@ -382,7 +383,7 @@ fn outputs_do_not_depend_on_memory() {
         report_a.execution.details.store.tile_writes > 0,
         "scratch not exercised"
     );
-    let out_b = merge(job("b"), 4 << 30).expect("run b");
+    let out_b = run_job::<MergeLandCover>(job("b"), &settings(4 << 30, 7)).expect("run b");
     for name in [MERGED_FILE, BRIDGES_FILE, CLASSES_FILE] {
         let bytes_a = std::fs::read(out_a.join(name)).expect("read a");
         let bytes_b = std::fs::read(out_b.join(name)).expect("read b");

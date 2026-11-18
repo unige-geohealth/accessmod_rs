@@ -1171,7 +1171,7 @@ pub fn build(
                 let dem = project.dataset(project.info()?.dem)?;
                 let mut not_ready = Vec::new();
 
-                // Merge: the outside first, then rivers, roads, land cover.
+                // Merge: the outside first, then roads, rivers, land cover.
                 let merged = match &lc {
                     None => {
                         not_ready.push(

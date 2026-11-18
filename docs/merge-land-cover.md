@@ -56,7 +56,8 @@ project. Polygon skeletons for barriers are not implemented.
   - polygons burn the cells whose centre is inside (even-odd rule, holes
     excluded, half-open edges).
 - **Bounded memory.** The merge state lives in the tiled store
-  (12 bytes/cell, disk-backed under `--memory`). Rasters are read in
+  (16 bytes/cell resident, 13 in the scratch files, disk-backed under
+  `--memory`). Rasters are read in
   strips, vectors one feature and one part at a time (a part's vertices
   are the only memory not counted in the budget), and outputs are written
   in 256 × 256 blocks with a one-cell halo for the bridge test. Outputs are
@@ -68,8 +69,10 @@ project. Polygon skeletons for barriers are not implemented.
   applies to the whole stack wherever it is; here the first barrier follows
   the same rule as the others (deviation `barrier_position`). The two agree
   whenever the first barrier is at the top.
-  (Until 2026-11-18 every barrier emptied every item; redo the merge of an
-  older project with a new output tag to get roads across rivers.)
+  (Until 2026-11-18 every barrier emptied every item. In an older project,
+  rivers placed above the roads still cut them: redo the merge with the
+  rivers moved below the roads, barriers that must close everything kept at
+  the top, and a new output tag.)
 - **Explicit reprojection.** Vector layers in another CRS are reprojected
   to the DEM CRS, with a warning in `run.json`. Rasters must already lie on
   the DEM lattice, in its CRS.

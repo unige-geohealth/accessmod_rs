@@ -59,32 +59,34 @@ merge() {
     name=$1
     shift
     patch=""
-    first=1
+    # The first barrier masks every item, those above it too; a stack
+    # without barriers masks nothing.
+    global=""
     for item in "$@"; do
         case "$item" in
         oracle_barrier_*)
-            if [ "$first" = 1 ]; then
-                first=0
-                # The first barrier masks every item, those above it too.
-                global=$item
-            fi
+            [ -n "$global" ] || global="isnull($item)"
             ;;
         *)
             patch="${patch:+$patch,}oracle_tmp_$item"
             ;;
         esac
     done
-    # Items above the first barrier: the global mask only; below: every
-    # barrier seen so far.
-    mask=""
+    # Items above the first barrier: the global mask only; below: the
+    # barriers after the first seen so far.
+    mask=$global
     for item in "$@"; do
         case "$item" in
         oracle_barrier_*)
-            mask="${mask:+$mask && }isnull($item)"
+            [ "isnull($item)" = "$global" ] || mask="${mask:+$mask && }isnull($item)"
             ;;
         *)
-            r.mapcalc --quiet --overwrite expression="oracle_tmp_$item = \
-if(isnull($global)${mask:+ && $mask}, $item, null())"
+            if [ -n "$mask" ]; then
+                r.mapcalc --quiet --overwrite expression="oracle_tmp_$item = \
+if($mask, $item, null())"
+            else
+                r.mapcalc --quiet --overwrite expression="oracle_tmp_$item = $item"
+            fi
             ;;
         esac
     done
