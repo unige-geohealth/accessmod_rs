@@ -1,6 +1,11 @@
 # Project Creator: source study
 
-Status: **study reviewed, decisions taken, contracts written** (2026-11-13). No code yet. This document picks the
+Status: **experimental in 6.0.0-alpha.1** (2026-11-18): Project › New from a
+region (experimental) and `accessmod project create --recipe`. Presets
+(WorldCover classes, OSM road classes and speeds) are provisional; OSM
+facilities are a flagged starting point; what is left is in "State on
+2026-11-13" below. Study reviewed, decisions taken, contracts written
+(2026-11-13). This document picks the
 sources and the access method of the Project Creator, and lists the decisions
 left to make. Probes are in `_shared/creator/` (GDAL 3.12 command line, from
 macOS, over the public internet).

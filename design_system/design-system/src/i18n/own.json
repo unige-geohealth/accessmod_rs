@@ -6,10 +6,10 @@
     "pt": "Dê um nome ao projeto (4 caracteres ou mais)."
   },
   "creator.title": {
-    "en": "New from a region",
-    "fr": "Nouveau depuis une région",
-    "es": "Nuevo desde una región",
-    "pt": "Novo a partir de uma região"
+    "en": "New from a region (experimental)",
+    "fr": "Nouveau depuis une région (expérimental)",
+    "es": "Nuevo desde una región (experimental)",
+    "pt": "Novo a partir de uma região (experimental)"
   },
   "creator.map_title": {
     "en": "Region",

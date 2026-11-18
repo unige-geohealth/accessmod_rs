@@ -6,7 +6,7 @@ import { choose, panel, shot, sidebar } from "./helpers";
 // provider is contacted.
 test("a region picked on the map becomes a project that computes", async ({ page }) => {
   await page.goto("/#/_/project");
-  await panel(page, "New from a region").click();
+  await panel(page, "New from a region (experimental)").click();
   await expect(page.getByText("Choose a country.").first()).toBeVisible();
   await shot(page, "creator-empty");
 
