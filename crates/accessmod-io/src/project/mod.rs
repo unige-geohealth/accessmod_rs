@@ -158,6 +158,22 @@ pub struct DatasetRecord {
     pub created: i64,
 }
 
+impl DatasetRecord {
+    /// A sentence for outcomes when the import converted the cell type,
+    /// e.g. "converted from Float32 to Int32: all values are whole".
+    pub fn conversion(&self) -> Option<String> {
+        match &self.origin {
+            Origin::Import {
+                converted_from: Some(from),
+                ..
+            } => Some(format!(
+                "converted from {from} to Int32: all values are whole"
+            )),
+            _ => None,
+        }
+    }
+}
+
 /// Where a dataset comes from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -169,6 +185,10 @@ pub enum Origin {
         /// Layer read (vectors).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         layer: Option<String>,
+        /// Floating-point type of a class raster written as Int32, its
+        /// values all whole (e.g. `Float32`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        converted_from: Option<String>,
     },
     /// Written by a run.
     Run {

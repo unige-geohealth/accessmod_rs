@@ -201,6 +201,13 @@
         {
           "description": "Imported from a file.",
           "properties": {
+            "converted_from": {
+              "description": "Floating-point type of a class raster written as Int32, its\nvalues all whole (e.g. `Float32`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "layer": {
               "description": "Layer read (vectors).",
               "type": [

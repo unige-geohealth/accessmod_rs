@@ -4,7 +4,9 @@
 //!   reprojection here). They are copied on the whole project grid, with
 //!   their cell type and NoData value, as tiled GeoTIFF; cells they do not
 //!   cover are NoData. Overviews and statistics follow
-//!   ([`crate::preview`]).
+//!   ([`crate::preview`]). A floating-point raster of an integer class
+//!   (land cover, as inAccessMod writes it) is written as Int32 when every
+//!   value is whole, and refused otherwise.
 //! - Vector layers are copied to FlatGeobuf in the project CRS with every
 //!   attribute; their geometries must suit the class (points for
 //!   facilities, polygons for zones, …).
@@ -103,9 +105,14 @@ impl Project {
         cancelled: Cancelled<'_>,
     ) -> Result<DatasetRecord> {
         let grid = self.grid()?;
+        let converted = match (class.kind(), scale) {
+            (Kind::Raster, None) if integer_class(class) => float_band(source),
+            _ => None,
+        };
         self.import_with(
             source,
             origin,
+            converted,
             class,
             tags,
             options,
@@ -155,6 +162,7 @@ impl Project {
         self.import_with(
             &source,
             &source.display().to_string(),
+            None,
             DataClass::Facility,
             tags,
             &ImportOptions::default(),
@@ -177,6 +185,7 @@ impl Project {
         self.import_with(
             source,
             &source.display().to_string(),
+            None,
             DataClass::Dem,
             &["dem".to_owned()],
             &ImportOptions::default(),
@@ -192,6 +201,7 @@ impl Project {
         &self,
         source: &Path,
         origin: &str,
+        converted_from: Option<String>,
         class: DataClass,
         tags: &[String],
         options: &ImportOptions,
@@ -208,6 +218,7 @@ impl Project {
         let origin = Origin::Import {
             source: origin.to_owned(),
             layer: options.layer.clone(),
+            converted_from,
         };
         let (id, file) = self.reserve(class, tags, &origin)?;
         let result = self
@@ -327,7 +338,7 @@ fn copy_raster(
     cancelled: Cancelled<'_>,
 ) -> Result<Summary> {
     let role = class.label();
-    let (dataset, alignment) = if integer_class(class) {
+    let (dataset, alignment) = if integer_class(class) && float_band(source).is_none() {
         open_class_raster(source, grid, role)?
     } else {
         open_aligned_raster(source, grid, role)?
@@ -338,6 +349,12 @@ fn copy_raster(
         .map_err(Error::gdal(source))?
         .band_type();
     let threads = settings.threads;
+    if integer_class(class) && !band_type.is_integer() {
+        copy_whole(
+            &band, source, target, grid, role, band_type, threads, cancelled,
+        )?;
+        return preview::build(target, resampling(class), threads, cancelled).map(Summary::Raster);
+    }
     match band_type {
         GdalDataType::UInt8 => copy_typed::<u8>(&band, target, grid, threads, cancelled),
         GdalDataType::Int8 => copy_typed::<i8>(&band, target, grid, threads, cancelled),
@@ -419,6 +436,105 @@ fn free_fill<T: Cell>(band: &AlignedBand<'_>, cancelled: Cancelled<'_>) -> Resul
                  every candidate NoData value of its type: set a NoData value before importing",
             )
         })
+}
+
+/// The floating-point type of band 1 of `source` (`Float32`, `Float64`),
+/// or `None` when it is an integer type or cannot be read (the copy then
+/// reports why).
+fn float_band(source: &Path) -> Option<String> {
+    let dataset = gdal::Dataset::open(source).ok()?;
+    let band_type = dataset.rasterband(1).ok()?.band_type();
+    (!band_type.is_integer()).then(|| band_type.name())
+}
+
+/// What a scan of a floating-point class raster found.
+#[derive(Debug, Default)]
+struct WholeScan {
+    /// First value that is not a whole number within Int32, with its cell.
+    offending: Option<(f64, usize, usize)>,
+    /// Which [`i32`] fill candidates the values hold.
+    present: [bool; 3],
+}
+
+/// A floating-point raster of an integer class written as Int32: every value
+/// that is not NoData (the source's, NaN or infinite) must be a whole number
+/// within Int32, or nothing is written.
+#[allow(clippy::too_many_arguments)]
+fn copy_whole(
+    band: &AlignedBand<'_>,
+    source: &Path,
+    target: &Path,
+    grid: &GridSpec,
+    role: &str,
+    band_type: GdalDataType,
+    threads: usize,
+    cancelled: Cancelled<'_>,
+) -> Result<()> {
+    let source_nodata = band.nodata();
+    let is_nodata = |v: f64| !v.is_finite() || Some(v) == source_nodata;
+    let fits = |v: f64| v.fract() == 0.0 && v >= f64::from(i32::MIN) && v <= f64::from(i32::MAX);
+    let candidates = <i32 as Cell>::fills();
+    let mut scan = WholeScan::default();
+    band.for_each_covered_row::<f64>(cancelled, |row, first_col, values| {
+        for (i, &value) in values.iter().enumerate() {
+            if is_nodata(value) {
+                continue;
+            }
+            if !fits(value) {
+                scan.offending.get_or_insert((value, row, first_col + i));
+                continue;
+            }
+            for (seen, candidate) in scan.present.iter_mut().zip(candidates) {
+                *seen |= value == *candidate;
+            }
+        }
+        Ok(())
+    })?;
+    if let Some((value, row, col)) = scan.offending {
+        return Err(Error::Validation {
+            issues: vec![format!(
+                "{role} {}: classes must be integers, {} holds {value} (row {row}, column {col})",
+                source.display(),
+                band_type.name()
+            )],
+        });
+    }
+    let nodata = match source_nodata.filter(|v| v.is_finite() && fits(*v)) {
+        Some(value) => value,
+        None => candidates
+            .iter()
+            .zip(&scan.present)
+            .find(|(_, seen)| !**seen)
+            .map(|(value, _)| *value)
+            .ok_or_else(|| {
+                Error::invalid(format!(
+                    "{role} {}: no Int32 NoData value is free (the raster holds every candidate)",
+                    source.display()
+                ))
+            })?,
+    };
+    let fill = nodata as i32;
+    let out = GeoTiff::create_with::<i32>(
+        target,
+        grid,
+        <i32 as Cell>::PREDICTOR,
+        threads,
+        Some(nodata),
+    )?;
+    let mut buffer: Vec<i32> = Vec::new();
+    for_each_chunk(0..grid.rows, 0..grid.cols, cancelled, |rows, cols| {
+        let window = band.read::<f64>(rows.clone(), cols.clone())?;
+        buffer.clear();
+        for row in rows.clone() {
+            for col in cols.clone() {
+                let value = window.as_ref().and_then(|w| w.get(row, col));
+                // Exact: the scan checked every value.
+                buffer.push(value.filter(|v| !is_nodata(*v)).map_or(fill, |v| v as i32));
+            }
+        }
+        out.write(rows, cols, &mut buffer)
+    })?;
+    out.close()
 }
 
 fn copy_typed<T: Cell>(

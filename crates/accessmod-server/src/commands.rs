@@ -867,15 +867,17 @@ fn import_dataset(
                 monitor.cancelled(),
             )?;
             source.consumed();
-            Ok((
-                format!(
-                    "{file} imported as dataset {} ({} {})",
-                    record.id,
-                    record.class.label(),
-                    record.tags.join(" ")
-                ),
-                record,
-            ))
+            let mut outcome = format!(
+                "{file} imported as dataset {} ({} {})",
+                record.id,
+                record.class.label(),
+                record.tags.join(" ")
+            );
+            if let Some(conversion) = record.conversion() {
+                outcome.push_str("; ");
+                outcome.push_str(&conversion);
+            }
+            Ok((outcome, record))
         },
     )
 }

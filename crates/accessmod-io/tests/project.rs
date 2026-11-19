@@ -1854,3 +1854,122 @@ fn concurrent_starts_never_take_the_same_tags() {
         );
     }
 }
+
+#[test]
+fn float_land_cover_with_whole_values_is_written_as_int32() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let import = |name: &str, tag: &str, threads: usize| {
+        project.import(
+            &dir.path().join(name),
+            DataClass::LandCover,
+            &tags(&[tag]),
+            &ImportOptions::default(),
+            &settings(64 << 20, threads),
+            &|| false,
+        )
+    };
+    // As inAccessMod writes it: Float32, NaN for NoData, no NoData value.
+    let mut values: Vec<f32> = (0..COLS * ROWS).map(|i| (i % 3 + 1) as f32).collect();
+    values[0] = f32::NAN;
+    values[1] = 1000.0;
+    write_raster(
+        &dir.path().join("lc_f32.tif"),
+        COLS,
+        ROWS,
+        geo_transform(X0, Y0),
+        values.clone(),
+        None,
+    );
+    let record = import("lc_f32.tif", "f32", 1).expect("whole Float32");
+    assert!(matches!(
+        &record.origin,
+        Origin::Import { converted_from: Some(from), .. } if from == "Float32"
+    ));
+    assert_eq!(
+        record.conversion().as_deref(),
+        Some("converted from Float32 to Int32: all values are whole")
+    );
+    let file = project.root().join(&record.file);
+    let (written, nodata) = accessmod_io::fixtures::read_with_nodata::<i32>(&file);
+    assert_eq!(nodata, Some(f64::from(i32::MAX)));
+    assert_eq!(written[0], i32::MAX, "NaN is NoData");
+    for (w, v) in written.iter().zip(&values).skip(1) {
+        assert_eq!(*w, *v as i32);
+    }
+    // The same bytes whatever the threads.
+    let again = import("lc_f32.tif", "f32_threads", 4).expect("again");
+    assert_eq!(
+        std::fs::read(&file).expect("read"),
+        std::fs::read(project.root().join(&again.file)).expect("read")
+    );
+
+    // Float64 with a whole NoData value: kept.
+    let mut values: Vec<f64> = vec![5.0; COLS * ROWS];
+    values[3] = -9999.0;
+    write_raster(
+        &dir.path().join("lc_f64.tif"),
+        COLS,
+        ROWS,
+        geo_transform(X0, Y0),
+        values,
+        Some(-9999.0),
+    );
+    let record = import("lc_f64.tif", "f64", 1).expect("whole Float64");
+    let (written, nodata) =
+        accessmod_io::fixtures::read_with_nodata::<i32>(&project.root().join(&record.file));
+    assert_eq!(nodata, Some(-9999.0));
+    assert_eq!((written[3], written[4]), (-9999, 5));
+
+    // Integer land cover: not converted.
+    let integer = project
+        .datasets(Some(DataClass::LandCoverMerged))
+        .expect("datasets");
+    assert_eq!(integer[0].conversion(), None);
+}
+
+#[test]
+fn float_land_cover_with_fractions_is_refused() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let refused = |name: &str, values: Vec<f64>| {
+        write_raster(
+            &dir.path().join(name),
+            COLS,
+            ROWS,
+            geo_transform(X0, Y0),
+            values,
+            None,
+        );
+        project
+            .import(
+                &dir.path().join(name),
+                DataClass::LandCover,
+                &tags(&[name.trim_end_matches(".tif")]),
+                &ImportOptions::default(),
+                &settings(64 << 20, 1),
+                &|| false,
+            )
+            .expect_err("refused")
+    };
+    let mut values = vec![1.0; COLS * ROWS];
+    values[COLS + 2] = 1.5;
+    let err = refused("half.tif", values);
+    assert_eq!(err.kind(), accessmod_io::error::ErrorKind::Validation);
+    assert!(
+        err.to_string()
+            .contains("classes must be integers, Float64 holds 1.5 (row 1, column 2)"),
+        "{err}"
+    );
+    let mut values = vec![1.0; COLS * ROWS];
+    values[0] = 3e9;
+    let err = refused("large.tif", values);
+    assert!(err.to_string().contains("holds 3000000000"), "{err}");
+    assert!(
+        project
+            .datasets(Some(DataClass::LandCover))
+            .expect("datasets")
+            .is_empty(),
+        "nothing is left"
+    );
+}

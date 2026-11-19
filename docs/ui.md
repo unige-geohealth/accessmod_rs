@@ -229,7 +229,11 @@ Metadata in SQLite, data in files:
   with its `.ige` spill and `.rrd` overview files); vectors from
   shapefile, GeoPackage, FlatGeobuf or GeoJSON; tables from CSV, or a
   sheet of an XLSX workbook (the first unless `layer` names one), stored
-  as CSV.
+  as CSV. A floating-point raster of an integer class (land cover, merged
+  land cover, cost allocation; inAccessMod writes Float32) is written as
+  Int32 when every value is whole (NaN and infinities are NoData): the
+  dataset's origin records `converted_from` and the run outcome says so.
+  A fraction or a value beyond Int32 refuses it, naming the cell.
 - **Demo project** (`accessmod_io::demo`): the AccessMod 5 sample data
   (southern Malawi, 227 × 196 cells of 1 km), embedded in the binary from
   `crates/accessmod-io/demo/`; every dataset is tagged `demo` (the two

@@ -487,6 +487,9 @@ pub fn dataset(command: DatasetCommand, cancel: &Cancel) -> Result<(), Failure> 
             })
             .map_err(|e| fail(&e, exec.json))?;
             tracing::info!("imported {}", dataset_line(&record).trim());
+            if let Some(conversion) = record.conversion() {
+                tracing::info!("{conversion}");
+            }
             if exec.json {
                 print_value(&record);
             }
