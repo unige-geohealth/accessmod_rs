@@ -275,6 +275,19 @@ pub(crate) fn latin_to_ascii(text: &str) -> String {
 }
 
 /// Seconds since the Unix epoch.
+/// Metadata key of the project instance ([`Project::instance`]).
+const INSTANCE: &str = "instance";
+
+/// A new instance: time, process and a counter.
+pub(crate) fn fresh_instance() -> String {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    format!("{nanos:x}-{:x}-{n:x}", std::process::id())
+}
+
 fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -426,6 +439,7 @@ impl Project {
         project.set_meta("name", name)?;
         project.set_meta("description", description)?;
         project.set_meta("created", &now().to_string())?;
+        project.set_meta(INSTANCE, &fresh_instance())?;
         let record = project.import_dem(dem, settings, cancelled)?;
         project.set_meta("dem", &record.id.to_string())?;
         Ok(project)
@@ -494,6 +508,20 @@ impl Project {
             )
             .map_err(self.db_error())?;
         Ok(())
+    }
+
+    /// This copy of the project: fresh at creation and at a restore (a
+    /// project file keeps its creation time), so a project made again at
+    /// the same path is another. Set now for a project made before.
+    pub fn instance(&self) -> Result<String> {
+        match self.meta(INSTANCE) {
+            Ok(instance) => Ok(instance),
+            Err(_) => {
+                let instance = fresh_instance();
+                self.set_meta(INSTANCE, &instance)?;
+                Ok(instance)
+            }
+        }
     }
 
     fn meta(&self, key: &str) -> Result<String> {
@@ -639,6 +667,17 @@ impl Project {
     /// removal is done. Its files are deleted next; what a failure leaves
     /// is deleted by [`purge_removed`].
     pub fn remove(self) -> Result<()> {
+        self.remove_instance(None)
+    }
+
+    /// [`Project::remove`], only if it is still `instance` (checked under
+    /// the lock that removal holds): a project made again at its path since
+    /// is kept.
+    pub fn remove_if(self, instance: &str) -> Result<()> {
+        self.remove_instance(Some(instance))
+    }
+
+    fn remove_instance(self, expected: Option<&str>) -> Result<()> {
         let path = self.root.join(LOCK_FILE);
         let file = std::fs::OpenOptions::new()
             .create(true)
@@ -654,6 +693,13 @@ impl Project {
                 ));
             }
             Err(std::fs::TryLockError::Error(e)) => return Err(Error::file(&path)(e)),
+        }
+        if let Some(expected) = expected
+            && self.instance()? != expected
+        {
+            return Err(Error::invalid(
+                "the project was made again since its removal was asked: nothing removed",
+            ));
         }
         let pending: i64 = self
             .db

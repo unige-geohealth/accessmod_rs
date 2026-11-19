@@ -224,12 +224,11 @@ impl Pending {
         }
     }
 
-    /// Write the operations no project records, unfinished ones too
-    /// (atomically: a temporary file renamed over it). A failure is a
-    /// warning: the operation goes on.
-    fn save(&self, operations: &VecDeque<PendingOperation>) {
+    /// Write the operations no project records, unfinished ones too, and
+    /// the last id given (atomically: a temporary file renamed over it).
+    fn save(&self, operations: &VecDeque<PendingOperation>) -> std::io::Result<()> {
         let Some(path) = &self.journal else {
-            return;
+            return Ok(());
         };
         let journal = JournalRef {
             last: self.next.load(std::sync::atomic::Ordering::Relaxed),
@@ -240,10 +239,10 @@ impl Pending {
             .map_err(std::io::Error::other)
             .and_then(|bytes| std::fs::write(&temporary, bytes))
             .and_then(|()| std::fs::rename(&temporary, path));
-        if let Err(e) = written {
+        if written.is_err() {
             let _ = std::fs::remove_file(&temporary);
-            tracing::warn!("cannot write {}: {e}", path.display());
         }
+        written
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, VecDeque<PendingOperation>> {
@@ -307,7 +306,10 @@ impl Pending {
             }
         }
         let finished = operation.clone();
-        self.save(&operations);
+        // Over already: a journal not written is a warning.
+        if let Err(e) = self.save(&operations) {
+            tracing::warn!("cannot write the operations journal: {e}");
+        }
         Some(finished)
     }
 
@@ -322,7 +324,6 @@ impl Pending {
             .checked_add(1)
             .ok_or_else(|| Error::invalid("no operation identifier left"))?
             .max(now_ms());
-        self.next.store(operation.id, ordering);
         operations.push_back(operation.clone());
         // Drop the oldest finished ones beyond what is kept.
         while operations.iter().filter(|o| o.finished.is_some()).count() > KEPT {
@@ -330,7 +331,16 @@ impl Pending {
                 operations.remove(at);
             }
         }
-        self.save(&operations);
+        // Queued only once the journal holds it and its id: one not written
+        // would be lost at a restart.
+        self.next.store(operation.id, ordering);
+        if let Err(e) = self.save(&operations) {
+            operations.retain(|o| o.id != operation.id);
+            self.next.store(last, ordering);
+            return Err(Error::invalid(format!(
+                "cannot write the operations journal: {e}"
+            )));
+        }
         Ok(operation)
     }
 }
@@ -598,6 +608,10 @@ mod journal_tests {
                 .add(operation("project-remove"))
                 .is_err()
         );
+        // A journal that cannot be written queues nothing.
+        let unwritable = Pending::open(&dir.path().join("missing"));
+        assert!(unwritable.add(operation("project-remove")).is_err());
+        assert!(unwritable.list().is_empty());
         // A corrupt journal is an empty one.
         std::fs::write(dir.path().join(JOURNAL_FILE), b"{not json").expect("write");
         assert!(Pending::open(dir.path()).list().is_empty());

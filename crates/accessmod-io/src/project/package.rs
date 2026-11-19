@@ -315,6 +315,8 @@ impl Project {
                 .db
                 .execute("DELETE FROM meta WHERE key = 'demo'", [])
                 .map_err(project.db_error())?;
+            // A restored copy is another project than the one exported.
+            project.set_meta(super::INSTANCE, &super::fresh_instance())?;
             // Runs left unfinished in the file are interrupted here.
             project
                 .db

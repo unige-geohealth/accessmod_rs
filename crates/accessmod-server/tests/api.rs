@@ -990,8 +990,6 @@ async fn a_removal_spares_a_project_made_again_in_its_place() {
     );
     let app = router(state.clone(), None);
     let s = Server { dir, state, app };
-    // Creation times are in seconds: the rebuilt demo is a later one.
-    tokio::time::sleep(Duration::from_millis(1100)).await;
     let (status, body) = s.command("demo.reset", json!({})).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let (status, body) = s

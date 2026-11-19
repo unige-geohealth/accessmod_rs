@@ -519,6 +519,40 @@ fn project_files_leave_unfinished_runs_out() {
     );
 }
 
+/// A project restored at the path of one removed is another: its file keeps
+/// the creation time, not the instance, so a removal asked for the first
+/// spares it.
+#[test]
+fn a_restored_project_is_another_instance() {
+    use accessmod_io::archive::Limits;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let project = project_with_inputs(dir.path());
+    let root = project.root().to_path_buf();
+    let first = project.instance().expect("instance");
+    assert_eq!(project.instance().expect("instance"), first);
+    let file = project
+        .export_package(&dir.path().join("exports"), false, Monitor::QUIET)
+        .expect("export");
+    project.remove().expect("remove");
+    let again =
+        Project::import_package(&file, &root, Limits::default(), Monitor::QUIET).expect("restore");
+    let second = again.instance().expect("instance");
+    assert_ne!(second, first);
+    drop(again);
+    let err = Project::open(&root)
+        .expect("open")
+        .remove_if(&first)
+        .expect_err("another instance");
+    assert!(err.to_string().contains("made again"), "{err}");
+    assert!(root.exists());
+    Project::open(&root)
+        .expect("open")
+        .remove_if(&second)
+        .expect("remove");
+    assert!(!root.exists());
+}
+
 #[test]
 fn project_files_round_trip_with_or_without_results() {
     use accessmod_io::archive::{Entry, Limits, Source};

@@ -21,8 +21,9 @@ test_that("tags match exactly, all of them, in any order", {
 test_that("one match or an error naming the candidates", {
   cat <- .catalogue(fake_datasets(), fake_runs())
   expect_equal(.select_one(cat, "job", class = "merge-land-cover", tags = "test")$id, 1L)
-  # Run 7 overwrote run 2 (same tags): its number tells them apart.
-  expect_error(.select_one(cat, "job", class = "travel-time", tags = "test"), class = "accessmod_ambiguous")
+  # Run 7 overwrote run 2 (same tags): its number tells them apart, and
+  # the tags alone name the first, as Data shows them.
+  expect_equal(.select_one(cat, "job", class = "travel-time", tags = "test")$id, 2L)
   expect_equal(.select_one(cat, "job", class = "travel-time", tags = c("test", "7"))$id, 7L)
   err <- tryCatch(.select_one(cat, "vector", class = "vBarrier"), error = identity)
   expect_s3_class(err, "accessmod_ambiguous")
