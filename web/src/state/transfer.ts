@@ -38,6 +38,9 @@ export function updateTransfer(state: Transfer, message: TransferMessage): Trans
     case "done":
       return busy(state) ? { state: "done", label: message.label } : state;
     case "failed":
+      // Once its job is queued, the job's end is notified, a failure too
+      // (docs/ui.md, "Notifications"): nothing more to say here.
+      if (state.state === "processing" && state.task !== null) return IDLE;
       return busy(state) ? { state: "failed", issues: message.issues } : state;
     case "reset":
       return busy(state) ? state : IDLE;

@@ -47,7 +47,7 @@
           "type": "string"
         },
         "operation": {
-          "description": "`project-create`, `project-import` or `demo-reset`.",
+          "description": "`project-create`, `project-import`, `demo-reset` or `project-remove`.",
           "type": "string"
         },
         "owner": {
@@ -68,6 +68,11 @@
         "project": {
           "description": "Slug of the project it makes.",
           "type": "string"
+        },
+        "recorded": {
+          "default": false,
+          "description": "Done and recorded as a run of the project it made: listed there.",
+          "type": "boolean"
         },
         "started": {
           "description": "Start, seconds since the Unix epoch.",

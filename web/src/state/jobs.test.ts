@@ -36,8 +36,9 @@ describe("jobs", () => {
     ]);
     expect(rows[0]!.analysis).toBe("analysis_accessibility_main_tab");
   });
-  it("lists operations making projects until they are done, and filters by kind", () => {
-    const op = (id: number, status: Api.RunStatus): Api.PendingOperation => ({
+  it("lists operations no project records (a removal stays), and filters by kind", () => {
+    const op = (id: number, status: Api.RunStatus, recorded = false): Api.PendingOperation => ({
+      recorded,
       id,
       operation: "project-import",
       project: `p${id}`,
@@ -46,7 +47,9 @@ describe("jobs", () => {
       status,
       started: 100 + id,
     });
-    const pending = pendingJobs([op(1, "running"), op(2, "done"), op(3, "failed")]);
+    const pending = pendingJobs([op(1, "running"), op(2, "done", true), op(3, "failed")]);
+    // A removal done is recorded nowhere but here.
+    expect(pendingJobs([{ ...op(4, "done"), operation: "project-remove" }]).map(jobKey)).toEqual([":pending/4"]);
     expect(pending.map((e) => [jobKey(e), e.run.status, e.run.kind])).toEqual([
       [":pending/3", "failed", "manage"],
       [":pending/1", "running", "manage"],

@@ -631,7 +631,7 @@ fn create_project(
             )?;
             let outcome = format!("created on the grid of {}", file_label(&dem.path));
             dem.consumed();
-            Ok((project, outcome))
+            Ok(Some((project, outcome)))
         },
     )
 }
@@ -738,21 +738,38 @@ fn import_project(
                 monitor,
             )?;
             package.consumed();
-            Ok((project, format!("{summary} from {file}")))
+            Ok(Some((project, format!("{summary} from {file}"))))
         },
     )
 }
 
-fn remove_project(state: &AppState, _: &Principal, params: ProjectRef) -> ApiResult<()> {
-    state.open(&params.project)?.remove()?;
-    state.update_settings(|s| {
-        if s.default_project.as_deref() == Some(params.project.as_str()) {
-            s.default_project = None;
-        }
-        Ok(())
-    })?;
-    state.publish(Event::Projects);
-    Ok(())
+/// `project.remove`: a job like the others (notified, listed in Jobs); no
+/// project records it, so the journal keeps it.
+fn remove_project(
+    state: &AppState,
+    principal: &Principal,
+    params: ProjectRef,
+) -> ApiResult<PendingOperation> {
+    let name = state.open(&params.project)?.info()?.name;
+    let slug = params.project.clone();
+    operations::queue_pending(
+        state,
+        principal,
+        "project-remove",
+        &params.project,
+        &name,
+        serde_json::json!({ "project": params.project }),
+        move |state, _| {
+            state.open(&slug)?.remove()?;
+            state.update_settings(|s| {
+                if s.default_project.as_deref() == Some(slug.as_str()) {
+                    s.default_project = None;
+                }
+                Ok(())
+            })?;
+            Ok(None)
+        },
+    )
 }
 
 fn reset_demo(
@@ -778,10 +795,10 @@ fn reset_demo(
         serde_json::json!({}),
         |state, monitor| {
             state.reset_demo(monitor.cancelled())?;
-            Ok((
+            Ok(Some((
                 state.open(DEMO_SLUG)?,
                 "built again from the AccessMod 5 sample data".to_owned(),
-            ))
+            )))
         },
     )
 }

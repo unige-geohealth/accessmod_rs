@@ -22,6 +22,7 @@ const ANALYSES: Record<string, Key> = {
   "project-create": "jobs.op_project_create",
   "project-import": "jobs.op_project_import",
   "demo-reset": "jobs.op_demo_reset",
+  "project-remove": "jobs.op_project_remove",
 };
 
 export const analysisLabel = (t: (key: Key) => string, name: string): string => (ANALYSES[name] ? t(ANALYSES[name]) : name);
@@ -46,12 +47,12 @@ export const ofKind = (entries: readonly JobItem[], kind: JobKind) =>
   kind === "all" ? entries : entries.filter((e) => (e.run.kind ?? "analysis") === kind);
 
 /**
- * Operations making projects, as jobs: those not done (a done one is a run
- * of the project it made), newest first.
+ * Operations making or removing projects, as jobs: those no project
+ * records (one recorded is a run of the project it made), newest first.
  */
 export function pendingJobs(operations: readonly Api.PendingOperation[]): JobItem[] {
   return operations
-    .filter((o) => o.status !== "done")
+    .filter((o) => !o.recorded)
     .map(
       (o): JobItem => ({
         pending: true,

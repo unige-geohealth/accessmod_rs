@@ -1349,6 +1349,12 @@
     "es": "Demo reconstruida",
     "pt": "Demo reconstruída"
   },
+  "jobs.op_project_remove": {
+    "en": "Project removal",
+    "fr": "Suppression du projet",
+    "es": "Eliminación del proyecto",
+    "pt": "Remoção do projeto"
+  },
   "jobs.kind": {
     "en": "Kind",
     "fr": "Type",

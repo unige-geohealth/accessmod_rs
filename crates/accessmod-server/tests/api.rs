@@ -934,7 +934,9 @@ async fn projects_can_be_removed_when_idle() {
         .await;
     assert_eq!(status, StatusCode::OK, "{run}");
     // Wait for the run to end: removal is refused while it is queued or running.
-    let (status, _) = s.command("project.remove", json!({"project": slug})).await;
+    let (status, _) = s
+        .command_done("project.remove", json!({"project": slug}))
+        .await;
     if status != StatusCode::OK {
         tokio::time::timeout(Duration::from_secs(60), async {
             loop {
@@ -947,17 +949,21 @@ async fn projects_can_be_removed_when_idle() {
         })
         .await
         .expect("run ends");
-        let (status, body) = s.command("project.remove", json!({"project": slug})).await;
+        let (status, body) = s
+            .command_done("project.remove", json!({"project": slug}))
+            .await;
         assert_eq!(status, StatusCode::OK, "{body}");
     }
     let (status, _) = s.call("GET", &format!("/api/projects/{slug}"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (_, list) = s.call("GET", "/api/projects", None).await;
     assert_eq!(list, json!([]));
-    let (status, _) = s.command("project.remove", json!({"project": slug})).await;
+    let (status, _) = s
+        .command_done("project.remove", json!({"project": slug}))
+        .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = s
-        .command("project.remove", json!({"project": "../data"}))
+        .command_done("project.remove", json!({"project": "../data"}))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
@@ -990,7 +996,7 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
 
     // Removed, it stays removed across restarts.
     let (status, body) = s
-        .command("project.remove", json!({"project": "demo"}))
+        .command_done("project.remove", json!({"project": "demo"}))
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let s = s.restart(true);
@@ -1030,7 +1036,7 @@ async fn the_demo_project_is_built_once_and_reset_on_demand() {
 
     // A project in the place of the demo that is not the demo is kept.
     let (status, _) = s
-        .command("project.remove", json!({"project": "demo"}))
+        .command_done("project.remove", json!({"project": "demo"}))
         .await;
     assert_eq!(status, StatusCode::OK);
     accessmod_io::project::Project::create(
@@ -1090,7 +1096,9 @@ async fn the_default_project_is_a_setting() {
         .command("settings.default_project", json!({"project": slug}))
         .await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _) = s.command("project.remove", json!({"project": slug})).await;
+    let (status, _) = s
+        .command_done("project.remove", json!({"project": slug}))
+        .await;
     assert_eq!(status, StatusCode::OK);
     let (_, current) = s.call("GET", "/api/settings", None).await;
     assert_eq!(current["default_project"], Value::Null);

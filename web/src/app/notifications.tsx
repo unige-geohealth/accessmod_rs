@@ -30,7 +30,7 @@ export function Notifications() {
   const now = useClock(state.notices.length > state.closed.length);
   const action = (n: Notice): Toast["action"] => {
     if (n.pending) {
-      return n.status === "done"
+      return n.made
         ? { label: t("toast.open_project"), onClick: () => navigate({ ...HOME, project: n.project }) }
         : { label: t("toast.open_job"), onClick: () => navigate({ ...HOME, project: null, section: "jobs", query: { job: `:pending/${n.run}` } }) };
     }

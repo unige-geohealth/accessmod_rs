@@ -109,6 +109,7 @@ impl AppState {
         let runner = Runner::start(projects, config.settings.clone(), events.clone())
             .map_err(|e| ApiError::Internal(format!("cannot start the run worker: {e}")))?;
         let settings = Mutex::new(Settings::load(&config.data_dir));
+        let pending = crate::operations::Pending::open(&config.data_dir);
         Ok(Self {
             inner: Arc::new(Inner {
                 config,
@@ -116,7 +117,7 @@ impl AppState {
                 runner,
                 settings,
                 demo: Mutex::new(()),
-                pending: crate::operations::Pending::default(),
+                pending,
             }),
         })
     }

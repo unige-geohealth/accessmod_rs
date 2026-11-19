@@ -47,6 +47,8 @@ test("the demo project opens first and is built again from the toolbox", async (
   await choose(page, "Select the project to delete", "Demo");
   await page.getByRole("button", { name: "Delete", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+  // A job like the others: its end is a notification.
+  await expect(page.getByRole("status").filter({ hasText: "Project removal: done" })).toBeVisible({ timeout: 60_000 });
   await expect(page).toHaveURL(/#\/_\/project/);
   await expect(page.getByText("The demo project is missing", { exact: false })).toBeVisible();
   await shot(page, "project-demo-missing");
@@ -178,9 +180,9 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
   await expect(page).toHaveURL(/#\/_\/project/);
-  await expect(page.getByText("Supprimé : From AccessMod 5")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Suppression du projet : terminé" }).filter({ hasText: "From AccessMod 5" })).toBeVisible();
   await choose(page, "Sélectionnez le projet à supprimer", "Tutorial copy");
   await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
-  await expect(page.getByText("Supprimé : Tutorial copy")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Suppression du projet : terminé" }).filter({ hasText: "Tutorial copy" })).toBeVisible();
 });

@@ -14,6 +14,8 @@ export interface Notice {
   /** Run id, or operation id when `pending`. */
   run: number;
   pending: boolean;
+  /** An operation that made a project, now recorded in it: the notice opens it. */
+  made: boolean;
   /** Analysis or operation name. */
   analysis: string;
   kind: Api.RunKind;
@@ -72,6 +74,7 @@ export function runNotice(project: string, run: Api.RunRecord, at: number): Noti
     project,
     run: run.id,
     pending: false,
+    made: false,
     analysis: run.analysis,
     kind: run.kind ?? "analysis",
     status: run.status,
@@ -80,7 +83,7 @@ export function runNotice(project: string, run: Api.RunRecord, at: number): Noti
   };
 }
 
-/** The notice of an operation making a project, when queued or ended. */
+/** The notice of an operation making or removing a project, when queued or ended. */
 export function operationNotice(operation: Api.PendingOperation, at: number): Notice | null {
   if (!notified(operation.status)) return null;
   return {
@@ -88,6 +91,7 @@ export function operationNotice(operation: Api.PendingOperation, at: number): No
     project: operation.project,
     run: operation.id,
     pending: true,
+    made: operation.recorded === true,
     analysis: operation.operation,
     kind: "manage",
     status: operation.status,

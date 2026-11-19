@@ -73,7 +73,7 @@ export interface Feature {
 /** Commands the client sends: parameters and result. */
 interface Commands {
   "project.create": [Api.CreateProject, Api.PendingOperation];
-  "project.remove": [Api.ProjectRef, null];
+  "project.remove": [Api.ProjectRef, Api.PendingOperation];
   "project.export": [Api.ExportProject, Api.RunRecord];
   "project.import": [Api.ImportProject, Api.PendingOperation];
   "demo.reset": [Record<string, never>, Api.PendingOperation];

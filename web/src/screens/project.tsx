@@ -20,7 +20,7 @@ import { useBatch } from "../state/batch";
 import { ACCEPT } from "../state/catalogue";
 import { extentDegrees, extentMetric, gridParameters, validName } from "../state/project-summary";
 import { demoSlug } from "../state/start";
-import { useTransfer } from "../state/transfer";
+import { busy, useTransfer } from "../state/transfer";
 import { BatchStatus, EntryList, TransferStatus, useFmt } from "./common";
 import { RegionMap, RegionPanel } from "./project-region";
 
@@ -154,23 +154,29 @@ function DeletePanel({ route }: { route: Route }) {
   const projects = useProjects();
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [confirming, setConfirming] = useState(false);
-  const { batch, start } = useBatch();
+  // A removal is a job: queued and ended are notified; here only a refusal.
+  const { state, run } = useTransfer();
   const name = projects.data?.find((p) => p.slug === chosen)?.info.name ?? chosen ?? "";
-  const remove = async () => {
+  const remove = () => {
     if (chosen === undefined) return;
-    const removed = await start([chosen], () => name, (project) => api.command("project.remove", { project }));
-    await queryClient.invalidateQueries({ queryKey: keys.projects });
-    if (removed.length > 0) {
+    const project = chosen;
+    void run(async (queued) => {
+      const operation = await api.command("project.remove", { project });
+      queued({ kind: "operation", id: operation.id });
       setChosen(undefined);
-      if (chosen === route.project) navigate({ ...HOME, panel: "delete" });
-    }
+      // Leave the project once it is gone: leaving earlier reconnects the
+      // events and could miss the end of the removal (a failure is notified).
+      await operationDone(operation.id);
+      if (project === route.project) navigate({ ...HOME, panel: "delete" });
+      return name;
+    });
   };
   return (
     <div className="flex flex-col gap-[15px]">
       <SelectField label="project_delete_select_project" options={projectOptions(projects.data)} value={chosen} onChange={setChosen} />
-      <AmButton variant="danger" block k="project_delete_btn" disabled={chosen === undefined || batch.state === "running"} onClick={() => setConfirming(true)} />
-      <BatchStatus batch={batch} doneKey="data.removed" />
-      <ConfirmDialog open={confirming} onOpenChange={setConfirming} title="srv_project_confirmation_title" confirm="srv_project_delete_confirm_btn" onConfirm={() => void remove()}>
+      <AmButton variant="danger" block k="project_delete_btn" disabled={chosen === undefined || busy(state)} onClick={() => setConfirming(true)} />
+      <TransferStatus transfer={state} />
+      <ConfirmDialog open={confirming} onOpenChange={setConfirming} title="srv_project_confirmation_title" confirm="srv_project_delete_confirm_btn" onConfirm={remove}>
         {f("srv_project_delete_project_confirm", name)}
       </ConfirmDialog>
     </div>

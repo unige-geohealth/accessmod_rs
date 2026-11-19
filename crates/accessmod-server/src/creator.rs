@@ -606,7 +606,7 @@ pub fn create(
             if let Some((resolved, _)) = facilities {
                 resolved.consumed();
             }
-            Ok((project, outcome))
+            Ok(Some((project, outcome)))
         },
     )
 }

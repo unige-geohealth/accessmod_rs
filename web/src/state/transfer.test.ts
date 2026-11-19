@@ -30,4 +30,9 @@ describe("transfer", () => {
     expect(failed).toEqual({ state: "failed", issues: ["no"] });
     expect(updateTransfer(failed, { type: "reset" })).toBe(IDLE);
   });
+
+  it("leaves the failure of a queued job to its notification", () => {
+    const task = { kind: "operation" as const, id: 2 };
+    expect(run([{ type: "start" }, { type: "uploaded" }, { type: "queued", task }, { type: "failed", issues: ["busy"] }])).toBe(IDLE);
+  });
 });
