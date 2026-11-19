@@ -486,8 +486,10 @@ the demo):
 
 - A job is notified twice: when it is **queued** and when it **ends**
   (done, failed, cancelled, interrupted). Both notices come from the
-  server events alone (`api/events.ts`), so a job started elsewhere (CLI,
-  another tab) is notified the same way.
+  server events alone (`api/events.ts`), so a job started through the
+  server elsewhere (another tab, the API) is notified the same way. A job
+  the command line runs on the project directly goes through no server:
+  it shows in Jobs, not as a notice.
 - A form shows only what precedes the job: an upload's progress, the
   request in flight, its refusal. Never the job's own queued, progress or
   done text: progress, pause and cancel live in Jobs, which a notice opens.
