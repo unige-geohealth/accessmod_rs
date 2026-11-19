@@ -5,7 +5,7 @@
 // says when it is ready (docs/project-creator.md).
 import { CheckboxField, SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
-import { AmButton, InfoTip, type Message, MessageList } from "@accessmod/ui/am/messages";
+import { AmButton, type Message, MessageList } from "@accessmod/ui/am/messages";
 import { useI18n } from "@accessmod/ui/i18n";
 import type { FeatureCollection } from "geojson";
 import type maplibregl from "maplibre-gl";
@@ -117,22 +117,17 @@ export function RegionPanel() {
         onChange={(v) => dispatch({ type: "resolution", metres: Number(v) })}
       />
       <div className="flex flex-col gap-1.5">
-        <p className="text-sm font-bold">
-          {t("creator.layers")} <InfoTip k="creator.layers_hint" label="creator.layers" />
-        </p>
-        <p className="text-xs text-muted-foreground">{t("creator.dem_always")}</p>
+        <p className="text-sm font-bold">{t("creator.layers")}</p>
+        <CheckboxField label="creator.layer_dem" checked disabled />
         {LAYERS.map(({ layer, label }) => (
           <CheckboxField key={layer} label={label} checked={draft.layers[layer]} onChange={(on) => dispatch({ type: "layer", layer, on })} />
         ))}
       </div>
-      <div className="flex items-center gap-1">
-        <CheckboxField
-          label="creator.default_scenarios"
-          checked={draft.default_scenarios}
-          onChange={(on) => dispatch({ type: "defaultScenarios", on })}
-        />
-        <InfoTip k="creator.default_scenarios_hint" label="creator.default_scenarios" />
-      </div>
+      <CheckboxField
+        label="creator.default_scenarios"
+        checked={draft.default_scenarios}
+        onChange={(on) => dispatch({ type: "defaultScenarios", on })}
+      />
       {messages.length > 0 && <MessageList messages={messages} />}
       <AmButton
         variant={ready === null ? "danger" : "primary"}

@@ -1,7 +1,7 @@
 # Project Creator: source study
 
 Status: **experimental in 6.0.0-alpha.1** (2026-11-18): Project › New from a
-region (experimental) and `accessmod project create --recipe`. Presets
+region and `accessmod project create --recipe`. Presets
 (WorldCover classes, OSM road classes and speeds) are provisional; OSM
 facilities are a flagged starting point; what is left is in "State on
 2026-11-13" below. Study reviewed, decisions taken, contracts written
@@ -313,9 +313,14 @@ notes: `crates/accessmod-io/src/creator/presets/`.
   - explicit rules for unknown values, `track` and `path`, `access=no`, construction and
     tunnels.
 - **Default scenarios** (box ticked by default; `default_scenarios` in the recipe): three
-  saved travel-time jobs, "Travel time, walking / bicycle / motorized (Project Creator)",
-  a template to compute at once (`project run`, `GET /api/projects/{project}/jobs`). Off the roads people
-  walk (WorldCover speeds). Unticked, the jobs are still checked for readiness, not saved.
+  scenario tables (`tScenario`, tags `creator walking|bicycle|motorized`), to load in
+  Analysis › Accessibility, and the matching saved travel-time jobs (`project run`,
+  `GET /api/projects/{project}/jobs`). Off the roads people walk (WorldCover speeds).
+  Unticked, the jobs are still checked for readiness, nothing is saved.
+- **Expected outputs:** a creation that misses an output it was asked for (zones, merged
+  land cover, scenario tables) fails: a bug, never a silent gap. A layer empty in the
+  region (no road, river or facility) is a warning; no facility also leaves the project
+  not ready.
 
   | Road class | Walking | Bicycle | Motorized |
   | --- | --- | --- | --- |

@@ -6,7 +6,7 @@ import { choose, panel, shot, sidebar } from "./helpers";
 // provider is contacted.
 test("a region picked on the map becomes a project that computes", async ({ page }) => {
   await page.goto("/#/_/project");
-  await panel(page, "New from a region (experimental)").click();
+  await panel(page, "New from a region").click();
   await expect(page.getByText("Choose a country.").first()).toBeVisible();
   await shot(page, "creator-empty");
 
@@ -36,6 +36,6 @@ test("a region picked on the map becomes a project that computes", async ({ page
   await notice.getByRole("button", { name: "Open the project" }).click();
   await expect(page.locator("aside")).toContainText("Juba from a region");
   await sidebar(page, "Data").click();
-  await expect(page.locator(".tabulator .tabulator-row")).toHaveCount(10);
+  await expect(page.locator(".tabulator .tabulator-row")).toHaveCount(13);
   await shot(page, "creator-project-data");
 });

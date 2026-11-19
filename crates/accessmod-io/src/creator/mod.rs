@@ -31,7 +31,7 @@ use crate::analysis::Monitor;
 use crate::class::DataClass;
 use crate::error::{Error, Result};
 use crate::grid::{Extent, GridSpec};
-use crate::output::FLOAT_NODATA;
+use crate::output::{CsvWriter, FLOAT_NODATA, csv_field};
 use crate::project::{ImportOptions, Project};
 use crate::projection::{self, Distortion, LonLatBounds};
 use crate::resources::ExecutionSettings;
@@ -875,6 +875,9 @@ pub fn build(
             )?;
             features.push(("roads".to_owned(), kept));
             features.push(("roads left out (preset)".to_owned(), left_out));
+            if kept == 0 {
+                warnings.push("no road in the region".to_owned());
+            }
             roads_file = (kept > 0).then_some(path);
         }
         let mut rivers_file = None;
@@ -913,6 +916,9 @@ pub fn build(
                 },
             )?;
             features.push(("rivers".to_owned(), kept));
+            if kept == 0 {
+                warnings.push("no river or canal in the region".to_owned());
+            }
             rivers_file = (kept > 0).then_some(path);
         }
         let mut facilities_file = None;
@@ -1298,6 +1304,24 @@ pub fn build(
                     }
                     (None, _) => None,
                 };
+                // The scenarios as tables, to load in Analysis › Accessibility.
+                let scenario_tables = scenarios.is_some() && recipe.default_scenarios;
+                if let (Some(scenarios), true) = (&scenarios, scenario_tables) {
+                    for (name, scenario) in scenarios {
+                        let path = work(&format!("scenario_{name}.csv"));
+                        let mut csv = CsvWriter::create(&path, "class,label,speed,mode")?;
+                        for e in scenario {
+                            csv.record(&[
+                                csv_field(&e["class"]),
+                                csv_field(&e["label"]),
+                                csv_field(&e["speed_kmh"]),
+                                e["mode"].as_str().unwrap_or_default().to_uppercase(),
+                            ])?;
+                        }
+                        csv.finish()?;
+                        import(&path, DataClass::Scenario, &["creator", name])?;
+                    }
+                }
                 if facilities.is_none() {
                     not_ready.push(
                         "no health facility in the region: import a list (ministry, HeRAMS…)"
@@ -1349,6 +1373,34 @@ pub fn build(
                             }
                         }
                     }
+                }
+                // What was asked is there: a missing output is a bug, never
+                // a project that silently lacks it.
+                let mut expected: Vec<(DataClass, Vec<&str>)> =
+                    vec![(DataClass::Zone, vec!["area"])];
+                if lc.is_some() {
+                    expected.push((DataClass::LandCoverMerged, vec!["creator"]));
+                }
+                if scenario_tables {
+                    for (name, _) in &profiles {
+                        expected.push((DataClass::Scenario, vec!["creator", name]));
+                    }
+                }
+                let datasets = project.datasets(None)?;
+                let absent: Vec<String> = expected
+                    .iter()
+                    .filter(|(class, tags)| {
+                        !datasets.iter().any(|d| {
+                            d.class == *class && tags.iter().all(|t| d.tags.iter().any(|d| d == t))
+                        })
+                    })
+                    .map(|(class, tags)| format!("{} [{}]", class.code(), tags.join(" ")))
+                    .collect();
+                if !absent.is_empty() {
+                    return Err(Error::invalid(format!(
+                        "the Project Creator did not produce: {}",
+                        absent.join(", ")
+                    )));
                 }
                 manifest.ready = not_ready.is_empty();
                 manifest.not_ready = not_ready;

@@ -77,25 +77,33 @@ fn a_region_becomes_a_project_that_computes() {
     let pop = manifest.population.expect("population");
     assert!(pop.source > 0.0);
     assert!(((pop.grid - pop.source) / pop.source).abs() < creator::POPULATION_TOLERANCE);
-    // Every dataset, and the merged land cover.
-    let classes: Vec<DataClass> = project
+    // Exactly what was asked: every layer, the merged land cover and its
+    // table, the three scenario tables.
+    let mut got: Vec<String> = project
         .datasets(None)
         .unwrap()
         .iter()
-        .map(|d| d.class)
+        .map(|d| format!("{} {}", d.class.code(), d.tags.join(" ")))
         .collect();
-    for class in [
-        DataClass::Dem,
-        DataClass::LandCover,
-        DataClass::Population,
-        DataClass::Road,
-        DataClass::Barrier,
-        DataClass::Facility,
-        DataClass::Zone,
-        DataClass::LandCoverMerged,
-    ] {
-        assert!(classes.contains(&class), "no {class:?} in {classes:?}");
-    }
+    got.sort();
+    assert_eq!(
+        got,
+        [
+            "rDem dem",
+            "rLandCover worldcover",
+            "rLandCoverMerged creator",
+            "rPopulation worldpop",
+            "tLandCover creator",
+            "tScenario creator bicycle",
+            "tScenario creator motorized",
+            "tScenario creator walking",
+            "vBarrier osm rivers",
+            "vBarrier outside region",
+            "vFacility osm",
+            "vRoad osm",
+            "vZone area",
+        ],
+    );
     // Outside the buffered region nothing can be crossed: the merged land
     // cover is NoData at the grid corners (outside the buffer), set inside.
     let merged = project
@@ -213,19 +221,13 @@ fn outputs_do_not_depend_on_memory_or_threads() {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut digests = Vec::new();
     for (i, (memory, threads)) in [(32 << 20, 1), (512 << 20, 4)].into_iter().enumerate() {
-        // Declining the preset scenarios saves no job and changes no data.
-        let declined = i == 0;
         let (project, _) = creator::build(
-            &Recipe {
-                default_scenarios: !declined,
-                ..recipe(0.0, Crs::Auto)
-            },
+            &recipe(0.0, Crs::Auto),
             &dir.path().join(format!("p{i}")),
             &settings(memory, threads),
             Monitor::QUIET,
         )
         .expect("build");
-        assert_eq!(project.jobs().unwrap().len(), if declined { 0 } else { 3 });
         let mut sums: Vec<(String, String)> = project
             .datasets(None)
             .unwrap()
@@ -510,8 +512,17 @@ fn facility_lists_are_kept_whole() {
         path: data("health_facilities.gpkg"),
         id_field: "osm_id".to_owned(),
     });
+    // Declined default scenarios: no scenario table, no saved job.
+    osm.default_scenarios = false;
     let (project, from_list) =
         creator::build(&osm, &dir.path().join("list"), &s, Monitor::QUIET).expect("list");
+    assert!(
+        project
+            .datasets(Some(DataClass::Scenario))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(project.jobs().unwrap().is_empty());
     let count = |m: &creator::Manifest, key: &str| {
         m.features
             .iter()

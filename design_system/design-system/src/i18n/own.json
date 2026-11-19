@@ -6,10 +6,10 @@
     "pt": "Dê um nome ao projeto (4 caracteres ou mais)."
   },
   "creator.title": {
-    "en": "New from a region (experimental)",
-    "fr": "Nouveau depuis une région (expérimental)",
-    "es": "Nuevo desde una región (experimental)",
-    "pt": "Novo a partir de uma região (experimental)"
+    "en": "New from a region",
+    "fr": "Nouveau depuis une région",
+    "es": "Nuevo desde una región",
+    "pt": "Novo a partir de uma região"
   },
   "creator.map_title": {
     "en": "Region",
@@ -89,29 +89,17 @@
     "es": "Capas",
     "pt": "Camadas"
   },
-  "creator.layers_hint": {
-    "en": "Downloaded once and kept for later projects. Every layer but the DEM can be left out and imported later from your own files.",
-    "fr": "Téléchargées une fois et gardées pour les projets suivants. Toute couche sauf le MNT peut être omise et importée plus tard depuis vos fichiers.",
-    "es": "Se descargan una vez y se guardan para otros proyectos. Toda capa salvo el MDE puede omitirse e importarse después desde sus archivos.",
-    "pt": "Baixadas uma vez e guardadas para outros projetos. Toda camada exceto o MDE pode ser omitida e importada depois a partir dos seus arquivos."
-  },
-  "creator.dem_always": {
-    "en": "Elevation (Copernicus DEM GLO-90) is always included: it defines the grid.",
-    "fr": "L'altitude (Copernicus DEM GLO-90) est toujours incluse : elle définit la grille.",
-    "es": "La elevación (Copernicus DEM GLO-90) se incluye siempre: define la cuadrícula.",
-    "pt": "A elevação (Copernicus DEM GLO-90) é sempre incluída: ela define a grade."
-  },
   "creator.default_scenarios": {
     "en": "Default scenarios",
     "fr": "Scénarios par défaut",
     "es": "Escenarios por defecto",
     "pt": "Cenários padrão"
   },
-  "creator.default_scenarios_hint": {
-    "en": "Saves three travel-time jobs ready to run: walking, bicycle and motorized. Off the roads people walk; motorways and trunk roads are crossed on foot (0.1 km/h). The speeds are a starting point.",
-    "fr": "Enregistre trois calculs de temps de trajet prêts à lancer : à pied, à vélo et motorisé. Hors des routes, on marche ; autoroutes et routes nationales se traversent à pied (0,1 km/h). Les vitesses sont un point de départ.",
-    "es": "Guarda tres cálculos de tiempo de viaje listos para ejecutar: a pie, en bicicleta y motorizado. Fuera de las carreteras se camina; autopistas y carreteras troncales se cruzan a pie (0,1 km/h). Las velocidades son un punto de partida.",
-    "pt": "Salva três cálculos de tempo de viagem prontos para executar: a pé, de bicicleta e motorizado. Fora das estradas se caminha; autoestradas e rodovias troncais são atravessadas a pé (0,1 km/h). As velocidades são um ponto de partida."
+  "creator.layer_dem": {
+    "en": "Elevation (Copernicus DEM GLO-90)",
+    "fr": "Altitude (Copernicus DEM GLO-90)",
+    "es": "Elevación (Copernicus DEM GLO-90)",
+    "pt": "Elevação (Copernicus DEM GLO-90)"
   },
   "creator.layer_land_cover": {
     "en": "Land cover (ESA WorldCover 2021)",

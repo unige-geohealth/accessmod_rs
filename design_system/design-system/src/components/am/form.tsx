@@ -253,16 +253,18 @@ export function CheckboxField({
   help,
   checked,
   onChange,
+  disabled,
 }: {
   label: Key;
   help?: Key;
   checked: boolean;
   onChange?: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-0.5">
       <label className="flex items-center gap-2">
-        <Checkbox checked={checked} onCheckedChange={(v) => onChange?.(v === true)} />
+        <Checkbox checked={checked} disabled={disabled} onCheckedChange={(v) => onChange?.(v === true)} />
         <T k={label} />
       </label>
       {help && (
