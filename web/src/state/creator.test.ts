@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type CreatorDraft, EMPTY, missing, params, update } from "./creator";
+import { type CreatorDraft, EMPTY, missing, params, scenariosOn, update } from "./creator";
 
 const apply = (...messages: Parameters<typeof update>[1][]): CreatorDraft => messages.reduce(update, EMPTY);
 
@@ -53,5 +53,12 @@ describe("creator draft", () => {
     expect(d.default_scenarios).toBe(false);
     const named = update(update(update(d, { type: "name", text: "Juba" }), { type: "country", iso3: "SSD" }), { type: "level", level: 0 });
     expect(params(named)?.default_scenarios).toBe(false);
+  });
+
+  it("makes no default scenario without land cover", () => {
+    const d = apply({ type: "layer", layer: "land_cover", on: false });
+    expect(d.default_scenarios).toBe(true);
+    expect(scenariosOn(d)).toBe(false);
+    expect(scenariosOn(update(d, { type: "layer", layer: "land_cover", on: true }))).toBe(true);
   });
 });

@@ -163,6 +163,37 @@ fn a_region_becomes_a_project_that_computes() {
         road_cells(&cells),
         road_cells(&closed_cells)
     );
+    // The scenario tables hold what the saved jobs hold, as the client
+    // reads them: water a barrier (0), a primary road per scenario (the
+    // fixture has no motorway: its 0.1 km/h is checked on the preset).
+    let table = |name: &str| -> Vec<Vec<String>> {
+        let d = project
+            .datasets(Some(DataClass::Scenario))
+            .unwrap()
+            .into_iter()
+            .find(|d| d.tags.iter().any(|t| t == name))
+            .unwrap_or_else(|| panic!("{name} table"));
+        let file = std::fs::File::open(project.resolve(Path::new(&d.file)).unwrap()).unwrap();
+        let mut rows = Vec::new();
+        accessmod_io::output::read_csv(file, 1 << 20, |r| {
+            rows.push(r.to_vec());
+            Ok(())
+        })
+        .unwrap();
+        rows
+    };
+    let row = |rows: &[Vec<String>], class: &str| -> Vec<String> {
+        rows.iter()
+            .find(|r| r[0] == class)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let walking = table("walking");
+    assert_eq!(walking[0], ["class", "label", "speed", "mode"]);
+    assert_eq!(row(&walking, "80")[2..], ["0.0", "WALKING"]);
+    assert_eq!(row(&walking, "1002")[2..], ["5.0", "WALKING"]);
+    assert_eq!(row(&table("bicycle"), "1002")[2..], ["15.0", "BICYCLING"]);
+    assert_eq!(row(&table("motorized"), "1002")[2..], ["60.0", "MOTORIZED"]);
     // The three saved travel-time jobs run; off the roads people walk, so
     // only the motorized one has a motorized class, and it reaches the
     // population sooner than walking.

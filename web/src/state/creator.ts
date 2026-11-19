@@ -99,6 +99,9 @@ export function missing(d: CreatorDraft): Key[] {
   return out;
 }
 
+/** Default scenarios are made from the WorldCover land cover: none without it. */
+export const scenariosOn = (d: CreatorDraft): boolean => d.default_scenarios && d.layers.land_cover;
+
 /** The `creator.create` parameters, or `null` while something is missing. */
 export function params(d: CreatorDraft): Api.CreateFromRegion | null {
   if (missing(d).length > 0 || d.iso3 === null) return null;
@@ -110,7 +113,7 @@ export function params(d: CreatorDraft): Api.CreateFromRegion | null {
     buffer_m: d.buffer_km * 1000,
     resolution_m: d.resolution_m,
     layers: d.layers,
-    default_scenarios: d.default_scenarios,
+    default_scenarios: scenariosOn(d),
   };
 }
 

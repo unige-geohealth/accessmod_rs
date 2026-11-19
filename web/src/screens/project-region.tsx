@@ -12,7 +12,7 @@ import type maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { api, issuesOf } from "../api/client";
 import { useCountries, useUnits } from "../api/queries";
-import { BUFFERS_KM, creatorStore, LEVELS, type Layers, missing, params, RESOLUTIONS_M } from "../state/creator";
+import { BUFFERS_KM, creatorStore, LEVELS, type Layers, missing, params, RESOLUTIONS_M, scenariosOn } from "../state/creator";
 import { useStore } from "../state/store";
 import { useFmt } from "./common";
 
@@ -125,7 +125,8 @@ export function RegionPanel() {
       </div>
       <CheckboxField
         label="creator.default_scenarios"
-        checked={draft.default_scenarios}
+        checked={scenariosOn(draft)}
+        disabled={!draft.layers.land_cover}
         onChange={(on) => dispatch({ type: "defaultScenarios", on })}
       />
       {messages.length > 0 && <MessageList messages={messages} />}

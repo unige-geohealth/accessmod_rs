@@ -976,6 +976,9 @@ pub fn build(
             )?;
             features.push(("facilities (list)".to_owned(), kept));
             facility_id = id_field.clone();
+            if kept == 0 {
+                warnings.push("no health facility in the region".to_owned());
+            }
             facilities_file = (kept > 0).then_some(path);
         }
         if let Some(FacilitySource::Osm(source)) = &recipe.sources.facilities {
@@ -1030,6 +1033,9 @@ pub fn build(
                     "{kept} facilities come from OpenStreetMap: a starting point, often incomplete; \
                      replace them with an official list"
                 ));
+            }
+            if kept == 0 {
+                warnings.push("no health facility in the region".to_owned());
             }
             facilities_file = (kept > 0).then_some(path);
         }
@@ -1306,6 +1312,11 @@ pub fn build(
                 };
                 // The scenarios as tables, to load in Analysis › Accessibility.
                 let scenario_tables = scenarios.is_some() && recipe.default_scenarios;
+                if recipe.default_scenarios && scenarios.is_none() {
+                    manifest.warnings.push(
+                        "no default scenario: they need an ESA WorldCover land cover".to_owned(),
+                    );
+                }
                 if let (Some(scenarios), true) = (&scenarios, scenario_tables) {
                     for (name, scenario) in scenarios {
                         let path = work(&format!("scenario_{name}.csv"));
@@ -1380,6 +1391,7 @@ pub fn build(
                     vec![(DataClass::Zone, vec!["area"])];
                 if lc.is_some() {
                     expected.push((DataClass::LandCoverMerged, vec!["creator"]));
+                    expected.push((DataClass::LandCoverTable, vec!["creator"]));
                 }
                 if scenario_tables {
                     for (name, _) in &profiles {
