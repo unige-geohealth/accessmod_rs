@@ -1307,6 +1307,9 @@ pub fn build(
                 if let (Some(merged), Some(scenarios), Some(facilities)) =
                     (&merged, scenarios, &facilities)
                 {
+                    // The scenarios share their inputs: one warning each,
+                    // and the first job that fails says why.
+                    let mut seen = std::collections::HashSet::new();
                     for (name, scenario) in scenarios {
                         let job = serde_json::json!({
                             "schema_version": 1,
@@ -1323,10 +1326,8 @@ pub fn build(
                         });
                         match project.check_named("travel-time", &job) {
                             Ok(warnings) => {
-                                // The scenarios share their inputs: one
-                                // warning each.
                                 for w in warnings {
-                                    if !manifest.warnings.contains(&w.message) {
+                                    if seen.insert(w.message.clone()) {
                                         manifest.warnings.push(w.message);
                                     }
                                 }
@@ -1340,9 +1341,12 @@ pub fn build(
                                 }
                             }
                             Err(Error::Cancelled) => return Err(Error::Cancelled),
-                            Err(error) => not_ready.push(format!(
-                                "the {name} travel-time job does not validate: {error}"
-                            )),
+                            Err(error) => {
+                                not_ready.push(format!(
+                                    "the {name} travel-time job does not validate: {error}"
+                                ));
+                                break;
+                            }
                         }
                     }
                 }

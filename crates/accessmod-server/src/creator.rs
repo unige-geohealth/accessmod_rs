@@ -570,6 +570,7 @@ pub fn create(
     let job = serde_json::json!({
         "name": params.name, "iso3": params.iso3, "level": params.level, "units": params.units.len(),
         "buffer_m": params.buffer_m, "resolution_m": params.resolution_m, "layers": params.layers,
+        "default_scenarios": params.default_scenarios,
     });
     let name = params.name.clone();
     let target = slug.clone();

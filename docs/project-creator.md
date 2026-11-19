@@ -314,7 +314,7 @@ notes: `crates/accessmod-io/src/creator/presets/`.
     tunnels.
 - **Default scenarios** (box ticked by default; `default_scenarios` in the recipe): three
   saved travel-time jobs, "Travel time, walking / bicycle / motorized (Project Creator)",
-  a template to compute at once, edited in Analysis › Accessibility. Off the roads people
+  a template to compute at once (`project run`, `GET /api/projects/{project}/jobs`). Off the roads people
   walk (WorldCover speeds). Unticked, the jobs are still checked for readiness, not saved.
 
   | Road class | Walking | Bicycle | Motorized |
@@ -324,8 +324,8 @@ notes: `crates/accessmod-io/src/creator/presets/`.
   | 6 Track | walking 5 | bicycling 10 | motorized 15 |
   | 7 Path | walking 5 | walking 5 | walking 5 |
 
-  Motorways and trunk roads are crossed on foot or by bicycle, not followed: 0.1 km/h,
-  not 0, because a road at 0 km/h would be a barrier: a wall in the merged land cover, and
+  Motorways and trunk roads are crossed on foot or by bicycle, hardly followed (about one
+  hour per 100 m cell; still a way over a bridge with no other): 0.1 km/h, not 0, because a road at 0 km/h would be a barrier: a wall in the merged land cover, and
   facilities on it skipped.
 - **OSM facilities:**
   - points, and polygon centroids, with `osm_id`;
