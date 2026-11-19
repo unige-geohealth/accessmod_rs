@@ -83,7 +83,7 @@ function handle(event: Api.Event) {
   }
 }
 
-/** Follow the events of `project` while mounted: a subscription only. */
+/** Follow the events of `project` (every project the user may see when null) while mounted: a subscription only. */
 export function useEvents(project: string | null) {
   useEffect(() => {
     const url = project === null ? "/api/events" : `/api/events?project=${encodeURIComponent(project)}`;

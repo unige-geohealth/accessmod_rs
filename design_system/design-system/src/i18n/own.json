@@ -1307,12 +1307,6 @@
     "es": "Registrando los resultados",
     "pt": "Registrando os resultados"
   },
-  "task.queued_as": {
-    "en": "Queued as job %s: follow it here or in Jobs",
-    "fr": "Ajouté à la file (job %s) : suivez-le ici ou dans Jobs",
-    "es": "En cola (trabajo %s): sígalo aquí o en Jobs",
-    "pt": "Na fila (trabalho %s): acompanhe aqui ou em Jobs"
-  },
   "jobs.op_archive": {
     "en": "Archive",
     "fr": "Archive",
@@ -1492,12 +1486,6 @@
     "fr": "job n° %s",
     "es": "trabajo n.º %s",
     "pt": "trabalho n.º %s"
-  },
-  "analysis.outputs_own_job": {
-    "en": "Job #%s computes these tags. Change them to try another scenario.",
-    "fr": "Le job n° %s calcule ces tags. Changez-les pour essayer un autre scénario.",
-    "es": "El trabajo n.º %s calcula estas etiquetas. Cámbielas para probar otro escenario.",
-    "pt": "O trabalho n.º %s calcula estas etiquetas. Altere-as para experimentar outro cenário."
   },
   "merge.barrier_order_hint": {
     "en": "An item covers the items below it. A barrier empties the items below it: at the top it closes everything (conflict areas, destroyed bridges); between the roads and the land cover, roads cross it (rivers, lakes).",

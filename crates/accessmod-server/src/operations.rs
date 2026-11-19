@@ -137,7 +137,8 @@ fn execute_in_project<T: Serialize>(
 /// An operation making a project, while it is not recorded in it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PendingOperation {
-    /// Identifier, unique while the server runs.
+    /// Identifier, unique across restarts (milliseconds since the Unix
+    /// epoch when it was queued, or the next one).
     pub id: Id,
     /// `project-create`, `project-import`, `demo-reset` or `project-remove`.
     pub operation: String,
@@ -198,9 +199,18 @@ impl Pending {
                 Vec::new()
             }
         };
-        // Only finished ones are written; never resume one.
-        let kept: VecDeque<PendingOperation> =
-            kept.into_iter().filter(|o| o.finished.is_some()).collect();
+        // One the server stopped during is interrupted: never resumed.
+        let kept: VecDeque<PendingOperation> = kept
+            .into_iter()
+            .map(|mut o| {
+                if o.finished.is_none() {
+                    o.status = RunStatus::Interrupted;
+                    o.finished = Some(now());
+                    o.progress = None;
+                }
+                o
+            })
+            .collect();
         Self {
             next: std::sync::atomic::AtomicI64::new(kept.iter().map(|o| o.id).max().unwrap_or(0)),
             operations: Mutex::new(kept),
@@ -208,17 +218,14 @@ impl Pending {
         }
     }
 
-    /// Write the finished operations no project records (atomically: a
-    /// temporary file renamed over it). A failure is a warning: the
-    /// operation itself is over.
+    /// Write the operations no project records, unfinished ones too
+    /// (atomically: a temporary file renamed over it). A failure is a
+    /// warning: the operation goes on.
     fn save(&self, operations: &VecDeque<PendingOperation>) {
         let Some(path) = &self.journal else {
             return;
         };
-        let kept: Vec<&PendingOperation> = operations
-            .iter()
-            .filter(|o| o.finished.is_some() && !o.recorded)
-            .collect();
+        let kept: Vec<&PendingOperation> = operations.iter().filter(|o| !o.recorded).collect();
         let temporary = path.with_extension(format!("json.{}", std::process::id()));
         let written = serde_json::to_vec_pretty(&kept)
             .map_err(std::io::Error::other)
@@ -297,7 +304,12 @@ impl Pending {
 
     fn add(&self, mut operation: PendingOperation) -> PendingOperation {
         let mut operations = self.lock();
-        operation.id = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+        // Ids grow across restarts: the clock, or the next after the last
+        // (an id a client saw is never given again).
+        let ordering = std::sync::atomic::Ordering::Relaxed;
+        let last = self.next.load(ordering);
+        operation.id = last.checked_add(1).unwrap_or(last).max(now_ms());
+        self.next.store(operation.id, ordering);
         operations.push_back(operation.clone());
         // Drop the oldest finished ones beyond what is kept.
         while operations.iter().filter(|o| o.finished.is_some()).count() > KEPT {
@@ -305,8 +317,15 @@ impl Pending {
                 operations.remove(at);
             }
         }
+        self.save(&operations);
         operation
     }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
 fn now() -> i64 {
@@ -508,17 +527,34 @@ mod journal_tests {
         pending.finish(removed.id, &Err(Error::Cancelled), false);
         let again = Pending::open(dir.path());
         let listed: Vec<(Id, RunStatus)> = again.list().iter().map(|o| (o.id, o.status)).collect();
-        // The one made is a run of its project; the running one is not kept.
+        // The one made is a run of its project; the one the server stopped
+        // during is interrupted.
         assert_eq!(
             listed,
             [
                 (removed.id, RunStatus::Done),
-                (failed.id, RunStatus::Failed)
+                (failed.id, RunStatus::Failed),
+                (running.id, RunStatus::Interrupted)
             ]
         );
-        assert_ne!(running.id, 0);
-        // Ids go on after the journal's.
-        assert!(again.add(operation("project-remove")).id > failed.id);
+        // Ids grow, across restarts too: never one a client saw.
+        assert!(removed.id < failed.id && failed.id < made.id && made.id < running.id);
+        assert!(again.add(operation("project-remove")).id > running.id);
+        // A journal holding the largest id does not overflow.
+        let mut last = operation("project-remove");
+        last.id = Id::MAX;
+        last.finished = Some(1);
+        std::fs::write(
+            dir.path().join(JOURNAL_FILE),
+            serde_json::to_vec(&[last]).expect("json"),
+        )
+        .expect("write");
+        assert_eq!(
+            Pending::open(dir.path())
+                .add(operation("project-remove"))
+                .id,
+            Id::MAX
+        );
         // A corrupt journal is an empty one.
         std::fs::write(dir.path().join(JOURNAL_FILE), b"{not json").expect("write");
         assert!(Pending::open(dir.path()).list().is_empty());

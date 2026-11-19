@@ -6,7 +6,7 @@ const run = (messages: TransferMessage[], from: Transfer = IDLE) => messages.red
 describe("transfer", () => {
   it("goes through upload and processing to done", () => {
     expect(run([{ type: "start" }, { type: "progress", fraction: 0.5 }])).toEqual({ state: "uploading", fraction: 0.5 });
-    expect(run([{ type: "start" }, { type: "uploaded" }, { type: "done", label: "x" }])).toEqual({ state: "done", label: "x" });
+    expect(run([{ type: "start" }, { type: "uploaded" }, { type: "done" }])).toEqual({ state: "done" });
   });
 
   it("follows the task the command queued", () => {
@@ -18,7 +18,7 @@ describe("transfer", () => {
 
   it("ignores messages that do not fit the state", () => {
     expect(run([{ type: "progress", fraction: 1 }])).toBe(IDLE);
-    expect(run([{ type: "done", label: "x" }])).toBe(IDLE);
+    expect(run([{ type: "done" }])).toBe(IDLE);
     const uploading = run([{ type: "start" }]);
     expect(updateTransfer(uploading, { type: "start" })).toBe(uploading);
     expect(updateTransfer(uploading, { type: "reset" })).toBe(uploading);

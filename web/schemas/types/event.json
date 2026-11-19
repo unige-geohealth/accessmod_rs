@@ -38,7 +38,7 @@
           ]
         },
         "id": {
-          "description": "Identifier, unique while the server runs.",
+          "description": "Identifier, unique across restarts (milliseconds since the Unix\nepoch when it was queued, or the next one).",
           "format": "int64",
           "type": "integer"
         },

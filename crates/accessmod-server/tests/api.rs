@@ -976,6 +976,33 @@ fn slugs(list: &Value) -> Vec<String> {
         .collect()
 }
 
+/// A removal asked for a project spares the one made again in its place
+/// before it runs (a demo reset queued first, on the same lane).
+#[tokio::test]
+async fn a_removal_spares_a_project_made_again_in_its_place() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    sources(dir.path());
+    let state = state_on(
+        dir.path(),
+        true,
+        accessmod_server::DEFAULT_UPLOAD_LIMIT,
+        true,
+    );
+    let app = router(state.clone(), None);
+    let s = Server { dir, state, app };
+    // Creation times are in seconds: the rebuilt demo is a later one.
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let (status, body) = s.command("demo.reset", json!({})).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, body) = s
+        .command_done("project.remove", json!({"project": "demo"}))
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.to_string().contains("made again"), "{body}");
+    let (_, list) = s.call("GET", "/api/projects", None).await;
+    assert_eq!(slugs(&list), ["demo"]);
+}
+
 #[tokio::test]
 async fn the_demo_project_is_built_once_and_reset_on_demand() {
     let dir = tempfile::tempdir().expect("tempdir");

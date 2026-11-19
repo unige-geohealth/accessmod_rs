@@ -750,7 +750,10 @@ fn remove_project(
     principal: &Principal,
     params: ProjectRef,
 ) -> ApiResult<PendingOperation> {
-    let name = state.open(&params.project)?.info()?.name;
+    // The project as it is now: one made since in its place (a demo reset
+    // queued before) is not the one asked for.
+    let info = state.open(&params.project)?.info()?;
+    let (name, created) = (info.name, info.created);
     let slug = params.project.clone();
     operations::queue_pending(
         state,
@@ -760,13 +763,23 @@ fn remove_project(
         &name,
         serde_json::json!({ "project": params.project }),
         move |state, _| {
-            state.open(&slug)?.remove()?;
-            state.update_settings(|s| {
+            let project = state.open(&slug)?;
+            if project.info()?.created != created {
+                return Err(ApiError::BadRequest(format!(
+                    "project {slug:?} was made again since its removal was asked: nothing removed"
+                )));
+            }
+            project.remove()?;
+            // Removed: a setting left behind is a warning, not a failed removal.
+            let cleared = state.update_settings(|s| {
                 if s.default_project.as_deref() == Some(slug.as_str()) {
                     s.default_project = None;
                 }
                 Ok(())
-            })?;
+            });
+            if let Err(e) = cleared {
+                tracing::warn!("project {slug} removed, default project not cleared: {e}");
+            }
             Ok(None)
         },
     )

@@ -51,7 +51,6 @@ export function ValidationCard({
   const taken = outputs.some((o) => o.existing !== undefined);
   const reservers = [...new Set(outputs.flatMap((o) => (o.reservedBy === undefined ? [] : [o.reservedBy])))];
   const reserved = reservers.length > 0;
-  // The job this tab just queued holds these tags: information, not an error.
   const ownJob = reservers.length === 1 && reservers[0] === started;
 
   const messages: Message[] = [
@@ -61,7 +60,8 @@ export function ValidationCard({
     ...(quick.data?.warnings ?? []).map((w) => ({ kind: "info" as const, text: w.message })),
     ...failure.map((text) => ({ kind: "issue" as const, text })),
     ...(taken && !overwrite ? [{ kind: "issue" as const, k: "analysis.outputs_taken" as const }] : []),
-    ...(ownJob ? [{ kind: "info" as const, text: f("analysis.outputs_own_job", started) }] : reserved ? [{ kind: "issue" as const, k: "analysis.outputs_reserved" as const }] : []),
+    // The job this tab just queued: its notices say it, not the form.
+    ...(reserved && !ownJob ? [{ kind: "issue" as const, k: "analysis.outputs_reserved" as const }] : []),
   ];
   const ready = document !== null && quick.isSuccess && !starting && (overwrite || !taken) && !reserved;
 

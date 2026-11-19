@@ -24,8 +24,10 @@ const NAV: NavItem[] = sections.map((s) => (s.id === "logs" ? { id: "jobs", labe
 export function App() {
   const { t } = useI18n();
   const route = useRoute();
-  // Jobs follows every project; other sections the open one.
-  useEvents(route.section === "jobs" ? null : route.project);
+  // One stream for the whole app, every project the user may see: a
+  // change of route never reconnects it, and a job of any project is
+  // notified (docs/ui.md, "Notifications").
+  useEvents(null);
   const health = useHealth();
   const project = useProject(route.project);
   return (

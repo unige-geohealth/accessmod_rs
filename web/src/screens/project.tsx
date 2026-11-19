@@ -164,8 +164,7 @@ function DeletePanel({ route }: { route: Route }) {
       const operation = await api.command("project.remove", { project });
       queued({ kind: "operation", id: operation.id });
       setChosen(undefined);
-      // Leave the project once it is gone: leaving earlier reconnects the
-      // events and could miss the end of the removal (a failure is notified).
+      // Leave the project once it is gone (a failure is notified).
       await operationDone(operation.id);
       if (project === route.project) navigate({ ...HOME, panel: "delete" });
       return name;

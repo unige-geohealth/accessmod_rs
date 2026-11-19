@@ -11,7 +11,7 @@ export type Transfer =
   | { state: "idle" }
   | { state: "uploading"; fraction: number }
   | { state: "processing"; task: TaskRef | null }
-  | { state: "done"; label: string }
+  | { state: "done" }
   | { state: "failed"; issues: string[] };
 
 export type TransferMessage =
@@ -19,7 +19,7 @@ export type TransferMessage =
   | { type: "progress"; fraction: number }
   | { type: "uploaded" }
   | { type: "queued"; task: TaskRef }
-  | { type: "done"; label: string }
+  | { type: "done" }
   | { type: "failed"; issues: string[] }
   | { type: "reset" };
 
@@ -36,7 +36,7 @@ export function updateTransfer(state: Transfer, message: TransferMessage): Trans
     case "queued":
       return state.state === "processing" ? { state: "processing", task: message.task } : state;
     case "done":
-      return busy(state) ? { state: "done", label: message.label } : state;
+      return busy(state) ? { state: "done" } : state;
     case "failed":
       // Once its job is queued, the job's end is notified, a failure too
       // (docs/ui.md, "Notifications"): nothing more to say here.
@@ -51,28 +51,30 @@ export const busy = (t: Transfer) => t.state === "uploading" || t.state === "pro
 
 /**
  * A transfer and the function starting one: upload `files`, then run
- * `command` on the upload; it tells `queued` the task it queued, and its
- * result names what was made.
+ * `command` on the upload; it tells `queued` the task it queued (whose
+ * end is notified).
  */
 export function useTransfer() {
   const { t } = useI18n();
   const [state, dispatch] = useReducer(updateTransfer, IDLE);
-  const start = useCallback(async (files: File[], command: (upload: Api.Upload, queued: (task: TaskRef) => void) => Promise<string>) => {
+  const start = useCallback(async (files: File[], command: (upload: Api.Upload, queued: (task: TaskRef) => void) => Promise<unknown>) => {
     dispatch({ type: "start" });
     try {
       const upload = await api.upload(files, (fraction) => dispatch({ type: "progress", fraction }));
       dispatch({ type: "uploaded" });
-      dispatch({ type: "done", label: await command(upload, (task) => dispatch({ type: "queued", task })) });
+      await command(upload, (task) => dispatch({ type: "queued", task }));
+      dispatch({ type: "done" });
     } catch (error) {
       dispatch({ type: "failed", issues: issuesOf(error, t) });
     }
   }, [t]);
   // A command on no upload (an export, an archive): straight to processing.
-  const run = useCallback(async (command: (queued: (task: TaskRef) => void) => Promise<string>) => {
+  const run = useCallback(async (command: (queued: (task: TaskRef) => void) => Promise<unknown>) => {
     dispatch({ type: "start" });
     dispatch({ type: "uploaded" });
     try {
-      dispatch({ type: "done", label: await command((task) => dispatch({ type: "queued", task })) });
+      await command((task) => dispatch({ type: "queued", task }));
+      dispatch({ type: "done" });
     } catch (error) {
       dispatch({ type: "failed", issues: issuesOf(error, t) });
     }
