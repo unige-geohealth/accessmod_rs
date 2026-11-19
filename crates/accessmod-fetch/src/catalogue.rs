@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::Format;
 
 /// Version of this catalogue.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// A region in WGS 84 degrees.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -205,6 +205,111 @@ pub fn osm(iso3: &str, theme: Theme) -> Option<Asset> {
     })
 }
 
+/// The HOT raw-data API: on-demand OpenStreetMap extracts.
+pub const RAW_DATA_API: &str = "https://api-prod.raw-data.hotosm.org/v1";
+
+/// Largest area of one raw-data API request, km²: the API refuses more than
+/// 80 000 km² without a login; the margin covers its own area measure.
+pub const SNAPSHOT_MAX_KM2: f64 = 70_000.0;
+
+/// Mean Earth radius, km.
+const EARTH_RADIUS_KM: f64 = 6_371.008_8;
+
+impl Bounds {
+    /// Area on the sphere, km².
+    pub fn area_km2(&self) -> f64 {
+        let (s, n) = (self.south.to_radians(), self.north.to_radians());
+        EARTH_RADIUS_KM.powi(2)
+            * (self.east - self.west).to_radians().abs()
+            * (n.sin() - s.sin()).abs()
+    }
+
+    /// Whether `self` and `other` share some area or an edge.
+    pub fn intersects(&self, other: &Bounds) -> bool {
+        self.west <= other.east
+            && other.west <= self.east
+            && self.south <= other.north
+            && other.south <= self.north
+    }
+}
+
+/// `b` cut into the fewest equal n × n tiles of at most
+/// [`SNAPSHOT_MAX_KM2`] each, row by row from the south-west.
+pub fn snapshot_tiles(b: &Bounds) -> Vec<Bounds> {
+    let tiles = |n: usize| -> Vec<Bounds> {
+        let dx = (b.east - b.west) / n as f64;
+        let dy = (b.north - b.south) / n as f64;
+        let mut out = Vec::with_capacity(n * n);
+        for row in 0..n {
+            for col in 0..n {
+                // Edges from the bounds, not by accumulation: tiles abut.
+                let edge = |i: usize, lo: f64, hi: f64, d: f64| {
+                    if i == n { hi } else { lo + d * i as f64 }
+                };
+                out.push(Bounds {
+                    west: edge(col, b.west, b.east, dx),
+                    east: edge(col + 1, b.west, b.east, dx),
+                    south: edge(row, b.south, b.north, dy),
+                    north: edge(row + 1, b.south, b.north, dy),
+                });
+            }
+        }
+        out
+    };
+    // The whole Earth needs about 85 × 85 tiles; beyond, bounds are not a region.
+    for n in 1..=128 {
+        let cut = tiles(n);
+        if cut.iter().all(|t| t.area_km2() <= SNAPSHOT_MAX_KM2) {
+            return cut;
+        }
+    }
+    tiles(128)
+}
+
+/// An on-demand extract of the raw-data API.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Snapshot {
+    /// Product (attribution).
+    pub product: Product,
+    /// Key in the cache.
+    pub key: String,
+    /// Request body, posted to `{RAW_DATA_API}/snapshot/`.
+    pub body: serde_json::Value,
+}
+
+/// The OpenStreetMap ferry lines (`route=ferry`) in `tile`, as of
+/// `month` (`YYYY-MM`, the cache key: the API serves current data, so a
+/// month's extract is reused): a zipped GeoPackage, layer `ferries`, with
+/// `osm_id`, `name`, `route` and `highway`; lines are cut at the tile
+/// edges.
+pub fn ferries(tile: &Bounds, month: &str) -> Snapshot {
+    let Bounds {
+        west,
+        south,
+        east,
+        north,
+    } = *tile;
+    Snapshot {
+        product: Product::HotOsm,
+        key: format!(
+            "hotosm/raw-data/ferries/{month}/{west:.5}_{south:.5}_{east:.5}_{north:.5}.gpkg.zip"
+        ),
+        body: serde_json::json!({
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+            },
+            "filters": {
+                "tags": {"all_geometry": {"join_or": {"route": ["ferry"]}}},
+                "attributes": {"all_geometry": ["name", "route", "highway"]},
+            },
+            "geometryType": ["line"],
+            "outputType": "gpkg",
+            "fileName": "ferries",
+        }),
+    }
+}
+
 /// The geoBoundaries list of every country (ADM0 metadata).
 pub fn countries() -> Asset {
     Asset {
@@ -298,6 +403,41 @@ mod tests {
             north: 10.0,
         };
         assert_eq!(dem_tiles(&edge).len(), 1);
+    }
+
+    #[test]
+    fn snapshot_tiles_stay_under_the_limit_and_cover_the_bounds() {
+        let small = Bounds {
+            west: 6.55,
+            south: 46.38,
+            east: 6.70,
+            north: 46.52,
+        };
+        assert_eq!(snapshot_tiles(&small), vec![small]);
+        // Tanzania's box, about 1.5 million km² (the API's own figure).
+        let tanzania = Bounds {
+            west: 29.3,
+            south: -11.8,
+            east: 40.5,
+            north: -0.9,
+        };
+        assert!((tanzania.area_km2() - 1_501_271.0).abs() / 1_501_271.0 < 0.01);
+        let tiles = snapshot_tiles(&tanzania);
+        assert_eq!(tiles.len(), 25);
+        assert!(tiles.iter().all(|t| t.area_km2() <= SNAPSHOT_MAX_KM2));
+        let total: f64 = tiles.iter().map(Bounds::area_km2).sum();
+        assert!((total - tanzania.area_km2()).abs() < 1e-6 * total);
+        assert_eq!(tiles[0].west, tanzania.west);
+        assert_eq!(tiles[24].north, tanzania.north);
+        assert_eq!(tiles[0].east, tiles[1].west, "tiles abut");
+        let request = ferries(&small, "2026-11");
+        assert_eq!(
+            request.key,
+            "hotosm/raw-data/ferries/2026-11/6.55000_46.38000_6.70000_46.52000.gpkg.zip"
+        );
+        assert_eq!(request.body["outputType"], "gpkg");
+        assert!(!small.intersects(&tiles[0]));
+        assert!(tanzania.intersects(&tiles[12]));
     }
 
     #[test]

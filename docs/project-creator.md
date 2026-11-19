@@ -125,6 +125,26 @@ Measured on South Sudan (SSD) and the window 33.0–33.5° E, 9.0–9.5° N
   - rivers: `waterway=river|canal` to barriers, with the width question open;
   - facilities: `amenity|healthcare`, offered as a starting point and flagged; users import
     their own (HeRAMS, ministry lists).
+- **Ferries:** the ready-made exports have none: the `roads` theme holds `highway=*` only,
+  and `sea_ports` holds terminals as points. Ferry lines (`route=ferry`) come from the
+  HOT **raw-data API**, the service that makes those exports, on demand (opt-in box, off by
+  default):
+  - `POST https://api-prod.raw-data.hotosm.org/v1/snapshot/` with a polygon, a tag filter
+    (`route=ferry`), the attributes `name`, `route`, `highway`, lines, `outputType: gpkg`;
+    then `GET /v1/tasks/status/{id}/` until `SUCCESS` gives a `download_url` (a zip:
+    layer `ferries` with `osm_id`, `osm_type`, `name`, `route`, `highway`). Probed on
+    2026-11-19: no login, about 15–20 s per request, an empty layer where there is no ferry.
+  - Without a login a request covers at most 80 000 km² ("Polygon Area … is higher than
+    Threshold : 80000 Sq.KM"). The region's box is cut into the fewest n × n tiles of at
+    most 70 000 km² (`catalogue::snapshot_tiles`; Tanzania: 25), and only tiles touching a
+    unit of the region are asked. Lines are cut at the tile edges: pieces abut and are all
+    kept; the same piece in two tiles is kept once.
+  - The API serves current data: an extract is cached per month
+    (`hotosm/raw-data/ferries/<YYYY-MM>/<tile>.gpkg.zip`) and its digest goes into the
+    manifest as any file.
+  - A tile that fails (refused, timeout after 10 min, network) is a warning in the manifest
+    and the outcome ("ferries not fetched for k of n tiles; first: …"), never a failed
+    project.
 - **Rejected for now:**
   - **Overpass:** the public server answered "at capacity, request queue full" during the
     probe, and its policy reserves it for human use. Not for country-scale jobs.
@@ -310,6 +330,10 @@ notes: `crates/accessmod-io/src/creator/presets/`.
   (AccessMod 5's rule) removes diagonal leaks.
 - **OSM roads:**
   - `highway` values to road classes, labels and a speed per default scenario;
+  - `route=ferry` lines to class 8, Ferry, before any `highway` value (a ferry is a boat),
+    in the roads layer (`route` field) and merged as 1008 above the rivers, so a ferry
+    crosses one. A road of the export that is also a ferry (same `osm_id`) is kept once,
+    as a ferry;
   - explicit rules for unknown values, `track` and `path`, `access=no`, construction and
     tunnels.
 - **Default scenarios** (box ticked by default; `default_scenarios` in the recipe): three
@@ -329,10 +353,12 @@ notes: `crates/accessmod-io/src/creator/presets/`.
   | 2 Primary, 3 Secondary, 4 Tertiary, 5 Local | walking 5 | bicycling 15 | motorized 60, 50, 40, 30 |
   | 6 Track | walking 5 | bicycling 10 | motorized 15 |
   | 7 Path | walking 5 | walking 5 | walking 5 |
+  | 8 Ferry | motorized 20 | motorized 20 | motorized 20 |
 
   Motorways and trunk roads are crossed on foot or by bicycle, hardly followed (about one
   hour per 100 m cell; still a way over a bridge with no other): 0.1 km/h, not 0, because a road at 0 km/h would be a barrier: a wall in the merged land cover, and
-  facilities on it skipped.
+  facilities on it skipped. Ferries carry walkers and cyclists too: motorized 20 km/h in
+  every scenario, waiting and timetables not modelled (provisional, like every speed here).
 - **OSM facilities:**
   - points, and polygon centroids, with `osm_id`;
   - no capacity invented, no snapping;

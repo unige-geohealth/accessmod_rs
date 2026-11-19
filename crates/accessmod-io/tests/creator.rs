@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 use accessmod_io::analysis::Monitor;
 use accessmod_io::class::DataClass;
 use accessmod_io::creator::{self, Area, Crs, FacilitySource, Recipe, Sources};
-use accessmod_io::fixtures::{read_valid, settings};
+use accessmod_io::fixtures::{read_valid, settings, write_features};
 use accessmod_io::project::RunStatus;
+use gdal::vector::{FieldValue, OGRFieldType};
 use serde_json::json;
 
 fn data(name: &str) -> PathBuf {
@@ -44,10 +45,12 @@ fn recipe(buffer_m: f64, crs: Crs) -> Recipe {
             land_cover_worldcover: true,
             population: vec![data("worldpop.tif")],
             roads: Some(data("roads.gpkg")),
+            ferries: vec![],
             waterways: Some(data("waterways.gpkg")),
             facilities: Some(FacilitySource::Osm(data("health_facilities.gpkg"))),
             urls: vec![],
             attributions: vec![],
+            warnings: vec![],
         },
         default_scenarios: true,
     }
@@ -507,10 +510,12 @@ fn projects_without_facilities_or_land_cover_say_what_they_lack() {
         land_cover_worldcover: true,
         population: vec![],
         roads: None,
+        ferries: vec![],
         waterways: None,
         facilities: None,
         urls: vec![],
         attributions: vec![],
+        warnings: vec![],
     };
     let (project, manifest) =
         creator::build(&dem_only, &dir.path().join("b"), &s, Monitor::QUIET).expect("DEM only");
@@ -600,4 +605,100 @@ fn facility_lists_are_kept_whole() {
             .to_string()
             .contains("no field")
     );
+}
+
+/// Ferries (raw-data API tiles, HOT layout) join the roads as class 1008,
+/// above the rivers: a ferry crosses one. A line cut at a tile edge comes
+/// in two pieces, both kept; the same piece in two tiles is kept once.
+#[test]
+fn ferries_join_the_roads_and_cross_rivers() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = settings(64 << 20, 1);
+    let fields = [
+        ("osm_id", OGRFieldType::OFTInteger64),
+        ("osm_type", OGRFieldType::OFTString),
+        ("name", OGRFieldType::OFTString),
+        ("route", OGRFieldType::OFTString),
+        ("highway", OGRFieldType::OFTString),
+    ];
+    let ferry = |wkt: &'static str| {
+        (
+            wkt,
+            vec![
+                Some(FieldValue::Integer64Value(42)),
+                Some(FieldValue::StringValue("ways_line".into())),
+                Some(FieldValue::StringValue("Juba crossing".into())),
+                Some(FieldValue::StringValue("ferry".into())),
+                None,
+            ],
+        )
+    };
+    // Across the river (31.616–31.621° E at 4.863–4.875° N), cut at 31.618.
+    let west = "LINESTRING (31.612 4.868, 31.618 4.868)";
+    let east = "LINESTRING (31.618 4.868, 31.624 4.868)";
+    let tiles = [
+        dir.path().join("tile_1.gpkg"),
+        dir.path().join("tile_2.gpkg"),
+    ];
+    write_features(&tiles[0], "ferries", 4326, &fields, &[ferry(west)]);
+    write_features(
+        &tiles[1],
+        "ferries",
+        4326,
+        &fields,
+        &[ferry(east), ferry(west)],
+    );
+
+    let without = recipe(500.0, Crs::Auto);
+    let mut with = without.clone();
+    with.sources.ferries = tiles.to_vec();
+    let (plain, _) =
+        creator::build(&without, &dir.path().join("plain"), &s, Monitor::QUIET).expect("plain");
+    let (project, manifest) =
+        creator::build(&with, &dir.path().join("ferries"), &s, Monitor::QUIET).expect("ferries");
+    let count = |key: &str| {
+        manifest
+            .features
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, n)| *n)
+    };
+    assert_eq!(count("ferries"), Some(2), "{:?}", manifest.features);
+    let roads = count("roads").expect("roads");
+    assert!(roads > 0);
+    assert!(manifest.files.iter().any(|f| f.name == "tile_2.gpkg"));
+
+    let merged = |p: &accessmod_io::project::Project| {
+        let d = p
+            .datasets(Some(DataClass::LandCoverMerged))
+            .unwrap()
+            .remove(0);
+        read_valid(&p.resolve(Path::new(&d.file)).unwrap())
+    };
+    let (before, after) = (merged(&plain), merged(&project));
+    assert_eq!(before.len(), after.len(), "same grid");
+    let ferry_cells = after.iter().filter(|v| **v == Some(1008.0)).count();
+    assert!(ferry_cells > 0);
+    // Cells the river closed are now open by ferry.
+    let crossed = before
+        .iter()
+        .zip(&after)
+        .filter(|(b, a)| b.is_none() && **a == Some(1008.0))
+        .count();
+    assert!(crossed > 0, "{ferry_cells} ferry cells, none on the river");
+
+    // Every scenario crosses by boat at 20 km/h.
+    for name in ["walking", "bicycle", "motorized"] {
+        let d = project
+            .datasets(Some(DataClass::Scenario))
+            .unwrap()
+            .into_iter()
+            .find(|d| d.tags.iter().any(|t| t == name))
+            .unwrap_or_else(|| panic!("{name} table"));
+        let text = std::fs::read_to_string(project.resolve(Path::new(&d.file)).unwrap()).unwrap();
+        assert!(
+            text.lines().any(|l| l == "1008,Ferry,20.0,MOTORIZED"),
+            "{name}: {text}"
+        );
+    }
 }

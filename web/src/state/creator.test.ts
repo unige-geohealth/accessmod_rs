@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type CreatorDraft, EMPTY, missing, params, scenariosOn, update } from "./creator";
+import { type CreatorDraft, EMPTY, ferriesOn, missing, params, scenariosOn, update } from "./creator";
 
 const apply = (...messages: Parameters<typeof update>[1][]): CreatorDraft => messages.reduce(update, EMPTY);
 
@@ -53,6 +53,19 @@ describe("creator draft", () => {
     expect(d.default_scenarios).toBe(false);
     const named = update(update(update(d, { type: "name", text: "Juba" }), { type: "country", iso3: "SSD" }), { type: "level", level: 0 });
     expect(params(named)?.default_scenarios).toBe(false);
+  });
+
+  it("asks ferries only when checked, and only with the roads", () => {
+    expect(EMPTY.layers.ferries).toBe(false);
+    const named = apply({ type: "name", text: "Juba" }, { type: "country", iso3: "SSD" }, { type: "level", level: 0 });
+    expect(params(named)?.layers?.ferries).toBe(false);
+    const on = update(named, { type: "layer", layer: "ferries", on: true });
+    expect(ferriesOn(on)).toBe(true);
+    expect(params(on)?.layers?.ferries).toBe(true);
+    const noRoads = update(on, { type: "layer", layer: "roads", on: false });
+    expect(noRoads.layers.ferries).toBe(true);
+    expect(ferriesOn(noRoads)).toBe(false);
+    expect(params(noRoads)?.layers?.ferries).toBe(false);
   });
 
   it("makes no default scenario without land cover", () => {

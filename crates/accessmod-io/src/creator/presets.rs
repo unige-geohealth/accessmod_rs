@@ -57,7 +57,12 @@ pub struct RoadRule {
     /// Label.
     pub label: String,
     /// OSM `highway` values.
+    #[serde(default)]
     pub highway: Vec<String>,
+    /// OSM `route` values (`ferry`): they take precedence over
+    /// `highway`, a ferry being a boat.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub route: Vec<String>,
     /// Travel on it in the walking scenario.
     pub walking: Travel,
     /// Travel on it in the bicycle scenario.
@@ -83,12 +88,9 @@ pub struct RoadPreset {
 }
 
 impl RoadPreset {
-    /// The rule of `highway`, unless a field of `fields` excludes it.
-    pub fn rule(
-        &self,
-        highway: &str,
-        fields: &dyn Fn(&str) -> Option<String>,
-    ) -> Option<&RoadRule> {
+    /// The rule of a feature's `route` (first) or `highway` (read from
+    /// `fields`), unless a field excludes it.
+    pub fn rule(&self, fields: &dyn Fn(&str) -> Option<String>) -> Option<&RoadRule> {
         let excluded = self
             .excluded
             .iter()
@@ -96,9 +98,11 @@ impl RoadPreset {
         if excluded {
             return None;
         }
-        self.rules
-            .iter()
-            .find(|r| r.highway.iter().any(|h| h == highway))
+        let of = |field: &str, values: fn(&RoadRule) -> &Vec<String>| {
+            let value = fields(field)?;
+            self.rules.iter().find(|r| values(r).contains(&value))
+        };
+        of("route", |r| &r.route).or_else(|| of("highway", |r| &r.highway))
     }
 }
 
@@ -183,19 +187,45 @@ mod tests {
                 .iter()
                 .any(|c| c.value == 80 && c.speed_kmh == 0.0)
         );
-        let none = |_: &str| None;
-        assert_eq!(p.roads.rule("primary", &none).map(|r| r.class), Some(2));
-        assert_eq!(p.roads.rule("construction", &none), None);
-        assert_eq!(p.roads.rule("unheard_of", &none), None);
-        let private = |f: &str| (f == "access").then(|| "private".to_owned());
-        assert_eq!(p.roads.rule("primary", &private), None);
+        let class = |tags: &[(&str, &str)]| {
+            let fields = |f: &str| {
+                tags.iter()
+                    .find(|(k, _)| *k == f)
+                    .map(|(_, v)| (*v).to_owned())
+            };
+            p.roads.rule(&fields).map(|r| r.class)
+        };
+        assert_eq!(class(&[("highway", "primary")]), Some(2));
+        assert_eq!(class(&[("highway", "construction")]), None);
+        assert_eq!(class(&[("highway", "unheard_of")]), None);
+        assert_eq!(class(&[]), None);
+        assert_eq!(
+            class(&[("highway", "primary"), ("access", "private")]),
+            None
+        );
+        // Ferries: `route=ferry`, before any `highway` (a ferry is a boat).
+        assert_eq!(class(&[("route", "ferry")]), Some(8));
+        assert_eq!(
+            class(&[("route", "ferry"), ("highway", "service")]),
+            Some(8)
+        );
+        assert_eq!(class(&[("route", "bus"), ("highway", "primary")]), Some(2));
+        let ferry = p.roads.rules.iter().find(|r| r.class == 8).expect("ferry");
+        for t in [ferry.walking, ferry.bicycle, ferry.motorized] {
+            assert_eq!((t.mode, t.speed_kmh), (TransportMode::Motorized, 20.0));
+        }
         // Road classes stay below 1000 (merged as class + 1000) and unique.
         let mut classes: Vec<i64> = p.roads.rules.iter().map(|r| r.class).collect();
         classes.dedup();
         assert_eq!(classes.len(), p.roads.rules.len());
         assert!(classes.iter().all(|c| (1..1000).contains(c)));
         // Motorways and trunk roads are crossed on foot, not followed.
-        let motorway = p.roads.rule("trunk", &none).expect("trunk");
+        let motorway = p
+            .roads
+            .rules
+            .iter()
+            .find(|r| r.highway.iter().any(|h| h == "trunk"))
+            .expect("trunk");
         for t in [motorway.walking, motorway.bicycle] {
             assert_eq!((t.mode, t.speed_kmh), (TransportMode::Walking, 0.1));
         }

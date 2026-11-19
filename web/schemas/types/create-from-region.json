@@ -72,6 +72,11 @@
       "additionalProperties": false,
       "description": "Layers to fetch.",
       "properties": {
+        "ferries": {
+          "default": false,
+          "description": "OpenStreetMap ferries (`route=ferry`), with the roads: queried from\nthe HOT raw-data API tile by tile (at most 70 000 km² each), so off\nunless asked.",
+          "type": "boolean"
+        },
         "land_cover": {
           "default": true,
           "description": "ESA WorldCover land cover.",
@@ -138,6 +143,7 @@
     "layers": {
       "$ref": "#/$defs/Layers",
       "default": {
+        "ferries": false,
         "land_cover": true,
         "osm_facilities": true,
         "population": true,

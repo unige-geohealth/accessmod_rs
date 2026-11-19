@@ -960,39 +960,69 @@ pub fn extract(
     fields: &[(&str, gdal::vector::OGRFieldType::Type)],
     target: &Path,
     cancelled: &dyn Fn() -> bool,
+    select: impl FnMut(&Feature<'_>, Geometry) -> Option<(Geometry, Vec<Option<FieldValue>>)>,
+) -> Result<u64> {
+    extract_all(
+        std::slice::from_ref(input),
+        clip,
+        srs,
+        kind,
+        fields,
+        target,
+        cancelled,
+        select,
+    )
+}
+
+/// [`extract`] of several layers, in order, into one file (named after the
+/// first layer); `inputs` must not be empty.
+#[allow(clippy::too_many_arguments)]
+pub fn extract_all(
+    inputs: &[VectorLayer],
+    clip: Option<&Geometry>,
+    srs: &SpatialRef,
+    kind: OGRwkbGeometryType::Type,
+    fields: &[(&str, gdal::vector::OGRFieldType::Type)],
+    target: &Path,
+    cancelled: &dyn Fn() -> bool,
     mut select: impl FnMut(&Feature<'_>, Geometry) -> Option<(Geometry, Vec<Option<FieldValue>>)>,
 ) -> Result<u64> {
-    let dataset = input.dataset()?;
-    let mut layer = input.layer(&dataset)?;
-    let mut out = FeatureWriter::create(target, &input.name, srs, kind, fields)?;
+    let first = inputs
+        .first()
+        .ok_or_else(|| Error::invalid("no layer to extract"))?;
+    let mut out = FeatureWriter::create(target, &first.name, srs, kind, fields)?;
     let bounds = clip.map(|c| c.envelope());
     let mut written = 0u64;
-    for (index, feature) in input.features(&mut layer)?.enumerate() {
-        if index % 1024 == 0 && cancelled() {
-            return Err(Error::Cancelled);
-        }
-        let Some(geometry) = feature.geometry() else {
-            continue;
-        };
-        let Ok(geometry) = input.to_grid_geometry(geometry) else {
-            continue;
-        };
-        let geometry = match (clip, bounds) {
-            (Some(clip), Some(b)) => {
-                let e = geometry.envelope();
-                if e.MaxX < b.MinX || e.MinX > b.MaxX || e.MaxY < b.MinY || e.MinY > b.MaxY {
-                    continue;
-                }
-                match geometry.intersection(clip) {
-                    Some(g) if !g.is_empty() => g,
-                    _ => continue,
-                }
+    for input in inputs {
+        let dataset = input.dataset()?;
+        let mut layer = input.layer(&dataset)?;
+        for (index, feature) in input.features(&mut layer)?.enumerate() {
+            if index % 1024 == 0 && cancelled() {
+                return Err(Error::Cancelled);
             }
-            _ => geometry,
-        };
-        if let Some((geometry, values)) = select(&feature, geometry) {
-            out.write(geometry, &values)?;
-            written += 1;
+            let Some(geometry) = feature.geometry() else {
+                continue;
+            };
+            let Ok(geometry) = input.to_grid_geometry(geometry) else {
+                continue;
+            };
+            let geometry = match (clip, bounds) {
+                (Some(clip), Some(b)) => {
+                    let e = geometry.envelope();
+                    if e.MaxX < b.MinX || e.MinX > b.MaxX || e.MaxY < b.MinY || e.MinY > b.MaxY {
+                        continue;
+                    }
+                    match geometry.intersection(clip) {
+                        Some(g) if !g.is_empty() => g,
+                        _ => continue,
+                    }
+                }
+                _ => geometry,
+            };
+            if let Some((geometry, values)) = select(&feature, geometry) {
+                out.write(geometry, &values)?;
+                written += 1;
+            }
         }
     }
     out.close()?;

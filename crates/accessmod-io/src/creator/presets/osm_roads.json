@@ -1,8 +1,8 @@
 {
   "preset": "osm_roads",
-  "version": 2,
+  "version": 3,
   "status": "provisional: classes and speeds to be reviewed before release",
-  "source": "OpenStreetMap (HOT export, roads lines), ODbL",
+  "source": "OpenStreetMap (HOT export, roads lines; ferries from the HOT raw-data API, route=ferry lines), ODbL",
   "field": "road_class",
   "add_1000": true,
   "rules": [
@@ -12,7 +12,8 @@
     { "class": 4, "label": "Tertiary road", "highway": ["tertiary", "tertiary_link"], "walking": { "mode": "walking", "speed_kmh": 5.0 }, "bicycle": { "mode": "bicycling", "speed_kmh": 15.0 }, "motorized": { "mode": "motorized", "speed_kmh": 40.0 } },
     { "class": 5, "label": "Local road", "highway": ["unclassified", "residential", "living_street", "service", "road"], "walking": { "mode": "walking", "speed_kmh": 5.0 }, "bicycle": { "mode": "bicycling", "speed_kmh": 15.0 }, "motorized": { "mode": "motorized", "speed_kmh": 30.0 } },
     { "class": 6, "label": "Track", "highway": ["track"], "walking": { "mode": "walking", "speed_kmh": 5.0 }, "bicycle": { "mode": "bicycling", "speed_kmh": 10.0 }, "motorized": { "mode": "motorized", "speed_kmh": 15.0 } },
-    { "class": 7, "label": "Path", "highway": ["path", "footway", "bridleway", "cycleway", "steps", "pedestrian"], "walking": { "mode": "walking", "speed_kmh": 5.0 }, "bicycle": { "mode": "walking", "speed_kmh": 5.0 }, "motorized": { "mode": "walking", "speed_kmh": 5.0 } }
+    { "class": 7, "label": "Path", "highway": ["path", "footway", "bridleway", "cycleway", "steps", "pedestrian"], "walking": { "mode": "walking", "speed_kmh": 5.0 }, "bicycle": { "mode": "walking", "speed_kmh": 5.0 }, "motorized": { "mode": "walking", "speed_kmh": 5.0 } },
+    { "class": 8, "label": "Ferry", "route": ["ferry"], "walking": { "mode": "motorized", "speed_kmh": 20.0 }, "bicycle": { "mode": "motorized", "speed_kmh": 20.0 }, "motorized": { "mode": "motorized", "speed_kmh": 20.0 } }
   ],
   "excluded": {
     "highway": ["construction", "proposed", "abandoned", "disused", "raceway", "bus_guideway", "escape", "platform", "corridor", "elevator"],

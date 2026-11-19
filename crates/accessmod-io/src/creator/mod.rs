@@ -35,7 +35,7 @@ use crate::output::{CsvWriter, FLOAT_NODATA, csv_field};
 use crate::project::{ImportOptions, Project};
 use crate::projection::{self, Distortion, LonLatBounds};
 use crate::resources::ExecutionSettings;
-use crate::vector::{VectorLayer, centroid, extract, parts_as_multi};
+use crate::vector::{VectorLayer, centroid, extract, extract_all, parts_as_multi};
 use crate::warp::{Resample, source_total, warp_to_grid};
 
 pub use presets::Presets;
@@ -111,6 +111,11 @@ pub struct Sources {
     /// OSM roads (HOT export layout: `highway`, `name`, `osm_id`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub roads: Option<PathBuf>,
+    /// OSM ferry lines (`route`, `name`, `osm_id`), one file per tile of
+    /// the HOT raw-data API: they join the roads as the preset's ferry
+    /// class. A line cut at a tile edge comes in pieces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ferries: Vec<PathBuf>,
     /// OSM waterways (`waterway`, `name`, `osm_id`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waterways: Option<PathBuf>,
@@ -123,6 +128,10 @@ pub struct Sources {
     /// Licences and attributions of the sources, kept with the project.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attributions: Vec<String>,
+    /// What could not be fetched (e.g. ferries of a tile the API refused):
+    /// the first warnings of the manifest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 fn yes() -> bool {
@@ -195,6 +204,7 @@ impl Recipe {
             .iter_mut()
             .chain(&mut s.land_cover)
             .chain(&mut s.population)
+            .chain(&mut s.ferries)
             .for_each(fix);
         [&mut s.roads, &mut s.waterways]
             .into_iter()
@@ -644,7 +654,7 @@ pub fn build(
             "the reference raster has {res} m cells; the resolution must match"
         )));
     }
-    let mut warnings = Vec::new();
+    let mut warnings = recipe.sources.warnings.clone();
     // The region and its buffer in the project CRS.
     let to_project =
         CoordTransform::new(&wgs84()?, &traditional(&srs)).map_err(Error::gdal("projection"))?;
@@ -834,12 +844,23 @@ pub fn build(
             outside_file = Some(path);
         }
         let mut roads_file = None;
-        if let Some(source) = &recipe.sources.roads {
-            let input = VectorLayer::open(source, None, None, &grid, "roads")?;
+        if recipe.sources.roads.is_some() || !recipe.sources.ferries.is_empty() {
+            // Ferries first: a way also in the roads export (`highway` and
+            // `route=ferry`) is then known, and kept once, as a ferry.
+            let mut inputs = Vec::new();
+            for source in &recipe.sources.ferries {
+                inputs.push(VectorLayer::open(source, None, None, &grid, "ferries")?);
+            }
+            if let Some(source) = &recipe.sources.roads {
+                inputs.push(VectorLayer::open(source, None, None, &grid, "roads")?);
+            }
             let path = work("roads.fgb");
             let mut left_out = 0u64;
-            let kept = extract(
-                &input,
+            let mut ferries = 0u64;
+            let mut ferry_ids = std::collections::HashSet::new();
+            let mut ferry_parts = std::collections::HashSet::new();
+            let kept = extract_all(
+                &inputs,
                 Some(&traversable),
                 &grid.srs,
                 OGRwkbGeometryType::wkbMultiLineString,
@@ -847,35 +868,63 @@ pub fn build(
                     ("road_class", OGRFieldType::OFTInteger),
                     ("label", OGRFieldType::OFTString),
                     ("highway", OGRFieldType::OFTString),
+                    ("route", OGRFieldType::OFTString),
                     ("name", OGRFieldType::OFTString),
                     ("osm_id", OGRFieldType::OFTInteger64),
                 ],
                 &path,
                 cancelled,
                 |feature, geometry| {
-                    let highway = field_text(feature, "highway")?;
+                    let highway = field_text(feature, "highway");
+                    let route = field_text(feature, "route");
+                    if highway.is_none() && route.is_none() {
+                        return None;
+                    }
+                    let id = osm_id(feature);
+                    let id_value = match &id {
+                        Some(FieldValue::Integer64Value(v)) => Some(*v),
+                        _ => None,
+                    };
                     let fields = |name: &str| field_text(feature, name);
-                    let Some(rule) = presets.roads.rule(&highway, &fields) else {
+                    let Some(rule) = presets.roads.rule(&fields) else {
                         left_out += 1;
                         return None;
                     };
                     let geometry =
                         parts_as_multi(&geometry, OGRwkbGeometryType::wkbMultiLineString)?;
+                    if rule.route.is_empty() {
+                        // A road the ferries already hold.
+                        if id_value.is_some_and(|v| ferry_ids.contains(&v)) {
+                            return None;
+                        }
+                    } else {
+                        // The same piece from two tiles: once.
+                        let wkb = geometry.wkb().ok()?;
+                        if !ferry_parts.insert((id_value, wkb)) {
+                            return None;
+                        }
+                        ferry_ids.extend(id_value);
+                        ferries += 1;
+                    }
                     Some((
                         geometry,
                         vec![
                             Some(FieldValue::IntegerValue(rule.class as i32)),
                             Some(FieldValue::StringValue(rule.label.clone())),
-                            Some(FieldValue::StringValue(highway)),
+                            highway.map(FieldValue::StringValue),
+                            route.map(FieldValue::StringValue),
                             field_text(feature, "name").map(FieldValue::StringValue),
-                            osm_id(feature),
+                            id,
                         ],
                     ))
                 },
             )?;
-            features.push(("roads".to_owned(), kept));
+            features.push(("roads".to_owned(), kept - ferries));
+            if !recipe.sources.ferries.is_empty() {
+                features.push(("ferries".to_owned(), ferries));
+            }
             features.push(("roads left out (preset)".to_owned(), left_out));
-            if kept == 0 {
+            if recipe.sources.roads.is_some() && kept == ferries {
                 warnings.push("no road in the region".to_owned());
             }
             roads_file = (kept > 0).then_some(path);
@@ -1074,6 +1123,7 @@ pub fn build(
             .chain(&recipe.sources.land_cover)
             .chain(&recipe.sources.population)
             .chain(recipe.sources.roads.iter())
+            .chain(&recipe.sources.ferries)
             .chain(recipe.sources.waterways.iter())
             .chain(recipe.sources.facilities.as_ref().map(FacilitySource::path))
             .chain(match &recipe.area {

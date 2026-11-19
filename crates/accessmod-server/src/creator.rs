@@ -4,6 +4,7 @@
 //! (`accessmod_io::creator`).
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use accessmod_fetch::catalogue::{self, Asset, Bounds, Theme};
 use accessmod_fetch::{Cache, Client, Fetched, Settings};
@@ -191,6 +192,11 @@ pub struct Layers {
     /// of your own is given.
     #[serde(default = "yes")]
     pub osm_facilities: bool,
+    /// OpenStreetMap ferries (`route=ferry`), with the roads: queried from
+    /// the HOT raw-data API tile by tile (at most 70 000 km² each), so off
+    /// unless asked.
+    #[serde(default)]
+    pub ferries: bool,
 }
 
 impl Default for Layers {
@@ -201,6 +207,7 @@ impl Default for Layers {
             roads: true,
             waterways: true,
             osm_facilities: true,
+            ferries: false,
         }
     }
 }
@@ -357,6 +364,60 @@ fn region(
     ))
 }
 
+/// Longest wait for one raw-data API extract.
+const SNAPSHOT_WAIT: Duration = Duration::from_secs(600);
+
+/// The bounds of each feature of a GeoJSON region (of the whole when it is
+/// a single geometry), each grown by `margin` degrees.
+fn part_bounds(area: &Value, margin: f64) -> Vec<Bounds> {
+    let parts: Vec<&Value> = match area.get("features").and_then(Value::as_array) {
+        Some(features) => features.iter().collect(),
+        None => vec![area],
+    };
+    parts
+        .into_iter()
+        .filter_map(|part| {
+            let mut b = Bounds {
+                west: f64::INFINITY,
+                south: f64::INFINITY,
+                east: f64::NEG_INFINITY,
+                north: f64::NEG_INFINITY,
+            };
+            extend_bounds(part, &mut b);
+            (b.west.is_finite() && b.north.is_finite()).then(|| {
+                let lat = b.north.abs().max(b.south.abs()).min(80.0).to_radians();
+                Bounds {
+                    west: b.west - margin / lat.cos(),
+                    east: b.east + margin / lat.cos(),
+                    south: b.south - margin,
+                    north: b.north + margin,
+                }
+            })
+        })
+        .collect()
+}
+
+/// The raw-data API tiles of `bounds` that touch a part of the region.
+fn ferry_tiles(bounds: &Bounds, parts: &[Bounds]) -> Vec<Bounds> {
+    catalogue::snapshot_tiles(bounds)
+        .into_iter()
+        .filter(|t| parts.iter().any(|p| p.intersects(t)))
+        .collect()
+}
+
+/// One warning for the ferry tiles that failed (each described), of `tiles`.
+fn ferry_warning(failed: &[String], tiles: usize) -> Option<String> {
+    let first = failed.first()?;
+    Some(if failed.len() == 1 && tiles == 1 {
+        format!("ferries not fetched ({first})")
+    } else {
+        format!(
+            "ferries not fetched for {} of {tiles} tiles; first: {first}",
+            failed.len()
+        )
+    })
+}
+
 /// The cached GeoPackage of a HOT export (its zip extracted once, beside it).
 fn hot_layer(
     fetched: &Fetched,
@@ -411,6 +472,7 @@ fn build(
     // The buffer, in degrees, generously (tiles are cheap to skip).
     let lat = b.north.abs().max(b.south.abs()).min(80.0).to_radians();
     let margin = params.buffer_m / 111_000.0 * 1.2 + 0.05;
+    let parts = part_bounds(&area, margin);
     let b = Bounds {
         west: b.west - margin / lat.cos(),
         east: b.east + margin / lat.cos(),
@@ -459,7 +521,12 @@ fn build(
             ));
         }
     }
-    let total = assets.len() as u64;
+    let tiles = if params.layers.roads && params.layers.ferries {
+        ferry_tiles(&b, &parts)
+    } else {
+        Vec::new()
+    };
+    let total = (assets.len() + tiles.len()) as u64;
     let mut got: Vec<(&'static str, Fetched)> = Vec::new();
     let mut absent = Vec::new();
     for (i, (layer, asset)) in assets.iter().enumerate() {
@@ -472,6 +539,38 @@ fn build(
             Err(e) => return Err(fetch_error(e)),
         }
     }
+    // Ferries: a tile that fails is a warning, never a failed project.
+    let month = accessmod_fetch::current_month();
+    let client = Client::new(Settings::default());
+    let mut ferries = Vec::new();
+    let mut failed = Vec::new();
+    for (i, tile) in tiles.iter().enumerate() {
+        monitor.advance(STAGE_FETCH, (assets.len() + i) as u64, Some(total));
+        let request = catalogue::ferries(tile, &month);
+        let fetched = cache(state)
+            .snapshot(
+                &client,
+                catalogue::RAW_DATA_API,
+                &request,
+                SNAPSHOT_WAIT,
+                false,
+                cancelled,
+                &mut |_, _| {},
+            )
+            .map_err(fetch_error)
+            .and_then(|f| hot_layer(&f, cancelled));
+        match fetched {
+            Ok(path) => ferries.push(path),
+            Err(Error::Cancelled) => return Err(Error::Cancelled),
+            Err(e) => failed.push(format!(
+                "{:.2}..{:.2} E, {:.2}..{:.2} N: {e}",
+                tile.west, tile.east, tile.south, tile.north
+            )),
+        }
+    }
+    let fetch_warnings = ferry_warning(&failed, tiles.len())
+        .into_iter()
+        .collect::<Vec<_>>();
     monitor.advance(STAGE_FETCH, total, Some(total));
     // A layer asked for and absent upstream is refused, never a project
     // that silently lacks it.
@@ -501,6 +600,13 @@ fn build(
         .filter(|(l, a)| got.iter().any(|(gl, f)| gl == l && f.url == a.url))
         .map(|(_, a)| a.product.attribution().to_owned())
         .collect();
+    if !ferries.is_empty()
+        && !attributions
+            .iter()
+            .any(|a| a == catalogue::Product::HotOsm.attribution())
+    {
+        attributions.push(catalogue::Product::HotOsm.attribution().to_owned());
+    }
     attributions.dedup();
     attributions.push(label);
     let recipe = Recipe {
@@ -516,6 +622,7 @@ fn build(
             land_cover_worldcover: true,
             population: files("population"),
             roads: hot("roads")?,
+            ferries,
             waterways: hot("waterways")?,
             facilities: match facilities {
                 Some((path, id_field)) => Some(FacilitySource::List { path, id_field }),
@@ -534,6 +641,7 @@ fn build(
                 })
                 .collect(),
             attributions,
+            warnings: fetch_warnings.clone(),
         },
         default_scenarios: params.default_scenarios,
     };
@@ -541,7 +649,7 @@ fn build(
         return Err(Error::invalid("no DEM tile covers this region"));
     }
     let (project, manifest) = creator::build(&recipe, target, &state.config().settings, monitor)?;
-    let outcome = if manifest.ready {
+    let mut outcome = if manifest.ready {
         format!("created, ready to compute ({})", manifest.crs_name)
     } else {
         format!(
@@ -550,6 +658,10 @@ fn build(
             manifest.not_ready.join("; ")
         )
     };
+    for warning in &fetch_warnings {
+        outcome.push_str("; ");
+        outcome.push_str(warning);
+    }
     Ok((project, outcome))
 }
 
@@ -624,7 +736,52 @@ fn unfetched<'a>(asked: &[&'a str], fetched: &[&str]) -> Vec<&'a str> {
 
 #[cfg(test)]
 mod tests {
-    use super::unfetched;
+    use super::*;
+
+    #[test]
+    fn ferries_are_asked_only_where_the_region_lies() {
+        // Two islands far apart in one large box: tiles between them are
+        // not asked.
+        let area = serde_json::json!({"type": "FeatureCollection", "features": [
+            {"type": "Feature", "properties": {}, "geometry": {"type": "Polygon",
+                "coordinates": [[[30.0, -11.0], [30.5, -11.0], [30.5, -10.5], [30.0, -11.0]]]}},
+            {"type": "Feature", "properties": {}, "geometry": {"type": "Polygon",
+                "coordinates": [[[39.5, -2.0], [40.0, -2.0], [40.0, -1.5], [39.5, -2.0]]]}},
+        ]});
+        let parts = part_bounds(&area, 0.1);
+        assert_eq!(parts.len(), 2);
+        let bounds = Bounds {
+            west: 29.9,
+            south: -11.1,
+            east: 40.1,
+            north: -1.4,
+        };
+        let all = catalogue::snapshot_tiles(&bounds);
+        let asked = ferry_tiles(&bounds, &parts);
+        assert!(all.len() > 9, "{}", all.len());
+        assert!(
+            (2..=8).contains(&asked.len()),
+            "{} of {}",
+            asked.len(),
+            all.len()
+        );
+        // A single geometry is one part.
+        let polygon = &area["features"][0]["geometry"];
+        assert_eq!(part_bounds(polygon, 0.0).len(), 1);
+    }
+
+    #[test]
+    fn failed_ferry_tiles_make_one_warning() {
+        assert_eq!(ferry_warning(&[], 4), None);
+        assert_eq!(
+            ferry_warning(&["a: refused".into()], 1).as_deref(),
+            Some("ferries not fetched (a: refused)")
+        );
+        assert_eq!(
+            ferry_warning(&["a: x".into(), "b: y".into()], 25).as_deref(),
+            Some("ferries not fetched for 2 of 25 tiles; first: a: x")
+        );
+    }
 
     #[test]
     fn a_layer_asked_and_absent_is_reported() {

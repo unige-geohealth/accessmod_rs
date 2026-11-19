@@ -10,6 +10,8 @@ export interface Layers {
   land_cover: boolean;
   population: boolean;
   roads: boolean;
+  /** Ferries join the roads; queried tile by tile, so off by default. */
+  ferries: boolean;
   waterways: boolean;
   osm_facilities: boolean;
 }
@@ -54,6 +56,7 @@ export const EMPTY: CreatorDraft = {
     land_cover: true,
     population: true,
     roads: true,
+    ferries: false,
     waterways: true,
     osm_facilities: true,
   },
@@ -102,6 +105,9 @@ export function missing(d: CreatorDraft): Key[] {
 /** Default scenarios are made from the WorldCover land cover: none without it. */
 export const scenariosOn = (d: CreatorDraft): boolean => d.default_scenarios && d.layers.land_cover;
 
+/** Ferries join the roads: none without them. */
+export const ferriesOn = (d: CreatorDraft): boolean => d.layers.ferries && d.layers.roads;
+
 /** The `creator.create` parameters, or `null` while something is missing. */
 export function params(d: CreatorDraft): Api.CreateFromRegion | null {
   if (missing(d).length > 0 || d.iso3 === null) return null;
@@ -112,7 +118,7 @@ export function params(d: CreatorDraft): Api.CreateFromRegion | null {
     units: d.level === 0 ? [] : d.units,
     buffer_m: d.buffer_km * 1000,
     resolution_m: d.resolution_m,
-    layers: d.layers,
+    layers: { ...d.layers, ferries: ferriesOn(d) },
     default_scenarios: scenariosOn(d),
   };
 }

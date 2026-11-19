@@ -119,6 +119,12 @@
     "es": "Carreteras (OpenStreetMap)",
     "pt": "Estradas (OpenStreetMap)"
   },
+  "creator.layer_ferries": {
+    "en": "Ferries with the roads (OpenStreetMap, queried region by region: slower)",
+    "fr": "Ferries avec les routes (OpenStreetMap, interrogés par zones : plus lent)",
+    "es": "Transbordadores con las carreteras (OpenStreetMap, consultados por zonas: más lento)",
+    "pt": "Balsas com as estradas (OpenStreetMap, consultadas por zonas: mais lento)"
+  },
   "creator.layer_waterways": {
     "en": "Rivers and canals as barriers (OpenStreetMap)",
     "fr": "Rivières et canaux comme barrières (OpenStreetMap)",
