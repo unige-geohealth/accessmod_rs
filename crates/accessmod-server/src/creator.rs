@@ -473,6 +473,17 @@ fn build(
         }
     }
     monitor.advance(STAGE_FETCH, total, Some(total));
+    // A layer asked for and absent upstream is refused, never a project
+    // that silently lacks it.
+    let asked: Vec<&str> = assets.iter().map(|(l, _)| *l).collect();
+    let fetched: Vec<&str> = got.iter().map(|(l, _)| *l).collect();
+    let lacking = unfetched(&asked, &fetched);
+    if !lacking.is_empty() {
+        return Err(Error::invalid(format!(
+            "nothing to download in this region for: {}",
+            lacking.join(", ")
+        )));
+    }
     let files = |layer: &str| {
         got.iter()
             .filter(|(l, _)| *l == layer)
@@ -598,4 +609,29 @@ pub fn create(
             Ok((project, outcome))
         },
     )
+}
+
+/// Layers of `asked` with no file in `fetched`, each once, in order.
+fn unfetched<'a>(asked: &[&'a str], fetched: &[&str]) -> Vec<&'a str> {
+    let mut out: Vec<&str> = Vec::new();
+    for layer in asked {
+        if !fetched.contains(layer) && !out.contains(layer) {
+            out.push(layer);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unfetched;
+
+    #[test]
+    fn a_layer_asked_and_absent_is_reported() {
+        // Two land cover tiles, both absent upstream (ocean): reported once.
+        let asked = ["dem", "land_cover", "land_cover", "roads"];
+        assert_eq!(unfetched(&asked, &["dem", "roads"]), ["land_cover"]);
+        // One tile of two is enough.
+        assert!(unfetched(&asked, &["dem", "land_cover", "roads"]).is_empty());
+    }
 }
