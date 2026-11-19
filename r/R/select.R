@@ -75,12 +75,12 @@
 }
 
 # The one row matching, or an error naming the criteria (none) or the
-# candidates (several). Among several, the one whose tags are exactly those
-# given wins: after an overwrite, "walking" names the job tagged "walking",
-# not "walking 7".
+# candidates (several). Among several jobs, the one whose tags are exactly
+# those given wins: after an overwrite, "walking" names the job tagged
+# "walking", not "walking 7". Datasets keep the ambiguity error.
 .select_one <- function(catalogue, type, class = NULL, tags = NULL, id = NULL) {
   found <- .select(catalogue, type, class, tags, id)
-  if (nrow(found) > 1 && length(tags) > 0) {
+  if (identical(type, "job") && nrow(found) > 1 && length(tags) > 0) {
     exact <- vapply(found$tags, function(t) setequal(t, as.character(tags)), TRUE)
     if (sum(exact) == 1) found <- found[exact, , drop = FALSE]
   }

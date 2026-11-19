@@ -694,8 +694,11 @@ impl Project {
             }
             Err(std::fs::TryLockError::Error(e)) => return Err(Error::file(&path)(e)),
         }
+        // Read again under the lock, from the directory there now: the
+        // connection opened before may be on a project removed and made
+        // again at this path meanwhile (nobody can while the lock is held).
         if let Some(expected) = expected
-            && self.instance()? != expected
+            && Self::open(&self.root)?.instance()? != expected
         {
             return Err(Error::invalid(
                 "the project was made again since its removal was asked: nothing removed",

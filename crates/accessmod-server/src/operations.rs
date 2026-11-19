@@ -324,23 +324,25 @@ impl Pending {
             .checked_add(1)
             .ok_or_else(|| Error::invalid("no operation identifier left"))?
             .max(now_ms());
-        operations.push_back(operation.clone());
+        // Written first, applied after: a journal not written changes
+        // nothing (no id given, no finished one dropped), and one not
+        // written would be lost at a restart.
+        let mut candidate = operations.clone();
+        candidate.push_back(operation.clone());
         // Drop the oldest finished ones beyond what is kept.
-        while operations.iter().filter(|o| o.finished.is_some()).count() > KEPT {
-            if let Some(at) = operations.iter().position(|o| o.finished.is_some()) {
-                operations.remove(at);
+        while candidate.iter().filter(|o| o.finished.is_some()).count() > KEPT {
+            if let Some(at) = candidate.iter().position(|o| o.finished.is_some()) {
+                candidate.remove(at);
             }
         }
-        // Queued only once the journal holds it and its id: one not written
-        // would be lost at a restart.
         self.next.store(operation.id, ordering);
-        if let Err(e) = self.save(&operations) {
-            operations.retain(|o| o.id != operation.id);
+        if let Err(e) = self.save(&candidate) {
             self.next.store(last, ordering);
             return Err(Error::invalid(format!(
                 "cannot write the operations journal: {e}"
             )));
         }
+        *operations = candidate;
         Ok(operation)
     }
 }

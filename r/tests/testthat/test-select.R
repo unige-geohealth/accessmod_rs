@@ -25,6 +25,8 @@ test_that("one match or an error naming the candidates", {
   # the tags alone name the first, as Data shows them.
   expect_equal(.select_one(cat, "job", class = "travel-time", tags = "test")$id, 2L)
   expect_equal(.select_one(cat, "job", class = "travel-time", tags = c("test", "7"))$id, 7L)
+  # Datasets: still ambiguous, even with one exact match.
+  expect_error(.select_one(cat, "vector", class = "vBarrier", tags = "demo"), class = "accessmod_ambiguous")
   err <- tryCatch(.select_one(cat, "vector", class = "vBarrier"), error = identity)
   expect_s3_class(err, "accessmod_ambiguous")
   expect_match(conditionMessage(err), "vector 3 \\(vBarrier: demo rivers\\)")
