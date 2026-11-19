@@ -23,7 +23,9 @@ describe("notifications", () => {
 
   it("notices a queued job, which fades like a success", () => {
     const queued = runNotice("p", run(3, "queued", { analysis: "travel-time", kind: "analysis", tags: ["scenario", "b"] }), 50)!;
-    expect([queued.id, queued.status, queued.text]).toEqual(["p/3/queued", "queued", "scenario b"]);
+    expect([queued.id, queued.status, queued.text]).toEqual(["p/3/0/queued", "queued", "scenario b"]);
+    // A project made again under the same slug numbers its runs anew: its run 3 is another job.
+    expect(runNotice("p", run(3, "queued", { started: 99 }), 50)!.id).not.toBe(queued.id);
     const state = updateNotifications(NO_NOTIFICATIONS, { type: "notice", notice: queued });
     expect(visibleNotices(state, 51).map((n) => n.id)).toEqual([queued.id]);
     expect(visibleNotices(state, 50 + FADE_S)).toEqual([]);

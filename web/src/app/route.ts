@@ -64,7 +64,7 @@ function subscribe(listener: () => void) {
 let cached: { hash: string; route: Route } | null = null;
 
 /** The current route; a new object only when the hash changes. */
-function current(): Route {
+export function current(): Route {
   const hash = window.location.hash;
   if (cached?.hash !== hash) cached = { hash, route: parseRoute(hash) };
   return cached.route;

@@ -70,7 +70,7 @@ export function updateNotifications(state: Notifications, message: NotificationM
 export function runNotice(project: string, run: Api.RunRecord, at: number): Notice | null {
   if (!notified(run.status)) return null;
   return {
-    id: `${project}/${run.id}/${run.status}`,
+    id: `${project}/${run.id}/${run.started}/${run.status}`,
     project,
     run: run.id,
     pending: false,

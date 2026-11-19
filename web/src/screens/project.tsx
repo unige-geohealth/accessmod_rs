@@ -14,7 +14,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import { keys, queryClient, useBounds, useProject, useProjects, useSettings } from "../api/queries";
 import { operationDone, runResult } from "../api/tasks";
-import { HOME, navigate, type Route } from "../app/route";
+import { current, HOME, navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
 import { useBatch } from "../state/batch";
 import { ACCEPT } from "../state/catalogue";
@@ -36,7 +36,7 @@ export function ProjectScreen({ route }: { route: Route }) {
             { value: "open", icon: "open", title: "project_open_title", content: <OpenPanel route={route} /> },
             { value: "new", icon: "add", title: "project_new_import_title", content: <NewPanel /> },
             { value: "region", icon: "map", title: "creator.title", content: <RegionPanel /> },
-            { value: "delete", icon: "delete", title: "project_delete_title", content: <DeletePanel route={route} /> },
+            { value: "delete", icon: "delete", title: "project_delete_title", content: <DeletePanel /> },
             { value: "export", icon: "export", title: "project_export_title", content: <ExportPanel route={route} /> },
           ]}
         />
@@ -149,7 +149,7 @@ function NewPanel() {
   );
 }
 
-function DeletePanel({ route }: { route: Route }) {
+function DeletePanel() {
   const f = useFmt();
   const projects = useProjects();
   const [chosen, setChosen] = useState<string | undefined>(undefined);
@@ -166,7 +166,8 @@ function DeletePanel({ route }: { route: Route }) {
       setChosen(undefined);
       // Leave the project once it is gone (a failure is notified).
       await operationDone(operation.id);
-      if (project === route.project) navigate({ ...HOME, panel: "delete" });
+      // The project open now, not when it was asked: another may be.
+      if (current().project === project) navigate({ ...HOME, panel: "delete" });
       return name;
     });
   };

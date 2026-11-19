@@ -188,17 +188,23 @@ impl Pending {
     /// missing or unreadable (with a warning), never an error.
     pub fn open(data_dir: &Path) -> Self {
         let path = data_dir.join(JOURNAL_FILE);
-        let kept: Vec<PendingOperation> = match std::fs::read(&path) {
+        let journal: Journal = match std::fs::read(&path) {
             Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|e| {
                 tracing::warn!("{}: {e}; an empty journal", path.display());
-                Vec::new()
+                Journal::default()
             }),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Journal::default(),
             Err(e) => {
                 tracing::warn!("{}: {e}; an empty journal", path.display());
-                Vec::new()
+                Journal::default()
             }
         };
+        let last = journal
+            .operations
+            .iter()
+            .map(|o| o.id)
+            .fold(journal.last, i64::max);
+        let kept = journal.operations;
         // One the server stopped during is interrupted: never resumed.
         let kept: VecDeque<PendingOperation> = kept
             .into_iter()
@@ -212,7 +218,7 @@ impl Pending {
             })
             .collect();
         Self {
-            next: std::sync::atomic::AtomicI64::new(kept.iter().map(|o| o.id).max().unwrap_or(0)),
+            next: std::sync::atomic::AtomicI64::new(last),
             operations: Mutex::new(kept),
             journal: Some(path),
         }
@@ -225,9 +231,12 @@ impl Pending {
         let Some(path) = &self.journal else {
             return;
         };
-        let kept: Vec<&PendingOperation> = operations.iter().filter(|o| !o.recorded).collect();
+        let journal = JournalRef {
+            last: self.next.load(std::sync::atomic::Ordering::Relaxed),
+            operations: operations.iter().filter(|o| !o.recorded).collect(),
+        };
         let temporary = path.with_extension(format!("json.{}", std::process::id()));
-        let written = serde_json::to_vec_pretty(&kept)
+        let written = serde_json::to_vec_pretty(&journal)
             .map_err(std::io::Error::other)
             .and_then(|bytes| std::fs::write(&temporary, bytes))
             .and_then(|()| std::fs::rename(&temporary, path));
@@ -302,13 +311,17 @@ impl Pending {
         Some(finished)
     }
 
-    fn add(&self, mut operation: PendingOperation) -> PendingOperation {
+    fn add(&self, mut operation: PendingOperation) -> Result<PendingOperation, Error> {
         let mut operations = self.lock();
-        // Ids grow across restarts: the clock, or the next after the last
-        // (an id a client saw is never given again).
+        // Ids grow across restarts, the clock set back too: the clock, or
+        // the next after the last given (kept in the journal). An id a
+        // client saw is never given again.
         let ordering = std::sync::atomic::Ordering::Relaxed;
         let last = self.next.load(ordering);
-        operation.id = last.checked_add(1).unwrap_or(last).max(now_ms());
+        operation.id = last
+            .checked_add(1)
+            .ok_or_else(|| Error::invalid("no operation identifier left"))?
+            .max(now_ms());
         self.next.store(operation.id, ordering);
         operations.push_back(operation.clone());
         // Drop the oldest finished ones beyond what is kept.
@@ -318,8 +331,23 @@ impl Pending {
             }
         }
         self.save(&operations);
-        operation
+        Ok(operation)
     }
+}
+
+/// The journal file: the last identifier given, the operations kept.
+#[derive(Debug, Default, Deserialize)]
+struct Journal {
+    #[serde(default)]
+    last: Id,
+    #[serde(default)]
+    operations: Vec<PendingOperation>,
+}
+
+#[derive(Serialize)]
+struct JournalRef<'a> {
+    last: Id,
+    operations: Vec<&'a PendingOperation>,
 }
 
 fn now_ms() -> i64 {
@@ -359,7 +387,7 @@ pub fn queue_pending(
         started: now(),
         finished: None,
         recorded: false,
-    });
+    })?;
     state.publish(Event::Pending {
         operation: Box::new(queued.clone()),
     });
@@ -516,10 +544,10 @@ mod journal_tests {
     fn operations_no_project_records_survive_a_restart() {
         let dir = tempfile::tempdir().expect("tempdir");
         let pending = Pending::open(dir.path());
-        let removed = pending.add(operation("project-remove"));
-        let failed = pending.add(operation("project-create"));
-        let made = pending.add(operation("project-create"));
-        let running = pending.add(operation("project-import"));
+        let removed = pending.add(operation("project-remove")).expect("id");
+        let failed = pending.add(operation("project-create")).expect("id");
+        let made = pending.add(operation("project-create")).expect("id");
+        let running = pending.add(operation("project-import")).expect("id");
         pending.finish(removed.id, &Ok(()), false);
         pending.finish(failed.id, &Err(Error::invalid("no DEM")), false);
         pending.finish(made.id, &Ok(()), true);
@@ -539,21 +567,36 @@ mod journal_tests {
         );
         // Ids grow, across restarts too: never one a client saw.
         assert!(removed.id < failed.id && failed.id < made.id && made.id < running.id);
-        assert!(again.add(operation("project-remove")).id > running.id);
-        // A journal holding the largest id does not overflow.
-        let mut last = operation("project-remove");
-        last.id = Id::MAX;
-        last.finished = Some(1);
+        assert!(again.add(operation("project-remove")).expect("id").id > running.id);
+        // The last id given is kept, even when no operation is: a clock set
+        // back never gives an id again.
+        let ahead = now_ms() + 3_600_000;
         std::fs::write(
             dir.path().join(JOURNAL_FILE),
-            serde_json::to_vec(&[last]).expect("json"),
+            serde_json::json!({"last": ahead, "operations": []}).to_string(),
         )
         .expect("write");
+        let after = Pending::open(dir.path());
+        assert_eq!(
+            after.add(operation("project-remove")).expect("id").id,
+            ahead + 1
+        );
         assert_eq!(
             Pending::open(dir.path())
+                .next
+                .load(std::sync::atomic::Ordering::Relaxed),
+            ahead + 1
+        );
+        // No id left: refused, never one given twice.
+        std::fs::write(
+            dir.path().join(JOURNAL_FILE),
+            serde_json::json!({"last": Id::MAX, "operations": []}).to_string(),
+        )
+        .expect("write");
+        assert!(
+            Pending::open(dir.path())
                 .add(operation("project-remove"))
-                .id,
-            Id::MAX
+                .is_err()
         );
         // A corrupt journal is an empty one.
         std::fs::write(dir.path().join(JOURNAL_FILE), b"{not json").expect("write");

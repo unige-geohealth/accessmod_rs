@@ -1034,18 +1034,18 @@ impl Project {
             "manage" => RunKind::Manage,
             _ => RunKind::Analysis,
         };
-        let shared: i64 = self
+        let shared: bool = self
             .db
             .query_row(
-                "SELECT COUNT(*) FROM runs WHERE analysis = ?1 AND tags = ?2 AND id < ?3
-                 AND status = 'done' AND kind = 'analysis'",
+                "SELECT EXISTS (SELECT 1 FROM runs WHERE analysis = ?1 AND tags = ?2
+                 AND id < ?3 AND status = 'done' AND kind = 'analysis')",
                 params![analysis, tags, id],
                 |r| r.get(0),
             )
             .map_err(self.db_error())?;
         let tags: Vec<String> = decode(&tags, "run tags")?;
         let mut job_tags = tags.clone();
-        if shared > 0 {
+        if shared {
             job_tags.push(id.to_string());
         }
         let datasets: Vec<Id> = {
