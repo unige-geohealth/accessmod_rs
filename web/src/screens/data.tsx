@@ -25,8 +25,7 @@ import {
   type DataRow,
   filterFromQuery,
   filterToQuery,
-  isJobRow,
-  jobRows,
+  jobRow,
   kindOf,
   matches,
   normalizeTags,
@@ -67,12 +66,12 @@ export function DataScreen({ route, project }: { route: Route; project: string }
 
   const list = datasets.data;
   const rows = useMemo(() => {
-    const all = sortRows([...(list ?? []).map((d) => toRow(d, t)), ...jobRows(finished, t)]);
+    const all = sortRows([...(list ?? []).map((d) => toRow(d, t)), ...finished.map((r) => jobRow(r, t))]);
     return all
       .filter((r) => matches(r, filter, roles))
       .map((r) => {
         const role = roles.get(r.key);
-        return { ...r, tags: isJobRow(r) ? r.tags : (doc.edits[r.id] ?? r.tags), role: role ? t(ROLE_KEYS[role]) : "" };
+        return { ...r, tags: r.kind === "job" ? r.tags : (doc.edits[r.id] ?? r.tags), role: role ? t(ROLE_KEYS[role]) : "" };
       });
     // the filter is a value of the URL query
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,7 +130,7 @@ export function DataScreen({ route, project }: { route: Route; project: string }
             selected={selected as string[]}
             onSelectionChange={(chosen: Row[]) => dispatch({ type: "select", run: filter.run, keys: chosen.map((r) => String(r.key)) })}
             onCellEdited={(row, field, value) => {
-              if (field === "tags" && !isJobRow(row)) dispatch({ type: "editTags", id: Number(row.id), text: String(value ?? "") });
+              if (field === "tags" && row.kind !== "job") dispatch({ type: "editTags", id: Number(row.id), text: String(value ?? "") });
             }}
             columns={[
               { field: "tags", title: t("data.column_tags"), editable: renaming, editableRow: isDatasetRow },
@@ -195,7 +194,7 @@ function ImportPanel({ project }: { project: string }) {
 }
 
 /** Job rows have no tags of their own to edit: they are the run's. */
-const isDatasetRow = (row: Row) => !isJobRow(row);
+const isDatasetRow = (row: Row) => row.kind !== "job";
 
 function FilterPanel({
   project,
@@ -227,7 +226,7 @@ function FilterPanel({
           { value: "vector", label: "data_vector" },
           { value: "raster", label: "data_raster" },
           { value: "table", label: "data_table" },
-          { value: "config", label: "data_config" },
+          { value: "job", label: "data.kind_job" },
           { value: "all", label: "data_all" },
         ]}
       />
