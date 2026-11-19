@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { classLabel, plannedOutputs, tagSuggestions, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRow, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
+import { classLabel, plannedOutputs, tagSuggestions, datasetIds, datasetOptions, fieldClasses, filterFromQuery, jobRows, pairedTable, filterToQuery, kindOf, matches, normalizeTags, runRoles, toRow } from "./catalogue";
 
 const dataset = (id: number, cls: Api.DataClass, tags: string[]) => ({ id, class: cls, tags }) as Api.Dataset;
 const t = (key: string) => key;
@@ -21,14 +21,24 @@ describe("catalogue", () => {
     expect(classLabel((k) => (k === "class.rLandCover" ? "occupation du sol" : k), "rLandCover")).toBe("occupation du sol");
   });
 
+  it("names jobs as AM5 analysis parameters, type and tags unique", () => {
+    const run = (id: number, analysis: string, tags: string[]) => ({ id, analysis, tags }) as unknown as Api.RunRecord;
+    const rows = jobRows([run(3, "travel-time", ["walking"]), run(1, "merge-land-cover", ["creator"]), run(2, "travel-time", ["walking"])], (k) => k);
+    expect(rows.map((r) => [r.key, r.kind, r.class, r.tags])).toEqual([
+      ["j1", "config", "analysis parameters", "merge land cover creator"],
+      ["j2", "config", "analysis parameters", "travel time walking"],
+      ["j3", "config", "analysis parameters", "travel time walking 3"],
+    ]);
+  });
+
   it("filters by type, text, tags and run", () => {
     const run = { id: 7, analysis: "travel-time", tags: ["demo"], inputs: [1], datasets: [2] } as Api.RunRecord;
-    const rows = [...[dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"]), dataset(3, "rDem", ["other"])].map((d) => toRow(d, t as never)), jobRow(run, t as never)];
+    const rows = [...[dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"]), dataset(3, "rDem", ["other"])].map((d) => toRow(d, t as never)), ...jobRows([run], t as never)];
     const roles = runRoles(run);
     const keys = (q: Record<string, string>) => rows.filter((r) => matches(r, filterFromQuery(q), roles)).map((r) => r.key);
     expect(keys({ run: "7" })).toEqual(["d1", "d2", "j7"]);
-    expect(keys({ run: "7", type: "job" })).toEqual(["j7"]);
-    expect(keys({ type: "config" })).toHaveLength(4);
+    expect(keys({ run: "7", type: "config" })).toEqual(["j7"]);
+    expect(keys({ type: "job" })).toHaveLength(4);
     expect([...roles]).toEqual([["j7", "job"], ["d1", "input"], ["d2", "output"]]);
     expect(datasetIds(["d1", "j7", "d2"])).toEqual([1, 2]);
     const ids = (q: Record<string, string>) => rows.slice(0, 2).filter((r) => matches(r, filterFromQuery(q))).map((r) => r.id);

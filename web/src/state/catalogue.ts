@@ -6,7 +6,6 @@ import analysisOutputs from "../../schemas/analysis-outputs.json";
 import classList from "../../schemas/data-classes.json";
 import type { ClassInfo } from "../api/client";
 import type { Api } from "../generated/types";
-import { analysisLabel } from "./jobs";
 
 export type Kind = ClassInfo["kind"];
 
@@ -82,10 +81,11 @@ export function tagsOf(text: string): { tags: string[]; issues: Key[] } {
 }
 
 /**
- * Kinds of the rows of Data: those of the data classes, and `job`, the job
- * of a finished run (AM5 "analysis parameters", once a `config` dataset).
+ * Kinds of the rows of Data: those of the data classes; the job of a
+ * finished run is a `config` row of class "analysis parameters"
+ * (AM5 `lAnalysisParameters`).
  */
-export type RowKind = Exclude<Kind, "config"> | "job";
+export type RowKind = Kind;
 
 /** Data › Filter, from the URL. */
 export interface DataFilter {
@@ -98,7 +98,7 @@ export interface DataFilter {
   run: number | null;
 }
 
-const KINDS: readonly string[] = ["vector", "raster", "table", "job"];
+const KINDS: readonly string[] = ["vector", "raster", "table", "config"];
 
 export function filterFromQuery(query: Readonly<Record<string, string>>): DataFilter {
   const type = query.type ?? "all";
@@ -116,12 +116,11 @@ export function filterToQuery(filter: DataFilter): Record<string, string> {
 }
 
 /** Names of the kinds (Data › Filter; AM5 for the data classes). */
-export const KIND_KEYS: Record<Kind | "job", Key> = {
+export const KIND_KEYS: Record<Kind, Key> = {
   vector: "data_vector",
   raster: "data_raster",
   table: "data_table",
   config: "data_config",
-  job: "data.kind_job",
 };
 
 /** How a row takes part in the run of the filter. */
@@ -135,7 +134,7 @@ export interface DataRow {
   /** Dataset id, or run id for a job. */
   id: number;
   tags: string;
-  kind: Kind | "job";
+  kind: Kind;
   /** The kind, translated. */
   type: string;
   class: string;
@@ -152,9 +151,25 @@ export function toRow(dataset: Api.Dataset, t: (key: Key) => string): DataRow {
   return { key: datasetKey(dataset.id), id: dataset.id, tags: dataset.tags.join(" "), kind, type: t(KIND_KEYS[kind]), class: classLabel(t, dataset.class) };
 }
 
-/** The row of a run's job; its class names the analysis. */
-export function jobRow(run: Api.RunRecord, t: (key: Key) => string): DataRow {
-  return { key: jobRowKey(run.id), id: run.id, tags: run.tags.join(" "), kind: "job", type: t(KIND_KEYS.job), class: `${analysisLabel(t, run.analysis)} (#${run.id})` };
+/** Whether `row` is the job of a run (a `config` row), not a dataset. */
+export const isJobRow = (row: Readonly<Record<string, unknown>>) => String(row.key ?? "").startsWith("j");
+
+/**
+ * The rows of runs' jobs (AM5 "analysis parameters", type config): the
+ * analysis and the run's tags as tags, e.g. `merge land cover creator`.
+ * Type and tags name one row: the run number is added to a set already
+ * taken, the oldest run keeping it.
+ */
+export function jobRows(runs: readonly Api.RunRecord[], t: (key: Key) => string): DataRow[] {
+  const taken = new Set<string>();
+  return [...runs]
+    .sort((a, b) => a.id - b.id)
+    .map((run) => {
+      let tags = normalizeTags([run.analysis, ...run.tags].join(" "));
+      if (taken.has(tags.join(" "))) tags = [...tags, String(run.id)];
+      taken.add(tags.join(" "));
+      return { key: jobRowKey(run.id), id: run.id, tags: tags.join(" "), kind: "config", type: t(KIND_KEYS.config), class: classLabel(t, "lAnalysisParameters") };
+    });
 }
 
 /** Rows of a run, by key: its job, its inputs and its outputs. */
