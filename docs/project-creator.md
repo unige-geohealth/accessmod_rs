@@ -314,8 +314,9 @@ notes: `crates/accessmod-io/src/creator/presets/`.
     tunnels.
 - **Default scenarios** (box ticked by default; `default_scenarios` in the recipe): three
   scenario tables (`tScenario`, tags `creator walking|bicycle|motorized`), to load in
-  Analysis › Accessibility, and the matching saved travel-time jobs (`project jobs --json`
-  or `GET /api/projects/{project}/jobs`, replayed with `project run travel-time --job`). Off the roads people walk
+  Analysis › Accessibility, and, when the region has facilities, the matching saved
+  travel-time jobs (`project jobs --json` or `GET /api/projects/{project}/jobs`; a job's
+  `document` replays with `project run travel-time --job`). Off the roads people walk
   (WorldCover speeds). Unticked, the jobs are still checked for readiness, nothing is saved.
 - **Expected outputs:** a creation that misses an output it was asked for (a layer absent
   upstream, zones, merged land cover and its table, scenario tables) fails, never a silent

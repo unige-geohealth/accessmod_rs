@@ -194,6 +194,11 @@ mod tests {
         classes.dedup();
         assert_eq!(classes.len(), p.roads.rules.len());
         assert!(classes.iter().all(|c| (1..1000).contains(c)));
+        // Motorways and trunk roads are crossed on foot, not followed.
+        let motorway = p.roads.rule("trunk", &none).expect("trunk");
+        for t in [motorway.walking, motorway.bicycle] {
+            assert_eq!((t.mode, t.speed_kmh), (TransportMode::Walking, 0.1));
+        }
         // No road is a barrier in any scenario: a road at 0 km/h would be a
         // wall in the merged land cover.
         assert!(p.roads.rules.iter().all(|r| {
