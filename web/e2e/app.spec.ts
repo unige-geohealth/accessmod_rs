@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { choose, panel, shot, sidebar } from "./helpers";
+import { choose, imported, panel, shot, sidebar } from "./helpers";
 
 // The tutorial data of the repository (docs/tutorial/data); facilities are
 // also sent as a shapefile, to upload several files at once.
@@ -34,11 +34,11 @@ test("the demo project opens first and is built again from the toolbox", async (
   await choose(page, "Select data class", "population");
   await page.getByLabel("Add short tags").fill("again");
   await page.locator("input[type=file]").setInputFiles(`${demo}rPopulation__start.img`);
-  await expect(page.getByText("Imported: population [again]")).toBeVisible({ timeout: 60_000 });
+  await imported(page, "population again");
   await choose(page, "Select data class", "capacity");
   await page.getByLabel("Add short tags").fill("again");
   await page.locator("input[type=file]").setInputFiles(`${demo}tCapacity_scalingUp.xlsx`);
-  await expect(page.getByText("Imported: capacity [again]")).toBeVisible({ timeout: 60_000 });
+  await imported(page, "capacity again");
   await expect(table.locator(".tabulator-row")).toHaveCount(13);
 
   // Removed, the demo is missing: the project screen invites a reset.
@@ -87,13 +87,13 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await choose(page, "Select data class", "land cover merged");
   await page.getByLabel("Add short tags").fill("base");
   await page.locator("input[type=file]").setInputFiles(`${data}land_cover.tif`);
-  await expect(page.getByText("Imported: land cover merged [base]")).toBeVisible({ timeout: 60_000 });
+  await imported(page, "land cover merged base");
   await choose(page, "Select data class", "facility");
   await page.getByLabel("Add short tags").fill("health");
   await page
     .locator("input[type=file]")
     .setInputFiles(["shp", "shx", "dbf", "prj"].map((ext) => `${work}facilities.${ext}`));
-  await expect(page.getByText("Imported: facility [health]")).toBeVisible({ timeout: 60_000 });
+  await imported(page, "facility health");
   const table = page.locator(".tabulator");
   await expect(table.getByRole("gridcell", { name: "health", exact: true })).toBeVisible();
   await shot(page, "data-import");

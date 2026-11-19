@@ -12,7 +12,6 @@ import { keys, queryClient, useQuickCheck, useRuns } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import { classLabel, plannedOutputs } from "../../state/catalogue";
 import { type Issue, sessionStore } from "../../state/drafts";
-import { notifications, queuedNotice } from "../../state/notifications";
 import { usePreference } from "../../state/preferences";
 import { useStore } from "../../state/store";
 import { downloadJson, useFmt } from "../common";
@@ -73,7 +72,6 @@ export function ValidationCard({
     try {
       const record = await api.command("run.start", { project, analysis, document, tags, overwrite });
       session.dispatch({ type: "started", run: record.id });
-      notifications.dispatch({ type: "notice", notice: queuedNotice(project, record, Date.now() / 1000) });
       await queryClient.invalidateQueries({ queryKey: keys.runs(project) });
     } catch (error) {
       session.dispatch({ type: "start_failed" });

@@ -53,7 +53,6 @@ test("jobs: runs of every project, details, outputs and exported job", async ({ 
   await panel(page, "Archive").click();
   await page.getByLabel("File prefix. Default is 'am6_export'").fill("e2e-run");
   await page.getByRole("button", { name: "Create archive" }).click();
-  await expect(page.getByText(/^Archive created: e2e-run_.*\.zip$/)).toBeVisible();
   // The job that wrote it ended: a notification, which opens it in Jobs.
   const toast = page.getByRole("status").filter({ hasText: "Archive: done" });
   await expect(toast).toBeVisible();

@@ -148,7 +148,7 @@ browser (TypeScript)                         accessmod serve (Rust)
   interrupted analyses) and `run.remove` (outputs too on request) cover
   the cycle. The event `queue` carries what each lane holds, with places
   and pauses. Jobs is the task manager, and the client notifies each job
-  that ends.
+  (see "Notifications").
 - **Static assets**: the built front end is embedded with `rust-embed` behind
   the cargo feature `web` (release builds). Without it, `serve` takes
   `--web-dir`, or the Vite dev server proxies `/api`. `cargo build
@@ -463,6 +463,21 @@ One binary and one data directory on a small server, run as a service
   `own.json` for texts AM5 lacks (dotted keys). The gate runs `--check`.
 - Keys are a typed union in TypeScript: an unknown key does not compile.
   No hard-coded text.
+
+## Notifications
+
+One behaviour for every job, whatever starts it (an analysis, an import,
+an export, an archive, a project made, imported or created from a region,
+the demo):
+
+- A job is notified twice: when it is **queued** and when it **ends**
+  (done, failed, cancelled, interrupted). Both notices come from the
+  server events alone (`api/events.ts`), so a job started elsewhere (CLI,
+  another tab) is notified the same way.
+- A form shows only what precedes the job: an upload's progress, the
+  request in flight, its refusal. Never the job's own queued, progress or
+  done text: progress, pause and cancel live in Jobs, which a notice opens.
+- Reviewers treat a job told otherwise as a defect.
 
 ## Screens and jobs
 

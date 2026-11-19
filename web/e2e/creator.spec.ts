@@ -29,7 +29,8 @@ test("a region picked on the map becomes a project that computes", async ({ page
   const create = page.getByRole("button", { name: "Create the project" });
   await expect(create).toBeEnabled();
   await create.click();
-  await expect(page.getByText(/Creating Juba from a region/)).toBeVisible();
+  // Queued: a notification, as for every job.
+  await expect(page.getByRole("status").filter({ hasText: "Juba from a region" }).filter({ hasText: /queued/ })).toBeVisible();
   // Done: a notification, then the project with its datasets.
   const notice = page.getByRole("status").filter({ hasText: "Juba from a region" }).filter({ hasText: /done/ });
   await expect(notice).toBeVisible({ timeout: 90_000 });

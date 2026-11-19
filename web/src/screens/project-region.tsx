@@ -35,7 +35,7 @@ export function RegionPanel() {
   const dispatch = creatorStore.dispatch;
   const countries = useCountries();
   const units = useUnits(draft.iso3, draft.level);
-  const [state, setState] = useState<{ kind: "idle" } | { kind: "sending" } | { kind: "queued"; name: string } | { kind: "failed"; issues: string[] }>({
+  const [state, setState] = useState<{ kind: "idle" } | { kind: "sending" } | { kind: "failed"; issues: string[] }>({
     kind: "idle",
   });
   const chosen = units.data?.features.filter((u) => draft.units.includes(String(u.properties?.id))) ?? [];
@@ -45,7 +45,7 @@ export function RegionPanel() {
     setState({ kind: "sending" });
     try {
       await api.command("creator.create", ready);
-      setState({ kind: "queued", name: ready.name });
+      setState({ kind: "idle" });
     } catch (error) {
       setState({ kind: "failed", issues: issuesOf(error, t) });
     }
@@ -137,7 +137,6 @@ export function RegionPanel() {
         disabled={ready === null || state.kind === "sending"}
         onClick={() => void create()}
       />
-      {state.kind === "queued" && <p className="text-sm">{f("creator.queued", state.name)}</p>}
     </div>
   );
 }

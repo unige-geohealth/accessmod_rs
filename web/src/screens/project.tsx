@@ -144,7 +144,7 @@ function NewPanel() {
         {t("project.import_supported")} {t("project.import_am5")} <InfoTip k="project.import_am5_hint" label="project.import_am5" />, {t("project.import_am6")}{" "}
         <InfoTip k="project.import_am6_hint" label="project.import_am6" />
       </p>
-      <TransferStatus transfer={state} doneKey="data.imported" />
+      <TransferStatus transfer={state} />
     </div>
   );
 }
@@ -196,7 +196,7 @@ function ExportPanel({ route }: { route: Route }) {
       {slug === null && <Callout k="project.open_first" />}
       <CheckboxField label="project.export_results" checked={results} onChange={setResults} />
       <AmButton block k="project_export_btn" disabled={slug === null || busy} onClick={() => slug !== null && void exportProject(slug)} />
-      <TransferStatus transfer={state} doneKey="project.exported" />
+      <TransferStatus transfer={state} />
     </div>
   );
 }

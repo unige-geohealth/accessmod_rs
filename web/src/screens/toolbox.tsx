@@ -78,7 +78,7 @@ function DemoPanel() {
         <T k="toolbox.demo_text" />
       </p>
       <AmButton variant="danger" block icon="reset" k="toolbox.demo_reset" disabled={state.state === "processing"} onClick={() => setConfirming(true)} />
-      <TransferStatus transfer={state} doneKey="toolbox.demo_done" />
+      <TransferStatus transfer={state} />
       <ConfirmDialog open={confirming} onOpenChange={setConfirming} confirm="toolbox.demo_reset" onConfirm={() => void reset()}>
         <T k="toolbox.demo_reset_confirm" />
       </ConfirmDialog>

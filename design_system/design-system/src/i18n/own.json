@@ -137,12 +137,6 @@
     "es": "Crear el proyecto",
     "pt": "Criar o projeto"
   },
-  "creator.queued": {
-    "en": "Creating %s: the sources are downloaded, then the project is built. A notification says when it is ready.",
-    "fr": "Création de %s : les sources sont téléchargées, puis le projet est construit. Une notification indique quand il est prêt.",
-    "es": "Creando %s: se descargan las fuentes y se construye el proyecto. Una notificación avisa cuando está listo.",
-    "pt": "Criando %s: as fontes são baixadas e o projeto é construído. Uma notificação avisa quando estiver pronto."
-  },
   "creator.need_country": {
     "en": "Choose a country.",
     "fr": "Choisissez un pays.",
@@ -401,12 +395,6 @@
     "es": "Aún no disponible en esta versión.",
     "pt": "Ainda não disponível nesta versão."
   },
-  "data.imported": {
-    "en": "Imported: %s",
-    "fr": "Importé : %s",
-    "es": "Importado: %s",
-    "pt": "Importado: %s"
-  },
   "data.removed": {
     "en": "Removed: %s",
     "fr": "Supprimé : %s",
@@ -502,12 +490,6 @@
     "fr": "Supprimer le projet de démonstration, avec ses calculs et modifications, et le reconstruire à partir des données d’exemple ?",
     "es": "¿Eliminar el proyecto de demostración, con sus cálculos y cambios, y volver a crearlo a partir de los datos de ejemplo?",
     "pt": "Remover o projeto de demonstração, com seus cálculos e alterações, e recriá-lo a partir dos dados de exemplo?"
-  },
-  "toolbox.demo_done": {
-    "en": "Rebuilt: %s",
-    "fr": "Reconstruit : %s",
-    "es": "Recreado: %s",
-    "pt": "Recriado: %s"
   },
   "project.demo_missing": {
     "en": "The demo project is missing: build it again in the Toolbox to explore AccessMod with sample data.",
@@ -1133,12 +1115,6 @@
     "es": "Prefijo del archivo. Por defecto 'am6_export'",
     "pt": "Prefixo do arquivo. Padrão 'am6_export'"
   },
-  "data.archive_created": {
-    "en": "Archive created: %s",
-    "fr": "Archive créée : %s",
-    "es": "Archivo creado: %s",
-    "pt": "Arquivo criado: %s"
-  },
   "data.archive_none": {
     "en": "No archive yet.",
     "fr": "Aucune archive.",
@@ -1187,29 +1163,11 @@
     "es": "Con los resultados (salidas de los análisis); sin ellos, los análisis conservan solo sus trabajos",
     "pt": "Com os resultados (saídas das análises); sem eles, as análises mantêm apenas os seus trabalhos"
   },
-  "task.waiting": {
-    "en": "Waiting in the queue: %s before it",
-    "fr": "En attente dans la file : %s avant",
-    "es": "En espera en la cola: %s antes",
-    "pt": "Aguardando na fila: %s antes"
-  },
   "task.paused": {
     "en": "Paused",
     "fr": "En pause",
     "es": "En pausa",
     "pt": "Em pausa"
-  },
-  "task.starting": {
-    "en": "Starting…",
-    "fr": "Démarrage…",
-    "es": "Iniciando…",
-    "pt": "Iniciando…"
-  },
-  "task.stage_percent": {
-    "en": "%1$s: %2$s %%",
-    "fr": "%1$s : %2$s %%",
-    "es": "%1$s: %2$s %%",
-    "pt": "%1$s: %2$s %%"
   },
   "task.stage_archive": {
     "en": "Writing the archive",
@@ -1354,18 +1312,6 @@
     "fr": "Ajouté à la file (job %s) : suivez-le ici ou dans Jobs",
     "es": "En cola (trabajo %s): sígalo aquí o en Jobs",
     "pt": "Na fila (trabalho %s): acompanhe aqui ou em Jobs"
-  },
-  "task.cancel": {
-    "en": "Cancel",
-    "fr": "Annuler",
-    "es": "Cancelar",
-    "pt": "Cancelar"
-  },
-  "project.exported": {
-    "en": "Exported as %s: the download starts.",
-    "fr": "Exporté sous %s : le téléchargement démarre.",
-    "es": "Exportado como %s: comienza la descarga.",
-    "pt": "Exportado como %s: o download começa."
   },
   "jobs.op_archive": {
     "en": "Archive",

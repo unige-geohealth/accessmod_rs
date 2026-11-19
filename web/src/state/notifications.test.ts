@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Api } from "../generated/types";
-import { FADE_S, NO_NOTIFICATIONS, operationNotice, queuedNotice, runNotice, updateNotifications, visibleNotices } from "./notifications";
+import { FADE_S, NO_NOTIFICATIONS, operationNotice, runNotice, updateNotifications, visibleNotices } from "./notifications";
 
 const run = (id: number, status: Api.RunStatus, extra: Partial<Api.RunRecord> = {}) =>
   ({ id, analysis: "archive", kind: "manage", tags: [], job: {}, status, output_dir: "", started: 0, datasets: [], inputs: [], ...extra }) as Api.RunRecord;
@@ -21,8 +21,8 @@ describe("notifications", () => {
     expect(updateNotifications(state, { type: "dismiss", id: "nope" })).toBe(state);
   });
 
-  it("notices a job queued from a tab, which fades like a success", () => {
-    const queued = queuedNotice("p", run(3, "queued", { analysis: "travel-time", kind: "analysis", tags: ["scenario", "b"] }), 50);
+  it("notices a queued job, which fades like a success", () => {
+    const queued = runNotice("p", run(3, "queued", { analysis: "travel-time", kind: "analysis", tags: ["scenario", "b"] }), 50)!;
     expect([queued.id, queued.status, queued.text]).toEqual(["p/3/queued", "queued", "scenario b"]);
     const state = updateNotifications(NO_NOTIFICATIONS, { type: "notice", notice: queued });
     expect(visibleNotices(state, 51).map((n) => n.id)).toEqual([queued.id]);
@@ -39,6 +39,10 @@ describe("notifications", () => {
       5,
     )!;
     expect([op.id, op.pending, op.text]).toEqual([":pending/1/done", true, "X"]);
+    // Queued too, as every job; never while running.
+    const base = { id: 2, operation: "project-create", project: "y", name: "Y", owner: "local", started: 0 } as const;
+    expect(operationNotice({ ...base, status: "queued" }, 5)?.id).toBe(":pending/2/queued");
+    expect(operationNotice({ ...base, status: "running" }, 5)).toBeNull();
   });
 
   it("keeps a bounded list", () => {

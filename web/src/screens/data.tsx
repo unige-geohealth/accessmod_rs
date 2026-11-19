@@ -188,7 +188,7 @@ function ImportPanel({ project }: { project: string }) {
         disabled={!ready}
         onFiles={importFiles}
       />
-      <TransferStatus transfer={state} doneKey="data.imported" />
+      <TransferStatus transfer={state} />
     </div>
   );
 }
@@ -343,7 +343,7 @@ function ArchivePanel({
         <MessageList messages={[{ kind: "info", text: f("data.archive_incomplete", incomplete.map((r) => `#${r.id}`).join(", ")) }]} />
       )}
       <AmButton block k="data_archive_create" disabled={busy || creating || chosenDatasets.length + chosenRuns.length === 0} onClick={() => void create()} />
-      <TransferStatus transfer={creation.state} doneKey="data.archive_created" />
+      <TransferStatus transfer={creation.state} />
       {messages.length > 0 && <MessageList messages={messages} />}
       <hr className="border-border" />
       {current === undefined ? (

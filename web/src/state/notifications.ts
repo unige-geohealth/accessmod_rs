@@ -1,8 +1,9 @@
-// Notifications: a job (a run, an operation making a project) that ended,
-// and a job just queued from an analysis tab. Events (api/events.ts) and
-// Compute dispatch them; the toaster shows them. A success, a queued job
-// or a cancellation fades after a while (a selector on the clock), a
-// failure stays until closed.
+// Notifications: every job (a run, an operation making a project) is
+// notified when queued and when it ends, from the server events alone
+// (api/events.ts); the toaster shows them. A form never says it itself
+// (docs/ui.md, "Notifications"). A success, a queued job or a
+// cancellation fades after a while (a selector on the clock), a failure
+// stays until closed.
 import type { Api } from "../generated/types";
 import { createStore } from "./store";
 
@@ -38,7 +39,8 @@ const KEPT = 20;
 /** Seconds a success or a cancellation stays. */
 export const FADE_S = 20;
 
-const ended = (status: Api.RunStatus) => status !== "queued" && status !== "running";
+/** Queued or ended: the two moments of a job that are notified. */
+const notified = (status: Api.RunStatus) => status !== "running";
 
 export function updateNotifications(state: Notifications, message: NotificationMessage): Notifications {
   switch (message.type) {
@@ -62,9 +64,9 @@ export function updateNotifications(state: Notifications, message: NotificationM
   }
 }
 
-/** The notice of a run event, when it ended. */
+/** The notice of a run event, when queued or ended. */
 export function runNotice(project: string, run: Api.RunRecord, at: number): Notice | null {
-  if (!ended(run.status)) return null;
+  if (!notified(run.status)) return null;
   return {
     id: `${project}/${run.id}/${run.status}`,
     project,
@@ -73,29 +75,14 @@ export function runNotice(project: string, run: Api.RunRecord, at: number): Noti
     analysis: run.analysis,
     kind: run.kind ?? "analysis",
     status: run.status,
-    text: run.outcome ?? run.error?.issues[0] ?? "",
+    text: run.outcome ?? run.error?.issues[0] ?? run.tags.join(" "),
     at,
   };
 }
 
-/** The notice of analysis `run`, just queued from a tab: it opens the job. */
-export function queuedNotice(project: string, run: Api.RunRecord, at: number): Notice {
-  return {
-    id: `${project}/${run.id}/queued`,
-    project,
-    run: run.id,
-    pending: false,
-    analysis: run.analysis,
-    kind: "analysis",
-    status: "queued",
-    text: run.tags.join(" "),
-    at,
-  };
-}
-
-/** The notice of an operation making a project, when it ended. */
+/** The notice of an operation making a project, when queued or ended. */
 export function operationNotice(operation: Api.PendingOperation, at: number): Notice | null {
-  if (!ended(operation.status)) return null;
+  if (!notified(operation.status)) return null;
   return {
     id: `:pending/${operation.id}/${operation.status}`,
     project: operation.project,

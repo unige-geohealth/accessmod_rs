@@ -70,3 +70,8 @@ export async function computed(page: Page, project: string, tags: string, button
   await expect(page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: tags })).toBeVisible();
   await finished(page.request, project, run.id);
 }
+
+/** The notice of an import job that ended done, of a dataset of class label and tags `what` ("population again"). */
+export async function imported(page: Page, what: string) {
+  await expect(page.getByRole("status").filter({ hasText: /: done/ }).filter({ hasText: `(${what})` }).first()).toBeVisible({ timeout: 60_000 });
+}
