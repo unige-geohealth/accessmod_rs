@@ -246,6 +246,14 @@
         "job": {
           "description": "Job document, paths relative to the project."
         },
+        "job_tags": {
+          "default": [],
+          "description": "The tags naming its job (Data, the R package): its tags, and its\nnumber when an older finished job of the same analysis has the same\nones (an overwrite), so analysis and tags name one job.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "kind": {
           "$ref": "#/$defs/RunKind",
           "default": "analysis",

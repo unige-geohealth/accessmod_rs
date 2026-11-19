@@ -152,9 +152,14 @@ export function toRow(dataset: Api.Dataset, t: (key: Key) => string): DataRow {
   return { key: datasetKey(dataset.id), id: dataset.id, tags: dataset.tags.join(" "), kind, type: t(KIND_KEYS[kind]), class: classLabel(t, dataset.class) };
 }
 
-/** The row of a run's job; its class names the analysis. */
+/**
+ * The row of a run's job, as a dataset's: its class is the analysis (in
+ * lower case, as the data classes), its tags those naming the job (its
+ * number only after an overwrite).
+ */
 export function jobRow(run: Api.RunRecord, t: (key: Key) => string): DataRow {
-  return { key: jobRowKey(run.id), id: run.id, tags: run.tags.join(" "), kind: "job", type: t(KIND_KEYS.job), class: `${analysisLabel(t, run.analysis)} (#${run.id})` };
+  const tags = run.job_tags && run.job_tags.length > 0 ? run.job_tags : run.tags;
+  return { key: jobRowKey(run.id), id: run.id, tags: tags.join(" "), kind: "job", type: t(KIND_KEYS.job), class: analysisLabel(t, run.analysis).toLocaleLowerCase() };
 }
 
 /** Rows of a run, by key: its job, its inputs and its outputs. */

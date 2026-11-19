@@ -464,6 +464,20 @@ One binary and one data directory on a small server, run as a service
 - Keys are a typed union in TypeScript: an unknown key does not compile.
   No hard-coded text.
 
+## Job and run
+
+- A **job** is what a user starts and sees: an analysis or an operation
+  with its parameters, its status and its outputs. The interface and the
+  R package say *job*, and only that: Jobs (the task manager), the
+  notices, the job rows of Data, `am$get("job", …)`.
+- A **run** is the engine's and the API's name for one execution of a
+  job: `run.start`, `runs/<id>`, `run.json`. It does not appear in
+  the interface.
+- In Data a job row reads as a dataset's: type *Job*, class the analysis
+  in lower case like the data classes (accessibility, merge land cover),
+  tags those naming it (`job_tags`: its tags, and its number when an
+  overwrite repeats them). No label made up of words and a number.
+
 ## Notifications
 
 One behaviour for every job, whatever starts it (an analysis, an import,

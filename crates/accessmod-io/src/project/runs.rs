@@ -134,6 +134,11 @@ pub struct RunRecord {
     /// What a done operation made (an archive, a file, a dataset).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
+    /// The tags naming its job (Data, the R package): its tags, and its
+    /// number when an older finished job of the same analysis has the same
+    /// ones (an overwrite), so analysis and tags name one job.
+    #[serde(default)]
+    pub job_tags: Vec<String>,
 }
 
 /// `path` as the catalogue stores files: components joined by `/`, without
@@ -1029,6 +1034,20 @@ impl Project {
             "manage" => RunKind::Manage,
             _ => RunKind::Analysis,
         };
+        let shared: i64 = self
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM runs WHERE analysis = ?1 AND tags = ?2 AND id < ?3
+                 AND status = 'done' AND kind = 'analysis'",
+                params![analysis, tags, id],
+                |r| r.get(0),
+            )
+            .map_err(self.db_error())?;
+        let tags: Vec<String> = decode(&tags, "run tags")?;
+        let mut job_tags = tags.clone();
+        if shared > 0 {
+            job_tags.push(id.to_string());
+        }
         let datasets: Vec<Id> = {
             let mut stmt = self
                 .db
@@ -1055,7 +1074,7 @@ impl Project {
         Ok(RunRecord {
             id,
             analysis,
-            tags: decode(&tags, "run tags")?,
+            tags,
             job: decode(&job, "run job")?,
             status: RunStatus::from_code(&status)
                 .ok_or_else(|| Error::invalid(format!("project database: run status {status}")))?,
@@ -1069,6 +1088,7 @@ impl Project {
             overwrite,
             kind,
             result: result.map(|r| decode(&r, "run result")).transpose()?,
+            job_tags,
         })
     }
 }

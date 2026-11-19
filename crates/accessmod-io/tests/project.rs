@@ -452,6 +452,14 @@ fn run_registers_outputs_as_datasets() {
         .expect("overwrite");
     assert_eq!(again.status, RunStatus::Done);
     assert_eq!(again.tags, record.tags);
+    // Its job is named by its tags and its number: the first keeps the tags.
+    assert_eq!(
+        project.run_record(record.id).expect("run").job_tags,
+        record.tags
+    );
+    let mut numbered = record.tags.clone();
+    numbered.push(again.id.to_string());
+    assert_eq!(again.job_tags, numbered);
     assert!(again.outcome.as_deref().unwrap_or("").contains("replaced"));
     for (old, new) in record.datasets.iter().zip(&again.datasets) {
         assert!(project.dataset(*old).is_err());

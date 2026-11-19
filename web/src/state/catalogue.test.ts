@@ -21,6 +21,14 @@ describe("catalogue", () => {
     expect(classLabel((k) => (k === "class.rLandCover" ? "occupation du sol" : k), "rLandCover")).toBe("occupation du sol");
   });
 
+  it("names a job as a dataset: the analysis as class, the tags naming it", () => {
+    const run = (job_tags: string[]) => ({ id: 9, analysis: "travel-time", tags: ["walking"], job_tags }) as unknown as Api.RunRecord;
+    const row = jobRow(run(["walking", "9"]), (k) => k);
+    expect([row.type, row.class, row.tags]).toEqual(["data.kind_job", "analysis_accessibility_main_tab", "walking 9"]);
+    expect(jobRow(run([]), (k) => k).tags).toBe("walking");
+    expect(jobRow(run([]), () => "Fusionner l'occupation du sol").class).toBe("fusionner l'occupation du sol");
+  });
+
   it("filters by type, text, tags and run", () => {
     const run = { id: 7, analysis: "travel-time", tags: ["demo"], inputs: [1], datasets: [2] } as Api.RunRecord;
     const rows = [...[dataset(1, "rDem", ["demo"]), dataset(2, "vFacility", ["health", "demo"]), dataset(3, "rDem", ["other"])].map((d) => toRow(d, t as never)), jobRow(run, t as never)];

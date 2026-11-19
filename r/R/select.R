@@ -1,7 +1,8 @@
 # The project catalogue as the web interface's Data screen shows it:
 # datasets (raster, vector, table) and jobs, a job being the job document of
-# a finished analysis run, with the run's tags. Selection by type, class,
-# tags and id, with the same rules everywhere.
+# a finished analysis, its class the analysis, its tags those the engine
+# names it with (`job_tags`: its tags, and its number after an overwrite).
+# Selection by type, class, tags and id, with the same rules everywhere.
 
 .TYPES <- c("raster", "vector", "table", "job")
 
@@ -29,7 +30,8 @@
     lapply(jobs, function(r) {
       list(
         id = as.integer(r$id), type = "job", class = r$analysis,
-        tags = as.character(unlist(r$tags)), file = NA_character_, run = as.integer(r$id)
+        tags = as.character(unlist(if (length(r$job_tags) > 0) r$job_tags else r$tags)),
+        file = NA_character_, run = as.integer(r$id)
       )
     })
   )

@@ -16,6 +16,8 @@ fake_runs <- function() {
     list(id = 2, analysis = "travel-time", status = "done", kind = "analysis", tags = list("test"), job = scenario_doc()),
     list(id = 5, analysis = "travel-time", status = "failed", kind = "analysis", tags = list("test"), job = list()),
     list(id = 6, analysis = "travel-time", status = "done", kind = "analysis", tags = list("test 1", "x"), job = scenario_doc()),
+    # An overwrite of run 2: its job is named with its number.
+    list(id = 7, analysis = "travel-time", status = "done", kind = "analysis", tags = list("test"), job_tags = list("test", "7"), job = scenario_doc()),
     list(id = 11, analysis = "archive", status = "done", kind = "manage", tags = list(), job = list())
   )
 }
