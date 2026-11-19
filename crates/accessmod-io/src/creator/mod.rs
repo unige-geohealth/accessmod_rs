@@ -547,18 +547,38 @@ fn osm_id(feature: &gdal::vector::Feature<'_>) -> Option<FieldValue> {
         .map(FieldValue::Integer64Value)
 }
 
-/// Cells whose centre lies in `region` (grid CRS), and how many of them
-/// `path` (on the grid) leaves at NoData: a source tile missing under the
-/// region (contract 2).
+/// Cells whose centre lies in `region`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Coverage {
+    /// Cells inside.
+    inside: u64,
+    /// Of them, NoData: a source tile missing under the region
+    /// (contract 2).
+    missing: u64,
+    /// Of them, NoData where `sea` (the DEM on the grid) is exactly 0:
+    /// open sea, which WorldCover leaves without data far from the coast.
+    sea: u64,
+}
+
+/// What `path` (on the grid) covers of `region` (grid CRS); with `sea`,
+/// its NoData cells where that raster is 0 are open sea, not missing.
 fn missing_inside(
     path: &Path,
+    sea: Option<&Path>,
     grid: &GridSpec,
     region: &Geometry,
     cancelled: crate::analysis::Cancelled<'_>,
-) -> Result<(u64, u64)> {
+) -> Result<Coverage> {
     let dataset = gdal::Dataset::open(path).map_err(Error::gdal(path))?;
     let band = dataset.rasterband(1).map_err(Error::gdal(path))?;
     let nodata = band.no_data_value();
+    let sea_dataset = sea
+        .map(|p| gdal::Dataset::open(p).map_err(Error::gdal(p)))
+        .transpose()?;
+    let sea_band = sea_dataset
+        .as_ref()
+        .map(|d| d.rasterband(1).map_err(Error::gdal(path)))
+        .transpose()?;
     let polygons: Vec<Geometry> = match gdal::vector::geometry_type_flatten(region.geometry_type())
     {
         OGRwkbGeometryType::wkbPolygon => vec![region.clone()],
@@ -566,7 +586,7 @@ fn missing_inside(
             .map(|i| region.get_geometry(i).clone())
             .collect(),
     };
-    let (mut inside, mut missing) = (0u64, 0u64);
+    let mut coverage = Coverage::default();
     let mut failure = None;
     for polygon in polygons {
         let rings: Vec<Vec<(f64, f64)>> = (0..polygon.geometry_count())
@@ -588,22 +608,32 @@ fn missing_inside(
                     failure = Some(Error::Cancelled);
                     return std::ops::ControlFlow::Break(());
                 }
-                let read = band.read_as::<f64>(
-                    (first as isize, row as isize),
-                    (fractions.len(), 1),
-                    (fractions.len(), 1),
-                    None,
-                );
+                let window = |b: &gdal::raster::RasterBand<'_>| {
+                    b.read_as::<f64>(
+                        (first as isize, row as isize),
+                        (fractions.len(), 1),
+                        (fractions.len(), 1),
+                        None,
+                    )
+                    .map(|buffer| buffer.into_shape_and_vec().1)
+                };
+                let read = window(&band).and_then(|values| {
+                    let sea = sea_band.as_ref().map(window).transpose()?;
+                    Ok((values, sea))
+                });
                 match read {
-                    Ok(buffer) => {
-                        for (value, fraction) in buffer.into_shape_and_vec().1.iter().zip(fractions)
-                        {
+                    Ok((values, sea)) => {
+                        for (i, (value, fraction)) in values.iter().zip(fractions).enumerate() {
                             // The cell centre is inside when most of the cell is
                             // (cells on the boundary count half the time).
                             if *fraction >= 0.5 {
-                                inside += 1;
+                                coverage.inside += 1;
                                 if Some(*value) == nodata || value.is_nan() {
-                                    missing += 1;
+                                    if sea.as_ref().is_some_and(|s| s[i] == 0.0) {
+                                        coverage.sea += 1;
+                                    } else {
+                                        coverage.missing += 1;
+                                    }
                                 }
                             }
                         }
@@ -620,7 +650,7 @@ fn missing_inside(
             return Err(e);
         }
     }
-    Ok((inside, missing))
+    Ok(coverage)
 }
 
 /// Build the project of `recipe` into `target` (a new directory), from
@@ -760,19 +790,31 @@ pub fn build(
                 cancelled,
             )?;
         }
-        // A tile missing under the region would leave silent holes.
-        let mut checked = vec![("DEM", "dem.tif")];
+        // A tile missing under the region would leave silent holes. Land
+        // cover is spared over open sea (the DEM at exactly 0, Copernicus'
+        // sea level), which WorldCover leaves without data far from the
+        // coast: those cells stay NoData, impassable but by ferry.
+        let mut checked = vec![("DEM", "dem.tif", None)];
         if has_land_cover {
-            checked.push(("land cover", "land_cover.tif"));
+            checked.push(("land cover", "land_cover.tif", Some(work("dem.tif"))));
         }
-        for (name, file) in checked {
-            let (inside, missing) = missing_inside(&work(file), &grid, &traversable, cancelled)?;
-            if missing > 0 {
+        for (name, file, sea) in checked {
+            let c = missing_inside(&work(file), sea.as_deref(), &grid, &traversable, cancelled)?;
+            if c.missing > 0 {
                 return Err(Error::invalid(format!(
-                    "the {name} sources leave {missing} of {inside} cells of the region without data \
+                    "the {name} sources leave {} of {} cells of the region without data \
                      ({:.1} %): add the missing tiles",
-                    missing as f64 * 100.0 / inside.max(1) as f64
+                    c.missing,
+                    c.inside,
+                    c.missing as f64 * 100.0 / c.inside.max(1) as f64
                 )));
+            }
+            if c.sea > 0 {
+                warnings.push(format!(
+                    "{} of {} cells of the region are open sea without {name} (DEM at 0): \
+                     impassable, but by ferry",
+                    c.sea, c.inside
+                ));
             }
         }
         let population = if recipe.sources.population.is_empty() {

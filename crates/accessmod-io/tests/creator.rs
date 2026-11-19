@@ -702,3 +702,85 @@ fn ferries_join_the_roads_and_cross_rivers() {
         );
     }
 }
+
+/// A copy of fixture `name` in `dir` with `value` in every pixel whose
+/// centre lies in the WGS 84 box `(west, south, east, north)`.
+fn patched(dir: &Path, name: &str, bbox: (f64, f64, f64, f64), value: f64) -> PathBuf {
+    use gdal::raster::Buffer;
+    use gdal::{Dataset, DatasetOptions, GdalOpenFlags};
+    let target = dir.join(name);
+    std::fs::copy(data(name), &target).expect("copy");
+    let ds = Dataset::open_ex(
+        &target,
+        DatasetOptions {
+            open_flags: GdalOpenFlags::GDAL_OF_RASTER | GdalOpenFlags::GDAL_OF_UPDATE,
+            ..Default::default()
+        },
+    )
+    .expect("open for update");
+    let gt = ds.geo_transform().expect("geotransform");
+    let (cols, rows) = ds.raster_size();
+    let mut band = ds.rasterband(1).expect("band");
+    let mut values = band
+        .read_as::<f64>((0, 0), (cols, rows), (cols, rows), None)
+        .expect("read")
+        .into_shape_and_vec()
+        .1;
+    for row in 0..rows {
+        for col in 0..cols {
+            let x = gt[0] + (col as f64 + 0.5) * gt[1];
+            let y = gt[3] + (row as f64 + 0.5) * gt[5];
+            if x > bbox.0 && x < bbox.2 && y > bbox.1 && y < bbox.3 {
+                values[row * cols + col] = value;
+            }
+        }
+    }
+    let mut buffer = Buffer::new((cols, rows), values);
+    band.write((0, 0), (cols, rows), &mut buffer)
+        .expect("write");
+    target
+}
+
+/// WorldCover leaves open sea far from the coast without data; the DEM
+/// says 0 there. Such cells are spared by the missing-tile check (a
+/// warning, cells left NoData); land cover NoData over land is not.
+#[test]
+fn open_sea_without_land_cover_is_a_warning_not_a_missing_tile() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = settings(64 << 20, 1);
+    // As at sea: WorldCover's NoData starts offshore, where the DEM is
+    // already 0 (a few DEM cells around the hole).
+    let hole_box = (31.611, 4.849, 31.619, 4.857);
+    let sea = (31.608, 4.846, 31.622, 4.86);
+    let land_cover = patched(dir.path(), "worldcover.tif", hole_box, 0.0);
+
+    let mut hole = recipe(0.0, Crs::Auto);
+    hole.sources.land_cover = vec![land_cover.clone()];
+    let error = creator::build(&hole, &dir.path().join("hole"), &s, Monitor::QUIET)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("land cover") && error.contains("missing tiles"),
+        "{error}"
+    );
+
+    let mut open_sea = hole.clone();
+    open_sea.sources.dem = vec![
+        data("dem_west.tif"),
+        patched(dir.path(), "dem_east.tif", sea, 0.0),
+    ];
+    let (project, manifest) =
+        creator::build(&open_sea, &dir.path().join("sea"), &s, Monitor::QUIET).expect("sea");
+    let warning = manifest
+        .warnings
+        .iter()
+        .find(|w| w.contains("open sea"))
+        .unwrap_or_else(|| panic!("{:?}", manifest.warnings));
+    assert!(
+        warning.contains("without land cover (DEM at 0)"),
+        "{warning}"
+    );
+    // The sea stays NoData in the merged land cover.
+    assert_eq!(merged_at(&project, 31.615, 4.853), None);
+    assert!(merged_at(&project, 31.6, 4.86).is_some());
+}

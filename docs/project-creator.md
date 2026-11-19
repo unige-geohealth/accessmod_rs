@@ -255,6 +255,11 @@ moves a buffer: a disputed line changes what is reported, not what is computable
   Countries are found from geoBoundaries ADM0, simplified.
 - Coverage that is missing or not fetched shows in the plan and blocks creation, unless the
   user explicitly excludes it.
+- Except open sea: WorldCover maps the sea near the coast as water (80) but leaves it NoData
+  farther out, inside its tiles (Belize + 50 km: 1.1 % of the cells). Land cover NoData
+  where the DEM on the grid is exactly 0 (Copernicus' sea level; bilinear keeps 0 away
+  from the coast) is open sea: a warning with the count, the cells stay NoData, impassable
+  but by a ferry burned over them. NoData over land still refuses the build.
 - OSM features are deduplicated by `osm_id`. WorldPop country rasters must not overlap; this
   is checked, never assumed.
 
