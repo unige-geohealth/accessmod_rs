@@ -40,6 +40,15 @@ pub struct LandCoverPreset {
     pub classes: Vec<LandCoverClass>,
 }
 
+/// A travel mode and speed on a road class.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Travel {
+    /// Travel mode.
+    pub mode: TransportMode,
+    /// Speed, km/h.
+    pub speed_kmh: f64,
+}
+
 /// A road class rule.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoadRule {
@@ -49,10 +58,12 @@ pub struct RoadRule {
     pub label: String,
     /// OSM `highway` values.
     pub highway: Vec<String>,
-    /// Travel mode on it.
-    pub mode: TransportMode,
-    /// Speed, km/h.
-    pub speed_kmh: f64,
+    /// Travel on it in the walking scenario.
+    pub walking: Travel,
+    /// Travel on it in the bicycle scenario.
+    pub bicycle: Travel,
+    /// Travel on it in the motorized scenario.
+    pub motorized: Travel,
 }
 
 /// Roads preset (`osm_roads.json`).
@@ -183,5 +194,12 @@ mod tests {
         classes.dedup();
         assert_eq!(classes.len(), p.roads.rules.len());
         assert!(classes.iter().all(|c| (1..1000).contains(c)));
+        // No road is a barrier in any scenario: a road at 0 km/h would be a
+        // wall in the merged land cover.
+        assert!(p.roads.rules.iter().all(|r| {
+            [r.walking, r.bicycle, r.motorized]
+                .iter()
+                .all(|t| t.speed_kmh > 0.0)
+        }));
     }
 }

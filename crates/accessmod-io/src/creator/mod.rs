@@ -13,8 +13,9 @@
 //!    the region can be crossed (contract 1); then roads, rivers and the land
 //!    cover: a barrier empties only the items below it, so roads cross rivers
 //!    and water while a river without a road stays closed;
-//! 3. a travel-time job with the preset scenario, saved and checked: the
-//!    project is published only once it is ready (contract 7);
+//! 3. travel-time jobs with the preset scenarios (walking, bicycle,
+//!    motorized; off the roads people walk), checked, and saved unless the
+//!    recipe declines them (contract 7);
 //! 4. the manifest of what was used, in the project's metadata (contract 8).
 
 pub mod presets;
@@ -174,6 +175,10 @@ pub struct Recipe {
     pub crs: Crs,
     /// Source files.
     pub sources: Sources,
+    /// Whether to save the travel-time jobs of the preset scenarios
+    /// (walking, bicycle, motorized). They are checked either way.
+    #[serde(default = "yes")]
+    pub default_scenarios: bool,
 }
 
 impl Recipe {
@@ -1229,9 +1234,17 @@ pub fn build(
                     }
                 };
 
-                // The scenario of the presets (WorldCover classes, OSM road
-                // classes), limited to the classes the merged land cover holds.
-                let scenario: Option<Vec<serde_json::Value>> = match (
+                // The scenarios of the presets, limited to the classes the
+                // merged land cover holds: the WorldCover classes at their
+                // walking speed (off the roads people walk), the OSM road
+                // classes at the speed of each scenario.
+                type Pick = fn(&presets::RoadRule) -> presets::Travel;
+                let profiles: [(&str, Pick); 3] = [
+                    ("walking", |r| r.walking),
+                    ("bicycle", |r| r.bicycle),
+                    ("motorized", |r| r.motorized),
+                ];
+                let scenarios: Option<Vec<(&str, Vec<serde_json::Value>)>> = match (
                     &merged,
                     recipe.sources.land_cover_worldcover,
                 ) {
@@ -1246,24 +1259,35 @@ pub fn build(
                         };
                         let holds =
                             |class: i64| present.as_ref().is_none_or(|p| p.contains(&class));
-                        let mut scenario: Vec<serde_json::Value> = presets
+                        let classes: Vec<serde_json::Value> = presets
                             .land_cover
                             .classes
                             .iter()
                             .filter(|c| holds(c.value))
                             .map(|c| serde_json::json!({"class": c.value, "mode": c.mode, "speed_kmh": c.speed_kmh, "label": c.label}))
                             .collect();
-                        if roads.is_some() {
-                            scenario.extend(
-                                presets
-                                    .roads
-                                    .rules
-                                    .iter()
-                                    .filter(|r| holds(r.class + 1000))
-                                    .map(|r| serde_json::json!({"class": r.class + 1000, "mode": r.mode, "speed_kmh": r.speed_kmh, "label": r.label})),
-                            );
-                        }
-                        Some(scenario)
+                        Some(
+                            profiles
+                                .iter()
+                                .map(|&(name, pick)| {
+                                    let mut scenario = classes.clone();
+                                    if roads.is_some() {
+                                        scenario.extend(
+                                            presets
+                                                .roads
+                                                .rules
+                                                .iter()
+                                                .filter(|r| holds(r.class + 1000))
+                                                .map(|r| {
+                                                    let t = pick(r);
+                                                    serde_json::json!({"class": r.class + 1000, "mode": t.mode, "speed_kmh": t.speed_kmh, "label": r.label})
+                                                }),
+                                        );
+                                    }
+                                    (name, scenario)
+                                })
+                                .collect(),
+                        )
                     }
                     (Some(_), false) => {
                         not_ready.push(
@@ -1280,37 +1304,46 @@ pub fn build(
                             .to_owned(),
                     );
                 }
-                if let (Some(merged), Some(scenario), Some(facilities)) =
-                    (&merged, scenario, &facilities)
+                if let (Some(merged), Some(scenarios), Some(facilities)) =
+                    (&merged, scenarios, &facilities)
                 {
-                    let job = serde_json::json!({
-                        "schema_version": 1,
-                        "dem": dem.file,
-                        "land_cover": merged.file,
-                        "facilities": {"path": facilities.file, "id_field": facility_id},
-                        "scenario": scenario,
-                        "method": "anisotropic",
-                        "direction": "from_facilities",
-                        "neighbourhood": 8,
-                        // Facilities on a barrier are listed, never moved
-                        // (contract 6): the job runs without them.
-                        "facility_issues": "skip"
-                    });
-                    match project.check_named("travel-time", &job) {
-                        Ok(warnings) => {
-                            manifest
-                                .warnings
-                                .extend(warnings.into_iter().map(|w| w.message));
-                            project.save_job(
-                                None,
-                                "travel-time",
-                                "Travel time (Project Creator)",
-                                &job,
-                            )?;
+                    for (name, scenario) in scenarios {
+                        let job = serde_json::json!({
+                            "schema_version": 1,
+                            "dem": dem.file,
+                            "land_cover": merged.file,
+                            "facilities": {"path": facilities.file, "id_field": facility_id},
+                            "scenario": scenario,
+                            "method": "anisotropic",
+                            "direction": "from_facilities",
+                            "neighbourhood": 8,
+                            // Facilities on a barrier are listed, never moved
+                            // (contract 6): the job runs without them.
+                            "facility_issues": "skip"
+                        });
+                        match project.check_named("travel-time", &job) {
+                            Ok(warnings) => {
+                                // The scenarios share their inputs: one
+                                // warning each.
+                                for w in warnings {
+                                    if !manifest.warnings.contains(&w.message) {
+                                        manifest.warnings.push(w.message);
+                                    }
+                                }
+                                if recipe.default_scenarios {
+                                    project.save_job(
+                                        None,
+                                        "travel-time",
+                                        &format!("Travel time, {name} (Project Creator)"),
+                                        &job,
+                                    )?;
+                                }
+                            }
+                            Err(Error::Cancelled) => return Err(Error::Cancelled),
+                            Err(error) => not_ready.push(format!(
+                                "the {name} travel-time job does not validate: {error}"
+                            )),
                         }
-                        Err(Error::Cancelled) => return Err(Error::Cancelled),
-                        Err(error) => not_ready
-                            .push(format!("the travel-time job does not validate: {error}")),
                     }
                 }
                 manifest.ready = not_ready.is_empty();

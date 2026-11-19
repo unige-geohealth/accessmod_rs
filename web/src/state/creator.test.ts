@@ -34,6 +34,7 @@ describe("creator draft", () => {
       buffer_m: 5000,
       resolution_m: 100,
       layers: EMPTY.layers,
+      default_scenarios: true,
     });
     // The whole country needs no unit.
     const country = update(named, { type: "level", level: 0 });
@@ -44,5 +45,13 @@ describe("creator draft", () => {
     const d = apply({ type: "layer", layer: "osm_facilities", on: false });
     expect(d.layers.osm_facilities).toBe(false);
     expect(d.layers.roads).toBe(true);
+  });
+
+  it("declines the default scenarios", () => {
+    expect(EMPTY.default_scenarios).toBe(true);
+    const d = apply({ type: "defaultScenarios", on: false });
+    expect(d.default_scenarios).toBe(false);
+    const named = update(update(update(d, { type: "name", text: "Juba" }), { type: "country", iso3: "SSD" }), { type: "level", level: 0 });
+    expect(params(named)?.default_scenarios).toBe(false);
   });
 });

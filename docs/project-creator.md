@@ -14,8 +14,8 @@ macOS, over the public internet).
 
 Select a region on a map (rectangle or administrative unit), then get a
 working project without leaving AccessMod: DEM, land cover with its table and
-a default scenario, population, roads, rivers, zones, and facilities as a
-starting point. The work runs as one queued task (progress, pause, cancel),
+default scenarios (walking, bicycle, motorized), population, roads, rivers,
+zones, and facilities as a starting point. The work runs as one queued task (progress, pause, cancel),
 is tested without the network, and never reads a whole country into memory.
 
 Today users work by hand, per country, or with
@@ -309,9 +309,24 @@ notes: `crates/accessmod-io/src/creator/presets/`.
   where they pass, while a river without a road stays closed; Merge's bridge cleaning
   (AccessMod 5's rule) removes diagonal leaks.
 - **OSM roads:**
-  - `highway` values to road classes, labels and speeds;
+  - `highway` values to road classes, labels and a speed per default scenario;
   - explicit rules for unknown values, `track` and `path`, `access=no`, construction and
     tunnels.
+- **Default scenarios** (box ticked by default; `default_scenarios` in the recipe): three
+  saved travel-time jobs, "Travel time, walking / bicycle / motorized (Project Creator)",
+  a template to compute at once, edited in Analysis › Accessibility. Off the roads people
+  walk (WorldCover speeds). Unticked, the jobs are still checked for readiness, not saved.
+
+  | Road class | Walking | Bicycle | Motorized |
+  | --- | --- | --- | --- |
+  | 1 Motorway and trunk | walking 0.1 | walking 0.1 | motorized 80 |
+  | 2 Primary, 3 Secondary, 4 Tertiary, 5 Local | walking 5 | bicycling 15 | motorized 60, 50, 40, 30 |
+  | 6 Track | walking 5 | bicycling 10 | motorized 15 |
+  | 7 Path | walking 5 | walking 5 | walking 5 |
+
+  Motorways and trunk roads are crossed on foot or by bicycle, not followed: 0.1 km/h,
+  not 0, because a road at 0 km/h would be a barrier: a wall in the merged land cover, and
+  facilities on it skipped.
 - **OSM facilities:**
   - points, and polygon centroids, with `osm_id`;
   - no capacity invented, no snapping;

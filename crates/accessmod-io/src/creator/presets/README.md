@@ -8,7 +8,7 @@ their version, and shown to the user before a project is created.
 | File | What it sets |
 | --- | --- |
 | `worldcover.json` | ESA WorldCover classes: land cover labels and the default walking scenario (km/h) |
-| `osm_roads.json` | OSM `highway` values to road classes (merged as class + 1000), labels and speeds; exclusions |
+| `osm_roads.json` | OSM `highway` values to road classes (merged as class + 1000), labels, speeds in the walking, bicycle and motorized scenarios; exclusions |
 | `osm_barriers.json` | OSM `waterway` values kept as barriers |
 | `osm_facilities.json` | OSM health facilities kept as a starting point |
 

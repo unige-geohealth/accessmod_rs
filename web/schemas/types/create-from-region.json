@@ -115,6 +115,11 @@
       "format": "double",
       "type": "number"
     },
+    "default_scenarios": {
+      "default": true,
+      "description": "Save the travel-time jobs of the preset scenarios (walking, bicycle,\nmotorized).",
+      "type": "boolean"
+    },
     "facilities": {
       "anyOf": [
         {

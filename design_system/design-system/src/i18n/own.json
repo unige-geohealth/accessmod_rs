@@ -101,6 +101,18 @@
     "es": "La elevación (Copernicus DEM GLO-90) se incluye siempre: define la cuadrícula.",
     "pt": "A elevação (Copernicus DEM GLO-90) é sempre incluída: ela define a grade."
   },
+  "creator.default_scenarios": {
+    "en": "Default scenarios",
+    "fr": "Scénarios par défaut",
+    "es": "Escenarios por defecto",
+    "pt": "Cenários padrão"
+  },
+  "creator.default_scenarios_hint": {
+    "en": "Saves three travel-time jobs ready to run: walking, bicycle and motorized. Off the roads people walk; motorways and trunk roads are crossed on foot, not followed. The speeds are a starting point, to edit in Analysis › Accessibility.",
+    "fr": "Enregistre trois calculs de temps de trajet prêts à lancer : à pied, à vélo et motorisé. Hors des routes, on marche ; autoroutes et routes nationales se traversent à pied, sans les suivre. Les vitesses sont un point de départ, à modifier dans Analyse › Accessibilité.",
+    "es": "Guarda tres cálculos de tiempo de viaje listos para ejecutar: a pie, en bicicleta y motorizado. Fuera de las carreteras se camina; autopistas y carreteras troncales se cruzan a pie, sin recorrerlas. Las velocidades son un punto de partida, a editar en Análisis › Accesibilidad.",
+    "pt": "Salva três cálculos de tempo de viagem prontos para executar: a pé, de bicicleta e motorizado. Fora das estradas se caminha; autoestradas e rodovias troncais são atravessadas a pé, sem segui-las. As velocidades são um ponto de partida, a editar em Análise › Acessibilidade."
+  },
   "creator.layer_land_cover": {
     "en": "Land cover (ESA WorldCover 2021)",
     "fr": "Occupation du sol (ESA WorldCover 2021)",

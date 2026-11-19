@@ -24,6 +24,8 @@ export interface CreatorDraft {
   buffer_km: number;
   resolution_m: number;
   layers: Layers;
+  /** Save the travel-time jobs of the preset scenarios (walking, bicycle, motorized). */
+  default_scenarios: boolean;
 }
 
 export type CreatorMessage =
@@ -34,7 +36,8 @@ export type CreatorMessage =
   | { type: "clearUnits" }
   | { type: "buffer"; km: number }
   | { type: "resolution"; metres: number }
-  | { type: "layer"; layer: keyof Layers; on: boolean };
+  | { type: "layer"; layer: keyof Layers; on: boolean }
+  | { type: "defaultScenarios"; on: boolean };
 
 export const BUFFERS_KM = [0, 5, 10, 25, 50] as const;
 export const RESOLUTIONS_M = [50, 100, 200, 500, 1000] as const;
@@ -54,6 +57,7 @@ export const EMPTY: CreatorDraft = {
     waterways: true,
     osm_facilities: true,
   },
+  default_scenarios: true,
 };
 
 export function update(state: CreatorDraft, message: CreatorMessage): CreatorDraft {
@@ -81,6 +85,8 @@ export function update(state: CreatorDraft, message: CreatorMessage): CreatorDra
         ...state,
         layers: { ...state.layers, [message.layer]: message.on },
       };
+    case "defaultScenarios":
+      return { ...state, default_scenarios: message.on };
   }
 }
 
@@ -104,6 +110,7 @@ export function params(d: CreatorDraft): Api.CreateFromRegion | null {
     buffer_m: d.buffer_km * 1000,
     resolution_m: d.resolution_m,
     layers: d.layers,
+    default_scenarios: d.default_scenarios,
   };
 }
 

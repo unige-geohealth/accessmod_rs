@@ -23,6 +23,7 @@ test("a region picked on the map becomes a project that computes", async ({ page
   await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.5);
   await expect(page.getByText("Region: Juba west.")).toBeVisible();
   await choose(page, "Passable distance around the region", "0 km");
+  await expect(page.getByRole("checkbox", { name: "Default scenarios" })).toBeChecked();
   await shot(page, "creator-region");
 
   const create = page.getByRole("button", { name: "Create the project" });

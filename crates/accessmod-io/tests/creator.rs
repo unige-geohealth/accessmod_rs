@@ -49,6 +49,7 @@ fn recipe(buffer_m: f64, crs: Crs) -> Recipe {
             urls: vec![],
             attributions: vec![],
         },
+        default_scenarios: true,
     }
 }
 
@@ -154,16 +155,50 @@ fn a_region_becomes_a_project_that_computes() {
         road_cells(&cells),
         road_cells(&closed_cells)
     );
-    // The saved travel-time job runs.
+    // The three saved travel-time jobs run; off the roads people walk, so
+    // only the motorized one has a motorized class, and it reaches the
+    // population sooner than walking.
     let jobs = project.jobs().expect("jobs");
-    let job = jobs
-        .iter()
-        .find(|j| j.analysis == "travel-time")
-        .expect("saved travel-time job");
-    let run = project
-        .run_named("travel-time", &job.document, &[], false, &s, Monitor::QUIET)
-        .expect("run");
-    assert_eq!(run.status, RunStatus::Done, "{:?}", run.outcome);
+    let mut means = Vec::new();
+    for name in ["walking", "bicycle", "motorized"] {
+        let job = jobs
+            .iter()
+            .find(|j| {
+                j.analysis == "travel-time"
+                    && j.name == format!("Travel time, {name} (Project Creator)")
+            })
+            .unwrap_or_else(|| panic!("saved {name} job"));
+        let modes: Vec<&str> = job.document["scenario"]
+            .as_array()
+            .expect("scenario")
+            .iter()
+            .filter_map(|e| e["mode"].as_str())
+            .collect();
+        assert_eq!(
+            modes.contains(&"motorized"),
+            name == "motorized",
+            "{name}: {modes:?}"
+        );
+        let run = project
+            .run_named("travel-time", &job.document, &[], false, &s, Monitor::QUIET)
+            .expect("run");
+        assert_eq!(run.status, RunStatus::Done, "{:?}", run.outcome);
+        let time = run
+            .datasets
+            .iter()
+            .filter_map(|&id| project.dataset(id).ok())
+            .find(|d| d.class == DataClass::TravelTime)
+            .expect("travel time");
+        let cells: Vec<f64> = read_valid(&project.resolve(Path::new(&time.file)).unwrap())
+            .into_iter()
+            .flatten()
+            .collect();
+        means.push(cells.iter().sum::<f64>() / cells.len() as f64);
+    }
+    assert!(
+        means[2] < means[1] && means[1] < means[0],
+        "mean times {means:?}"
+    );
     // The manifest is kept in the project.
     assert!(
         manifest
@@ -178,13 +213,19 @@ fn outputs_do_not_depend_on_memory_or_threads() {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut digests = Vec::new();
     for (i, (memory, threads)) in [(32 << 20, 1), (512 << 20, 4)].into_iter().enumerate() {
+        // Declining the preset scenarios saves no job and changes no data.
+        let declined = i == 0;
         let (project, _) = creator::build(
-            &recipe(0.0, Crs::Auto),
+            &Recipe {
+                default_scenarios: !declined,
+                ..recipe(0.0, Crs::Auto)
+            },
             &dir.path().join(format!("p{i}")),
             &settings(memory, threads),
             Monitor::QUIET,
         )
         .expect("build");
+        assert_eq!(project.jobs().unwrap().len(), if declined { 0 } else { 3 });
         let mut sums: Vec<(String, String)> = project
             .datasets(None)
             .unwrap()

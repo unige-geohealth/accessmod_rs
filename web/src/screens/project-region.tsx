@@ -125,6 +125,14 @@ export function RegionPanel() {
           <CheckboxField key={layer} label={label} checked={draft.layers[layer]} onChange={(on) => dispatch({ type: "layer", layer, on })} />
         ))}
       </div>
+      <div className="flex items-center gap-1">
+        <CheckboxField
+          label="creator.default_scenarios"
+          checked={draft.default_scenarios}
+          onChange={(on) => dispatch({ type: "defaultScenarios", on })}
+        />
+        <InfoTip k="creator.default_scenarios_hint" label="creator.default_scenarios" />
+      </div>
       {messages.length > 0 && <MessageList messages={messages} />}
       <AmButton
         variant={ready === null ? "danger" : "primary"}

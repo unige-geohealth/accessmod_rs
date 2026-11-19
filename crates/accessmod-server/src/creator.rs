@@ -249,6 +249,10 @@ pub struct CreateFromRegion {
     /// Facilities of your own (replace OpenStreetMap's).
     #[serde(default)]
     pub facilities: Option<FacilityList>,
+    /// Save the travel-time jobs of the preset scenarios (walking, bicycle,
+    /// motorized).
+    #[serde(default = "yes")]
+    pub default_scenarios: bool,
 }
 
 fn ten_km() -> f64 {
@@ -520,6 +524,7 @@ fn build(
                 .collect(),
             attributions,
         },
+        default_scenarios: params.default_scenarios,
     };
     if recipe.sources.dem.is_empty() {
         return Err(Error::invalid("no DEM tile covers this region"));
