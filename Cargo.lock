@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "accessmod-cli"
-version = "6.0.0-alpha.3"
+version = "6.0.0-alpha.4"
 dependencies = [
  "accessmod-core",
  "accessmod-io",
@@ -21,7 +21,7 @@ dependencies = [
 
 [[package]]
 name = "accessmod-core"
-version = "6.0.0-alpha.3"
+version = "6.0.0-alpha.4"
 dependencies = [
  "proptest",
  "schemars",
@@ -32,7 +32,7 @@ dependencies = [
 
 [[package]]
 name = "accessmod-fetch"
-version = "6.0.0-alpha.3"
+version = "6.0.0-alpha.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "accessmod-io"
-version = "6.0.0-alpha.3"
+version = "6.0.0-alpha.4"
 dependencies = [
  "accessmod-core",
  "accessmod-io",
@@ -69,7 +69,7 @@ dependencies = [
 
 [[package]]
 name = "accessmod-server"
-version = "6.0.0-alpha.3"
+version = "6.0.0-alpha.4"
 dependencies = [
  "accessmod-fetch",
  "accessmod-io",
@@ -2503,7 +2503,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "6.0.0-alpha.3"
+version = "6.0.0-alpha.4"
 dependencies = [
  "accessmod-core",
  "accessmod-io",
