@@ -21,6 +21,7 @@
     "visual": "npm -w @accessmod/ui run visual",
     "build": "npm -w @accessmod/ui run build && npm -w @accessmod/web run build",
     "e2e": "npm -w @accessmod/web run e2e",
-    "check": "npm run typecheck && npm run contrast && npm test && npm run build"
+    "check": "npm run typecheck && npm run contrast && npm test && npm run build",
+    "release": "sh scripts/release.sh"
   }
 }

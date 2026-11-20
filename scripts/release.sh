@@ -2,14 +2,17 @@
 # Release from main: check the tree, run every gate, set the version, commit,
 # tag and push. CI makes the GitHub release from the tag.
 #
-#   sh scripts/release.sh 6.0.0-alpha.2 [--dry-run]
+#   npm run release -- 6.0.0-alpha.4 [--dry-run]   (or sh scripts/release.sh …)
+#
+# Before: update docs/coverage.md, the README status and AGENTS for the
+# commits since the last tag (AGENTS.md, "Releasing").
 #
 # --dry-run runs the checks and the gates, then stops before changing files.
 set -e
 cd "$(dirname "$0")/.."
 
 usage() {
-	echo "usage: sh scripts/release.sh <version> [--dry-run]" >&2
+	echo "usage: npm run release -- <version> [--dry-run]" >&2
 	exit 2
 }
 
