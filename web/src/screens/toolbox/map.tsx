@@ -288,7 +288,7 @@ function Relocator({
         <MessageList messages={[{ kind: "info", text: `${f("tool_map_relocate_out_saved", result.count ?? 0).trimEnd()} ${datasetLabel(t, result.saved)}` }]} />
       )}
       <AmButton
-        variant="danger"
+        variant="primary"
         block
         disabled={moved.length === 0 || issues.length > 0 || draft.saving}
         k="toolbox_map_relocate_save"

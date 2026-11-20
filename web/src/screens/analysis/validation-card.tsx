@@ -116,7 +116,7 @@ export function ValidationCard({
         </div>
       )}
       {/* Red while something blocks it, primary once it can run. */}
-      <AmButton variant={ready ? "primary" : "danger"} block disabled={!ready} k={button} onClick={() => void compute()} />
+      <AmButton variant="primary" block disabled={!ready} k={button} onClick={() => void compute()} />
       {document !== null && <LinkActions actions={[{ icon: "download", k: "analysis.download_job", onClick: () => downloadJson(analysis, document) }]} />}
     </SectionCard>
   );

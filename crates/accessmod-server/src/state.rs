@@ -158,6 +158,37 @@ impl AppState {
         project_slugs(&self.projects_dir())
     }
 
+    /// Refuse `name` for a new or renamed project when another project
+    /// (not `except`) has it, or an unfinished operation makes one with it
+    /// (AM5 "Project %s is not available."). Names compare trimmed and
+    /// case-folded.
+    pub fn check_name_free(&self, name: &str, except: Option<&str>) -> ApiResult<()> {
+        let wanted = name_key(name);
+        let project = self
+            .project_slugs()
+            .into_iter()
+            .filter(|slug| Some(slug.as_str()) != except)
+            .any(|slug| {
+                self.open(&slug)
+                    .and_then(|p| Ok(p.info()?))
+                    .is_ok_and(|info| name_key(&info.name) == wanted)
+            });
+        let pending = self.pending().list().into_iter().any(|o| {
+            o.finished.is_none()
+                && o.operation != "project-remove"
+                && Some(o.project.as_str()) != except
+                && name_key(&o.name) == wanted
+        });
+        if project || pending {
+            Err(ApiError::BadRequest(format!(
+                "project {:?} is not available: another project has this name",
+                name.trim()
+            )))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Current settings.
     pub fn settings(&self) -> Settings {
         self.inner
@@ -332,6 +363,11 @@ pub fn new_slug_except(projects: &Path, name: &str, reserved: &dyn Fn(&str) -> b
         n += 1;
     }
     slug
+}
+
+/// A project name as compared for uniqueness: trimmed, case-folded.
+fn name_key(name: &str) -> String {
+    name.trim().to_lowercase()
 }
 
 fn project_slugs(projects: &Path) -> Vec<String> {

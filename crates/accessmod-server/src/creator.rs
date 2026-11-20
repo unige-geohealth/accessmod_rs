@@ -680,6 +680,7 @@ pub fn create(
     if params.name.trim().is_empty() {
         return Err(ApiError::BadRequest("a project needs a name".into()));
     }
+    state.check_name_free(&params.name, None)?;
     let facilities = match &params.facilities {
         Some(list) => Some((
             uploads::resolve(state, principal, &list.file)?,

@@ -11,9 +11,10 @@ import type { FeatureCollection } from "geojson";
 import type maplibregl from "maplibre-gl";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { api, issuesOf } from "../api/client";
-import { useCountries, useUnits } from "../api/queries";
+import { useCountries, useOperations, useProjects, useUnits } from "../api/queries";
 import { BUFFERS_KM, creatorStore, ferriesOn, LEVELS, type Layers, missing, params, RESOLUTIONS_M, scenariosOn } from "../state/creator";
 import { jobPanel } from "../state/job-panel";
+import { nameTaken } from "../state/project-summary";
 import { useStore } from "../state/store";
 import { useFmt } from "./common";
 
@@ -40,7 +41,8 @@ export function RegionPanel() {
     kind: "idle",
   });
   const chosen = units.data?.features.filter((u) => draft.units.includes(String(u.properties?.id))) ?? [];
-  const ready = params(draft);
+  const taken = nameTaken(draft.name, useProjects().data, useOperations().data);
+  const ready = taken ? null : params(draft);
   const create = async () => {
     if (ready === null) return;
     setState({ kind: "sending" });
@@ -53,6 +55,7 @@ export function RegionPanel() {
     }
   };
   const messages: Message[] = [
+    ...(taken ? [{ kind: "issue" as const, text: f("srv_project_project_not_available", draft.name.trim()) }] : []),
     ...missing(draft).map((k) => ({ kind: "info" as const, k })),
     ...(countries.isError
       ? issuesOf(countries.error, t).map((text) => ({
@@ -143,7 +146,7 @@ export function RegionPanel() {
       />
       {messages.length > 0 && <MessageList messages={messages} />}
       <AmButton
-        variant={ready === null ? "danger" : "primary"}
+        variant="primary"
         block
         k="creator.create"
         disabled={ready === null || state.kind === "sending"}

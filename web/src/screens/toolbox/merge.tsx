@@ -4,18 +4,19 @@
 import { Columns } from "@accessmod/ui/am/columns";
 import { type Column, DataTable, type Row } from "@accessmod/ui/am/data-table";
 import { CheckboxField, Field } from "@accessmod/ui/am/form";
+import { MessageDialog } from "@accessmod/ui/am/message-dialog";
 import { AmButton, InfoTip, LinkActions, MessageList } from "@accessmod/ui/am/messages";
 import { PageTabs } from "@accessmod/ui/am/page-tabs";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle, SectionCard, SubTitle } from "@accessmod/ui/am/section";
 import { type Stack, StackList } from "@accessmod/ui/am/stack-list";
 import { type Key, T, useI18n } from "@accessmod/ui/i18n";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import schema from "../../../schemas/jobs/merge-land-cover.json";
 import { useRows, useValues } from "../../api/queries";
 import { navigate, type Route } from "../../app/route";
 import type { Api } from "../../generated/types";
-import { datasetOptions, pairedTable } from "../../state/catalogue";
+import { datasetLabel, datasetOptions, pairedTable } from "../../state/catalogue";
 import { draftStore } from "../../state/drafts";
 import {
   ANALYSIS,
@@ -41,6 +42,7 @@ import { labelsOf, landCoverClasses } from "../../state/scenario";
 import { useStore } from "../../state/store";
 import { DatasetSelect, FieldSelect, fieldsOf, firstOf, TagsField, useCatalogue } from "../analysis/inputs";
 import { WHOLE } from "../analysis/travel";
+import { useFmt } from "../common";
 import { ValidationCard } from "../analysis/validation-card";
 
 type Tab = "landCover" | "roads" | "barriers" | "merge";
@@ -60,7 +62,19 @@ export function MergeLandCover({ project, route }: { project: string; route: Rou
   const store = draftStore(project, ANALYSIS, EMPTY, updateMerge);
   const stored = useStore(store, (s) => s);
   const dispatch = store.dispatch;
+  const f = useFmt();
+  // What the last "Add to stack" added: told in a message, closed with OK.
+  const [added, setAdded] = useState<{ dataset: number; count: number } | null>(null);
+  const adding = (message: MergeMessage) => {
+    dispatch(message);
+    const first = message.type === "add" ? message.items[0] : undefined;
+    if (message.type === "add" && first !== undefined) setAdded({ dataset: first.dataset, count: message.items.length });
+  };
   const { datasets, byId, dem } = useCatalogue(project);
+  const addedLabel = (id: number) => {
+    const dataset = byId.get(id);
+    return dataset === undefined ? `#${id}` : datasetLabel(t, dataset);
+  };
   const options = {
     landCover: datasetOptions(t, datasets, LAND_COVER),
     labelTable: datasetOptions(t, datasets, ["tLandCover"]),
@@ -85,17 +99,17 @@ export function MergeLandCover({ project, route }: { project: string; route: Rou
     {
       value: "landCover",
       label: "toolbox_land_cover_tab",
-      content: <LandCoverTab project={project} draft={draft} options={options} byId={byId} dispatch={dispatch} />,
+      content: <LandCoverTab project={project} draft={draft} options={options} byId={byId} dispatch={adding} />,
     },
     {
       value: "roads",
       label: "toolbox_land_cover_roads_tab",
-      content: <RoadsTab project={project} draft={draft} options={options} byId={byId} dispatch={dispatch} />,
+      content: <RoadsTab project={project} draft={draft} options={options} byId={byId} dispatch={adding} />,
     },
     {
       value: "barriers",
       label: "toolbox_land_cover_barrier_tab",
-      content: <BarriersTab draft={draft} options={options} byId={byId} dispatch={dispatch} />,
+      content: <BarriersTab draft={draft} options={options} byId={byId} dispatch={adding} />,
     },
     {
       value: "merge",
@@ -107,6 +121,11 @@ export function MergeLandCover({ project, route }: { project: string; route: Rou
     <>
       <CenterTitle title="toolbox_land_cover_merge_main" sub="toolbox_land_cover_merge_main_sub" />
       <PageTabs<Tab> tabs={tabs} value={tab} onValueChange={(v) => navigate({ ...route, query: { ...route.query, tab: v } })} />
+      <MessageDialog open={added !== null} onOpenChange={(open) => !open && setAdded(null)} title="toolbox.stack_added_title">
+        {added !== null && (
+          <p>{f("toolbox.stack_added", addedLabel(added.dataset), added.count)}</p>
+        )}
+      </MessageDialog>
     </>
   );
 }
@@ -146,7 +165,7 @@ function LandCoverTab({ project, draft, options, byId, dispatch }: TabProps & { 
           />
           {issues.length > 0 && <MessageList messages={issues.map((k) => ({ kind: "issue" as const, k }))} />}
           <AmButton
-            variant="danger"
+            variant="primary"
             block
             disabled={issues.length > 0 || draft.landCover === null}
             k="toolbox_land_cover_add_to_stack_btn"
@@ -219,7 +238,7 @@ function RoadsTab({ project, draft, options, byId, dispatch }: TabProps & { proj
             />
           )}
           <AmButton
-            variant="danger"
+            variant="primary"
             block
             disabled={issues.length > 0 || classes === undefined || draft.roads === null}
             k="toolbox_land_cover_road_add_btn"
@@ -262,7 +281,7 @@ function BarriersTab({ draft, options, byId, dispatch }: TabProps) {
           />
           {draft.barrier === null && <MessageList messages={[{ kind: "issue", k: "srv_merge_landcover_err_missing_barrier" }]} />}
           <AmButton
-            variant="danger"
+            variant="primary"
             block
             disabled={draft.barrier === null}
             k="toolbox_land_cover_barrier_add_btn"

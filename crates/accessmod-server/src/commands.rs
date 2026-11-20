@@ -608,6 +608,7 @@ fn create_project(
     principal: &Principal,
     params: CreateProject,
 ) -> ApiResult<PendingOperation> {
+    state.check_name_free(&params.name, None)?;
     let dem = uploads::resolve(state, principal, &params.dem)?;
     let slug = free_slug(state, &params.name);
     let job = serde_json::json!({ "name": params.name, "description": params.description });
@@ -718,6 +719,7 @@ fn import_project(
         };
         (name, rename)
     };
+    state.check_name_free(&name, None)?;
     let slug = free_slug(state, &name);
     let target = slug.clone();
     let job = serde_json::json!({ "name": name, "file": file });
@@ -828,6 +830,7 @@ fn rename_project(
     params: RenameProject,
 ) -> ApiResult<ProjectInfo> {
     let project = state.open(&params.project)?;
+    state.check_name_free(&params.name, Some(&params.project))?;
     project.rename(&params.name, &params.description)?;
     state.publish(Event::Projects);
     Ok(project.info()?)

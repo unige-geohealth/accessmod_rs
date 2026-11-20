@@ -473,6 +473,18 @@
     "es": "Organización Mundial de la Salud",
     "pt": "Organização Mundial da Saúde"
   },
+  "toolbox.stack_added_title": {
+    "en": "Added to the stack",
+    "fr": "Ajouté à la pile",
+    "es": "Añadido a la pila",
+    "pt": "Adicionado à pilha"
+  },
+  "toolbox.stack_added": {
+    "en": "%1$s: %2$s item(s) added to the stack.",
+    "fr": "%1$s : %2$s élément(s) ajouté(s) à la pile.",
+    "es": "%1$s: %2$s elemento(s) añadido(s) a la pila.",
+    "pt": "%1$s: %2$s elemento(s) adicionado(s) à pilha."
+  },
   "toolbox.demo_title": {
     "en": "Demo project",
     "fr": "Projet de démonstration",

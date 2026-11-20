@@ -95,6 +95,22 @@
   html.dark {
     color-scheme: dark;
   }
+  /* What can be clicked shows a hand; what is blocked, not-allowed
+     (Tailwind's preflight leaves buttons on the arrow). */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
   body {
     @apply bg-background font-sans text-foreground;
     line-height: 1.42857;

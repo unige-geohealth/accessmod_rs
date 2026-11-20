@@ -862,6 +862,29 @@ async fn uploads_create_projects_and_import_datasets() {
 }
 
 #[tokio::test]
+async fn project_names_are_unique() {
+    let s = server(true);
+    let create = |name: &str| json!({"name": name, "dem": {"path": s.path("dem.tif")}});
+    let (status, first) = s.command_done("project.create", create("Valais")).await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    // The same name, in another case or with spaces around: refused at once.
+    for name in ["Valais", " valais "] {
+        let (status, body) = s.command("project.create", create(name)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(body.to_string().contains("not available"), "{body}");
+    }
+    let (status, other) = s.command_done("project.create", create("Ticino")).await;
+    assert_eq!(status, StatusCode::OK, "{other}");
+    let slug = other["slug"].as_str().expect("slug");
+    // Renamed to another project's name: refused; to its own: accepted.
+    let rename = |name: &str| json!({"project": slug, "name": name, "description": ""});
+    let (status, body) = s.command("project.rename", rename("VALAIS")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = s.command("project.rename", rename("ticino")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
+#[tokio::test]
 async fn uploads_are_confined_and_bounded() {
     let s = server_with(false, 1024);
     for name in ["../x.tif", "a/b.tif", ".owner", ""] {

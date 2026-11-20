@@ -72,6 +72,10 @@ test("project and data screens on the tutorial data", async ({ page }) => {
 
   // Project › New / Import: the DEM is uploaded.
   await panel(page, "New / Import").click();
+  // A name taken by another project (any case) is refused before any upload.
+  await page.getByLabel("Enter a new project name (min 4 characters)").fill("demo");
+  await expect(page.getByText("Project demo is not available.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose DEM or project" })).toBeDisabled();
   await page.getByLabel("Enter a new project name (min 4 characters)").fill("Tutorial");
   await page.locator("input[type=file]").setInputFiles(`${data}dem.tif`);
   await expect(page).toHaveURL(/#\/tutorial\/project/, { timeout: 60_000 });

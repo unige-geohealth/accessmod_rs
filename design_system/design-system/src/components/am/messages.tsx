@@ -145,7 +145,12 @@ const amButton = cva(
   },
 );
 
-/** AM5 `.btn` (square corners). Compute is `danger` while blocked, `primary` once it can run. */
+/**
+ * AM5 `.btn` (square corners). One meaning per colour: `primary` (blue)
+ * ready, all good; `default` (gray) neutral; `danger` (red) usable but
+ * think twice (Delete). Disabled, any button is gray with a not-allowed
+ * cursor: incomplete or blocked (AM5 shows a blocked Compute red; not here).
+ */
 export function AmButton({
   className,
   variant,
@@ -157,7 +162,7 @@ export function AmButton({
 }: ComponentProps<"button"> & VariantProps<typeof amButton> & { icon?: IconName; k?: Key }) {
   const Icon = icon ? icons[icon] : null;
   return (
-    <button type="button" className={cn(amButton({ variant, block }), className)} {...props}>
+    <button type="button" className={cn(amButton({ variant: props.disabled ? "default" : variant, block }), className)} {...props}>
       {Icon && <Icon className="size-4" />}
       {k ? <T k={k} /> : children}
     </button>

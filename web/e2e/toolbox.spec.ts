@@ -18,15 +18,23 @@ test("merge land cover: land cover, road classes and barriers stacked, then merg
   // Land cover with the labels of the demo table.
   await expect(page.locator(".tabulator-row").first()).toBeVisible();
   await page.getByRole("button", { name: "Add to stack", exact: true }).click();
+  // Each addition is told, closed with OK.
+  const added = page.getByRole("dialog").filter({ hasText: "Added to the stack" });
+  await expect(added).toContainText("1 item(s) added to the stack.");
+  await shot(page, "toolbox-merge-added");
+  await added.getByRole("button", { name: "OK", exact: true }).click();
+  await expect(added).toHaveCount(0);
 
   await page.getByRole("tab", { name: "Roads", exact: true }).click();
   await expect(page.locator(".tabulator-row", { hasText: "Main road" })).toBeVisible();
   await page.getByRole("button", { name: "Add to the stack", exact: true }).click();
+  await added.getByRole("button", { name: "OK", exact: true }).click();
 
   await page.getByRole("tab", { name: "Barriers", exact: true }).click();
   for (const layer of ["(v) barrier [demo rivers]", "(v) barrier [demo wetlands]"]) {
     await choose(page, "Select barrier layer (vector)", layer);
     await page.getByRole("button", { name: "Add to the stack", exact: true }).click();
+    await added.getByRole("button", { name: "OK", exact: true }).click();
   }
 
   await page.getByRole("tab", { name: "Merge", exact: true }).click();

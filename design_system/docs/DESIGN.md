@@ -45,19 +45,7 @@ with the overlay.
 5. **Square and dense, like AM5.** Buttons, panels and tabs have no radius;
    inputs, selects and wells use `--radius` (4px). Body is 14px with a line
    height of 1.43. Do not add shadcn's roomier spacing.
-6. **Both themes.** Check every screen inThe design system is the npm workspace package `@accessmod/ui`; the web
-client (`web/`, `@accessmod/web`) imports its sources (`@accessmod/ui/am/*`,
-`/ui/*`, `/i18n`, `/theme`, `/styles.css`). Inside the package, imports use
-the package-scoped `#ui/*` (package.json `imports`), never an alias, so they
-resolve the same from the client. From the repository root:
-
-```
-npm ci                                   # the whole workspace, one lockfile
-npm -w @accessmod/ui run dev              # http://localhost:5180/#/analysis-accessibility
-npm -w @accessmod/ui run visual           # visual/report.html: AM5 | light | dark per route
-npm -w @accessmod/ui run contrast
-npm -w @accessmod/ui run build
-```and dark (`npm run visual`).
+6. **Both themes.** Check every screen in light and dark (`npm run visual`).
    The sidebar is black in both.
 7. **Contrast.** `npm run contrast` must pass (AA). Light deviates from AM5
    only where AM5 failed AA; the original values are in comments.
@@ -112,7 +100,7 @@ npm -w @accessmod/ui run build
 | `MessageList` | validation output | Issue(s) / Information lists |
 | `InfoList` | Data › Import notes | bullet notes with an info icon |
 | `InfoTip` | — | (i) after a short label, its explanation in a bubble on click or tap ("Supported: AccessMod 5 archive (i)") |
-| `AmButton` | `.btn` | `default`, `primary`, `danger` (Delete; Compute while blocked, `primary` once it can run); `block` for full width |
+| `AmButton` | `.btn` | One meaning per colour: `primary` (blue) ready, all good (Compute, Create, Add to stack, Save); `default` (gray) neutral; `danger` (red) usable but think twice (Delete, Remove, Reset). Disabled, any variant is gray with a not-allowed cursor: incomplete or blocked. AM5 shows a blocked Compute red: a deliberate divergence. `block` for full width |
 | `FilePicker` | Shiny `fileInput` buttons | "Choose and import data", "Choose DEM or project": an `AmButton` opening the browser file picker |
 | `ConfirmDialog` | `amUpdateModal` | "Confirmation" modal before a deletion: [Cancel] and the danger action |
 

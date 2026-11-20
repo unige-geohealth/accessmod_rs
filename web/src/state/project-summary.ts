@@ -46,3 +46,21 @@ export function extentDegrees([west, south, east, north]: readonly [number, numb
 export const MIN_NAME = 4;
 
 export const validName = (name: string) => name.trim().length >= MIN_NAME;
+
+/**
+ * Whether `name` is taken (AM5 "Project %s is not available."): by a
+ * project, or by an unfinished operation making one. Trimmed and
+ * case-folded, as the server compares them.
+ */
+export function nameTaken(
+  name: string,
+  projects: readonly { info: { name: string } }[] | undefined,
+  operations: readonly { name: string; operation: string; finished?: number | null }[] | undefined,
+): boolean {
+  const key = name.trim().toLowerCase();
+  if (key === "") return false;
+  return (
+    (projects ?? []).some((p) => p.info.name.trim().toLowerCase() === key) ||
+    (operations ?? []).some((o) => (o.finished ?? null) === null && o.operation !== "project-remove" && o.name.trim().toLowerCase() === key)
+  );
+}

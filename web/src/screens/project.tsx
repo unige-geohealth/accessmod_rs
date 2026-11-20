@@ -5,20 +5,20 @@ import { Columns } from "@accessmod/ui/am/columns";
 import { ConfirmDialog } from "@accessmod/ui/am/confirm-dialog";
 import { CheckboxField, SelectField, TextField } from "@accessmod/ui/am/form";
 import { MapFrame } from "@accessmod/ui/am/map-frame";
-import { AmButton, Callout, FilePicker, InfoTip, LinkActions } from "@accessmod/ui/am/messages";
+import { AmButton, Callout, FilePicker, InfoTip, LinkActions, MessageList } from "@accessmod/ui/am/messages";
 import { PanelAccordion } from "@accessmod/ui/am/panel-accordion";
 import { CenterTitle } from "@accessmod/ui/am/section";
 import { useI18n } from "@accessmod/ui/i18n";
 import type maplibregl from "maplibre-gl";
 import { useState } from "react";
 import { api } from "../api/client";
-import { keys, queryClient, useBounds, useProject, useProjects, useSettings } from "../api/queries";
+import { keys, queryClient, useBounds, useOperations, useProject, useProjects, useSettings } from "../api/queries";
 import { operationDone, runResult } from "../api/tasks";
 import { current, HOME, navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
 import { useBatch } from "../state/batch";
 import { ACCEPT } from "../state/catalogue";
-import { extentDegrees, extentMetric, gridParameters, validName } from "../state/project-summary";
+import { extentDegrees, extentMetric, gridParameters, nameTaken, validName } from "../state/project-summary";
 import { demoSlug } from "../state/start";
 import { busy, useTransfer } from "../state/transfer";
 import { BatchStatus, EntryList, TransferStatus, useFmt } from "./common";
@@ -119,7 +119,9 @@ const isProjectFile = (files: readonly File[]) => files.length === 1 && /\.(am6p
 
 function NewPanel() {
   const { t } = useI18n();
+  const f = useFmt();
   const [name, setName] = useState("");
+  const taken = nameTaken(name, useProjects().data, useOperations().data);
   const { state, start } = useTransfer();
   const busy = state.state === "uploading" || state.state === "processing";
   // AM5 "Choose DEM or project": a DEM creates a project, a project file or an AM5 archive imports one.
@@ -139,7 +141,8 @@ function NewPanel() {
     <div className="flex flex-col gap-[15px]">
       <TextField label="project_new_name_text" value={name} onChange={setName} />
       {!validName(name) && <p className="text-xs text-muted-foreground">{t("project_new_name_unlock_dem")}</p>}
-      <FilePicker block multiple k="project_import_btn" accept={`${ACCEPT.raster},.am6p,.zip`} disabled={!validName(name) || busy} onFiles={create} />
+      {taken && <MessageList messages={[{ kind: "issue", text: f("srv_project_project_not_available", name.trim()) }]} />}
+      <FilePicker block multiple k="project_import_btn" accept={`${ACCEPT.raster},.am6p,.zip`} disabled={!validName(name) || taken || busy} onFiles={create} />
       <p className="text-xs text-muted-foreground">
         {t("project.import_supported")} {t("project.import_am5")} <InfoTip k="project.import_am5_hint" label="project.import_am5" />, {t("project.import_am6")}{" "}
         <InfoTip k="project.import_am6_hint" label="project.import_am6" />
