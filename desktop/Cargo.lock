@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "accessmod-desktop"
-version = "6.0.0-alpha.2"
+version = "6.0.0-alpha.3"
 dependencies = [
  "getrandom 0.4.3",
  "serde_json",
