@@ -106,7 +106,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo xtask lut [--check]  # regenerate (or verify) the bicycle LUT
 sh scripts/check.sh        # the whole gate, as before a commit
-npm run release -- <version> [--dry-run]  # scripts/release.sh, from main: gates, version, commit, tag, push (CI publishes)
+npm run release -- <pre|alpha|beta|rc|patch|minor|major|X.Y.Z> [--dry-run]  # scripts/release.sh, from main: next version from the latest tag, gates, commit, tag, push (CI publishes)
 sh scripts/package.sh [target]  # self-contained archive in dist/ (bundled GDAL, docs/distribution.md)
 sh scripts/package-desktop.sh [target]  # + desktop installers (Tauri; .dmg, .deb, .AppImage, setup .exe; docs/desktop.md)
 ACCESSMOD_E2E_BIN=$PWD/dist/<name>/accessmod npm run e2e  # e2e against a packaged binary
@@ -371,6 +371,8 @@ Things learned the hard way; check here before re-investigating.
   AccessMod 5.
 - Releasing: review `git log <last tag>..main`, commit what changed in
   `docs/coverage.md` (and its "Last updated" line), the README status and
-  AGENTS; then `npm run release -- X.Y.Z[-alpha.N]` (`--dry-run` first if
-  unsure). It runs every gate, sets the version everywhere (Cargo, npm,
-  R engine pin, README badge), tags and pushes; the tag publishes.
+  AGENTS; then `npm run release -- pre` (next pre-release; `alpha`, `beta`,
+  `rc`, `patch`, `minor`, `major`, or an explicit version; no argument lists
+  them from the latest tag; `--dry-run` first if unsure). It runs every
+  gate, sets the version everywhere (Cargo, npm, R engine pin, README
+  badge), tags and pushes; the tag publishes.
