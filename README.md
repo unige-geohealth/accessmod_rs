@@ -15,13 +15,14 @@ facilities: schools, shelters and evacuation points, markets, water points. Acce
 GIS, Docker) as one binary with a web interface, in Rust (repository
 `accessmod-rs`).
 
-**Status: alpha** (6.0.0-alpha.2). Every AccessMod 5 analysis runs from the
+**Status: alpha** (version in the badge above). Every AccessMod 5 analysis runs from the
 command line and gives the same results as AccessMod 5 on its demo project;
 the web interface runs them all, with the toolbox, the interactive map and a
 jobs view. AccessMod 5 projects come in through their data archive (Data
 manager › Archive, then Project › New / Import here). New and
 **experimental**: a project from a region, with open data downloaded
-for it ([below](#new-project-from-a-region-experimental)), and an
+for it ([below](#new-project-from-a-region-experimental)): default walking,
+bicycle and motorized scenarios, optional ferries; and an
 [R package](#r). What is done, feature by feature:
 [`docs/coverage.md`](docs/coverage.md).
 
@@ -175,7 +176,7 @@ npm run dev           # both in one terminal
 npm run check         # front-end gate: typecheck, contrast, tests, builds
 npm run e2e           # Playwright end-to-end tests (after `npm run build`)
 sh scripts/package.sh # release archive in dist/ (bundled GDAL)
-sh scripts/release.sh 6.0.0-alpha.2 --dry-run   # from main: gates, then version, tag, push
+npm run release -- <version> --dry-run   # from main: gates; without --dry-run also version, tag, push (AGENTS.md, Releasing)
 ```
 
 Every command, the conventions and the pitfalls: [`AGENTS.md`](AGENTS.md).
