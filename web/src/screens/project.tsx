@@ -11,14 +11,14 @@ import { CenterTitle } from "@accessmod/ui/am/section";
 import { useI18n } from "@accessmod/ui/i18n";
 import type maplibregl from "maplibre-gl";
 import { useState } from "react";
-import { api } from "../api/client";
+import { api, issuesOf } from "../api/client";
 import { keys, queryClient, useBounds, useOperations, useProject, useProjects, useSettings } from "../api/queries";
 import { operationDone, runResult } from "../api/tasks";
 import { current, HOME, navigate, type Route } from "../app/route";
 import type { Api } from "../generated/types";
 import { useBatch } from "../state/batch";
 import { ACCEPT } from "../state/catalogue";
-import { extentDegrees, extentMetric, gridParameters, nameTaken, validName } from "../state/project-summary";
+import { extentDegrees, extentMetric, gridParameters, nameTaken, projectOptions, validName } from "../state/project-summary";
 import { demoSlug } from "../state/start";
 import { busy, useTransfer } from "../state/transfer";
 import { BatchStatus, EntryList, TransferStatus, useFmt } from "./common";
@@ -36,6 +36,7 @@ export function ProjectScreen({ route }: { route: Route }) {
             { value: "open", icon: "open", title: "project_open_title", content: <OpenPanel route={route} /> },
             { value: "new", icon: "add", title: "project_new_import_title", content: <NewPanel /> },
             { value: "region", icon: "map", title: "creator.title", content: <RegionPanel /> },
+            { value: "rename", icon: "edit", title: "data_rename_data", content: <RenamePanel route={route} /> },
             { value: "delete", icon: "delete", title: "project_delete_title", content: <DeletePanel /> },
             { value: "export", icon: "export", title: "project_export_title", content: <ExportPanel route={route} /> },
           ]}
@@ -63,10 +64,6 @@ export function ProjectScreen({ route }: { route: Route }) {
       }
     />
   );
-}
-
-function projectOptions(projects: { slug: string; info: { name: string } }[] | undefined) {
-  return (projects ?? []).map((p) => ({ value: p.slug, label: p.info.name }));
 }
 
 /** An invitation to build the demo project again, when it is missing. */
@@ -149,6 +146,59 @@ function NewPanel() {
       </p>
       <TransferStatus transfer={state} />
     </div>
+  );
+}
+
+/** Project › Rename: name and description of a project (the open one first); a name another project has is refused. */
+function RenamePanel({ route }: { route: Route }) {
+  const projects = useProjects();
+  const [chosen, setChosen] = useState<string | undefined>(route.project ?? undefined);
+  const project = projects.data?.find((p) => p.slug === chosen);
+  return (
+    <div className="flex flex-col gap-[15px]">
+      <SelectField label="project.rename_select" options={projectOptions(projects.data)} value={chosen} onChange={setChosen} />
+      {/* A form per project: its fields start from that project's name and description. */}
+      {project !== undefined && <RenameForm key={project.slug} slug={project.slug} info={project.info} />}
+    </div>
+  );
+}
+
+function RenameForm({ slug, info }: { slug: string; info: Api.ProjectInfo }) {
+  const { t } = useI18n();
+  const f = useFmt();
+  const projects = useProjects().data;
+  const operations = useOperations().data;
+  const [name, setName] = useState(info.name);
+  const [description, setDescription] = useState(info.description);
+  const [outcome, setOutcome] = useState<{ kind: "idle" } | { kind: "sending" } | { kind: "done"; name: string } | { kind: "failed"; issues: string[] }>({ kind: "idle" });
+  const taken = nameTaken(name, projects, operations, slug);
+  const unchanged = name.trim() === info.name && description === info.description;
+  const rename = async () => {
+    setOutcome({ kind: "sending" });
+    try {
+      const renamed = await api.command("project.rename", { project: slug, name: name.trim(), description });
+      await queryClient.invalidateQueries({ queryKey: keys.projects });
+      await queryClient.invalidateQueries({ queryKey: keys.project(slug) });
+      setOutcome({ kind: "done", name: renamed.name });
+    } catch (error) {
+      setOutcome({ kind: "failed", issues: issuesOf(error, t) });
+    }
+  };
+  return (
+    <>
+      <TextField label="project_new_name_text" value={name} onChange={setName} />
+      <TextField label="project.rename_description" value={description} onChange={setDescription} />
+      {taken && <MessageList messages={[{ kind: "issue", text: f("srv_project_project_not_available", name.trim()) }]} />}
+      {outcome.kind === "failed" && <MessageList messages={outcome.issues.map((text) => ({ kind: "issue" as const, text }))} />}
+      {outcome.kind === "done" && <MessageList messages={[{ kind: "info", text: f("data.renamed", outcome.name) }]} />}
+      <AmButton
+        variant="primary"
+        block
+        k="data_rename_data"
+        disabled={!validName(name) || taken || unchanged || outcome.kind === "sending"}
+        onClick={() => void rename()}
+      />
+    </>
   );
 }
 

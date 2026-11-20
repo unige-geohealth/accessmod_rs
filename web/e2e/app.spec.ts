@@ -92,6 +92,20 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await panel(page, "Location map").click();
   await shot(page, "project-location-map");
 
+  // Project › Rename: the open project; another project's name is refused.
+  await panel(page, "Rename").click();
+  const rename = page.getByRole("button", { name: "Rename", exact: true }).last();
+  await expect(page.getByLabel("Enter a new project name (min 4 characters)")).toHaveValue("Tutorial");
+  await expect(rename).toBeDisabled();
+  await page.getByLabel("Enter a new project name (min 4 characters)").fill("DEMO");
+  await expect(page.getByText("Project DEMO is not available.")).toBeVisible();
+  await expect(rename).toBeDisabled();
+  await page.getByLabel("Enter a new project name (min 4 characters)").fill("Tutorial");
+  await page.getByLabel("Description (optional)").fill("The tutorial data");
+  await rename.click();
+  await expect(page.getByText("Renamed: Tutorial")).toBeVisible();
+  await shot(page, "project-rename");
+
   // Data › Import: land cover, then facilities as a shapefile.
   await sidebar(page, "Data").click();
   await panel(page, "Import").click();

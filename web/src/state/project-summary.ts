@@ -48,19 +48,36 @@ export const MIN_NAME = 4;
 export const validName = (name: string) => name.trim().length >= MIN_NAME;
 
 /**
+ * Options of a project select: each project by its name, and by its slug
+ * too when another has the same name (made before names were unique, or
+ * the demo built again after a project took its name).
+ */
+export function projectOptions(projects: readonly { slug: string; info: { name: string } }[] | undefined): { value: string; label: string }[] {
+  const key = (name: string) => name.trim().toLowerCase();
+  const count = new Map<string, number>();
+  for (const p of projects ?? []) count.set(key(p.info.name), (count.get(key(p.info.name)) ?? 0) + 1);
+  return (projects ?? []).map((p) => ({
+    value: p.slug,
+    label: (count.get(key(p.info.name)) ?? 0) > 1 ? `${p.info.name.trim()} (${p.slug})` : p.info.name,
+  }));
+}
+
+/**
  * Whether `name` is taken (AM5 "Project %s is not available."): by a
  * project, or by an unfinished operation making one. Trimmed and
  * case-folded, as the server compares them.
  */
 export function nameTaken(
   name: string,
-  projects: readonly { info: { name: string } }[] | undefined,
+  projects: readonly { slug: string; info: { name: string } }[] | undefined,
   operations: readonly { name: string; operation: string; finished?: number | null }[] | undefined,
+  /** The project being renamed: its own name is free. */
+  except?: string,
 ): boolean {
   const key = name.trim().toLowerCase();
   if (key === "") return false;
   return (
-    (projects ?? []).some((p) => p.info.name.trim().toLowerCase() === key) ||
+    (projects ?? []).some((p) => p.slug !== except && p.info.name.trim().toLowerCase() === key) ||
     (operations ?? []).some((o) => (o.finished ?? null) === null && o.operation !== "project-remove" && o.name.trim().toLowerCase() === key)
   );
 }

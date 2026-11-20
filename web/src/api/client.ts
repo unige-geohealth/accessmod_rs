@@ -74,6 +74,7 @@ export interface Feature {
 interface Commands {
   "project.create": [Api.CreateProject, Api.PendingOperation];
   "project.remove": [Api.ProjectRef, Api.PendingOperation];
+  "project.rename": [Api.RenameProject, Api.ProjectInfo];
   "project.export": [Api.ExportProject, Api.RunRecord];
   "project.import": [Api.ImportProject, Api.PendingOperation];
   "demo.reset": [Record<string, never>, Api.PendingOperation];

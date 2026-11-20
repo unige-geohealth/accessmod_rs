@@ -149,6 +149,10 @@ fn types() -> Vec<(&'static str, Value)> {
             schema::<accessmod_server::commands::CreateProject>(),
         ),
         (
+            "rename-project",
+            schema::<accessmod_server::commands::RenameProject>(),
+        ),
+        (
             "import-dataset",
             schema::<accessmod_server::commands::ImportDataset>(),
         ),

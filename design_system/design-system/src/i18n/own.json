@@ -539,6 +539,18 @@
     "es": "Guardado: %s",
     "pt": "Salvo: %s"
   },
+  "project.rename_select": {
+    "en": "Select the project to rename",
+    "fr": "Sélectionnez le projet à renommer",
+    "es": "Seleccione el proyecto a renombrar",
+    "pt": "Selecione o projeto a renomear"
+  },
+  "project.rename_description": {
+    "en": "Description (optional)",
+    "fr": "Description (facultative)",
+    "es": "Descripción (opcional)",
+    "pt": "Descrição (opcional)"
+  },
   "project.import_supported": {
     "en": "Supported:",
     "fr": "Supporté :",

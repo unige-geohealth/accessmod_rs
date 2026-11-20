@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`project.rename`.",
+  "properties": {
+    "description": {
+      "default": "",
+      "description": "New description.",
+      "type": "string"
+    },
+    "name": {
+      "description": "New name.",
+      "type": "string"
+    },
+    "project": {
+      "description": "Project slug.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "name"
+  ],
+  "title": "RenameProject",
+  "type": "object"
+}
