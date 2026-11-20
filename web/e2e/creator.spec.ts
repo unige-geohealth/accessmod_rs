@@ -29,12 +29,15 @@ test("a region picked on the map becomes a project that computes", async ({ page
   const create = page.getByRole("button", { name: "Create the project" });
   await expect(create).toBeEnabled();
   await create.click();
-  // Queued: a notification, as for every job.
-  await expect(page.getByRole("status").filter({ hasText: "Juba from a region" }).filter({ hasText: /queued/ })).toBeVisible();
-  // Done: a notification, then the project with its datasets.
-  const notice = page.getByRole("status").filter({ hasText: "Juba from a region" }).filter({ hasText: /done/ });
-  await expect(notice).toBeVisible({ timeout: 90_000 });
-  await notice.getByRole("button", { name: "Open the project" }).click();
+  // The job panel follows the job to its end, then opens the project with its datasets.
+  const job = page.getByRole("dialog").filter({ hasText: "Juba from a region" });
+  await expect(job).toBeVisible();
+  await shot(page, "job-panel");
+  await expect(job).toContainText(/: done/, { timeout: 90_000 });
+  await job.getByRole("button", { name: "Open the project" }).click();
+  await expect(job).toHaveCount(0);
+  // Nothing queued or running: no count on Jobs.
+  await expect(sidebar(page, "Jobs")).toHaveText("Jobs");
   await expect(page.locator("aside")).toContainText("Juba from a region");
   await sidebar(page, "Data").click();
   await expect(page.locator(".tabulator .tabulator-row")).toHaveCount(13);

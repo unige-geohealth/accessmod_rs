@@ -3,6 +3,7 @@
 import { type Message, MessageList } from "@accessmod/ui/am/messages";
 import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { Progress } from "@accessmod/ui/ui/progress";
+import { useEffect, useState } from "react";
 import type { Batch } from "../state/batch";
 import type { Entry } from "../state/project-summary";
 import type { Transfer } from "../state/transfer";
@@ -13,6 +14,17 @@ export function fmt(text: string, ...args: (string | number)[]): string {
   return text
     .replace(/%(\d+)\$s|%s/g, (_, n: string | undefined) => String(args[n === undefined ? next++ : Number(n) - 1] ?? ""))
     .replace(/%%/g, "%");
+}
+
+/** Seconds since the epoch, ticking every second while `ticking` (durations of running jobs, notices fading). */
+export function useNow(ticking: boolean): number {
+  const [now, setNow] = useState(() => Date.now() / 1000);
+  useEffect(() => {
+    if (!ticking) return;
+    const timer = setInterval(() => setNow(Date.now() / 1000), 1000);
+    return () => clearInterval(timer);
+  }, [ticking]);
+  return now;
 }
 
 /** Save `value` as a JSON file (`name`.json) through the browser. */

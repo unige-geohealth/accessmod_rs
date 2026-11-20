@@ -1421,6 +1421,36 @@
     "es": "En pausa: se mantiene donde está, con memoria y archivos temporales, hasta reanudarlo.",
     "pt": "Em pausa: mantém-se onde está, com memória e ficheiros temporários, até ser retomado."
   },
+  "job_panel.background": {
+    "en": "Continue in the background",
+    "fr": "Continuer en arrière-plan",
+    "es": "Continuar en segundo plano",
+    "pt": "Continuar em segundo plano"
+  },
+  "job_panel.close": {
+    "en": "Close",
+    "fr": "Fermer",
+    "es": "Cerrar",
+    "pt": "Fechar"
+  },
+  "job_panel.waiting": {
+    "en": "Waiting for the job…",
+    "fr": "En attente de la tâche…",
+    "es": "Esperando la tarea…",
+    "pt": "À espera da tarefa…"
+  },
+  "jobs.active_count": {
+    "en": "%s jobs queued or running",
+    "fr": "%s tâches en attente ou en cours",
+    "es": "%s tareas en cola o en curso",
+    "pt": "%s tarefas em fila ou em curso"
+  },
+  "job_panel.upload_note": {
+    "en": "The job starts once the files are sent. Closing this window keeps the upload going; closing the application stops it.",
+    "fr": "La tâche démarre une fois les fichiers envoyés. Fermer cette fenêtre poursuit l'envoi ; fermer l'application l'interrompt.",
+    "es": "La tarea empieza cuando se han enviado los archivos. Cerrar esta ventana mantiene el envío; cerrar la aplicación lo interrumpe.",
+    "pt": "A tarefa começa quando os ficheiros forem enviados. Fechar esta janela mantém o envio; fechar a aplicação interrompe-o."
+  },
   "data.remove_jobs_note": {
     "en": "Removing a job keeps its outputs that are not selected, no longer linked to it.",
     "fr": "Supprimer un job garde ses sorties non sélectionnées, qui ne lui sont plus liées.",

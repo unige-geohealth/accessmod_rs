@@ -60,18 +60,38 @@ export async function importFile(request: APIRequestContext, project: string, cl
   return command<{ id: number }>(request, "dataset.import", { project, class: cls, tags, source: { upload: { id: upload.id } } });
 }
 
-/** Click `button` (Compute): the notice of the job it queued with `tags`, then that very job done. */
+/** The job panel: the job a click just started, in a modal. */
+export const jobPanel = (page: Page) => page.getByRole("dialog");
+
+/** Close the job panel while its job runs: the job goes on, in Jobs. */
+export async function background(page: Page) {
+  await expect(jobPanel(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(jobPanel(page)).toHaveCount(0);
+}
+
+/** The job panel shows its job ended (`title`, e.g. "Archive: done", and `text`), then is closed with `close`. */
+export async function panelEnded(page: Page, title: string | RegExp, text?: string, close = "Close") {
+  let ended = jobPanel(page).filter({ hasText: title });
+  if (text !== undefined) ended = ended.filter({ hasText: text });
+  await expect(ended).toBeVisible({ timeout: 90_000 });
+  await ended.getByRole("button", { name: close, exact: true }).click();
+  await expect(jobPanel(page)).toHaveCount(0);
+}
+
+/** Click `button` (Compute): the job panel shows the job it queued with `tags`; closed, the job goes on until done. */
 export async function computed(page: Page, project: string, tags: string, button: Locator) {
   const started = page.waitForResponse((r) => r.url().includes("/api/commands/run.start"));
   await button.click();
   const response = await started;
   expect(response.ok(), await response.text()).toBe(true);
   const run = (await response.json()) as { id: number };
-  await expect(page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: tags })).toBeVisible();
+  await expect(jobPanel(page)).toContainText(`[${tags}]`);
+  await background(page);
   await finished(page.request, project, run.id);
 }
 
-/** The notice of an import job that ended done, of a dataset of class label and tags `what` ("population again"). */
+/** The job panel of an import that ended done, of a dataset of class label and tags `what` ("population again"), closed. */
 export async function imported(page: Page, what: string) {
-  await expect(page.getByRole("status").filter({ hasText: /: done/ }).filter({ hasText: `(${what})` }).first()).toBeVisible({ timeout: 60_000 });
+  await panelEnded(page, /: done/, `(${what})`);
 }

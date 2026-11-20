@@ -33,7 +33,8 @@ Code style, Rust and TypeScript, is in [`STYLE.md`](STYLE.md).
   defect.
 - **Jobs are notified**: every job, whatever starts it, gets a notice when
   queued and when it ends, from the server events; a form never tells a
-  job's state itself ([`docs/ui.md`](docs/ui.md), "Notifications").
+  job's state itself: the job it starts opens the job panel, which can be
+  closed ([`docs/ui.md`](docs/ui.md), "Notifications").
 - **Never crash**: input from users, files and the network is hostile. The
   server and every command return errors, never panic; a country server
   runs unattended. A crash fix ships with the test that panicked before it.

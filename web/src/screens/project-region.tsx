@@ -13,6 +13,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { api, issuesOf } from "../api/client";
 import { useCountries, useUnits } from "../api/queries";
 import { BUFFERS_KM, creatorStore, ferriesOn, LEVELS, type Layers, missing, params, RESOLUTIONS_M, scenariosOn } from "../state/creator";
+import { jobPanel } from "../state/job-panel";
 import { useStore } from "../state/store";
 import { useFmt } from "./common";
 
@@ -44,8 +45,9 @@ export function RegionPanel() {
     if (ready === null) return;
     setState({ kind: "sending" });
     try {
-      await api.command("creator.create", ready);
+      const operation = await api.command("creator.create", ready);
       setState({ kind: "idle" });
+      jobPanel.dispatch({ type: "follow", task: { kind: "operation", id: operation.id } });
     } catch (error) {
       setState({ kind: "failed", issues: issuesOf(error, t) });
     }

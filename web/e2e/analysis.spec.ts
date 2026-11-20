@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { choose, command, computed, finished, importFile, panel, shot, sidebar } from "./helpers";
+import { background, choose, command, computed, finished, importFile, jobPanel, panel, shot, sidebar } from "./helpers";
 
 // Analysis screens on the demo project. The demo has no merged land cover
 // and no scenario table: both are made through the API first, as a user
@@ -71,10 +71,9 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   // is one change and one click away, with no progress bar in the way.
   const compute = page.getByRole("button", { name: "Compute", exact: true });
   await compute.click();
-  // The notice, at the top, under the header.
-  const queued = page.getByRole("status").filter({ hasText: /: queued/ }).filter({ hasText: "e2e" });
-  await expect(queued).toBeVisible();
-  expect((await queued.boundingBox())!.y).toBeLessThan(200);
+  // The job panel follows the job; closed, the form is as it was, with no progress bar.
+  await expect(jobPanel(page)).toContainText("[e2e]");
+  await background(page);
   await expect(page.getByRole("progressbar")).toHaveCount(0);
   // The job holds these tags (or, done already, its datasets do): Compute waits for others.
   await expect(page.getByText(/computes these tags|Datasets with these tags exist/).first()).toBeVisible({ timeout: 30_000 });

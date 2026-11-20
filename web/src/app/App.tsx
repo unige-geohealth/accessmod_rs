@@ -5,7 +5,7 @@ import { Callout } from "@accessmod/ui/am/messages";
 import who from "@accessmod/ui/assets/who.svg";
 import { useI18n } from "@accessmod/ui/i18n";
 import { useEvents } from "../api/events";
-import { useHealth, useProject } from "../api/queries";
+import { useHealth, useProject, useQueue } from "../api/queries";
 import { AnalysisScreen } from "../screens/analysis";
 import { DataScreen } from "../screens/data";
 import { JobsScreen } from "../screens/jobs";
@@ -13,6 +13,8 @@ import { AboutScreen } from "../screens/other";
 import { ProjectScreen } from "../screens/project";
 import { SettingsScreen } from "../screens/settings";
 import { ToolboxScreen } from "../screens/toolbox";
+import { useFmt } from "../screens/common";
+import { JobPanel } from "./job-panel";
 import { Notifications } from "./notifications";
 import { goSection, type Route, SECTIONS, type Section, useRoute } from "./route";
 
@@ -23,6 +25,7 @@ const NAV: NavItem[] = sections.map((s) => (s.id === "logs" ? { id: "jobs", labe
 
 export function App() {
   const { t } = useI18n();
+  const f = useFmt();
   const route = useRoute();
   // One stream for the whole app, every project the user may see: a
   // change of route never reconnects it, and a job of any project is
@@ -30,6 +33,9 @@ export function App() {
   useEvents(null);
   const health = useHealth();
   const project = useProject(route.project);
+  // Jobs queued or running, in every lane: the badge of Jobs.
+  const active = useQueue().data?.length ?? 0;
+  const nav = NAV.map((s) => (s.id === "jobs" ? { ...s, badge: active, badgeLabel: f("jobs.active_count", active) } : s));
   return (
     <AppShell
       product="AccessMod 6"
@@ -37,13 +43,14 @@ export function App() {
       project={project.data?.name ?? route.project ?? "—"}
       version={health.data ? `${t("menu_version_current")} ${health.data.version}` : ""}
       active={route.section}
-      sections={NAV}
+      sections={nav}
       onNavigate={(s) => {
         if (isSection(s)) goSection(route, s);
       }}
     >
       <Screen route={route} />
       <Notifications />
+      <JobPanel />
     </AppShell>
   );
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { command, finished, panel, shot, sidebar } from "./helpers";
+import { command, finished, panel, panelEnded, shot, sidebar } from "./helpers";
 
 // Jobs: the runs of every project, here one merge of the demo project.
 const project = "demo";
@@ -53,12 +53,8 @@ test("jobs: runs of every project, details, outputs and exported job", async ({ 
   await panel(page, "Archive").click();
   await page.getByLabel("File prefix. Default is 'am6_export'").fill("e2e-run");
   await page.getByRole("button", { name: "Create archive" }).click();
-  // The job that wrote it ended: a notification, which opens it in Jobs.
-  const toast = page.getByRole("status").filter({ hasText: "Archive: done" });
-  await expect(toast).toBeVisible();
-  await expect(toast).toContainText("archived as e2e-run_");
-  await toast.getByRole("button", { name: "Close" }).click();
-  await expect(toast).toHaveCount(0);
+  // The job that wrote it: the job panel, to its end.
+  await panelEnded(page, "Archive: done", "archived as e2e-run_");
   await shot(page, "data-archive");
   const zip = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export archive" }).click();
@@ -104,7 +100,10 @@ test("jobs: the task manager filters by kind, retries a failed analysis and remo
 
   // Each failure is notified until closed.
   // (the retried one: the first failed before the page opened)
-  await expect(page.getByRole("alert").filter({ hasText: "Merge land cover: failed" })).toHaveCount(1);
+  const failure = page.getByRole("alert").filter({ hasText: "Merge land cover: failed" });
+  await expect(failure).toHaveCount(1);
+  // Notices sit at the top, under the header.
+  expect((await failure.boundingBox())!.y).toBeLessThan(200);
   for (const close of await page.getByRole("alert").getByRole("button", { name: "Close" }).all()) await close.click();
   await expect(page.getByRole("alert")).toHaveCount(0);
   // Remove the first one: gone from the table.

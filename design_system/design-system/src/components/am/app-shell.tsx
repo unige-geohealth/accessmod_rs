@@ -3,7 +3,11 @@ import { type Key, T, useI18n } from "#ui/i18n";
 import { cn } from "#ui/lib/utils";
 import { type IconName, icons } from "./icons";
 
-export type NavItem = { id: string; label: Key; icon: IconName };
+/**
+ * A sidebar section; `badge`, when above 0, is a count drawn beside the
+ * label (e.g. active jobs), told to assistive technologies by `badgeLabel`.
+ */
+export type NavItem = { id: string; label: Key; icon: IconName; badge?: number; badgeLabel?: string };
 
 /** The seven AM5 sections, in AM5 order (ui.R › sidebarMenu). */
 export const sections: NavItem[] = [
@@ -98,6 +102,7 @@ function Sidebar({ product, project, version, active, onNavigate, sections: item
                   type="button"
                   onClick={() => onNavigate(s.id)}
                   aria-current={on ? "page" : undefined}
+                  aria-description={s.badge !== undefined && s.badge > 0 ? s.badgeLabel : undefined}
                   className={cn(
                     "flex w-full items-center gap-1.5 border-l-3 py-3 pr-4 pl-[15px] text-left",
                     on
@@ -107,6 +112,11 @@ function Sidebar({ product, project, version, active, onNavigate, sections: item
                 >
                   <Icon className="size-4 shrink-0" />
                   <T k={s.label} />
+                  {s.badge !== undefined && s.badge > 0 && (
+                    <span aria-hidden="true" className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-xs leading-5 font-semibold text-primary-foreground tabular-nums">
+                      {s.badge}
+                    </span>
+                  )}
                 </button>
               </li>
             );

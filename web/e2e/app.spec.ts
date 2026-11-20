@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { choose, imported, panel, shot, sidebar } from "./helpers";
+import { choose, imported, panel, panelEnded, shot, sidebar } from "./helpers";
 
 // The tutorial data of the repository (docs/tutorial/data); facilities are
 // also sent as a shapefile, to upload several files at once.
@@ -47,8 +47,8 @@ test("the demo project opens first and is built again from the toolbox", async (
   await choose(page, "Select the project to delete", "Demo");
   await page.getByRole("button", { name: "Delete", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
-  // A job like the others: its end is a notification.
-  await expect(page.getByRole("status").filter({ hasText: "Project removal: done" })).toBeVisible({ timeout: 60_000 });
+  // A job like the others: the job panel follows it to its end.
+  await panelEnded(page, "Project removal: done");
   await expect(page).toHaveURL(/#\/_\/project/);
   await expect(page.getByText("The demo project is missing", { exact: false })).toBeVisible();
   await shot(page, "project-demo-missing");
@@ -60,6 +60,7 @@ test("the demo project opens first and is built again from the toolbox", async (
   await page.getByRole("button", { name: "Reset the demo project" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Reset the demo project" }).click();
   await expect(page).toHaveURL(/#\/demo\/project/, { timeout: 60_000 });
+  await panelEnded(page, /: done/);
   await sidebar(page, "Data").click();
   await expect(table.locator(".tabulator-row")).toHaveCount(11);
 });
@@ -75,6 +76,10 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await page.locator("input[type=file]").setInputFiles(`${data}dem.tif`);
   await expect(page).toHaveURL(/#\/tutorial\/project/, { timeout: 60_000 });
   await expect(page.locator("aside")).toContainText("Tutorial");
+  // The job panel followed the upload, then the job: at its end, it opens the project.
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Open the project" })).toBeVisible();
+  await shot(page, "job-panel-done");
+  await panelEnded(page, /: done/);
 
   // Summary: grid parameters of the DEM.
   await panel(page, "Grid parameters").click();
@@ -148,10 +153,12 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/^Tutorial_.*\.am6p$/);
   await file.saveAs(`${work}tutorial.am6p`);
+  await panelEnded(page, /: done/);
   await panel(page, "New / Import").click();
   await page.getByLabel("Enter a new project name (min 4 characters)").fill("Tutorial copy");
   await page.locator("input[type=file]").setInputFiles(`${work}tutorial.am6p`);
   await expect(page.locator("aside")).toContainText("Tutorial copy", { timeout: 60_000 });
+  await panelEnded(page, /: done/);
   await sidebar(page, "Data").click();
   await expect(table.locator(".tabulator-row")).toHaveCount(2);
   await shot(page, "project-imported");
@@ -166,6 +173,7 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await page.getByLabel("Enter a new project name (min 4 characters)").fill("From AccessMod 5");
   await page.locator("input[type=file]").setInputFiles(am5Archive);
   await expect(page.locator("aside")).toContainText("From AccessMod 5", { timeout: 60_000 });
+  await panelEnded(page, /: done/);
   await sidebar(page, "Data").click();
   await expect(table.locator(".tabulator-row")).toHaveCount(9);
   await shot(page, "project-imported-am5");
@@ -179,10 +187,10 @@ test("project and data screens on the tutorial data", async ({ page }) => {
   await choose(page, "Sélectionnez le projet à supprimer", "From AccessMod 5");
   await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
+  await panelEnded(page, "Suppression du projet : terminé", "From AccessMod 5", "Fermer");
   await expect(page).toHaveURL(/#\/_\/project/);
-  await expect(page.getByRole("status").filter({ hasText: "Suppression du projet : terminé" }).filter({ hasText: "From AccessMod 5" })).toBeVisible();
   await choose(page, "Sélectionnez le projet à supprimer", "Tutorial copy");
   await page.getByRole("button", { name: "Supprimer", exact: true }).last().click();
   await page.getByRole("dialog").getByRole("button", { name: "Supprimer" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Suppression du projet : terminé" }).filter({ hasText: "Tutorial copy" })).toBeVisible();
+  await panelEnded(page, "Suppression du projet : terminé", "Tutorial copy", "Fermer");
 });

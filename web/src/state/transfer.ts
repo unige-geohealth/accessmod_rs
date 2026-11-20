@@ -6,6 +6,7 @@ import { useCallback, useReducer } from "react";
 import { api, issuesOf } from "../api/client";
 import type { TaskRef } from "../api/tasks";
 import type { Api } from "../generated/types";
+import { jobPanel } from "./job-panel";
 
 export type Transfer =
   | { state: "idle" }
@@ -47,24 +48,38 @@ export function updateTransfer(state: Transfer, message: TransferMessage): Trans
   }
 }
 
+/** Uploads started in this window, numbering each for the job panel. */
+let uploads = 0;
+
 export const busy = (t: Transfer) => t.state === "uploading" || t.state === "processing";
 
 /**
  * A transfer and the function starting one: upload `files`, then run
  * `command` on the upload; it tells `queued` the task it queued (whose
- * end is notified).
+ * end is notified). The job panel follows the upload, then that task.
  */
 export function useTransfer() {
   const { t } = useI18n();
   const [state, dispatch] = useReducer(updateTransfer, IDLE);
   const start = useCallback(async (files: File[], command: (upload: Api.Upload, queued: (task: TaskRef) => void) => Promise<unknown>) => {
     dispatch({ type: "start" });
+    // The upload and then its job show in the job panel too.
+    const number = ++uploads;
+    jobPanel.dispatch({ type: "upload", upload: number });
     try {
-      const upload = await api.upload(files, (fraction) => dispatch({ type: "progress", fraction }));
+      const upload = await api.upload(files, (fraction) => {
+        dispatch({ type: "progress", fraction });
+        jobPanel.dispatch({ type: "progress", upload: number, fraction });
+      });
       dispatch({ type: "uploaded" });
-      await command(upload, (task) => dispatch({ type: "queued", task }));
+      await command(upload, (task) => {
+        dispatch({ type: "queued", task });
+        jobPanel.dispatch({ type: "follow", task, upload: number });
+      });
       dispatch({ type: "done" });
     } catch (error) {
+      // Refused before any job: the form says why, the panel closes.
+      jobPanel.dispatch({ type: "drop", upload: number });
       dispatch({ type: "failed", issues: issuesOf(error, t) });
     }
   }, [t]);
@@ -73,7 +88,10 @@ export function useTransfer() {
     dispatch({ type: "start" });
     dispatch({ type: "uploaded" });
     try {
-      await command((task) => dispatch({ type: "queued", task }));
+      await command((task) => {
+        dispatch({ type: "queued", task });
+        jobPanel.dispatch({ type: "follow", task });
+      });
       dispatch({ type: "done" });
     } catch (error) {
       dispatch({ type: "failed", issues: issuesOf(error, t) });

@@ -496,7 +496,20 @@ the demo):
   it shows in Jobs, not as a notice.
 - A form shows only what precedes the job: an upload's progress, the
   request in flight, its refusal. Never the job's own queued, progress or
-  done text: progress, pause and cancel live in Jobs, which a notice opens.
+  done text.
+- The job the user starts in this window opens the **job panel**
+  (`app/job-panel.tsx`), the AM5 progress modal: the upload, then the job
+  followed by its reference (`state/job-panel.ts`) and read from the
+  caches the events keep, as Jobs reads it (`JobDetails`); at its end,
+  where the notice would lead. Unlike AM5, where R blocks everything, it
+  closes at any time: closing never cancels, the job goes on in Jobs,
+  and its end is notified. While the panel shows a job, the toaster
+  leaves that job's notices out. A job started elsewhere (another tab,
+  the API, R) opens no panel, nor does one whose screen shows it already:
+  Zonal statistics fills its table in place, Jobs › Retry selects the
+  new run in Jobs.
+- Jobs in the sidebar carries the count of jobs queued or running (the
+  server queue, every lane).
 - Reviewers treat a job told otherwise as a defect.
 
 ## Screens and jobs

@@ -103,6 +103,7 @@ export function Zonal({ project }: { project: string }) {
             tags={[]}
             datasets={byId}
             button="analysis_validation_update_btn"
+            panel={false}
           />
         </>
       }

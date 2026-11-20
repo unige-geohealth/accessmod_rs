@@ -1,8 +1,9 @@
 // AM5 "Validation" card of an analysis tab: what is missing, the server's
 // quick check (it alone gates Compute, with its warnings), the outputs and
 // Compute. Compute queues a job and says so; the form stays editable, so
-// another scenario is one change and one click away. The job's progress,
-// pause and cancel live in Jobs; its end is a notification.
+// another scenario is one change and one click away. The job opens the
+// job panel (its progress, cancel and end), which can be closed: pause
+// and the rest live in Jobs.
 import { AmButton, LinkActions, type Message, MessageList } from "@accessmod/ui/am/messages";
 import { SectionCard } from "@accessmod/ui/am/section";
 import { type Key, T, useI18n } from "@accessmod/ui/i18n";
@@ -12,6 +13,7 @@ import { keys, queryClient, useQuickCheck, useRuns } from "../../api/queries";
 import type { Api } from "../../generated/types";
 import { classLabel, plannedOutputs } from "../../state/catalogue";
 import { type Issue, sessionStore } from "../../state/drafts";
+import { jobPanel } from "../../state/job-panel";
 import { usePreference } from "../../state/preferences";
 import { useStore } from "../../state/store";
 import { downloadJson, useFmt } from "../common";
@@ -25,6 +27,7 @@ export function ValidationCard({
   tags,
   datasets,
   button = "analysis_validation_compute_btn",
+  panel = true,
 }: {
   project: string;
   analysis: string;
@@ -37,6 +40,8 @@ export function ValidationCard({
   datasets: ReadonlyMap<number, Api.Dataset>;
   /** AM5 Zonal statistics: "Update". */
   button?: Key;
+  /** Open the job panel on the job (false: the screen shows the result in place, as Zonal statistics). */
+  panel?: boolean;
 }) {
   const { t } = useI18n();
   const f = useFmt();
@@ -72,6 +77,7 @@ export function ValidationCard({
     try {
       const record = await api.command("run.start", { project, analysis, document, tags, overwrite });
       session.dispatch({ type: "started", run: record.id });
+      if (panel) jobPanel.dispatch({ type: "follow", task: { kind: "run", project, id: record.id } });
       await queryClient.invalidateQueries({ queryKey: keys.runs(project) });
     } catch (error) {
       session.dispatch({ type: "start_failed" });

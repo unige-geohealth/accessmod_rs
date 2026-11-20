@@ -46,6 +46,31 @@ export const jobKind = (value: string | undefined): JobKind => (value === "analy
 export const ofKind = (entries: readonly JobItem[], kind: JobKind) =>
   kind === "all" ? entries : entries.filter((e) => (e.run.kind ?? "analysis") === kind);
 
+/** An operation making or removing a project, as a job. */
+export function operationJob(o: Api.PendingOperation): JobItem {
+  return {
+    pending: true,
+    project: o.project,
+    name: o.name,
+    run: {
+      id: o.id,
+      analysis: o.operation,
+      kind: "manage",
+      tags: [],
+      job: {},
+      status: o.status,
+      output_dir: "",
+      outcome: null,
+      error: o.error ?? null,
+      started: o.started,
+      finished: o.finished ?? null,
+      datasets: [],
+      inputs: [],
+      overwrite: false,
+    },
+  };
+}
+
 /**
  * Operations making or removing projects, as jobs: those no project
  * records (one recorded is a run of the project it made), newest first.
@@ -53,29 +78,7 @@ export const ofKind = (entries: readonly JobItem[], kind: JobKind) =>
 export function pendingJobs(operations: readonly Api.PendingOperation[]): JobItem[] {
   return operations
     .filter((o) => !o.recorded)
-    .map(
-      (o): JobItem => ({
-        pending: true,
-        project: o.project,
-        name: o.name,
-        run: {
-          id: o.id,
-          analysis: o.operation,
-          kind: "manage",
-          tags: [],
-          job: {},
-          status: o.status,
-          output_dir: "",
-          outcome: null,
-          error: o.error ?? null,
-          started: o.started,
-          finished: o.finished ?? null,
-          datasets: [],
-          inputs: [],
-          overwrite: false,
-        },
-      }),
-    )
+    .map(operationJob)
     .sort((a, b) => b.run.started - a.run.started);
 }
 
