@@ -25,3 +25,12 @@ tauri-plugin-opener = "2"
 [profile.release]
 strip = true
 lto = "thin"
+
+# Dev builds: file and line in panics and backtraces, no variable info;
+# dependencies without debug info. Full debug info for one run:
+# CARGO_PROFILE_DEV_DEBUG=2. (Full debug info took 70 GB of target/ on macOS.)
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
