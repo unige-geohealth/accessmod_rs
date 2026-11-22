@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Size of the shared source cache.",
+  "properties": {
+    "bytes": {
+      "description": "Bytes.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "files": {
+      "description": "Files.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "bytes",
+    "files"
+  ],
+  "title": "CacheUsage",
+  "type": "object"
+}

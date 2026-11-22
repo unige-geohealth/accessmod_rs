@@ -1187,6 +1187,48 @@
     "es": "Permitir sobrescribir los resultados: un análisis reemplaza los datos de la misma clase y etiquetas al terminar",
     "pt": "Permitir substituir os resultados: uma análise substitui os dados da mesma classe e etiquetas ao terminar"
   },
+  "settings.creator_cache": {
+    "en": "Project Creator cache",
+    "fr": "Cache du Créateur de projet",
+    "es": "Caché del Creador de proyectos",
+    "pt": "Cache do Criador de projetos"
+  },
+  "settings.creator_cache_text": {
+    "en": "Sources downloaded to create projects from a region (DEM, land cover, population, OpenStreetMap), shared by projects. Cleared, they are downloaded again when needed.",
+    "fr": "Sources téléchargées pour créer des projets à partir d’une région (MNT, occupation du sol, population, OpenStreetMap), partagées par les projets. Une fois vidées, elles sont téléchargées à nouveau au besoin.",
+    "es": "Fuentes descargadas para crear proyectos a partir de una región (MDE, cobertura del suelo, población, OpenStreetMap), compartidas por los proyectos. Una vez vaciadas, se descargan de nuevo cuando se necesitan.",
+    "pt": "Fontes baixadas para criar projetos a partir de uma região (MDE, cobertura do solo, população, OpenStreetMap), compartilhadas pelos projetos. Depois de esvaziadas, são baixadas de novo quando necessário."
+  },
+  "settings.creator_cache_usage": {
+    "en": "Size",
+    "fr": "Taille",
+    "es": "Tamaño",
+    "pt": "Tamanho"
+  },
+  "settings.creator_cache_size": {
+    "en": "%s in %s files",
+    "fr": "%s dans %s fichiers",
+    "es": "%s en %s archivos",
+    "pt": "%s em %s arquivos"
+  },
+  "settings.creator_cache_clear": {
+    "en": "Clear cache",
+    "fr": "Vider le cache",
+    "es": "Vaciar la caché",
+    "pt": "Esvaziar o cache"
+  },
+  "settings.creator_cache_confirm": {
+    "en": "Remove every downloaded source (%s)? Projects keep their data.",
+    "fr": "Supprimer toutes les sources téléchargées (%s) ? Les projets gardent leurs données.",
+    "es": "¿Eliminar todas las fuentes descargadas (%s)? Los proyectos conservan sus datos.",
+    "pt": "Remover todas as fontes baixadas (%s)? Os projetos mantêm os seus dados."
+  },
+  "settings.creator_cache_done": {
+    "en": "Removed: %s",
+    "fr": "Supprimé : %s",
+    "es": "Eliminado: %s",
+    "pt": "Removido: %s"
+  },
   "project.export_results": {
     "en": "With results (run outputs); without, runs keep their jobs only",
     "fr": "Avec les résultats (sorties des analyses) ; sans, les analyses gardent seulement leurs jobs",

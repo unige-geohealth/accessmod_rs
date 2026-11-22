@@ -1153,6 +1153,32 @@ async fn the_default_project_is_a_setting() {
 }
 
 #[tokio::test]
+async fn the_creator_cache_can_be_measured_and_cleared() {
+    let s = server(true);
+    let (status, body) = s.command("creator.cache", json!({})).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body, json!({"bytes": 0, "files": 0}));
+    let sources = s
+        .dir
+        .path()
+        .join("data")
+        .join(accessmod_server::creator::SOURCES_DIR);
+    std::fs::create_dir_all(sources.join("dem")).expect("mkdir");
+    std::fs::write(sources.join("countries.json"), b"[]").expect("write");
+    std::fs::write(sources.join("dem/t.tif"), vec![0u8; 98]).expect("write");
+    let (_, body) = s.command("creator.cache", json!({})).await;
+    assert_eq!(body, json!({"bytes": 100, "files": 2}));
+    let (status, body) = s.command("creator.cache", json!({"x": 1})).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = s.command("creator.cache_clear", json!({})).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body, json!({"bytes": 100, "files": 2}));
+    let (_, body) = s.command("creator.cache", json!({})).await;
+    assert_eq!(body, json!({"bytes": 0, "files": 0}));
+    assert!(sources.is_dir());
+}
+
+#[tokio::test]
 async fn guard_needs_a_loopback_host_and_the_session_cookie() {
     let s = server(true);
     let app = accessmod_server::Guard {

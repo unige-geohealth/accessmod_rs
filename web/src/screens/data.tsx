@@ -47,6 +47,7 @@ import {
 } from "../state/data-document";
 import { analysisLabel } from "../state/jobs";
 import { doneRuns, lastRun } from "../state/run";
+import { byteSize } from "../state/size";
 import { busy, useTransfer } from "../state/transfer";
 import { BatchStatus, downloadJson, TransferStatus, useFmt } from "./common";
 
@@ -354,7 +355,7 @@ function ArchivePanel({
         <>
           <SelectField
             label="data_archive_select"
-            options={archives.map((a) => ({ value: a.name, label: `${a.name} (${(a.bytes / 1e6).toFixed(1)} MB)` }))}
+            options={archives.map((a) => ({ value: a.name, label: `${a.name} (${byteSize(a.bytes)})` }))}
             value={current.name}
             onChange={setChosen}
           />

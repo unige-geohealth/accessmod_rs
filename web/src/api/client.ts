@@ -97,6 +97,8 @@ interface Commands {
   "creator.countries": [Record<string, never>, Api.Country[]];
   "creator.units": [Api.Units, FeatureCollection & { licence?: string; source?: string }];
   "creator.create": [Api.CreateFromRegion, Api.PendingOperation];
+  "creator.cache": [Record<string, never>, Api.CacheUsage];
+  "creator.cache_clear": [Record<string, never>, Api.CacheUsage];
 }
 
 /** Query of `GET …/datasets/{id}/rows`. */
@@ -132,6 +134,7 @@ const project = (slug: string) => `/api/projects/${encodeURIComponent(slug)}`;
 export const api = {
   health: () => request<{ status: string; version: string }>("GET", "/api/health"),
   settings: () => request<Api.Settings>("GET", "/api/settings"),
+  session: () => request<Api.Principal>("GET", "/api/session"),
   projects: () => request<Api.ProjectEntry[]>("GET", "/api/projects"),
   project: (slug: string) => request<Api.ProjectInfo>("GET", project(slug)),
   /** `[west, south, east, north]` in WGS 84. */

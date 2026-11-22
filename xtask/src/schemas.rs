@@ -222,6 +222,10 @@ fn types() -> Vec<(&'static str, Value)> {
         ),
         ("units", schema::<accessmod_server::creator::Units>()),
         ("country", schema::<accessmod_server::creator::Country>()),
+        (
+            "cache-usage",
+            schema::<accessmod_server::creator::CacheUsage>(),
+        ),
     ]
 }
 

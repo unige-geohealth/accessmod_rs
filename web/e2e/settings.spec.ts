@@ -40,3 +40,17 @@ test("settings: advanced options appear in modules once enabled", async ({ page 
   await expect(page.getByLabel("Select road layer (vector)")).toBeVisible();
   await expect(keep).toHaveCount(0);
 });
+
+test("settings: the Project Creator cache shows its size and asks before clearing", async ({ page }) => {
+  // The e2e server starts with the fixture sources in its cache; the
+  // Project Creator tests need them, so the clearing is cancelled here.
+  await page.goto("/#/_/settings");
+  await expect(page.getByText(/ in \d+ files$/)).toBeVisible();
+  await shot(page, "settings-cache");
+  await page.getByRole("button", { name: "Clear cache" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Remove every downloaded source", { exact: false })).toBeVisible();
+  await dialog.getByRole("button", { name: /cancel/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText(/ in \d+ files$/)).toBeVisible();
+});

@@ -11,6 +11,9 @@ export const queryClient = new QueryClient({
 export const keys = {
   health: ["health"] as const,
   settings: ["settings"] as const,
+  session: ["session"] as const,
+  /** Size of the Project Creator download cache. */
+  creatorCache: ["creator-cache"] as const,
   projects: ["projects"] as const,
   project: (slug: string) => ["project", slug] as const,
   bounds: (slug: string) => ["project", slug, "bounds"] as const,
@@ -38,6 +41,12 @@ export type ProgressByRun = Readonly<Record<number, Api.Progress>>;
 export const useHealth = () => useQuery({ queryKey: keys.health, queryFn: api.health, staleTime: Infinity });
 
 export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: api.settings });
+
+/** Who the server sees (an administrator or not). */
+export const useSession = () => useQuery({ queryKey: keys.session, queryFn: api.session, staleTime: Infinity });
+
+/** Size of the Project Creator download cache (administrators only). */
+export const useCreatorCache = () => useQuery({ queryKey: keys.creatorCache, queryFn: () => api.command("creator.cache", {}) });
 
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: api.projects });
 

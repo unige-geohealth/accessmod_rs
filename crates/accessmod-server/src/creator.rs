@@ -24,6 +24,10 @@ use crate::uploads::{self, FileSource};
 /// Directory of the shared source cache, under the data directory.
 pub const SOURCES_DIR: &str = "cache/sources";
 
+/// Operation creating a project (from a region, or from a DEM: one blocks
+/// clearing the cache as the other, harmlessly).
+const CREATE_OPERATION: &str = "project-create";
+
 /// Progress stage: downloading the sources.
 pub const STAGE_FETCH: &str = "fetch";
 
@@ -286,6 +290,67 @@ impl crate::commands::Scoped for CreateFromRegion {
     fn project(&self) -> Option<&str> {
         None
     }
+}
+
+impl crate::commands::Scoped for SourceCache {
+    fn project(&self) -> Option<&str> {
+        None
+    }
+}
+
+// ---- source cache -------------------------------------------------------------
+
+/// `creator.cache` and `creator.cache_clear`: no parameters.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SourceCache {}
+
+/// Size of the shared source cache.
+#[derive(Debug, Clone, Copy, Serialize, JsonSchema)]
+pub struct CacheUsage {
+    /// Bytes.
+    pub bytes: u64,
+    /// Files.
+    pub files: u64,
+}
+
+impl From<accessmod_fetch::Usage> for CacheUsage {
+    fn from(u: accessmod_fetch::Usage) -> Self {
+        Self {
+            bytes: u.bytes,
+            files: u.files,
+        }
+    }
+}
+
+/// `creator.cache`: the size of the shared source cache.
+pub fn cache_usage(state: &AppState, _: &Principal, _: SourceCache) -> ApiResult<CacheUsage> {
+    Ok(cache(state)
+        .usage()
+        .map_err(|e| ApiError::Engine(fetch_error(e)))?
+        .into())
+}
+
+/// Whether one of `operations` is creating a project.
+fn creating(operations: &[PendingOperation]) -> bool {
+    operations
+        .iter()
+        .any(|o| o.operation == CREATE_OPERATION && o.finished.is_none())
+}
+
+/// `creator.cache_clear`: empty the shared source cache, refused while a
+/// project is being created from a region (its downloads would be lost).
+/// Returns what was removed.
+pub fn cache_clear(state: &AppState, _: &Principal, _: SourceCache) -> ApiResult<CacheUsage> {
+    if creating(&state.pending().list()) {
+        return Err(ApiError::BadRequest(
+            "a project is being created from a region: clear the cache once it is done".into(),
+        ));
+    }
+    Ok(cache(state)
+        .clear()
+        .map_err(|e| ApiError::Engine(fetch_error(e)))?
+        .into())
 }
 
 /// Every `[lon, lat]` of a GeoJSON geometry.
@@ -701,7 +766,7 @@ pub fn create(
     operations::queue_pending(
         state,
         principal,
-        "project-create",
+        CREATE_OPERATION,
         &slug,
         &name,
         job,
@@ -782,6 +847,27 @@ mod tests {
             ferry_warning(&["a: x".into(), "b: y".into()], 25).as_deref(),
             Some("ferries not fetched for 2 of 25 tiles; first: a: x")
         );
+    }
+
+    #[test]
+    fn the_cache_is_kept_while_a_project_is_created() {
+        let operation = |name: &str, finished: Option<i64>| PendingOperation {
+            id: 1,
+            operation: name.into(),
+            project: "p".into(),
+            name: "P".into(),
+            owner: "local".into(),
+            status: accessmod_io::project::RunStatus::Running,
+            progress: None,
+            error: None,
+            started: 0,
+            finished,
+            recorded: false,
+        };
+        assert!(!creating(&[]));
+        assert!(creating(&[operation(CREATE_OPERATION, None)]));
+        assert!(!creating(&[operation(CREATE_OPERATION, Some(5))]));
+        assert!(!creating(&[operation("project-remove", None)]));
     }
 
     #[test]

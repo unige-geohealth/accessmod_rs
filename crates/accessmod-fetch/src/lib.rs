@@ -508,6 +508,15 @@ pub fn sha256(path: &Path) -> Result<String> {
     Ok(hex(&hasher.finalize()))
 }
 
+/// Size of a cache.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct Usage {
+    /// Bytes, summed over the files.
+    pub bytes: u64,
+    /// Files.
+    pub files: u64,
+}
+
 /// A directory of fetched files, shared by projects: a file is there
 /// complete or not at all.
 #[derive(Debug, Clone)]
@@ -531,6 +540,59 @@ impl Cache {
             path.push(part);
         }
         path
+    }
+
+    /// Bytes and files in the cache (metadata only; links are not
+    /// followed); an absent cache is empty.
+    pub fn usage(&self) -> Result<Usage> {
+        let mut usage = Usage::default();
+        let mut dirs = vec![self.root.clone()];
+        while let Some(dir) = dirs.pop() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(entries) => entries,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(file_error(&dir)(e)),
+            };
+            for entry in entries {
+                let entry = entry.map_err(file_error(&dir))?;
+                let path = entry.path();
+                let meta = std::fs::symlink_metadata(&path).map_err(file_error(&path))?;
+                if meta.is_dir() {
+                    dirs.push(path);
+                } else {
+                    usage.files += 1;
+                    usage.bytes += meta.len();
+                }
+            }
+        }
+        Ok(usage)
+    }
+
+    /// Remove everything in the cache (the directory itself is kept);
+    /// files are fetched again when next asked. Returns what was removed.
+    pub fn clear(&self) -> Result<Usage> {
+        let usage = self.usage()?;
+        let entries = match std::fs::read_dir(&self.root) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Usage::default()),
+            Err(e) => return Err(file_error(&self.root)(e)),
+        };
+        for entry in entries {
+            let path = entry.map_err(file_error(&self.root))?.path();
+            let meta = std::fs::symlink_metadata(&path).map_err(file_error(&path))?;
+            let removed = if meta.is_dir() {
+                std::fs::remove_dir_all(&path)
+            } else {
+                std::fs::remove_file(&path)
+            };
+            match removed {
+                Ok(()) => {}
+                // Gone meanwhile: nothing left to remove.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(file_error(&path)(e)),
+            }
+        }
+        Ok(usage)
     }
 
     /// The file of `key`, fetched from `url` unless already cached;
@@ -648,5 +710,27 @@ mod tests {
             PathBuf::from("/data/cache/dem/etc/passwd")
         );
         assert_eq!(cache.path("/a//b/./c"), PathBuf::from("/data/cache/a/b/c"));
+    }
+
+    #[test]
+    fn cache_usage_and_clear() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("sources");
+        let cache = Cache::new(&root);
+        // Absent: empty, and clearing it is no error.
+        assert_eq!(cache.usage().unwrap(), Usage::default());
+        assert_eq!(cache.clear().unwrap(), Usage::default());
+        std::fs::create_dir_all(root.join("dem/tiles")).unwrap();
+        std::fs::write(root.join("countries.json"), b"[]").unwrap();
+        std::fs::write(root.join("dem/tiles/a.tif"), vec![0u8; 1000]).unwrap();
+        let usage = Usage {
+            bytes: 1002,
+            files: 2,
+        };
+        assert_eq!(cache.usage().unwrap(), usage);
+        assert_eq!(cache.clear().unwrap(), usage);
+        assert!(root.is_dir(), "the directory is kept");
+        assert_eq!(cache.usage().unwrap(), Usage::default());
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
     }
 }

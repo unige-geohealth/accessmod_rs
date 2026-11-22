@@ -69,6 +69,8 @@ function handle(event: Api.Event) {
         void queryClient.invalidateQueries({ queryKey: keys.projects });
         void queryClient.invalidateQueries({ queryKey: keys.allRuns });
       }
+      // A creation from a region fills the download cache.
+      if (event.operation.finished != null) void queryClient.invalidateQueries({ queryKey: keys.creatorCache });
       return;
     case "catalogue":
       void queryClient.invalidateQueries({ queryKey: keys.datasets(event.project) });

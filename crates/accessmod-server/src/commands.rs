@@ -125,6 +125,20 @@ pub fn registry() -> Vec<CommandSpec> {
             crate::creator::create
         ),
         command!(
+            "creator.cache",
+            "Size of the Project Creator download cache, shared by projects",
+            Requirement::Admin,
+            crate::creator::SourceCache,
+            crate::creator::cache_usage
+        ),
+        command!(
+            "creator.cache_clear",
+            "Empty the Project Creator download cache (sources are downloaded again when needed)",
+            Requirement::Admin,
+            crate::creator::SourceCache,
+            crate::creator::cache_clear
+        ),
+        command!(
             "project.rename",
             "Change the name and description of a project",
             Requirement::Project(Role::Owner),
