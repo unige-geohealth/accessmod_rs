@@ -376,4 +376,8 @@ Things learned the hard way; check here before re-investigating.
   `rc`, `patch`, `minor`, `major`, or an explicit version; no argument lists
   them from the latest tag; `--dry-run` first if unsure). It runs every
   gate, sets the version everywhere (Cargo, npm, R engine pin, README
-  badge), tags and pushes; the tag publishes.
+  badge), tags and pushes; the tag publishes. It then cleans the dev
+  builds (`cargo clean --profile dev`, workspace and `desktop/`): Cargo
+  never removes stale builds; between releases, run it by hand when
+  `target/` grows. Dev builds keep line tables only
+  (`CARGO_PROFILE_DEV_DEBUG=2` for a debugger session).

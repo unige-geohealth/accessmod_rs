@@ -17,6 +17,10 @@
 # commits since the last tag (AGENTS.md, "Releasing").
 #
 # --dry-run runs the checks and the gates, then stops before changing files.
+#
+# After the push, the dev profile (target/debug) is cleaned: Cargo never
+# removes stale builds, which grew target/ past 70 GB. The release builds
+# are kept; between releases, `cargo clean --profile dev` does the same.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -159,3 +163,7 @@ grep -qxF "Config/accessmod/engine: $version" r/DESCRIPTION || fail "r/DESCRIPTI
 git tag -a "$tag" -m "AccessMod $version"
 git push -q origin main "$tag"
 echo "release: pushed $tag"
+
+cargo clean -q --profile dev
+cargo clean -q --profile dev --manifest-path desktop/Cargo.toml
+echo "release: cleaned the dev builds (target/debug)"
