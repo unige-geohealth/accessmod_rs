@@ -599,17 +599,17 @@
     "es": "%1$s de %2$s establecimientos seleccionados",
     "pt": "%1$s de %2$s estabelecimentos selecionados"
   },
-  "analysis.facility_filter": {
-    "en": "Attribute filter (e.g. type = 'hospital')",
-    "fr": "Filtre attributaire (p. ex. type = 'hospital')",
-    "es": "Filtro de atributos (p. ej. type = 'hospital')",
-    "pt": "Filtro de atributos (p. ex. type = 'hospital')"
+  "analysis.job_filter": {
+    "en": "Only facilities where %1$s (filter of the job)",
+    "fr": "Seulement les structures où %1$s (filtre du job)",
+    "es": "Solo los establecimientos donde %1$s (filtro del trabajo)",
+    "pt": "Apenas os estabelecimentos onde %1$s (filtro do trabalho)"
   },
-  "analysis.apply_filter": {
-    "en": "Apply",
-    "fr": "Appliquer",
-    "es": "Aplicar",
-    "pt": "Aplicar"
+  "analysis.clear_filter": {
+    "en": "Show all facilities",
+    "fr": "Afficher toutes les structures",
+    "es": "Mostrar todos los establecimientos",
+    "pt": "Mostrar todos os estabelecimentos"
   },
   "analysis.rows_page": {
     "en": "Rows %1$s–%2$s of %3$s",

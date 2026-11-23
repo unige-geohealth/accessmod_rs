@@ -53,6 +53,13 @@ test("accessibility: scenario table, facility subset, run and exported job", asy
   await expect(facilities.locator(".tabulator-row").first()).toBeVisible();
   await page.getByRole("button", { name: "[None]" }).click();
   await expect(page.getByText(/^0 of \d+ facilities selected$/)).toBeVisible();
+  // AM5 toolbar on a computed column (not a field of the layer): amOnBarrier = no.
+  await page.getByLabel("Column").selectOption("amOnBarrier");
+  await expect(page.getByLabel("Value")).toHaveValue("no");
+  await page.getByRole("button", { name: "[Select]" }).click();
+  await expect(page.getByText(/^[1-9]\d* of \d+ facilities selected$/)).toBeVisible();
+  await page.getByRole("button", { name: "[None]" }).click();
+  await expect(page.getByText(/^0 of \d+ facilities selected$/)).toBeVisible();
   for (const i of [0, 1]) await facilities.locator(".tabulator-row").nth(i).locator("input[type=checkbox]").check();
   await expect(page.getByText(/^2 of \d+ facilities selected$/)).toBeVisible();
 

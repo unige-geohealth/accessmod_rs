@@ -2,6 +2,7 @@
 // facility matching an attribute filter, or the ones checked. Checked ids go
 // to the job as `ids`, so a job saved here replays headless on the same
 // subset (docs/plan.md, travel-time job).
+import type { Row } from "@accessmod/ui/am/data-table";
 import type { Key } from "@accessmod/ui/i18n";
 import type { Jobs } from "../generated/jobs";
 import { pickField } from "./catalogue";
@@ -54,6 +55,82 @@ export function checkPage(
   const ids = [...kept, ...checked.map(toFacilityId)];
   return { mode: "ids", where: selection.where, ids };
 }
+
+/** Every id once, in order of first appearance. */
+function unique(ids: readonly unknown[]): Jobs.FacilityId[] {
+  const seen = new Set<string>();
+  const out: Jobs.FacilityId[] = [];
+  for (const id of ids) {
+    const key = idKey(id);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(toFacilityId(id));
+    }
+  }
+  return out;
+}
+
+/** `ids` as a selection; every facility checked is "all", so the job carries no `ids`. */
+function asSelection(where: string, ids: Jobs.FacilityId[], everyId: readonly unknown[]): FacilitySelection {
+  const keys = new Set(ids.map(idKey));
+  const all = everyId.every((id) => keys.has(idKey(id)));
+  return all ? { mode: "all", where } : { mode: "ids", where, ids };
+}
+
+/** AM5 [Select]: the `matching` facilities are checked too; `everyId` holds every one. */
+export function selectMatching(selection: FacilitySelection, matching: readonly unknown[], everyId: readonly unknown[]): FacilitySelection {
+  if (selection.mode === "all") return selection;
+  return asSelection(selection.where, unique([...selection.ids, ...matching]), everyId);
+}
+
+/** AM5 [Unselect]: the `matching` facilities are unchecked. */
+export function unselectMatching(selection: FacilitySelection, matching: readonly unknown[], everyId: readonly unknown[]): FacilitySelection {
+  const out = new Set(matching.map(idKey));
+  const base = selection.mode === "all" ? unique(everyId) : selection.ids;
+  return asSelection(
+    selection.where,
+    base.filter((id) => !out.has(idKey(id))),
+    everyId,
+  );
+}
+
+/** What the AccessMod columns of a facility are computed from. */
+export interface FacilityContext {
+  /** A land cover is sampled (first sample). */
+  landCover: boolean;
+  /** Index of the population sample; absent: no `amPopCell` column; -1: no population chosen. */
+  popAt?: number;
+  /** Speed of each land cover class in the scenario (km/h). */
+  speeds: ReadonlyMap<number, number>;
+}
+
+/**
+ * A facility as shown (AM5 table): `amOnBarrier` (no land cover class at its
+ * cell), `amOnZero` (its class moves at 0 km/h), `amCatLandCover`, and
+ * `amPopCell` when asked, then the fields of the layer.
+ */
+export function facilityRow(
+  values: readonly unknown[],
+  columns: readonly string[],
+  samples: readonly (number | null)[] | undefined,
+  context: FacilityContext,
+): Row {
+  const cls = context.landCover ? (samples?.[0] ?? null) : null;
+  const row: Row = {
+    amOnBarrier: cls === null ? "yes" : "no",
+    amOnZero: cls !== null && (context.speeds.get(cls) ?? 0) === 0 ? "yes" : "no",
+    amCatLandCover: cls,
+  };
+  if (context.popAt !== undefined) row.amPopCell = context.popAt < 0 ? null : (samples?.[context.popAt] ?? 0);
+  columns.forEach((c, k) => {
+    const v = values[k];
+    row[c] = v === null || v === undefined ? null : typeof v === "object" ? JSON.stringify(v) : (v as string | number | boolean);
+  });
+  return row;
+}
+
+/** The AccessMod columns of the table, before the fields of the layer. */
+export const AM_COLUMNS = ["amOnBarrier", "amOnZero", "amCatLandCover"] as const;
 
 export const count = (selection: FacilitySelection, matching: number): number =>
   selection.mode === "all" ? matching : selection.ids.length;

@@ -2,14 +2,25 @@
 // "Facilities selection" table (paged, filter, checks, land cover at each
 // facility).
 import { type Column, DataTable, type Row } from "@accessmod/ui/am/data-table";
-import { TextField } from "@accessmod/ui/am/form";
-import { AmButton, MessageList } from "@accessmod/ui/am/messages";
+import { MessageList } from "@accessmod/ui/am/messages";
+import { type Kind, kindOf, match, NO_QUERY, type Query, type QueryColumn, SelectionToolbar } from "@accessmod/ui/am/selection-toolbar";
 import { CenterTitle, SubTitle } from "@accessmod/ui/am/section";
 import { type Key, T, useI18n } from "@accessmod/ui/i18n";
 import { useMemo, useState } from "react";
 import { api, issuesOf } from "../../api/client";
-import { useRows } from "../../api/queries";
-import { checkedOnPage, checkPage, count, type FacilityInput, type FacilityMessage } from "../../state/facility-selection";
+import { useRows, useValues } from "../../api/queries";
+import {
+  AM_COLUMNS,
+  checkedOnPage,
+  checkPage,
+  count,
+  type FacilityContext,
+  type FacilityInput,
+  type FacilityMessage,
+  facilityRow,
+  selectMatching,
+  unselectMatching,
+} from "../../state/facility-selection";
 import type { ScenarioRow } from "../../state/scenario";
 import { useFmt } from "../common";
 import { DatasetSelect, FieldSelect, LINK, type Options, Pager } from "./inputs";
@@ -41,16 +52,36 @@ export function FacilityInputs({
 /** Facilities shown per page of the selection table. */
 const PAGE = 200;
 
-/** Every identifier matching the filter, page after page (bounded pages). */
-async function everyId(project: string, dataset: number, where: string, idField: string): Promise<unknown[]> {
-  const ids: unknown[] = [];
+/**
+ * Every identifier matching the filter, page after page (bounded pages),
+ * and those whose row (AccessMod columns included) meets `condition`.
+ */
+async function everyId(
+  project: string,
+  dataset: number,
+  where: string,
+  idField: string,
+  sample: number[],
+  context: FacilityContext,
+  condition?: (row: Row) => boolean,
+): Promise<{ all: unknown[]; matching: unknown[] }> {
+  const all: unknown[] = [];
+  const matching: unknown[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const page = await api.rows(project, dataset, { offset, limit: 1000, where });
+    const page = await api.rows(project, dataset, { offset, limit: 1000, where, sample });
     const at = page.columns.indexOf(idField);
-    ids.push(...page.rows.map((r) => r[at]));
-    if (page.rows.length === 0 || offset + page.rows.length >= page.total) return ids;
+    page.rows.forEach((values, i) => {
+      all.push(values[at]);
+      if (condition?.(facilityRow(values, page.columns, page.samples?.[i], context))) matching.push(values[at]);
+    });
+    if (page.rows.length === 0 || offset + page.rows.length >= page.total) return { all, matching };
   }
 }
+
+/** Values of the yes / no AccessMod columns. */
+const YES_NO = ["no", "yes"];
+/** Distinct values of a text field at most for a value select (AM5). */
+const MAX_CHOICES = 200;
 
 export function FacilitySection({
   project,
@@ -79,43 +110,45 @@ export function FacilitySection({
   const { t } = useI18n();
   const f = useFmt();
   const [offset, setOffset] = useState(0);
-  const [filter, setFilter] = useState(selection.where);
+  const [query, setQuery] = useState<Query>(NO_QUERY);
   const [failure, setFailure] = useState<string[]>([]);
-  const page = useRows(project, facilities, {
-    offset,
-    limit: PAGE,
-    where: selection.where,
-    sample: [landCover, population ?? null].filter((id) => id !== null),
-  });
-  const popAt = population == null ? -1 : landCover === null ? 0 : 1;
+  const sample = [landCover, population ?? null].filter((id) => id !== null);
+  const page = useRows(project, facilities, { offset, limit: PAGE, where: selection.where, sample });
   const data = page.data;
   const at = data?.columns.indexOf(idField) ?? -1;
   const ids = useMemo(() => (data && at >= 0 ? data.rows.map((r) => r[at]) : []), [data, at]);
-  const speeds = useMemo(() => new Map(scenario.map((r) => [r.class, r.speed])), [scenario]);
-  const rows = useMemo(() => {
-    if (!data) return [];
-    return data.rows.map((values, i) => {
-      const cls = landCover === null ? null : (data.samples?.[i]?.[0] ?? null);
-      const row: Row = {
-        amOnBarrier: cls === null ? "yes" : "no",
-        amOnZero: cls !== null && (speeds.get(cls) ?? 0) === 0 ? "yes" : "no",
-        amCatLandCover: cls,
-        ...(population === undefined ? {} : { amPopCell: popAt < 0 ? null : (data.samples?.[i]?.[popAt] ?? 0) }),
-      };
-      data.columns.forEach((c, k) => {
-        const v = values[k];
-        row[c] = v === null || v === undefined ? null : typeof v === "object" ? JSON.stringify(v) : (v as string | number | boolean);
-      });
-      return row;
-    });
-  }, [data, speeds, landCover, population, popAt]);
+  const context = useMemo<FacilityContext>(
+    () => ({
+      landCover: landCover !== null,
+      popAt: population === undefined ? undefined : population === null ? -1 : landCover === null ? 0 : 1,
+      speeds: new Map(scenario.map((r) => [r.class, r.speed])),
+    }),
+    [landCover, population, scenario],
+  );
+  const rows = useMemo(() => (data ? data.rows.map((values, i) => facilityRow(values, data.columns, data.samples?.[i], context)) : []), [data, context]);
   const columns: Column[] = useMemo(() => {
     const rest = (data?.columns ?? []).filter((c) => c !== idField).map((field) => ({ field }));
     const pop = population === undefined ? [] : ["amPopCell"];
     // The id and the AccessMod columns stay in view; the layer's own fields scroll (AM5).
-    const fixed = [idField, "amOnBarrier", "amOnZero", "amCatLandCover", ...pop].map((field) => ({ field, frozen: true }));
+    const fixed = [idField, ...AM_COLUMNS, ...pop].map((field) => ({ field, frozen: true }));
     return [...fixed, ...rest];
   }, [data?.columns, idField, population]);
+  // The value select of a text field of the layer: its distinct values, all pages.
+  const layerFields = data?.columns ?? [];
+  const chosen = columns.find((c) => c.field === query.field)?.field ?? columns[0]?.field ?? "";
+  const chosenKind: Kind = kindOf(rows, chosen);
+  const valuesOf = useValues(project, facilities, layerFields.includes(chosen) && chosenKind === "text" ? chosen : "", "");
+  const queryColumns: QueryColumn[] = useMemo(
+    () =>
+      columns.map(({ field }) => {
+        const kind = kindOf(rows, field);
+        if (field === "amOnBarrier" || field === "amOnZero") return { field, kind, values: YES_NO };
+        const known = field === chosen && valuesOf.data?.complete && valuesOf.data.values.length <= MAX_CHOICES;
+        const values = known ? valuesOf.data?.values.flatMap((v) => (v.value === null ? [] : [String(v.value)])) : undefined;
+        return { field, kind, values };
+      }),
+    [columns, rows, chosen, valuesOf.data],
+  );
 
   if (facilities === null) {
     return (
@@ -133,7 +166,7 @@ export function FacilitySection({
   const changePage = async (checked: Row[]) => {
     setFailure([]);
     try {
-      const all = selection.mode === "all" ? await everyId(project, facilities, selection.where, idField) : undefined;
+      const all = selection.mode === "all" ? (await everyId(project, facilities, selection.where, idField, sample, context)).all : undefined;
       onSelection(
         checkPage(
           selection,
@@ -146,6 +179,15 @@ export function FacilitySection({
       setFailure(issuesOf(error, t));
     }
   };
+  const selectWhere = async ({ field, op, value }: Query, kind: Kind, select: boolean) => {
+    setFailure([]);
+    try {
+      const found = await everyId(project, facilities, selection.where, idField, sample, context, (row) => match(row[field], op, value, kind));
+      onSelection((select ? selectMatching : unselectMatching)(selection, found.matching, found.all));
+    } catch (error) {
+      setFailure(issuesOf(error, t));
+    }
+  };
 
   return (
     <>
@@ -153,36 +195,39 @@ export function FacilitySection({
       <div className="flex flex-col gap-2 px-[15px]">
         {titled && <SubTitle k="analysis_facility_selected_facilities" />}
         {group && <GroupTitle k={group} />}
-        <form
-          className="flex flex-wrap items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setOffset(0);
-            onSelection({ mode: "all", where: filter });
-          }}
-        >
-          <div className="min-w-60 flex-1">
-            <TextField label="analysis.facility_filter" value={filter} onChange={setFilter} />
+        {selection.where.trim() !== "" && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span>{f("analysis.job_filter", selection.where)}</span>
+            <button
+              type="button"
+              className={LINK}
+              onClick={() => {
+                setOffset(0);
+                onSelection({ mode: "all", where: "" });
+              }}
+            >
+              [{t("analysis.clear_filter")}]
+            </button>
           </div>
-          <AmButton type="submit" k="analysis.apply_filter" />
-        </form>
+        )}
         {page.isError && <MessageList messages={issuesOf(page.error, t).map((text) => ({ kind: "issue", text }))} />}
         {failure.length > 0 && <MessageList messages={failure.map((text) => ({ kind: "issue", text }))} />}
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <button type="button" className={LINK} onClick={() => onSelection({ mode: "all", where: selection.where })}>
-            [{t("table.all")}]
-          </button>
-          <button type="button" className={LINK} onClick={() => onSelection({ mode: "ids", where: selection.where, ids: [] })}>
-            [{t("table.none")}]
-          </button>
-          <span>{f("analysis.facilities_selected", count(selection, total), total)}</span>
-        </div>
         {data && total === 0 ? (
           <MessageList messages={[{ kind: "info", k: "analysis.no_rows" }]} />
         ) : (
           <DataTable
+            toolbar={
+              <SelectionToolbar
+                columns={queryColumns}
+                query={query}
+                onQuery={setQuery}
+                onAll={() => onSelection({ mode: "all", where: selection.where })}
+                onNone={() => onSelection({ mode: "ids", where: selection.where, ids: [] })}
+                onMatch={(q, kind, select) => void selectWhere(q, kind, select)}
+                count={f("analysis.facilities_selected", count(selection, total), total)}
+              />
+            }
             selectable
-            toolbar={false}
             rowId={idField}
             selected={checkedOnPage(selection, ids)}
             onSelectionChange={(checked) => void changePage(checked)}

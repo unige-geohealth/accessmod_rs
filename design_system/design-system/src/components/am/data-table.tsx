@@ -1,8 +1,9 @@
 import { type ColumnDefinition, TabulatorFull as Tabulator } from "tabulator-tables";
 import "tabulator-tables/dist/css/tabulator.min.css";
 import "./data-table.css";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "#ui/i18n";
+import { distinctValues, kindOf, match, NO_QUERY, type QueryColumn, SelectionToolbar } from "#ui/components/am/selection-toolbar";
 
 export type Row = Record<string, string | number | boolean | null>;
 export type Column = {
@@ -38,8 +39,11 @@ type DataTableProps = {
   layout?: "fitColumns" | "fitData";
   /** Adds the AM5 export bar ([Download CSV] [Download JSON]); file name without extension. */
   exportName?: string;
-  /** The AM5 selection toolbar of a `selectable` table (default); off when the owner brings its own. */
-  toolbar?: boolean;
+  /**
+   * The AM5 selection toolbar of a `selectable` table over its rows (default),
+   * none (`false`), or the owner's, in its place (rows paged on a server).
+   */
+  toolbar?: boolean | ReactNode;
 };
 
 /** Header cell padding and sort arrow, around the title text. */
@@ -97,6 +101,15 @@ export function DataTable({
   /** Above zero while rows or selection change from props: no change is emitted. */
   const syncing = useRef(0);
   const [selected, setSelected] = useState(0);
+  const [query, setQuery] = useState(NO_QUERY);
+  const queryColumns = useMemo<QueryColumn[]>(
+    () =>
+      columns.map((c) => {
+        const kind = kindOf(data, c.field);
+        return { field: c.field, title: c.title, kind, values: kind === "text" ? distinctValues(data, c.field) : undefined };
+      }),
+    [columns, data],
+  );
 
   /** Make Tabulator's selection match the controlled one. */
   const syncSelection = (tab: Tabulator) => {
@@ -196,15 +209,17 @@ export function DataTable({
 
   return (
     <div className="am-table border border-table-border">
-      {selectable && toolbar && (
+      {selectable && toolbar !== true && toolbar}
+      {selectable && toolbar === true && (
         <SelectionToolbar
-          columns={columns}
-          selected={selected}
-          total={data.length}
+          columns={queryColumns}
+          query={query}
+          onQuery={setQuery}
+          count={`(${selected}/${data.length})`}
           onAll={() => table.current?.selectRow()}
           onNone={() => table.current?.deselectRow()}
-          onMatch={(field, op, value, select) => {
-            const rows = table.current?.getRows().filter((r) => match(r.getData()[field], op, value)) ?? [];
+          onMatch={({ field, op, value }, kind, select) => {
+            const rows = table.current?.getRows().filter((r) => match(r.getData()[field], op, value, kind)) ?? [];
             for (const r of rows) select ? r.select() : r.deselect();
           }}
         />
@@ -224,82 +239,6 @@ export function DataTable({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-type Op = "=" | "!=" | ">" | "<" | "~";
-const ops: Op[] = ["=", "!=", ">", "<", "~"];
-
-function match(v: unknown, op: Op, value: string) {
-  const s = String(v ?? "");
-  const n = Number(v);
-  switch (op) {
-    case "=":
-      return s === value;
-    case "!=":
-      return s !== value;
-    case ">":
-      return n > Number(value);
-    case "<":
-      return n < Number(value);
-    case "~":
-      return s.toLowerCase().includes(value.toLowerCase());
-  }
-}
-
-function SelectionToolbar({
-  columns,
-  selected,
-  total,
-  onAll,
-  onNone,
-  onMatch,
-}: {
-  columns: Column[];
-  selected: number;
-  total: number;
-  onAll: () => void;
-  onNone: () => void;
-  onMatch: (field: string, op: Op, value: string, select: boolean) => void;
-}) {
-  const { t } = useI18n();
-  const [field, setField] = useState(columns[0]?.field ?? "");
-  const [op, setOp] = useState<Op>("=");
-  const [value, setValue] = useState("");
-  const link = "px-2 text-link hover:text-link-hover hover:underline";
-  const control = "h-7 border border-input bg-input-background px-2 text-sm";
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-table-border bg-table-toolbar px-2.5 py-1.5">
-      <button type="button" className={link} onClick={onAll}>
-        [{t("table.all")}]
-      </button>
-      <button type="button" className={link} onClick={onNone}>
-        [{t("table.none")}]
-      </button>
-      <select className={control} value={field} onChange={(e) => setField(e.target.value)} aria-label={t("table.column")}>
-        {columns.map((c) => (
-          <option key={c.field} value={c.field}>
-            {c.title ?? c.field}
-          </option>
-        ))}
-      </select>
-      <select className={control} value={op} onChange={(e) => setOp(e.target.value as Op)} aria-label={t("table.operator")}>
-        {ops.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-      <input className={`${control} w-32 min-w-0 flex-1`} value={value} onChange={(e) => setValue(e.target.value)} aria-label={t("table.value")} />
-      <button type="button" className={link} onClick={() => onMatch(field, op, value, true)}>
-        [{t("table.select")}]
-      </button>
-      <button type="button" className={link} onClick={() => onMatch(field, op, value, false)}>
-        [{t("table.unselect")}]
-      </button>
-      <span>
-        ({selected}/{total})
-      </span>
     </div>
   );
 }
