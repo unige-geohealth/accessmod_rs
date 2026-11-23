@@ -59,7 +59,8 @@ One implementing agent at a time keeps the whole design in view; parallel
 implementations produced more noise than value. Other agents review
 (Codex, see "Tooling"); they do not implement in parallel.
 
-- Work in a branch per task, e.g. `claude/<topic>`, branched from `main`.
+- Work in a branch per task named by its kind, e.g. `fix/<topic>` or
+  `feat/<topic>` (never `claude/…`), branched from `main`.
 - Keep each branch self-contained and passing all checks so it can be
   merged as a unit; keep the tree building at every commit, so an
   interrupted session can be resumed.
