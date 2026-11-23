@@ -11,7 +11,7 @@ Status: ✅ available · 🟡 partial · 🗓 planned (milestone in
 **Engine**: command line and job files, checked against AccessMod 5 (the
 oracle). **Web**: the screen in the web interface.
 
-_Last updated: 2026-11-20 (6.0.0-alpha.4)._
+_Last updated: 2026-11-23 (6.0.0-alpha.5)._
 
 ## Analyses
 
@@ -24,7 +24,7 @@ _Last updated: 2026-11-20 (6.0.0-alpha.4)._
 | Nearest facility (cost allocation) | idem | ✅ `nearest_facility.tif` + ID table | ✅ outputs |
 | Output in minutes, rounding, min travel time, timeout value | `amCleanTravelTime` | 🗓 compatibility export; canonical output stays in seconds | 🗓 |
 | Path distance, movement direction | `r.walk` `outdir` | ✅ `path_distance_m.tif`, `direction.tif` | ✅ outputs |
-| Facility selection (subset of a layer) | `amFacilitiesSubset`, facility table | ✅ `where` attribute filter and explicit `ids` in the job (a subset replays headless) | ✅ table with checks, filter, AM5 check columns |
+| Facility selection (subset of a layer) | `amFacilitiesSubset`, facility table | ✅ `where` attribute filter and explicit `ids` in the job (a subset replays headless); an invalid filter names the fields of the layer | ✅ table with checks and the AM5 toolbar (column, operator, value, [Select] / [Unselect]; `like` on text), on every page and on the AM5 check columns too; a job's `where` is shown and can be removed |
 | Facilities on barriers: detected, user deselects | facility validation | ✅ listed as errors, or skipped with `facility_issues: skip` | ✅ `amOnBarrier`, `amOnZero` columns |
 | Region cropping by max speed × time | `amSpeedBufferRegion.R` | ➖ not needed: the limit is applied exactly during the search | — |
 | **Geographic coverage**: capacity, catchments, residual population | `amAnalysisCapacity.R`, `amAnalysisCatchment.R` | ✅ `geographic-coverage run`: equal to the AM5 demo replays ([`geographic-coverage.md`](geographic-coverage.md)); 🗓 circular-buffer order | ✅ Analysis › Geographic coverage |
@@ -61,7 +61,7 @@ _Last updated: 2026-11-20 (6.0.0-alpha.4)._
 | Project export / import (`.am5p` → `.am6p`) | `amProjectImportExport.R` | ✅ `project.export|import`, `GET …/exports/{name}`: a zip with `manifest.json` (SHA-256 per file), a consistent snapshot of `project.sqlite` (`VACUUM INTO`), every ready dataset with its overviews (a project opens ready to preview), the runs' `run.json`; optionally without results (run outputs left out, jobs kept). Import treats the file as hostile (zip slip, links, sizes bounded by 90 % of the free disk, hashes, `quick_check`, no trigger or view, files confined to the project) and never replaces a project: a new slug, the name given or the file's. AccessMod 5 projects: their data archive (Data manager › Archive: a zip of `type_class label_tags/` directories, ERDAS Imagine rasters, shapefiles, XLSX tables) imports as a new project (`accessmod_io::am5`), whole or not at all: one DEM, every raster on its lattice, a report per misfit; outputs included (travel times converted from minutes to seconds), analysis parameters left out (AM5 replay). `.am5p` itself (a GRASS database) is not read. Export, import and archives are queued tasks with byte progress and cancellation | ✅ Project › Export (with or without results); Project › New / Import takes a DEM, a project file or an AccessMod 5 data archive, as AM5 "Choose DEM or project"; the language moved to Settings |
 | Data export | `amExport.R` | ✅ GeoTIFF, FlatGeobuf, CSV, JSON | 🟡 tables as CSV/JSON |
 | Logs | `modules/amManageLogs` | ✅ `run.json` per run, `GET /api/runs` | ✅ Jobs, in place of Logs: runs of every project, progress, cancel, details, outputs, job export; every job queued by the server (analyses, imports, exports, project creation and removal) is notified when queued and when it ends; the job a form starts opens a closable job panel (AM5 progress modal); the Jobs badge counts queued and running jobs; operations no project records are kept in a journal and listed after a restart |
-| Settings, languages (en, fr, es, pt) | `modules/amManageSettings`, `www/dictionary` | ➖ CLI flags | ✅ Settings: theme (follows the system, or light, or dark), four languages, version; ➖ AM5 admin tools (restart, cache, upload limit) |
+| Settings, languages (en, fr, es, pt) | `modules/amManageSettings`, `www/dictionary` | ➖ CLI flags | ✅ Settings: theme (follows the system, or light, or dark), four languages, version; Project Creator download cache, size and clear (administrators, AM5 admin cache); ➖ AM5 restart and upload limit |
 | Resource checks before running | `amGetRessourceEstimate` | ✅ pre-flight memory and disk estimate, `--memory` budget | ✅ validation before Compute |
 
 ## Platform
