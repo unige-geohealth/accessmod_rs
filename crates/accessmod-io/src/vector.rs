@@ -83,12 +83,24 @@ pub fn set_filter(
         "SELECT * FROM \"{}\" WHERE {filter}",
         layer.name().replace('"', "\"\"")
     );
-    dataset
-        .execute_sql(&query, None, gdal::vector::sql::Dialect::DEFAULT)
-        .map_err(|e| format!("invalid filter {filter:?} ({e})"))?;
-    layer
-        .set_attribute_filter(filter)
-        .map_err(|e| format!("invalid filter {filter:?} ({e})"))
+    let fields: Vec<String> = layer.defn().fields().map(|f| f.name()).collect();
+    let invalid = |e: gdal::errors::GdalError| {
+        // The GDAL message alone ("\"x\" not recognised as an available
+        // field."), with the fields the filter can use.
+        let issue = match e {
+            gdal::errors::GdalError::CplError { msg, .. } => msg,
+            other => other.to_string(),
+        };
+        format!(
+            "invalid filter {filter:?}: {}; fields: {}",
+            issue.trim().trim_end_matches('.'),
+            fields.join(", ")
+        )
+    };
+    if let Err(e) = dataset.execute_sql(&query, None, gdal::vector::sql::Dialect::DEFAULT) {
+        return Err(invalid(e));
+    }
+    layer.set_attribute_filter(filter).map_err(invalid)
 }
 
 fn traditional(mut srs: SpatialRef) -> SpatialRef {

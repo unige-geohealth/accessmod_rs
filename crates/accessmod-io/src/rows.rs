@@ -352,7 +352,12 @@ mod tests {
         let err = vector_rows(&path, Some("id <<< 3"), 0, 10, &[]).expect_err("bad filter");
         assert!(err.to_string().contains("invalid filter"), "{err}");
         let err = vector_rows(&path, Some("nope = 1"), 0, 10, &[]).expect_err("unknown field");
-        assert!(err.to_string().contains("invalid filter"), "{err}");
+        let err = err.to_string();
+        assert!(err.contains("invalid filter"), "{err}");
+        // The GDAL message alone, with the fields the filter can use.
+        assert!(err.contains("nope"), "{err}");
+        assert!(err.ends_with("; fields: id"), "{err}");
+        assert!(!err.contains("CPL error"), "{err}");
     }
 
     #[test]
